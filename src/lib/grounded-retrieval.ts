@@ -20,6 +20,8 @@ export interface GroundedRetrievalContext extends GroundedContext {
 
 export interface GroundedRetrievalOptions {
   topK?: number;
+  ownerMemberId?: string;
+  notebookId?: string;
   embedder?: (texts: string[]) => Promise<number[][]>;
 }
 
@@ -107,11 +109,13 @@ export async function buildGroundedRetrievalContext(
   const identities = [...selectedSourceIds(requestSources)];
   let persistedChunks = await listReadySourceChunks({
     identities,
+    ownerMemberId: options.ownerMemberId,
+    notebookId: options.notebookId,
     query: question,
     topK: Math.max(topK * 20, topK),
   });
   if (persistedChunks.chunks.length === 0 && question.trim()) {
-    persistedChunks = await listReadySourceChunks({ identities });
+    persistedChunks = await listReadySourceChunks({ identities, ownerMemberId: options.ownerMemberId, notebookId: options.notebookId });
   }
   const scopedChunks = persistedChunks.chunks;
 

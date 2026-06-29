@@ -193,22 +193,28 @@ async function interceptChat(page) {
   return () => hitCount;
 }
 
-async function interceptKnowledgeCards(page) {
+async function interceptStudioTool(page) {
   let hitCount = 0;
-  await page.route('**/api/ai/knowledge-cards', async route => {
+  await page.route('**/api/ai/studio-tool', async route => {
     hitCount += 1;
     const body = route.request().postDataJSON();
-    assertAIConfig(body?.aiConfig, '/api/ai/knowledge-cards');
+    assertAIConfig(body?.aiConfig, '/api/ai/studio-tool');
+    assert(body?.toolId === 'interactive', 'Studio tool request did not target the interactive artifact.');
+    await new Promise(resolve => setTimeout(resolve, 250));
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        cards: [{
-          category: '模型配置链路',
-          title: '用户配置如何进入 Studio？',
-          content: '上传、中央对话和右侧知识卡片都应复用同一份用户填写的 API Base、API Key 与模型名称。',
-          extra: '引用: ConfiguredFlow chunk-1',
-        }],
+        success: true,
+        artifact: {
+          id: 'studio-tool-interactive-smoke',
+          type: 'interactive',
+          title: '互动页面',
+          markdown: '## 用户配置如何进入 Studio？\n\n上传、中央对话和右侧互动页面都应复用同一份用户填写的 API Base、API Key 与模型名称。[1]',
+          createdAt: new Date().toISOString(),
+          generationPattern: '把资料转成可点击、可选择、可反馈的互动任务。',
+          resultShape: ['互动目标', '页面状态', '用户动作', '反馈规则', '素材清单'],
+        },
         citations: [{
           sourceId: 'configured-flow-source',
           chunkId: 'configured-flow-source-c1',
@@ -221,9 +227,9 @@ async function interceptKnowledgeCards(page) {
           persistedSourceCount: 1,
           vectorIndexedSourceCount: 0,
           degraded: true,
-          reason: 'embedding index not configured in knowledge-card UI smoke',
+          reason: 'embedding index not configured in studio-tool UI smoke',
         },
-        citationAudit: { status: 'pass', validMarkers: [1], invalidMarkers: [], missingMarkers: [] },
+        citationAudit: { status: 'pass', citationCount: 1, markerCount: 1, validMarkers: [1], invalidMarkers: [], missingMarkers: [] },
       }),
     });
   });
@@ -254,7 +260,7 @@ async function main() {
 
     const uploadHits = await interceptUpload(page);
     const chatHits = await interceptChat(page);
-    const knowledgeHits = await interceptKnowledgeCards(page);
+    const studioToolHits = await interceptStudioTool(page);
 
     await page.goto(`${appOrigin}/#workbench`, { waitUntil: 'networkidle' });
     await expectVisible(page.getByText('Studio', { exact: true }), 'Workbench Studio panel did not render.');
@@ -266,25 +272,25 @@ async function main() {
     assertAIConfig(persistedConfig, 'localStorage');
 
     await page.locator('input[type="file"]').setInputFiles(uploadPath);
-    await expectVisible(page.getByText('已选 1 篇'), 'Uploaded source was not auto-selected.');
+    await expectVisible(page.getByTestId('library-selection-count').getByText(/已选 1 (篇|个来源)/), 'Uploaded source was not auto-selected.');
     await expectVisible(page.getByText('Configured Flow Source'), 'Uploaded source title did not render in the library.');
     assert(uploadHits() === 1, 'Upload request was not issued exactly once.');
 
-    await page.getByLabel('输入学术问题').fill('请说明用户配置是否已经贯穿资料问答，并给出引用。');
+    await page.getByLabel(/输入(资料|学术)问题/).fill('请说明用户配置是否已经贯穿资料问答，并给出引用。');
     await page.getByRole('button', { name: '发送问题' }).click();
     await expectVisible(page.getByText('用户填写的模型配置已经进入中央对话请求'), 'Configured chat response did not render.');
-    await expectVisible(page.getByText('降级原因：embedding index not configured in UI smoke'), 'Configured chat retrieval fallback reason did not render.');
+    await expectVisible(page.getByTestId('retrieval-badge').getByText('来源可用，索引完善中'), 'Configured chat retrieval status did not render.');
     await expectVisible(page.getByText('引用来源').first(), 'Configured chat citation UI did not render.');
 
-    await page.getByRole('button', { name: '知识卡片' }).click();
-    await expectVisible(page.getByRole('button', { name: '生成知识卡片' }), 'Knowledge-card generate button did not become available.');
-    await page.getByRole('button', { name: '生成知识卡片' }).click();
-    await expectVisible(page.getByText('正在从选中资料中提取术语、论点和证据来源，请稍候。'), 'Knowledge-card loading copy did not render.');
-    await expectVisible(page.getByText('用户配置如何进入 Studio？'), 'Knowledge-card Studio result did not render.');
-    await expectVisible(page.getByText('降级原因：embedding index not configured in knowledge-card UI smoke'), 'Knowledge-card retrieval fallback reason did not render.');
+    await page.getByTestId('studio-nav-interactive').click();
+    await expectVisible(page.getByTestId('studio-tool-run-interactive'), 'Interactive artifact generate button did not become available.');
+    await page.getByTestId('studio-tool-run-interactive').click();
+    await expectVisible(page.getByTestId('studio-tool-running-interactive'), 'Interactive artifact loading copy did not render.');
+    await expectVisible(page.getByTestId('studio-tool-result-interactive').getByText('用户配置如何进入 Studio？'), 'Interactive Studio result did not render.');
+    await expectVisible(page.getByTestId('studio-retrieval-badge').getByText('当前检索说明：embedding index not configured in studio-tool UI smoke'), 'Interactive Studio retrieval fallback reason did not render.');
 
     assert(chatHits() >= 1, 'Configured central chat request was not issued.');
-    assert(knowledgeHits() >= 1, 'Configured knowledge-card Studio request was not issued.');
+    assert(studioToolHits() >= 1, 'Configured Studio tool request was not issued.');
 
     console.log(JSON.stringify({
       ok: true,
@@ -295,15 +301,15 @@ async function main() {
         'upload request carries the configured API Base, API Key, text model, vision model, and embedding model',
         'uploaded source renders and is auto-selected',
         'central chat request carries the same user model config and renders citations',
-        'central chat renders retrieval fallback reason instead of silently degrading',
-        'right-side Studio knowledge-card request carries the same user model config',
-        'knowledge-card loading copy and grounded result render',
-        'right-side Studio knowledge-card renders retrieval fallback reason',
+        'central chat renders retrieval status instead of silently degrading',
+        'right-side Studio artifact request carries the same user model config',
+        'interactive artifact loading copy and grounded result render',
+        'right-side Studio artifact renders retrieval fallback reason',
       ],
       requests: {
         upload: uploadHits(),
         chat: chatHits(),
-        knowledgeCards: knowledgeHits(),
+        studioTool: studioToolHits(),
       },
       models: {
         text: configuredAI.model,

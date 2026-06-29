@@ -87,7 +87,8 @@ async function main() {
     const { body } = await waitForHealth(origin, child);
     assert(body.ok === true, `/api/health returned not ok: ${JSON.stringify(body)}`);
     assert(body.service === 'lingbi-studio', 'health response has unexpected service name.');
-    assert(body.capabilities?.userProvidedOpenAICompatibleConfig === true, 'health response does not advertise user-provided API config.');
+    assert(body.capabilities?.accountBoundModelConfig === true, 'health response does not advertise account-bound model config.');
+    assert(body.capabilities?.userProvidedOpenAICompatibleConfig === false, 'health response should not advertise user-provided API config by default.');
     assert(body.capabilities?.vectorStore?.provider === 'zvec', 'health response does not expose zvec vector store.');
     assert(body.capabilities?.sourceStore?.provider, 'health response does not expose source store provider.');
     assert(body.capabilities?.studioJobStore?.provider === 'local-json', 'health response does not expose Studio job store provider.');
@@ -101,7 +102,7 @@ async function main() {
       checked: [
         'cross-platform start wrapper',
         '/api/health ok response',
-        'user-provided OpenAI-compatible config capability',
+        'account-bound model config capability',
         'zvec vector store health',
         'source store health',
         'Studio job store health',

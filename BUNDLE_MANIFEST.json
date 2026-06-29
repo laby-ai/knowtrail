@@ -1,0 +1,43 @@
+{
+  "name": "lingbi-studio",
+  "target": "linux",
+  "generatedAt": "2026-06-24T06:18:04.818Z",
+  "node": ">=20",
+  "bootstrap": "./bootstrap-ubuntu.sh",
+  "preflight": "./preflight.sh",
+  "deploy": "./deploy.sh",
+  "start": "./start.sh",
+  "healthcheck": "./healthcheck.sh",
+  "requiredRuntimeArtifacts": [
+    "dist/server.js",
+    ".next/BUILD_ID",
+    "public"
+  ],
+  "optionalRuntimeArtifacts": [
+    "virtual classroom standalone runtime"
+  ],
+  "persistentPaths": [
+    ".data/zvec",
+    ".data/sources",
+    "logs"
+  ],
+  "notes": [
+    "Run ./install.sh after extracting on Linux.",
+    "For Ubuntu/Debian single-node deployment, run ./deploy.sh to bootstrap prerequisites, install dependencies, start the service, and probe health.",
+    "Edit .env.production before public deployment.",
+    "Copy .env.real.local.example to .env.real.local only on the target host when running real model smoke tests.",
+    "Do not store user API keys in this bundle; C-end model access is account-bound and should use deployment secrets or an approved gateway.",
+    "Virtual classroom runtime is included and started by ./start.sh when model credentials are available."
+  ],
+  "realSmokeCommands": [
+    "pnpm smoke:real-env-preflight",
+    "pnpm smoke:real-openai-compatible",
+    "pnpm smoke:real-app-ai",
+    "pnpm smoke:real-doubao-tts",
+    "pnpm smoke:real-studio-products",
+    "pnpm smoke:workbench-studio-ui",
+    "pnpm smoke:studio-evidence-ui",
+    "pnpm audit:pptx-quality",
+    "pnpm smoke:runtime-health"
+  ]
+}

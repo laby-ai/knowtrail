@@ -20,11 +20,13 @@ import {
   AlertCircle,
   Loader2,
   MoreHorizontal,
-  ClipboardPaste,
-  Globe2,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import type { AccountAuthSession } from '@/lib/account-auth-client';
+import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Paper, FileType } from '@/types';
+import { SourceGuideModal } from './SourceGuideModal';
 
 const SUPPORTED_TYPES: Record<string, FileType> = {
   'application/pdf': 'pdf',
@@ -162,13 +164,15 @@ function sourceSortTime(paper: Paper): number {
 }
 
 export function LibraryPanel({
-  workspaceTitle = '默认资料工作台',
-  onBackHome,
+  accountSession,
+  accountAuthRequired = false,
   showSourceGuide = false,
   onSourceGuideDismiss,
 }: {
   workspaceTitle?: string;
   onBackHome?: () => void;
+  accountSession?: AccountAuthSession | null;
+  accountAuthRequired?: boolean;
   showSourceGuide?: boolean;
   onSourceGuideDismiss?: () => void;
 }) {
@@ -185,6 +189,7 @@ export function LibraryPanel({
     clearSelection,
     setActiveFolder,
     aiConfig,
+    storageScopeKey,
   } = useApp();
 
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -202,12 +207,20 @@ export function LibraryPanel({
   const [pastedSourceTitle, setPastedSourceTitle] = useState('');
   const ingestionSyncInFlightRef = useRef(false);
   const lastIngestionSyncAtRef = useRef(0);
+  const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
 
   useEffect(() => {
     if (showSourceGuide) setIsSourceGuideOpen(true);
   }, [showSourceGuide]);
 
+  useEffect(() => {
+    if (folders.length === 0 || expandedFolders.size > 0) return;
+    setExpandedFolders(new Set([activeFolderId || folders[0].id]));
+  }, [activeFolderId, expandedFolders.size, folders]);
+
   const syncIngestionSources = useCallback(async () => {
+    const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
+    if (accountAuthRequired && !accountHeaders.Authorization) return;
     const now = Date.now();
     if (ingestionSyncInFlightRef.current || now - lastIngestionSyncAtRef.current < 5000) return;
     ingestionSyncInFlightRef.current = true;
@@ -217,7 +230,11 @@ export function LibraryPanel({
 
     try {
       setIngestionSyncState('syncing');
-      const response = await fetch('/api/ingestion/sources', { cache: 'no-store' });
+      const notebookQuery = notebookId ? `?notebookId=${encodeURIComponent(notebookId)}` : '';
+      const response = await fetch(`/api/ingestion/sources${notebookQuery}`, {
+        cache: 'no-store',
+        headers: accountHeaders,
+      });
       if (!response.ok) throw new Error('ingestion sources request failed');
       const data = await response.json() as { sources?: IngestionSourceSummary[] };
       const sources = data.sources || [];
@@ -232,7 +249,12 @@ export function LibraryPanel({
 
       for (const source of missingSources) {
         if (!importFolderId) continue;
-        const detailResponse = await fetch(`/api/ingestion/sources?id=${encodeURIComponent(source.id)}`, { cache: 'no-store' });
+        const detailParams = new URLSearchParams({ id: source.id });
+        if (notebookId) detailParams.set('notebookId', notebookId);
+        const detailResponse = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+          cache: 'no-store',
+          headers: accountHeaders,
+        });
         if (!detailResponse.ok) continue;
         const detailData = await detailResponse.json() as { source?: IngestionSourceDetail };
         const detail = detailData.source;
@@ -312,7 +334,7 @@ export function LibraryPanel({
     } finally {
       ingestionSyncInFlightRef.current = false;
     }
-  }, [activeFolderId, addFolder, addPaper, folders, setActiveFolder, updatePaper]);
+  }, [accountAuthRequired, accountSession?.token, activeFolderId, addFolder, addPaper, folders, notebookId, setActiveFolder, updatePaper]);
 
   useEffect(() => {
     void syncIngestionSources();
@@ -356,9 +378,14 @@ export function LibraryPanel({
     try {
       const formData = new FormData();
       files.forEach(file => formData.append('files', file));
+      if (notebookId) formData.append('notebookId', notebookId);
       formData.append('aiConfig', JSON.stringify(aiConfig));
 
-      const response = await fetch('/api/upload', { method: 'POST', body: formData });
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        headers: accountAuthHeaders(),
+        body: formData,
+      });
       if (!response.ok) throw new Error('上传失败');
       const data = await response.json();
 
@@ -401,7 +428,7 @@ export function LibraryPanel({
       const errorMsg = err instanceof Error ? err.message : '上传失败';
       setUploadItems(prev => prev.map(item => ({ ...item, status: 'error' as const, progress: 100, error: errorMsg })));
     }
-  }, [addPaper, togglePaperSelection, aiConfig, syncIngestionSources]);
+  }, [addPaper, togglePaperSelection, aiConfig, notebookId, syncIngestionSources]);
 
   const handleFileSelect = useCallback(async (fileList: FileList | null) => {
     if (!fileList) return;
@@ -531,43 +558,22 @@ export function LibraryPanel({
       )}
 
       {/* Header */}
-      <div className="px-5 pt-5 pb-4 border-b border-[var(--border-subtle)]">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 overflow-hidden rounded-xl border border-[var(--border-medium)] bg-[var(--bg-card)] shadow-sm">
-              <img
-                src="/assets/brand/lingbi-mark.svg"
-                alt=""
-                aria-hidden="true"
-                className="h-full w-full object-cover"
-              />
-            </div>
-            <div>
-              <h2 className="max-w-[150px] truncate text-base font-semibold tracking-tight text-[var(--text-primary)]">{workspaceTitle}</h2>
-              <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
-                {totalPapers} 个来源{ingestionSyncState === 'syncing' ? ' · 同步中' : ingestionSyncState === 'error' ? ' · 状态同步失败' : ''}
-              </p>
-            </div>
+      <div className="px-4 pt-4 pb-3 border-b border-[var(--border-subtle)]">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[var(--text-primary)]">资料库</p>
+            <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">
+              {totalPapers} 个来源{ingestionSyncState === 'syncing' ? ' · 同步中' : ingestionSyncState === 'error' ? ' · 状态同步失败' : ''}
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            {onBackHome && (
-              <button
-                type="button"
-                onClick={onBackHome}
-                className="min-w-[44px] whitespace-nowrap rounded-xl liquid-glass-btn px-2.5 py-2 text-[11px]"
-                aria-label="返回资料工作台首页"
-              >
-                全部
-              </button>
-            )}
-            <button
-              onClick={() => setIsCreatingFolder(true)}
-              className="w-8 h-8 rounded-xl liquid-glass-btn !p-0 flex items-center justify-center"
-              aria-label="新建资料分组"
-            >
-              <FolderPlus className="h-4 w-4" />
-            </button>
-          </div>
+          <button
+            onClick={() => setIsCreatingFolder(true)}
+            className="w-8 h-8 rounded-xl liquid-glass-btn !p-0 flex items-center justify-center"
+            aria-label="新建资料分组"
+            title="新建资料分组"
+          >
+            <FolderPlus className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Search */}
@@ -644,6 +650,14 @@ export function LibraryPanel({
             </div>
             <p className="text-sm text-zinc-500 font-medium">暂无资料</p>
             <p className="text-xs text-zinc-600 mt-1.5">拖拽文件到此处，或点击下方上传</p>
+            <button
+              type="button"
+              onClick={() => setIsSourceGuideOpen(true)}
+              className="mt-4 rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-4 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:bg-[var(--glass-hover)]"
+              data-testid="library-empty-examples"
+            >
+              查看示例
+            </button>
           </div>
         ) : (
           filteredFolders.map((folder) => (
@@ -776,85 +790,15 @@ export function LibraryPanel({
 
       {/* Create folder dialog */}
       {isSourceGuideOpen && (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-[var(--bg-primary)]/62 p-4 backdrop-blur-sm animate-fade-in"
-          onClick={dismissSourceGuide}
-        >
-          <div
-            className="liquid-glass-card max-h-[92vh] w-[min(560px,100%)] overflow-y-auto rounded-3xl p-6 animate-scale-in"
-            onClick={(event) => event.stopPropagation()}
-            data-testid="source-guide-modal"
-          >
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
-                <p className="mb-2 text-xs font-semibold text-[var(--accent-blue)]">添加来源</p>
-                <h3 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">先把资料放进工作台</h3>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-                  上传文件或粘贴文本后，系统会解析、切片、建立索引，随后资料对话和 Studio 产物都会复用同一组来源。
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={dismissSourceGuide}
-                className="liquid-glass-btn !p-2"
-                aria-label="关闭添加来源"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={openFilePickerFromGuide}
-                className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4 text-left transition hover:border-[var(--accent-blue)] hover:bg-[var(--glass-active)]"
-                data-testid="source-guide-upload"
-              >
-                <Upload className="mb-4 h-5 w-5 text-[var(--accent-blue)]" />
-                <span className="block text-sm font-semibold text-[var(--text-primary)]">上传文件</span>
-                <span className="mt-1 block text-xs leading-relaxed text-[var(--text-tertiary)]">PDF、Word、PPT、TXT、图片、表格；上传后自动进入摄取和索引。</span>
-              </button>
-              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4">
-                <ClipboardPaste className="mb-4 h-5 w-5 text-emerald-400" />
-                <span className="block text-sm font-semibold text-[var(--text-primary)]">粘贴文本</span>
-                <input
-                  value={pastedSourceTitle}
-                  onChange={(event) => setPastedSourceTitle(event.target.value)}
-                  placeholder="资料标题，可选"
-                  className="liquid-glass-input mt-3 text-xs"
-                />
-                <textarea
-                  value={pastedSourceText}
-                  onChange={(event) => setPastedSourceText(event.target.value)}
-                  placeholder="把会议纪要、网页片段或研究笔记粘贴到这里..."
-                  className="liquid-glass-input mt-2 min-h-24 resize-none text-xs leading-relaxed"
-                />
-                <button
-                  type="button"
-                  onClick={handlePasteTextAsSource}
-                  disabled={!pastedSourceText.trim()}
-                  className="liquid-glass-btn-primary mt-3 w-full rounded-xl py-2 text-xs disabled:cursor-not-allowed disabled:opacity-45"
-                  data-testid="source-guide-paste-submit"
-                >
-                  添加为资料
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4 opacity-75">
-                <Globe2 className="mb-4 h-5 w-5 text-cyan-400" />
-                <span className="block text-sm font-semibold text-[var(--text-primary)]">网页 / 快速研究</span>
-                <span className="mt-1 block text-xs leading-relaxed text-[var(--text-tertiary)]">后续接入抓取与搜索任务；当前先用上传或粘贴文本保证来源可审计。</span>
-              </div>
-              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4">
-                <FileText className="mb-4 h-5 w-5 text-violet-400" />
-                <span className="block text-sm font-semibold text-[var(--text-primary)]">生成后怎么验证</span>
-                <span className="mt-1 block text-xs leading-relaxed text-[var(--text-tertiary)]">看上传进度、来源片段数、索引状态；选中来源后再进行对话、语音摘要、简报或报告。</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <SourceGuideModal
+          pastedSourceText={pastedSourceText}
+          pastedSourceTitle={pastedSourceTitle}
+          onClose={dismissSourceGuide}
+          onPasteTextChange={setPastedSourceText}
+          onPasteTitleChange={setPastedSourceTitle}
+          onPasteSubmit={handlePasteTextAsSource}
+          onUpload={openFilePickerFromGuide}
+        />
       )}
 
       {/* Create folder dialog */}

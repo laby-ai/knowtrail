@@ -1,8 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { NextResponse } from 'next/server';
+import { internalClassroomOrigin, publicClassroomOrigin } from '@/lib/virtual-classroom/runtime-config';
 
-const DEFAULT_ORIGIN = 'http://127.0.0.1:5025';
 const CLASSROOM_REFERENCE_NAME = `Open${String.fromCharCode(77, 65, 73, 67)}`;
 const CLASSROOMS_DIR = path.join(
   process.cwd(),
@@ -63,25 +63,52 @@ async function readRecentClassrooms(origin: string) {
 }
 
 async function readHealth(origin: string) {
+  const normalizedOrigin = origin.replace(/\/$/, '');
+  const healthOrigins = normalizedOrigin.endsWith('/classroom-runtime')
+    ? [normalizedOrigin]
+    : [`${normalizedOrigin}/classroom-runtime`, normalizedOrigin];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1500);
   try {
-    const response = await fetch(`${origin}/api/health`, { cache: 'no-store' });
-    if (!response.ok) return { ok: false, status: response.status };
-    const data = await response.json();
-    return { ok: true, status: response.status, data };
+    let lastStatus = 0;
+    for (const healthOrigin of healthOrigins) {
+      const response = await fetch(`${healthOrigin}/api/health`, { cache: 'no-store', signal: controller.signal });
+      lastStatus = response.status;
+      if (!response.ok) continue;
+      const data = await response.json();
+      return { ok: true, status: response.status, origin: healthOrigin, data };
+    }
+    return { ok: false, status: lastStatus || 502 };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
 export async function GET() {
-  const origin = process.env.NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN || DEFAULT_ORIGIN;
+  const origin = publicClassroomOrigin();
+  const healthOrigin = internalClassroomOrigin();
+  if (!origin) {
+    return NextResponse.json({
+      ok: false,
+      mode: 'unavailable',
+      origin: '',
+      health: { ok: false, status: 503, error: 'classroom_runtime_not_configured' },
+      recentClassrooms: [],
+    }, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  }
+
   const [health, recentClassrooms] = await Promise.all([
-    readHealth(origin),
+    readHealth(healthOrigin),
     readRecentClassrooms(origin),
   ]);
 
   return NextResponse.json({
     ok: health.ok,
+    mode: health.ok ? 'external' : 'unavailable',
     origin,
     health,
     recentClassrooms,

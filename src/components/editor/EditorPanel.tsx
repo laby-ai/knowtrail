@@ -8,42 +8,37 @@ import {
   MessageSquare,
   ChevronDown,
   FileSearch,
-  Settings,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { MessageItem } from './MessageItem';
 import { QUICK_QUESTIONS, type QuickQuestion } from './quickQuestions';
-import { AISettingsDialog } from './AISettingsDialog';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 
 const CHAT_RESPONSE_MAX_TOKENS = 260;
 const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
 
-export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMount?: boolean }) {
+export function EditorPanel() {
   const {
-    folders, chatMessages, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, setAIConfig,
-    queuedStudioPrompt, consumeStudioPrompt,
+    folders, chatMessages, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig,
+    queuedStudioPrompt, consumeStudioPrompt, storageScopeKey,
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const _msgSeq = useRef(0);
   const selectedSourceCount = getSelectedPapers().length;
   const totalSourceCount = folders.reduce((sum, folder) => sum + folder.papers.length, 0);
+  const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [chatMessages]);
 
-  useEffect(() => {
-    if (openSettingsOnMount) setSettingsOpen(true);
-  }, [openSettingsOnMount]);
-
-  // Generate contextual follow-up questions
+  // Generate lightweight follow-up questions after an answer.
   const generateFollowUps = useCallback((lastQuestion: string): string[] => {
     const pools: Record<string, string[]> = {
       method: ['该研究采用了什么实验设计？', '样本量是否足够支撑结论？', '对照组设置是否合理？', '数据收集方法是否可靠？', '统计方法选择是否恰当？'],
@@ -54,7 +49,6 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
       application: ['研究结果有何实际应用价值？', '对政策制定有什么启示？', '能否转化为临床或工程实践？', '有哪些潜在的商业化方向？', '对社会有什么影响？'],
     };
     const poolKeys = Object.keys(pools);
-    // Pick 3 random pools, and from each pick 1 random question
     const shuffledPools = poolKeys.sort(() => Math.random() - 0.5).slice(0, 3);
     return shuffledPools.map((key) => {
       const qs = pools[key];
@@ -83,9 +77,10 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         signal: abortController.signal,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
           message: question,
+          notebookId,
           aiConfig,
           maxTokens: CHAT_RESPONSE_MAX_TOKENS,
           papers: selectedPapers.map(p => ({
@@ -97,7 +92,10 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
         }),
       });
 
-      if (!response.ok) throw new Error('AI 请求失败');
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(typeof payload.error === 'string' ? payload.error : 'AI 请求失败');
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -147,11 +145,12 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
           }
         }
         if (accumulatedContent) {
+          const citations = serverCitations.length > 0
+            ? serverCitations
+            : selectedPapers.map((p) => ({ paperId: p.id, paperShortName: p.shortName, excerpt: p.abstract || '' }));
           updateChatMessage(assistantMsgId, {
             content: accumulatedContent,
-            citations: serverCitations.length > 0
-              ? serverCitations
-              : selectedPapers.map((p) => ({ paperId: p.id, paperShortName: p.shortName, excerpt: p.abstract || '' })),
+            citations,
             retrieval: serverRetrieval,
             citationAudit: serverCitationAudit,
             followUps: generateFollowUps(question),
@@ -163,9 +162,13 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
       }
     } catch (error) {
       const timedOut = abortController.signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
+      const errorMessage = error instanceof Error ? error.message : '';
+      const quotaBlocked = /额度|积分|充值|分配|预占|quota|billing/i.test(errorMessage);
       const content = timedOut
         ? `真实模型生成超过 ${Math.round(CHAT_RESPONSE_TIMEOUT_MS / 1000)} 秒，已停止等待。上方检索证据已返回，但回答尚未生成完成。请稍后重试，或把问题缩短为更具体的一问。`
-        : '抱歉，AI 服务暂时不可用，请稍后重试。';
+        : quotaBlocked
+          ? '账号积分不足，请先充值，或联系管理员分配积分后再使用灵笔。'
+          : '抱歉，AI 服务暂时不可用，请稍后重试。';
       if (assistantMsgId) {
         updateChatMessage(assistantMsgId, { content });
       } else {
@@ -175,7 +178,7 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
       window.clearTimeout(timeoutId);
       setIsGenerating(false);
     }
-  }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig]);
+  }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
 
   useEffect(() => {
     if (!queuedStudioPrompt || isGenerating) return;
@@ -214,9 +217,10 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
 
       const response = await fetch('/api/ai/report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
           aiConfig,
+          notebookId,
           papers: paperObjects,
           paperList: paperObjects.map((p) => ({ index: p.index, shortName: p.shortName, title: p.title, authors: p.authors, year: p.year })),
         }),
@@ -269,11 +273,12 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
           }
         }
         if (reportText) {
+          const citations = serverCitations.length > 0
+            ? serverCitations
+            : selectedPapers.map((p) => ({ paperId: p.id, paperShortName: p.shortName, excerpt: p.abstract || '' }));
           updateChatMessage(assistantMsgId, {
             content: reportText,
-            citations: serverCitations.length > 0
-              ? serverCitations
-              : selectedPapers.map((p) => ({ paperId: p.id, paperShortName: p.shortName, excerpt: p.abstract || '' })),
+            citations,
             retrieval: serverRetrieval,
             citationAudit: serverCitationAudit,
             followUps: generateFollowUps('综述报告'),
@@ -288,7 +293,7 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
     } finally {
       setIsGenerating(false);
     }
-  }, [addChatMessage, updateChatMessage, getSelectedPapers, aiConfig]);
+  }, [addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
 
   const toggleCitation = useCallback((citationId: string) => {
     setExpandedCitations(prev => { const next = new Set(prev); if (next.has(citationId)) next.delete(citationId); else next.add(citationId); return next; });
@@ -297,46 +302,35 @@ export function EditorPanel({ openSettingsOnMount = false }: { openSettingsOnMou
   return (
     <div className="h-full flex flex-col">
       {/* Top bar */}
-      <div className="px-6 pt-5 pb-4 border-b border-[var(--border-subtle)]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-              <MessageSquare className="h-4 w-4 text-blue-400" />
+      <div className="border-b border-[var(--border-subtle)] bg-[var(--bg-primary)] px-5 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+              <MessageSquare className="h-4 w-4 text-blue-500" />
               资料对话
             </div>
-            <ThemeToggle />
+            <p className="mt-1 truncate text-[11px] text-[var(--text-tertiary)]">
+              {selectedSourceCount > 0
+                ? `已选择 ${selectedSourceCount} 个来源，可以继续提问或生成报告。`
+                : totalSourceCount > 0
+                  ? `资料库已有 ${totalSourceCount} 个来源，请先选择要分析的资料。`
+                  : '先添加资料，再围绕来源提问。'}
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setSettingsOpen(true)}
-              className={`liquid-glass-btn text-xs ${aiConfig.apiKey && aiConfig.apiBase ? '!border-emerald-500/30 !text-emerald-300' : ''}`}
-              title="模型设置"
-              aria-label="打开模型设置"
-            >
-              <Settings className="h-3.5 w-3.5" />
-              模型设置
-            </button>
-            <button
-              onClick={handleGenerateReport}
-              disabled={isGenerating || selectedSourceCount === 0}
-              aria-label={selectedSourceCount > 0 ? '生成资料报告' : '先选择资料再生成报告'}
-              title={selectedSourceCount > 0 ? `基于 ${selectedSourceCount} 个已选资料生成报告` : '请先在左侧资料卡片圆点处选择来源'}
-              className="liquid-glass-btn !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 text-xs disabled:!from-zinc-500/20 disabled:!to-zinc-500/20 disabled:!text-[var(--text-tertiary)] disabled:cursor-not-allowed"
-            >
-              {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {selectedSourceCount > 0 ? '生成资料报告' : '先选择资料'}
-            </button>
-          </div>
+          <button
+            type="button"
+            data-testid="chat-generate-report"
+            onClick={handleGenerateReport}
+            disabled={isGenerating || selectedSourceCount === 0}
+            aria-label={selectedSourceCount > 0 ? '生成资料报告' : '先选择资料再生成报告'}
+            title={selectedSourceCount > 0 ? `基于 ${selectedSourceCount} 个已选资料生成报告` : '请先在左侧资料卡片圆点处选择来源'}
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-blue-500/20 bg-blue-600 px-4 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-500 disabled:border-[var(--border-subtle)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none disabled:cursor-not-allowed"
+          >
+            {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {selectedSourceCount > 0 ? '生成报告' : '选择资料'}
+          </button>
         </div>
       </div>
-
-      {settingsOpen && (
-        <AISettingsDialog
-          value={aiConfig}
-          onChange={setAIConfig}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -589,7 +583,12 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQues
           ) : (
             messages.map((message, idx) => (
               <div key={message.id}>
-                <MessageItem message={message} isExpanded={expandedCitations.has(message.id)} onToggleExpand={() => onToggleCitation(message.id)} />
+                <MessageItem
+                  message={message}
+                  isExpanded={expandedCitations.has(message.id)}
+                  isPending={isGenerating && idx === messages.length - 1}
+                  onToggleExpand={() => onToggleCitation(message.id)}
+                />
                 {message.role === 'assistant' && message.followUps && message.followUps.length > 0 && !isGenerating && idx === messages.length - 1 && (
                   <div className="flex flex-wrap gap-2 mt-3 ml-12 animate-fade-in">
                     {message.followUps.map((q, qi) => (
@@ -606,7 +605,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQues
               </div>
             ))
           )}
-          {isGenerating && (
+          {isGenerating && messages[messages.length - 1]?.role !== 'assistant' && (
             <div className="flex items-start gap-4 animate-fade-in">
               <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
                 <Sparkles className="h-4 w-4 text-blue-400" />

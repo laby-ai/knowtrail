@@ -7,10 +7,12 @@ import { auditCitationMarkers } from '@/lib/citation-audit';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
+import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
+import { normalizeNotebookId } from '@/lib/notebook-scope';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, papers, mode, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText } = await request.json() as {
+    const { message, papers, mode, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
       message?: string;
       papers?: RagSourceInput[];
       mode?: string;
@@ -18,7 +20,9 @@ export async function POST(request: NextRequest) {
       maxTokens?: number;
       debugRetrievalOnly?: boolean;
       debugAnswerText?: string;
+      notebookId?: string;
     };
+    const notebookId = normalizeNotebookId(rawNotebookId);
 
     if (!message) {
       return new Response(JSON.stringify({ error: '缺少消息内容' }), {
@@ -27,8 +31,33 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    let accountSession: Awaited<ReturnType<typeof resolveAccountSessionFromRequest>> = null;
+    try {
+      accountSession = await resolveAccountSessionFromRequest(request);
+    } catch {
+      return new Response(JSON.stringify({
+        error: '账号登录已过期，请重新登录。',
+        billing: { status: 'failed', code: 'invalid_account_session' },
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+    }
+    if (accountAuthRequired() && !accountSession) {
+      return new Response(JSON.stringify({
+        error: '请先登录账号，再使用模型问答。',
+        billing: { status: 'failed', code: 'account_login_required' },
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+    }
+
     const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
-    const grounded = await buildGroundedRetrievalContext(message, papers || [], runtimeConfig);
+    const grounded = await buildGroundedRetrievalContext(message, papers || [], runtimeConfig, {
+      ownerMemberId: accountSession?.member.id,
+      notebookId,
+    });
 
     if (debugRetrievalOnly) {
       return new Response(JSON.stringify({
@@ -84,12 +113,13 @@ export async function POST(request: NextRequest) {
         modelName,
         inputText: message,
         promptContext: grounded.promptContext,
+        memberId: accountSession?.member.id,
       });
     } catch (billingError) {
       const status = billingError instanceof AccountServiceError ? billingError.status : 402;
       const code = billingError instanceof AccountServiceError ? billingError.code : 'account_billing_failed';
       return new Response(JSON.stringify({
-        error: '账号额度预占失败，请检查账号额度或稍后重试。',
+        error: '账号积分不足，请先充值，或联系管理员分配积分后再使用灵笔。',
         billing: { status: 'failed', code },
       }), {
         status,

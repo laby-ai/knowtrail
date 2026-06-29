@@ -1,21 +1,40 @@
 'use client';
 
-import { ArrowLeft, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ExternalLink, HelpCircle, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 
-const CLASSROOM_ORIGIN = process.env.NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN || 'http://127.0.0.1:5025';
+const CLASSROOM_ORIGIN = (process.env.NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN || '').trim().replace(/\/$/, '');
+const NATIVE_CLASSROOM_URL = '/virtual-classroom';
+
+function startsWithClassroomOrigin(url: string) {
+  return Boolean(
+    CLASSROOM_ORIGIN &&
+      (url === CLASSROOM_ORIGIN ||
+        url.startsWith(`${CLASSROOM_ORIGIN}/`) ||
+        url.startsWith(`${CLASSROOM_ORIGIN}?`)),
+  );
+}
 
 function normalizeFrameUrl(url?: string) {
-  const resolved = !url || url.startsWith('/virtual-classroom/preview/')
-    ? CLASSROOM_ORIGIN
+  const resolved = !url
+    ? NATIVE_CLASSROOM_URL
     : url.startsWith('http://') || url.startsWith('https://')
       ? url
-      : `${CLASSROOM_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`;
+      : CLASSROOM_ORIGIN && !url.startsWith('/virtual-classroom') && !startsWithClassroomOrigin(url)
+        ? `${CLASSROOM_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`
+        : url.startsWith('/')
+          ? url
+          : `/${url}`;
+
+  if (resolved.startsWith('/')) {
+    const separator = resolved.includes('?') ? '&' : '?';
+    return resolved.includes('embed=') ? resolved : `${resolved}${separator}embed=lingbi`;
+  }
 
   try {
     const parsed = new URL(resolved);
-    if (parsed.origin === CLASSROOM_ORIGIN) parsed.searchParams.set('embed', 'lingbi');
+    if (!CLASSROOM_ORIGIN || parsed.origin === CLASSROOM_ORIGIN) parsed.searchParams.set('embed', 'lingbi');
     return parsed.toString();
   } catch {
     return resolved;
@@ -43,6 +62,7 @@ export function VirtualClassroomWorkspace() {
     virtualClassroomViewer.sceneCount ? `${virtualClassroomViewer.sceneCount} 个场景` : null,
     virtualClassroomViewer.actionsCount ? `${virtualClassroomViewer.actionsCount} 个动作` : null,
   ].filter(Boolean).join(' · ');
+  const sourceSummary = virtualClassroomViewer.sourceSummary;
 
   return (
     <main className="relative h-full min-w-0 overflow-hidden bg-[#f8fbff]" data-testid="virtual-classroom-workspace">
@@ -58,7 +78,7 @@ export function VirtualClassroomWorkspace() {
             回到资料对话
           </button>
           <div
-            className="sr-only"
+            className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-2 text-xs shadow-[var(--glass-shadow-sm)] backdrop-blur-xl"
             data-testid="virtual-classroom-workspace-title"
           >
             <span className="font-semibold text-[var(--text-primary)]">
@@ -67,10 +87,23 @@ export function VirtualClassroomWorkspace() {
             {classroomMeta && (
               <span className="ml-2 text-[var(--text-secondary)]">{classroomMeta}</span>
             )}
+            {sourceSummary && (
+              <span className="ml-2 hidden max-w-[280px] truncate text-[var(--text-tertiary)] lg:inline-block">
+                {sourceSummary}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-subtle)] p-1.5 shadow-[var(--glass-shadow-sm)] backdrop-blur-xl">
+          <button
+            type="button"
+            className="rounded-full p-2 text-[var(--text-secondary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]"
+            title={classroomMeta ? `${virtualClassroomViewer.title || '虚拟课堂'} · ${classroomMeta}` : (virtualClassroomViewer.title || '虚拟课堂')}
+            aria-label="课堂说明"
+          >
+            <HelpCircle className="h-3.5 w-3.5" />
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -111,7 +144,7 @@ export function VirtualClassroomWorkspace() {
         <iframe
           key={`${frameUrl}-${reloadToken}`}
           src={frameUrl}
-          title={virtualClassroomViewer.title || '虚拟教室'}
+          title={virtualClassroomViewer.title || '虚拟课堂'}
           className="h-full w-full border-0 bg-white"
           allow="microphone; camera; clipboard-read; clipboard-write; fullscreen"
           onLoad={() => setFrameReady(true)}

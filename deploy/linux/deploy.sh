@@ -41,6 +41,7 @@ elif [ -f "$APP_DIR/deploy/linux/preflight.sh" ]; then
   run_script "$APP_DIR/deploy/linux/preflight.sh"
 fi
 
+started_pid=""
 if [ -f "$APP_DIR/logs/server.pid" ] && kill -0 "$(cat "$APP_DIR/logs/server.pid")" >/dev/null 2>&1; then
   echo "Existing Lingbi Studio process is running: pid $(cat "$APP_DIR/logs/server.pid")"
 else
@@ -51,11 +52,17 @@ else
     nohup bash "$APP_DIR/start.sh" > "$APP_DIR/logs/server.log" 2>&1 &
   fi
   echo "$!" > "$APP_DIR/logs/server.pid"
+  started_pid="$(cat "$APP_DIR/logs/server.pid")"
   echo "Started Lingbi Studio: pid $(cat "$APP_DIR/logs/server.pid"), log $APP_DIR/logs/server.log"
 fi
 
 PORT="${PORT:-5000}"
 for _ in $(seq 1 30); do
+  if [ -n "$started_pid" ] && ! kill -0 "$started_pid" >/dev/null 2>&1; then
+    echo "Started Lingbi Studio process exited before healthcheck passed. Recent logs:" >&2
+    tail -n 80 "$APP_DIR/logs/server.log" >&2 || true
+    exit 1
+  fi
   if APP_ORIGIN="${APP_ORIGIN:-http://127.0.0.1:$PORT}" run_script "$APP_DIR/healthcheck.sh"; then
     echo "Deploy complete."
     exit 0

@@ -5,6 +5,8 @@ import { toStudioJobResponse } from '@/lib/studio-job';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
+import { normalizeNotebookId } from '@/lib/notebook-scope';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,8 +17,10 @@ export async function POST(request: NextRequest) {
       papers?: RagSourceInput[];
       aiConfig?: Partial<RuntimeAIConfig>;
       debugRetrievalOnly?: boolean;
+      notebookId?: string;
     };
     const { text, content, title, papers = [], aiConfig, debugRetrievalOnly } = body;
+    const notebookId = normalizeNotebookId(body.notebookId);
     const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
 
     const requestedText = text || content || '';
@@ -24,8 +28,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少文本内容' }, { status: 400 });
     }
 
+    let ownerMemberId: string | undefined;
+    try {
+      const accountSession = await resolveAccountSessionFromRequest(request);
+      if (accountAuthRequired() && !accountSession) {
+        return NextResponse.json({
+          error: '请先登录账号，再生成语音摘要。',
+          status: 'failed',
+          errorType: 'account_login_required',
+        }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+      }
+      ownerMemberId = accountSession?.member.id;
+    } catch {
+      return NextResponse.json({
+        error: '账号登录已过期，请重新登录。',
+        status: 'failed',
+        errorType: 'invalid_account_session',
+      }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+    }
+
     if (debugRetrievalOnly) {
-      const preview = await buildPodcastRetrievalPreview({ requestedText, title, papers, aiConfig: runtimeConfig });
+      const preview = await buildPodcastRetrievalPreview({ requestedText, title, papers, aiConfig: runtimeConfig, ownerMemberId, notebookId });
       return NextResponse.json({
         success: true,
         citations: preview.citations,
@@ -34,7 +57,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const job = await submitPodcastJob({ requestedText, title, papers, aiConfig: runtimeConfig });
+    const job = await submitPodcastJob({ requestedText, title, papers, aiConfig: runtimeConfig, ownerMemberId, notebookId });
     return NextResponse.json(toStudioJobResponse(job), { status: 202 });
   } catch (error) {
     const failure = classifyPodcastGenerationError(error);
@@ -67,9 +90,33 @@ export async function GET(request: NextRequest) {
     if (!taskId) {
       return NextResponse.json({ error: '缺少 taskId 参数' }, { status: 400 });
     }
-    const studioJob = getPodcastStudioJobResponse(taskId);
+
+    let ownerMemberId: string | undefined;
+    try {
+      const accountSession = await resolveAccountSessionFromRequest(request);
+      if (accountAuthRequired() && !accountSession) {
+        return NextResponse.json({
+          error: '请先登录账号，再查看语音摘要任务。',
+          status: 'failed',
+          errorType: 'account_login_required',
+        }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+      }
+      ownerMemberId = accountSession?.member.id;
+    } catch {
+      return NextResponse.json({
+        error: '账号登录已过期，请重新登录。',
+        status: 'failed',
+        errorType: 'invalid_account_session',
+      }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+    }
+
+    const notebookId = normalizeNotebookId(request.nextUrl.searchParams.get('notebookId'));
+    const studioJob = getPodcastStudioJobResponse(taskId, { ownerMemberId, notebookId });
     if (studioJob) {
       return NextResponse.json(studioJob);
+    }
+    if (taskId.startsWith('studio-podcast-')) {
+      return NextResponse.json({ error: '任务不存在或无权访问', status: 'failed' }, { status: 404 });
     }
     const status = await getPodcastStatus(taskId);
     return NextResponse.json(status);

@@ -111,6 +111,7 @@ async function main() {
     maxTextChars: mutableEnv.AGENTPLAN_TTS_MAX_TEXT_CHARS,
     retryMaxTextChars: mutableEnv.AGENTPLAN_TTS_RETRY_MAX_TEXT_CHARS,
     studioJobStorePath: mutableEnv.STUDIO_JOB_STORE_PATH,
+    accountRequireAuth: mutableEnv.ACCOUNT_CENTER_REQUIRE_AUTH,
   };
 
   try {
@@ -126,7 +127,7 @@ async function main() {
     mutableEnv.AGENTPLAN_TTS_MAX_TEXT_CHARS = '1200';
     mutableEnv.AGENTPLAN_TTS_RETRY_MAX_TEXT_CHARS = '1200';
 
-    const { submitPodcastJob } = await import('../src/lib/studio-podcast-job');
+    const { getPodcastStudioJobResponse, submitPodcastJob } = await import('../src/lib/studio-podcast-job');
     const { getStudioJob, reloadStudioJobsFromDiskForTest, studioJobStoreStatus, toStudioJobResponse } = await import('../src/lib/studio-job');
 
     const papers = [{
@@ -141,8 +142,12 @@ async function main() {
       requestedText: '请生成一段结构化双人播客。',
       papers,
       aiConfig: { apiKey: 'test-doubao-tts-key', ttsSpeaker: 'test-speaker' },
+      ownerMemberId: 'member-alpha',
+      notebookId: 'notebook-alpha',
     });
     assert.equal(successJob.type, 'podcast');
+    assert.equal(successJob.ownerMemberId, 'member-alpha');
+    assert.equal(successJob.notebookId, 'notebook-alpha');
     assert.ok(successJob.citations.length > 0, 'podcast job should preserve grounded citations');
     assert.equal(successJob.retrieval?.degraded, true);
 
@@ -159,12 +164,20 @@ async function main() {
     reloadStudioJobsFromDiskForTest();
     const persistedSuccess = getStudioJob(successJob.id);
     assert.equal(persistedSuccess?.status, 'succeeded', 'completed StudioJob should survive memory reload from local job store');
+    assert.equal(getStudioJob(successJob.id, { ownerMemberId: 'member-alpha' })?.status, 'succeeded');
+    assert.equal(getStudioJob(successJob.id, { ownerMemberId: 'member-beta' }), undefined);
+    assert.equal(getStudioJob(successJob.id, { ownerMemberId: 'member-alpha', notebookId: 'notebook-beta' }), undefined);
+    assert.equal(getPodcastStudioJobResponse(successJob.id, { ownerMemberId: 'member-alpha', notebookId: 'notebook-alpha' })?.status, 'completed');
+    assert.equal(getPodcastStudioJobResponse(successJob.id, { ownerMemberId: 'member-alpha', notebookId: 'notebook-beta' }), undefined);
+    assert.equal(getPodcastStudioJobResponse(successJob.id, { ownerMemberId: 'member-beta' }), undefined);
     assert.equal(studioJobStoreStatus().path, path.join(tmpDir, 'studio-jobs.json'));
 
     const failedJob = await submitPodcastJob({
       requestedText: '请生成第二段播客，用于测试额度失败后的任务壳。',
       papers,
       aiConfig: { apiKey: 'test-doubao-tts-key', ttsSpeaker: 'test-speaker' },
+      ownerMemberId: 'member-alpha',
+      notebookId: 'notebook-alpha',
     });
     const failed = await waitForJob(getStudioJob, failedJob.id, 'failed');
     assert.equal(failed?.stage, 'failed');
@@ -183,6 +196,7 @@ async function main() {
       content: '请通过 API 路由提交播客 StudioJob。',
       papers,
       aiConfig: { apiKey: 'test-doubao-tts-key', ttsSpeaker: 'test-speaker' },
+      notebookId: 'notebook-alpha',
     }));
     assert.equal(postResponse.status, 202);
     const postJson = await readJson(postResponse);
@@ -192,7 +206,7 @@ async function main() {
     let routeStatus: Record<string, unknown> | undefined;
     const routeDeadline = Date.now() + 5_000;
     while (Date.now() < routeDeadline) {
-      const getResponse = await podcastGet(jsonGet(`http://localhost/api/ai/podcast?taskId=${postJson.taskId}`));
+      const getResponse = await podcastGet(jsonGet(`http://localhost/api/ai/podcast?taskId=${postJson.taskId}&notebookId=notebook-alpha`));
       assert.equal(getResponse.status, 200);
       routeStatus = await readJson(getResponse);
       if (routeStatus.status === 'completed') break;
@@ -201,6 +215,18 @@ async function main() {
     assert.equal(routeStatus?.status, 'completed');
     assert.equal(routeStatus?.audioUrl, 'https://cdn.example.com/studio-job-podcast.mp3');
     assert.equal((routeStatus?.job as { stage?: string } | undefined)?.stage, 'completed');
+
+    mutableEnv.ACCOUNT_CENTER_REQUIRE_AUTH = 'true';
+    const unauthPost = await podcastPost(jsonRequest('http://localhost/api/ai/podcast', {
+      content: '未登录用户不应能创建播客任务。',
+      papers,
+      aiConfig: { apiKey: 'test-doubao-tts-key', ttsSpeaker: 'test-speaker' },
+    }));
+    assert.equal(unauthPost.status, 401);
+    assert.equal((await readJson(unauthPost)).errorType, 'account_login_required');
+    const unauthGet = await podcastGet(jsonGet(`http://localhost/api/ai/podcast?taskId=${postJson.taskId}`));
+    assert.equal(unauthGet.status, 401);
+    assert.equal((await readJson(unauthGet)).errorType, 'account_login_required');
 
     console.log(JSON.stringify({
       ok: true,
@@ -213,8 +239,10 @@ async function main() {
         'podcast StudioJob failure exposes dialogue preview and segment attempts in API response',
         'podcast StudioJob response exposes segment status for partial/retry UI',
         'podcast StudioJob persists to local job store and survives memory reload',
+        'podcast StudioJob is scoped by ownerMemberId and notebookId for direct lookup and API response helpers',
         'podcast API POST returns a StudioJob task shell with 202',
         'podcast API GET polls the StudioJob to completed audioUrl',
+        'podcast API POST/GET return 401 when account auth is required and no token is provided',
       ],
       successStatus: successResponse.status,
       successStage: successResponse.job.stage,
@@ -222,6 +250,10 @@ async function main() {
       successSegmentCount: successResponse.segments?.length,
       successPartial: successResponse.partial,
       persistedAfterReload: persistedSuccess?.status,
+      ownerScopedLookup: getStudioJob(successJob.id, { ownerMemberId: 'member-alpha' })?.status,
+      notebookScopedLookup: getStudioJob(successJob.id, { ownerMemberId: 'member-alpha', notebookId: 'notebook-alpha' })?.status,
+      crossNotebookLookup: getStudioJob(successJob.id, { ownerMemberId: 'member-alpha', notebookId: 'notebook-beta' })?.status || null,
+      crossOwnerLookup: getStudioJob(successJob.id, { ownerMemberId: 'member-beta' })?.status || null,
       jobStorePath: studioJobStoreStatus().path,
       failedStatus: failed?.status,
       failedErrorType: failed?.error?.type,
@@ -229,6 +261,8 @@ async function main() {
       failedHasDialoguePreview: Boolean(failedResponse.dialoguePreview),
       routeStatus: routeStatus?.status,
       routeAudioUrl: routeStatus?.audioUrl,
+      unauthPostStatus: unauthPost.status,
+      unauthGetStatus: unauthGet.status,
       maxTtsTextLength: mock.getMaxTtsTextLength(),
       doubaoTtsCalls: mock.getHitCount(),
     }, null, 2));
@@ -255,6 +289,8 @@ async function main() {
     else mutableEnv.AGENTPLAN_TTS_RETRY_MAX_TEXT_CHARS = originals.retryMaxTextChars;
     if (originals.studioJobStorePath === undefined) delete mutableEnv.STUDIO_JOB_STORE_PATH;
     else mutableEnv.STUDIO_JOB_STORE_PATH = originals.studioJobStorePath;
+    if (originals.accountRequireAuth === undefined) delete mutableEnv.ACCOUNT_CENTER_REQUIRE_AUTH;
+    else mutableEnv.ACCOUNT_CENTER_REQUIRE_AUTH = originals.accountRequireAuth;
     await mock.close();
     await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
   }

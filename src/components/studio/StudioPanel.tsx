@@ -38,18 +38,12 @@ export function StudioPanel() {
             <NavIcon className="h-4 w-4 text-[var(--text-secondary)]" />
           </div>
           <div>
-            <h2 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">Studio</h2>
-            <p className="text-[11px] text-[var(--text-tertiary)]">资料产物中心</p>
+            <h2 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">产物中心</h2>
+            <p className="text-[11px] text-[var(--text-tertiary)]">资料工具与生成结果</p>
           </div>
         </div>
 
         <StudioToolSwitcher activeTab={activeTab} onSelect={setActiveTab} />
-        <p
-          data-testid="studio-nav-helper"
-          className="mt-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-2 text-[11px] leading-relaxed text-[var(--text-tertiary)]"
-        >
-          上方只用于切换工具，不会直接生成。进入下方设置面板后，再点击明确的生成按钮。
-        </p>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">

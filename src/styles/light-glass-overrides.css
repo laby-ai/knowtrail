@@ -585,7 +585,7 @@
 /* Final high-contrast light theme override. Keep this near the end so the
    older decorative light-glass blocks cannot reintroduce low contrast. */
 :root[data-theme="light"] {
-  --bg-primary: #f5f5f2;
+  --bg-primary: #ffffff;
   --bg-secondary: rgba(255, 255, 255, 0.96);
   --bg-tertiary: rgba(15, 23, 42, 0.065);
   --bg-card: rgba(255, 255, 255, 0.98);
@@ -669,7 +669,7 @@
 }
 
 [data-theme="light"] {
-  --bg-primary: #f5f5f2;
+  --bg-primary: #ffffff;
   --bg-secondary: rgba(255, 255, 255, 0.96);
   --bg-tertiary: rgba(15, 23, 42, 0.065);
   --bg-card: rgba(255, 255, 255, 0.98);
@@ -804,7 +804,7 @@
 
 /* Final workbench contrast lock. This must stay last. */
 :root[data-theme="light"] {
-  --bg-primary: #f5f5f2;
+  --bg-primary: #ffffff;
   --bg-secondary: rgba(255, 255, 255, 0.96);
   --bg-tertiary: rgba(15, 23, 42, 0.065);
   --bg-card: rgba(255, 255, 255, 0.98);

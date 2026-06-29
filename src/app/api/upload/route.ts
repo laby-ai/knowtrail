@@ -6,6 +6,8 @@ import { parseRuntimeAIConfigJson, resolveServerRuntimeAIConfig } from '@/lib/ru
 import { resolveInternalAppOrigin } from '@/lib/internal-origin';
 import { ingestExtractedSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
 import { classifyMinerUJobFailure, mineruJobErrorMessage, mineruJobOptionsFromEnv } from '@/lib/mineru-job';
+import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
+import { normalizeNotebookId } from '@/lib/notebook-scope';
 
 const SUPPORTED_TYPES = new Set([
   'pdf', 'doc', 'docx', 'txt', 'md',
@@ -40,6 +42,12 @@ function getFileExt(fileName: string): string {
 
 function isImageType(ext: string): boolean {
   return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+}
+
+function shouldAnalyzeUploadWithAI(ext: string, extractedContent: string): boolean {
+  if (isImageType(ext) || ext === 'pdf') return true;
+  if (['txt', 'md', 'csv'].includes(ext)) return false;
+  return extractedContent.trim().length < 1200;
 }
 
 // ─── 文档内容提取 ─────────────────────────────────────────
@@ -297,8 +305,20 @@ async function readFileContent(filePath: string, ext: string): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
+    let ownerMemberId: string | undefined;
+    try {
+      const accountSession = await resolveAccountSessionFromRequest(request);
+      if (accountAuthRequired() && !accountSession) {
+        return NextResponse.json({ error: '请先登录账号，再上传资料。' }, { status: 401 });
+      }
+      ownerMemberId = accountSession?.member.id;
+    } catch {
+      return NextResponse.json({ error: '账号登录已过期，请重新登录。' }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
+    const notebookId = normalizeNotebookId(formData.get('notebookId'));
     const rawAIConfig = formData.get('aiConfig');
     const requestAIConfig = typeof rawAIConfig === 'string' ? parseRuntimeAIConfigJson(rawAIConfig) : undefined;
     const aiConfig = resolveServerRuntimeAIConfig(requestAIConfig);
@@ -432,9 +452,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // 调用 AI 分析 API
+        // 普通文本先走快路径入库；需要视觉/结构理解的资料再调用 AI 分析。
         let analysis = null;
-        try {
+        const needsAIAnalysis = shouldAnalyzeUploadWithAI(ext, fileContent);
+        if (needsAIAnalysis) try {
           // 对文本类文件，发送提取的文本内容（截断到 15000 字符以适应 LLM 上下文）
           // 对图片文件，发送 base64
           const isImage = isImageType(ext);
@@ -475,6 +496,8 @@ export async function POST(request: NextRequest) {
         const paperId = `paper-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const sourceRecord = await ingestExtractedSource({
           id: paperId,
+          ownerMemberId,
+          notebookId,
           fileName: file.name,
           fileType: ext,
           fileSize: file.size,
@@ -489,7 +512,7 @@ export async function POST(request: NextRequest) {
           shortName,
         }, { aiConfig });
 
-        console.log(`[Upload] File: ${file.name}, ext: ${ext}, content length: ${content.length}, rawContent length: ${rawContent.length}, analysis: ${analysis ? 'OK' : 'NULL'}, env: ${isProd ? 'PROD' : 'DEV'}`);
+        console.log(`[Upload] File: ${file.name}, ext: ${ext}, content length: ${content.length}, rawContent length: ${rawContent.length}, analysis: ${analysis ? 'OK' : needsAIAnalysis ? 'NULL' : 'SKIPPED'}, env: ${isProd ? 'PROD' : 'DEV'}`);
 
         // For PDF files, trigger MinerU extraction in the background
         let mineruStatus: 'pending' | 'running' | 'done' | 'failed' | undefined;
@@ -505,6 +528,7 @@ export async function POST(request: NextRequest) {
 
         results.push({
           id: paperId,
+          notebookId,
           fileName: file.name,
           savedFileName: isProd ? undefined : path.basename(fileKey),
           fileKey: isProd ? fileKey : undefined,

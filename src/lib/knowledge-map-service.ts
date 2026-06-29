@@ -68,6 +68,8 @@ export interface KnowledgeMapRequestInput {
   debugAnswerText?: string;
   forceRefresh?: boolean;
   deepExtract?: boolean;
+  ownerMemberId?: string;
+  notebookId?: string;
 }
 
 interface ParsedNode {
@@ -107,22 +109,23 @@ interface ParsedKnowledgeMap {
 }
 
 export async function buildKnowledgeMapPayload(input: KnowledgeMapRequestInput) {
-  const { papers, aiConfig, debugRetrievalOnly, debugAnswerText, forceRefresh, deepExtract } = input;
+  const { papers, aiConfig, debugRetrievalOnly, debugAnswerText, forceRefresh, deepExtract, ownerMemberId, notebookId } = input;
   if (!papers || papers.length === 0) {
     return { error: '请提供资料内容', status: 400 as const };
   }
 
   const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
+  const scope = { ownerMemberId, notebookId };
   if (!debugRetrievalOnly && !forceRefresh) {
-    const cached = await readKnowledgeMapCache(papers, runtimeConfig);
+    const cached = await readKnowledgeMapCache(papers, runtimeConfig, scope);
     if (cached) return { body: cached, status: 200 as const };
   }
 
   const grounded = await buildGroundedRetrievalContext(
-    '抽取核心概念、方法、发现和它们之间的关系，生成可视化资料地图',
+    '抽取核心概念、方法、发现和它们之间的关系，生成可视化资料脉络',
     papers,
     runtimeConfig,
-    { topK: 8 },
+    { topK: 8, ownerMemberId, notebookId },
   );
 
   if (debugRetrievalOnly) {
@@ -152,7 +155,7 @@ export async function buildKnowledgeMapPayload(input: KnowledgeMapRequestInput) 
       retrieval: toRetrievalMetadata(grounded),
       citationAudit: auditCitationMarkers(auditText, grounded.citations) as CitationAuditResult,
     };
-    const cache = await writeKnowledgeMapCache(papers, runtimeConfig, response);
+    const cache = await writeKnowledgeMapCache(papers, runtimeConfig, response, scope);
     return {
       body: {
         ...response,
@@ -180,7 +183,7 @@ export async function buildKnowledgeMapPayload(input: KnowledgeMapRequestInput) 
 
   const map = parseKnowledgeMapResult(result, papers, grounded.citations.length);
   if (map.nodes.length === 0 || map.edges.length === 0) {
-    return { error: '未能生成可用资料地图，请重试', status: 500 as const };
+    return { error: '未能生成可用资料脉络，请重试', status: 500 as const };
   }
 
   const auditText = [
@@ -193,7 +196,7 @@ export async function buildKnowledgeMapPayload(input: KnowledgeMapRequestInput) 
     retrieval: toRetrievalMetadata(grounded),
     citationAudit: auditCitationMarkers(auditText, grounded.citations) as CitationAuditResult,
   };
-  const cache = await writeKnowledgeMapCache(papers, runtimeConfig, response);
+  const cache = await writeKnowledgeMapCache(papers, runtimeConfig, response, scope);
   return {
     body: {
       ...response,
@@ -303,7 +306,7 @@ function sanitizeKnowledgeMap(parsed: ParsedKnowledgeMap, papers: RagSourceInput
 
   return {
     schemaVersion: 1,
-    title: cleanText(parsed.title || '资料地图', 60),
+    title: cleanText(parsed.title || '资料脉络', 60),
     generatedAt: new Date().toISOString(),
     nodes: nodes.sort((a, b) => Number(Boolean(b.focal)) - Number(Boolean(a.focal)) || b.degree - a.degree || a.label.localeCompare(b.label)),
     edges,

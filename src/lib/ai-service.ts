@@ -95,7 +95,7 @@ async function* openAICompatStream(
   runtimeConfig?: Partial<RuntimeAIConfig>,
 ): AsyncGenerator<string, void, unknown> {
   if (!hasRuntimeAIProvider(runtimeConfig)) {
-    throw new Error('缺少 API Base 或 API Key');
+    throw new Error('账号绑定的模型服务尚未配置。');
   }
 
   const endpoint = resolveOpenAIChatEndpoint(runtimeConfig);
@@ -174,7 +174,7 @@ export async function llmInvoke(
   void customHeaders;
   const resolvedRuntimeConfig = resolveServerRuntimeAIConfig(runtimeConfig);
   if (!hasRuntimeAIProvider(resolvedRuntimeConfig)) {
-    throw new Error('缺少 OpenAI-compatible/Ark API Base 或 API Key，已停止使用历史平台 fallback。');
+    throw new Error('账号绑定的模型服务尚未配置，已停止使用历史平台 fallback。');
   }
 
   const attempts = Math.max(1, Number(process.env.REAL_SERVICE_LLM_RETRIES || 2));
@@ -205,7 +205,7 @@ export async function* llmStream(
   void customHeaders;
   const resolvedRuntimeConfig = resolveServerRuntimeAIConfig(runtimeConfig);
   if (!hasRuntimeAIProvider(resolvedRuntimeConfig)) {
-    throw new Error('缺少 OpenAI-compatible/Ark API Base 或 API Key，已停止使用历史平台 fallback。');
+    throw new Error('账号绑定的模型服务尚未配置，已停止使用历史平台 fallback。');
   }
   yield* openAICompatStream(messages, options, resolvedRuntimeConfig);
 }
@@ -314,7 +314,7 @@ export function classifyPodcastGenerationError(error: unknown): PodcastGeneratio
     return {
       errorType: 'auth',
       error: message,
-      userMessage: '播客服务鉴权失败：当前 Access Key/API Key 无效或没有开通豆包语音合成服务。请更换有效的 Agent Plan TTS Key 后重试。',
+      userMessage: '播客服务鉴权失败：当前账号绑定的语音服务不可用或未开通，请稍后重试。',
       retryable: false,
       requestId,
       upstreamStatus,
@@ -347,7 +347,7 @@ export function classifyPodcastGenerationError(error: unknown): PodcastGeneratio
     return {
       errorType: 'configuration',
       error: message,
-      userMessage: '播客音频配置不完整，请补齐豆包语音合成 endpoint、API Key、Resource-Id 和音色。',
+      userMessage: '播客音频服务配置不完整，请联系服务方检查语音合成配置。',
       retryable: false,
       requestId,
       upstreamStatus,
@@ -473,7 +473,7 @@ async function buildPodcastDialogueText(text: string, options?: PodcastGeneratio
   }
 
   const prompt = [
-    '你是灵笔工作室的播客脚本编辑。请把检索证据改写成一段可直接交给 TTS 的中文双人播客口播稿。',
+    '你是灵笔的播客脚本编辑。请把检索证据改写成一段可直接交给 TTS 的中文双人播客口播稿。',
     '要求：',
     '1. 只输出口播稿正文，不要 JSON，不要 Markdown 代码块。',
     '2. 两位主播交替发言，用“主持人：”“研究员：”标记。',
@@ -696,7 +696,7 @@ export async function generatePodcast(text: string, options?: PodcastGenerationO
 
   if (preferredProvider === 'doubao-tts') {
     throw new PodcastAudioGenerationError(
-      '豆包语音合成未配置：缺少 AGENTPLAN_TTS_ENDPOINT、AGENTPLAN_TTS_RESOURCE_ID、AGENTPLAN_TTS_API_KEY/API Key 或 AGENTPLAN_TTS_SPEAKER。',
+      '豆包语音合成未配置：缺少 endpoint、Resource-Id、服务密钥或 speaker。',
       compactTextForPodcastTts(text),
     );
   }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   Sparkles,
+  Loader2,
   Link as LinkIcon,
   ChevronDown,
   FileSearch,
@@ -20,12 +21,16 @@ export function MessageItem({
   message,
   isExpanded,
   onToggleExpand,
+  isPending = false,
 }: {
   message: ChatMessage;
   isExpanded: boolean;
   onToggleExpand: () => void;
+  isPending?: boolean;
 }) {
   const isUser = message.role === 'user';
+  const hasContent = message.content.trim().length > 0;
+  const showPending = !isUser && isPending && !hasContent;
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -51,10 +56,17 @@ export function MessageItem({
             ? 'liquid-glass-static text-[var(--text-primary)]'
             : 'ai-bubble-gradient text-[var(--text-primary)]'
         }`}>
-          {renderFormattedText(message.content)}
+          {showPending ? (
+            <div className="flex items-center gap-2.5 text-[var(--text-secondary)]">
+              <Loader2 className="h-4 w-4 animate-spin text-[var(--accent-blue)]" />
+              <span className="text-sm">正在分析资料...</span>
+            </div>
+          ) : (
+            renderFormattedText(message.content)
+          )}
         </div>
 
-        {!isUser && (
+        {!isUser && hasContent && (
           <div className="flex items-center gap-1 mt-1.5 ml-1">
             <button
               className="p-1.5 rounded-lg text-zinc-600 hover:text-[var(--text-secondary)] hover:bg-[var(--bg-card)] transition-all"

@@ -5,17 +5,24 @@ import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
 import { auditCitationMarkers } from '@/lib/citation-audit';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
 export async function POST(request: NextRequest) {
   try {
-    const { papers, outline, customOutline, aiConfig, debugRetrievalOnly, debugAnswerText } = await request.json() as {
+    const { papers, outline, customOutline, aiConfig, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
       papers?: string | RagSourceInput[];
       outline?: string;
       customOutline?: string;
       aiConfig?: Partial<RuntimeAIConfig>;
       debugRetrievalOnly?: boolean;
       debugAnswerText?: string;
+      notebookId?: string;
     };
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: rawNotebookId,
+      loginMessage: '请先登录账号，再生成资料报告。',
+    });
+    if (!scope.ok) return scope.response;
 
     if (!papers || (Array.isArray(papers) && papers.length === 0) || (typeof papers === 'string' && !papers.trim())) {
       return NextResponse.json({ error: '请先选择至少一篇论文' }, { status: 400 });
@@ -45,7 +52,11 @@ export async function POST(request: NextRequest) {
 
     const reportOutline = customOutline || outline || '研究背景与目的、核心论点对比分析、实验方法汇总、研究成果总结、研究局限与展望';
     const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
-    const grounded = await buildGroundedRetrievalContext(`围绕以下大纲生成综述报告：${reportOutline}`, requestSources, runtimeConfig, { topK: 10 });
+    const grounded = await buildGroundedRetrievalContext(`围绕以下大纲生成综述报告：${reportOutline}`, requestSources, runtimeConfig, {
+      topK: 10,
+      ownerMemberId: scope.ownerMemberId,
+      notebookId: scope.notebookId,
+    });
     const evidenceContext = grounded.promptContext || paperContext;
 
     if (debugRetrievalOnly) {

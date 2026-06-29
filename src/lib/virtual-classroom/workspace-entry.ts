@@ -1,6 +1,10 @@
 import type { Paper } from '@/types';
 
-export const CLASSROOM_ORIGIN = process.env.NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN || 'http://127.0.0.1:5025';
+function configuredClassroomOrigin(): string {
+  return (process.env.NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN || '').trim().replace(/\/$/, '');
+}
+
+export const CLASSROOM_ORIGIN = configuredClassroomOrigin() || '/virtual-classroom';
 
 export const virtualClassroomTypeLabels: Record<string, string> = {
   slide: '讲解',
@@ -31,18 +35,38 @@ export function buildClassroomDraft(papers: Paper[]) {
   ].join('\n');
 }
 
-export function buildClassroomUrl(draft: string) {
-  const url = new URL(CLASSROOM_ORIGIN);
+export function buildClassroomUrl(draft: string, originOverride?: string) {
+  const externalOrigin = (originOverride || configuredClassroomOrigin()).trim().replace(/\/$/, '');
+  if (!externalOrigin) {
+    const params = new URLSearchParams({
+      draft: draft.slice(0, 900),
+      embed: 'lingbi',
+    });
+    return `/virtual-classroom?${params.toString()}`;
+  }
+
+  if (externalOrigin.startsWith('/')) {
+    const params = new URLSearchParams({
+      draft: draft.slice(0, 900),
+      embed: 'lingbi',
+    });
+    return `${externalOrigin}?${params.toString()}`;
+  }
+
+  const url = new URL(externalOrigin);
   url.searchParams.set('draft', draft.slice(0, 900));
   url.searchParams.set('embed', 'lingbi');
   return url.toString();
 }
 
-export function buildVirtualClassroomEntry(papers: Paper[]) {
+export function buildVirtualClassroomEntry(papers: Paper[], originOverride?: string) {
+  const sourceSummary = papers.slice(0, 3).map(paper => paper.title || paper.shortName || '未命名资料').join('、');
   return {
-    url: buildClassroomUrl(buildClassroomDraft(papers)),
-    title: '虚拟教室',
+    url: buildClassroomUrl(buildClassroomDraft(papers), originOverride),
+    title: papers.length > 0 ? `基于 ${papers.length} 个资料的虚拟课堂` : '虚拟教室',
     source: 'recent' as const,
     sourceCount: papers.length,
+    sourceIds: papers.map(paper => paper.id),
+    sourceSummary,
   };
 }

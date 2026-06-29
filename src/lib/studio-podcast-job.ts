@@ -21,11 +21,17 @@ export interface SubmitPodcastJobInput {
   title?: string;
   papers: RagSourceInput[];
   aiConfig?: Partial<RuntimeAIConfig>;
+  ownerMemberId?: string;
+  notebookId?: string;
 }
 
 export async function buildPodcastRetrievalPreview(input: SubmitPodcastJobInput) {
   const grounded = input.papers.length > 0
-    ? await buildGroundedRetrievalContext(PODCAST_RETRIEVAL_PROMPT, input.papers, input.aiConfig, { topK: 10 })
+    ? await buildGroundedRetrievalContext(PODCAST_RETRIEVAL_PROMPT, input.papers, input.aiConfig, {
+      topK: 10,
+      ownerMemberId: input.ownerMemberId,
+      notebookId: input.notebookId,
+    })
     : undefined;
 
   return {
@@ -129,6 +135,8 @@ export async function submitPodcastJob(input: SubmitPodcastJobInput): Promise<St
   const preview = await buildPodcastRetrievalPreview(input);
   const job = createStudioJob({
     type: 'podcast',
+    ownerMemberId: input.ownerMemberId,
+    notebookId: input.notebookId,
     stage: 'retrieving-context',
     progress: 18,
     message: preview.citations.length > 0
@@ -144,7 +152,7 @@ export async function submitPodcastJob(input: SubmitPodcastJobInput): Promise<St
   return job;
 }
 
-export function getPodcastStudioJobResponse(jobId: string) {
-  const job = getStudioJob(jobId);
+export function getPodcastStudioJobResponse(jobId: string, scope: { ownerMemberId?: string; notebookId?: string } = {}) {
+  const job = getStudioJob(jobId, scope);
   return job ? toStudioJobResponse(job) : undefined;
 }

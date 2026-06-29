@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { synthesizeDoubaoAgentPlanTts } from '@/lib/doubao-agentplan-tts';
+import { allowRequestRuntimeAIConfig } from '@/lib/runtime-ai-config';
 
 function safeErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : 'TTS synthesis failed';
@@ -18,8 +19,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing text parameter' }, { status: 400 });
     }
 
+    const requestApiKey = allowRequestRuntimeAIConfig() && typeof aiConfig?.apiKey === 'string'
+      ? aiConfig.apiKey
+      : undefined;
+
     const result = await synthesizeDoubaoAgentPlanTts(text, {
-      apiKey: typeof aiConfig?.apiKey === 'string' ? aiConfig.apiKey : undefined,
+      apiKey: requestApiKey,
       speaker: typeof speaker === 'string'
         ? speaker
         : typeof aiConfig?.ttsSpeaker === 'string'

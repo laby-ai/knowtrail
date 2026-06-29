@@ -166,7 +166,7 @@ export async function synthesizeDoubaoAgentPlanTts(text: string, options?: Douba
   const resourceId = resolveResourceId();
   const endpoint = resolveEndpoint();
   if (!endpoint || !apiKey || !speaker || !resourceId) {
-    throw new Error('豆包语音合成配置不完整：需要 endpoint、API Key、Resource-Id 和 speaker。');
+    throw new Error('豆包语音合成配置不完整：需要 endpoint、服务密钥、Resource-Id 和 speaker。');
   }
 
   const maxChars = Math.max(1, Math.min(2000, options?.maxChars || Number(readEnv('AGENTPLAN_TTS_ROUTE_MAX_CHARS', 'DOUBAO_TTS_ROUTE_MAX_CHARS') || 1000)));

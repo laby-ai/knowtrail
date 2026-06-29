@@ -45,8 +45,8 @@ export interface StudioToolItem {
 export const STUDIO_NAV: StudioNavItem[] = [
   { id: 'presentation', label: '演示文稿', desc: '图片页 / 可编辑 PPT', icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
   { id: 'audio', label: '语音摘要', desc: '脚本和音频产物', icon: Volume2, accent: 'from-purple-500/10 to-purple-500/5' },
-  { id: 'knowledge', label: '资料地图', desc: '核心词和关系', icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
-  { id: 'virtual-classroom', label: '虚拟教室', desc: '完整课堂系统', icon: GraduationCap, accent: 'from-emerald-500/10 to-sky-500/5' },
+  { id: 'knowledge', label: '资料脉络', desc: '核心词和关系', icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
+  { id: 'virtual-classroom', label: '虚拟课堂', desc: '课堂系统', icon: GraduationCap, accent: 'from-emerald-500/10 to-sky-500/5' },
 ];
 
 const STUDIO_TOOL_ICONS: Record<StudioArtifactToolId, ElementType> = {
@@ -69,9 +69,9 @@ export function StudioToolSwitcher({
 }) {
   return (
     <div className="space-y-2" data-testid="studio-tool-switcher">
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-tertiary)]">
-        <MousePointer2 className="h-3.5 w-3.5" />
+      <div className="flex items-center justify-between gap-2 text-[11px] font-semibold text-[var(--text-tertiary)]">
         <span>核心产物</span>
+        <span className="text-[10px] font-medium text-[var(--text-quaternary)]">基于已选资料</span>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {STUDIO_NAV.map(item => {
@@ -88,15 +88,14 @@ export function StudioToolSwitcher({
                   ? 'border-blue-400/50 bg-blue-500/10'
                   : 'border-[var(--glass-border)] bg-[var(--glass-subtle)] hover:border-[var(--border-hover)]'
               }`}
-              title={`切换到${item.label}`}
+              title={`${item.label}：${item.desc}`}
             >
-              <span className="flex items-start gap-2">
+              <span className="flex items-center gap-2">
                 <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${item.accent}`}>
                   <Icon className="h-4 w-4 text-[var(--text-secondary)]" />
                 </span>
                 <span className="min-w-0">
                   <span className="block text-[11px] font-semibold leading-tight text-[var(--text-primary)]">{item.label}</span>
-                  <span className="mt-0.5 block text-[10px] leading-snug text-[var(--text-tertiary)]">{item.desc}</span>
                 </span>
               </span>
             </button>

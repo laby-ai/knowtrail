@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, rmSync, mkdirSync, cpSync, copyFileSync, writeFileSync, chmodSync, statSync, readdirSync } from 'node:fs';
+import { existsSync, rmSync, mkdirSync, cpSync, copyFileSync, writeFileSync, chmodSync, statSync, readdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -35,6 +35,51 @@ function copyEntry(relativePath, targetRelativePath = relativePath) {
       return true;
     },
   });
+}
+
+function copyRuntimeEntry(relativePath, targetRelativePath = relativePath) {
+  const source = path.join(workspace, relativePath);
+  const target = path.join(appDir, targetRelativePath);
+  if (!existsSync(source)) return false;
+  cpSync(source, target, { recursive: true, force: true });
+  return true;
+}
+
+function resolveClassroomRuntimeModule(packageName) {
+  const direct = path.join(workspace, '.references', 'OpenMAIC', 'node_modules', ...packageName.split('/'));
+  if (existsSync(direct)) return realpathSync(direct);
+
+  const pnpmStore = path.join(workspace, '.references', 'OpenMAIC', 'node_modules', '.pnpm');
+  const pnpmPrefix = `${packageName.replace('/', '+')}@`;
+  if (!existsSync(pnpmStore)) return null;
+
+  const match = readdirSync(pnpmStore)
+    .filter(entry => entry.startsWith(pnpmPrefix))
+    .sort()
+    .at(-1);
+  if (!match) return null;
+
+  const pnpmSource = path.join(pnpmStore, match, 'node_modules', ...packageName.split('/'));
+  return existsSync(pnpmSource) ? pnpmSource : null;
+}
+
+function copyClassroomRuntimeModule(packageName) {
+  const source = resolveClassroomRuntimeModule(packageName);
+  const target = path.join(
+    appDir,
+    '.references',
+    'OpenMAIC',
+    '.next',
+    'standalone',
+    '.references',
+    'OpenMAIC',
+    'node_modules',
+    ...packageName.split('/'),
+  );
+  if (!source) return false;
+  mkdirSync(path.dirname(target), { recursive: true });
+  cpSync(source, target, { recursive: true, force: true });
+  return true;
 }
 
 function makeExecutable(relativePath) {
@@ -90,6 +135,15 @@ mkdirSync(appDir, { recursive: true });
   'deploy',
 ].forEach(entry => copyEntry(entry));
 
+const classroomRuntimeIncluded = [
+  copyRuntimeEntry('.references/OpenMAIC/.next/standalone/.references/OpenMAIC'),
+  copyRuntimeEntry('.references/OpenMAIC/.next/static'),
+  copyRuntimeEntry('.references/OpenMAIC/public'),
+  copyClassroomRuntimeModule('styled-jsx'),
+  copyClassroomRuntimeModule('@next/env'),
+  copyClassroomRuntimeModule('@swc/helpers'),
+].every(Boolean);
+
 copyFileSync(path.join(workspace, 'deploy/linux/install.sh'), path.join(appDir, 'install.sh'));
 copyFileSync(path.join(workspace, 'deploy/linux/start.sh'), path.join(appDir, 'start.sh'));
 copyFileSync(path.join(workspace, 'deploy/linux/healthcheck.sh'), path.join(appDir, 'healthcheck.sh'));
@@ -125,13 +179,17 @@ writeFileSync(path.join(appDir, 'BUNDLE_MANIFEST.json'), `${JSON.stringify({
   start: './start.sh',
   healthcheck: './healthcheck.sh',
   requiredRuntimeArtifacts: ['dist/server.js', '.next/BUILD_ID', 'public'],
+  optionalRuntimeArtifacts: classroomRuntimeIncluded ? ['virtual classroom standalone runtime'] : [],
   persistentPaths: ['.data/zvec', '.data/sources', 'logs'],
   notes: [
     'Run ./install.sh after extracting on Linux.',
     'For Ubuntu/Debian single-node deployment, run ./deploy.sh to bootstrap prerequisites, install dependencies, start the service, and probe health.',
     'Edit .env.production before public deployment.',
     'Copy .env.real.local.example to .env.real.local only on the target host when running real model smoke tests.',
-    'Do not store user API keys in this bundle; use the browser model settings UI or deployment secrets.',
+    'Do not store user API keys in this bundle; C-end model access is account-bound and should use deployment secrets or an approved gateway.',
+    classroomRuntimeIncluded
+      ? 'Virtual classroom runtime is included and started by ./start.sh when model credentials are available.'
+      : 'Virtual classroom runtime is not included; /api/virtual-classroom/status will report native mode.',
   ],
   realSmokeCommands: [
     'pnpm smoke:real-env-preflight',
@@ -174,5 +232,8 @@ console.log(JSON.stringify({
     'real smoke env template included without real secrets',
     'right-side Studio real smoke and PPTX quality audit commands included in bundle manifest',
     'runtime public uploads and MinerU figure outputs excluded from bundle',
+    classroomRuntimeIncluded
+      ? 'virtual classroom runtime included'
+      : 'virtual classroom runtime not found; package remains usable without classroom sidecar',
   ],
 }, null, 2));

@@ -136,6 +136,16 @@ function sourceMatchesIdentities(source: StoredSourceRecord, identities: Set<str
   return identities.has(source.id) || identities.has(source.fileName) || identities.has(source.title);
 }
 
+function sourceMatchesOwner(source: StoredSourceRecord, ownerMemberId?: string): boolean {
+  if (!ownerMemberId) return true;
+  return source.ownerMemberId === ownerMemberId;
+}
+
+function sourceMatchesNotebook(source: StoredSourceRecord, notebookId?: string): boolean {
+  if (!notebookId) return true;
+  return (source.notebookId || 'default-workspace') === notebookId;
+}
+
 function tokenizeReadyChunkQuery(query?: string): string[] {
   if (!query?.trim()) return [];
   const tokens = query
@@ -211,6 +221,8 @@ export function buildReadySourceChunksResultFromSources(
   const readySources = sources.filter(source => (
     source.status === 'succeeded' &&
     source.chunks.length > 0 &&
+    sourceMatchesOwner(source, scope.ownerMemberId) &&
+    sourceMatchesNotebook(source, scope.notebookId) &&
     sourceMatchesIdentities(source, identities)
   )).map(source => ({
     ...source,
@@ -290,6 +302,8 @@ export function buildSourceStoreFromPostgresRows(input: {
 
     return {
       id: row.id || payload.id || '',
+      ownerMemberId: payload.ownerMemberId,
+      notebookId: payload.notebookId,
       fileName: row.file_name || payload.fileName || 'unknown',
       fileType: row.file_type || payload.fileType || 'unknown',
       fileSize: optionalNumber(row.file_size) ?? payload.fileSize,
@@ -410,6 +424,14 @@ class PostgresSourceStoreAdapter implements SourceStoreAdapter {
       ? `AND (s.id = ANY($${params.length + 1}::text[]) OR s.file_name = ANY($${params.length + 1}::text[]) OR s.title = ANY($${params.length + 1}::text[]))`
       : '';
     if (identities.length > 0) params.push(identities);
+    const ownerFilter = scope.ownerMemberId
+      ? `AND s.payload->>'ownerMemberId' = $${params.length + 1}`
+      : '';
+    if (scope.ownerMemberId) params.push(scope.ownerMemberId);
+    const notebookFilter = scope.notebookId
+      ? `AND coalesce(s.payload->>'notebookId', 'default-workspace') = $${params.length + 1}`
+      : '';
+    if (scope.notebookId) params.push(scope.notebookId);
     const queryExistsSearch = buildPostgresReadyChunkSearchSql({
       query: scope.query,
       paramIndex: params.length + 1,
@@ -427,6 +449,8 @@ class PostgresSourceStoreAdapter implements SourceStoreAdapter {
       FROM ${POSTGRES_SOURCES_TABLE} s
       WHERE s.status = 'succeeded'
         ${identityFilter}
+        ${ownerFilter}
+        ${notebookFilter}
         AND EXISTS (
           SELECT 1 FROM ${POSTGRES_CHUNKS_TABLE} c
           WHERE c.source_id = s.id
@@ -735,6 +759,8 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
   const timestamp = nowIso();
   return {
     id: input.id,
+    ownerMemberId: input.ownerMemberId,
+    notebookId: input.notebookId,
     fileName: input.fileName,
     fileType: input.fileType,
     fileSize: input.fileSize,
@@ -848,9 +874,12 @@ export async function ingestExtractedSource(
   }
 }
 
-export async function listIngestionSources(): Promise<StoredSourceRecord[]> {
+export async function listIngestionSources(scope: { ownerMemberId?: string; notebookId?: string } = {}): Promise<StoredSourceRecord[]> {
   const store = await getSourceStoreAdapter().read();
-  return store.sources;
+  return store.sources.filter(source => (
+    sourceMatchesOwner(source, scope.ownerMemberId) &&
+    sourceMatchesNotebook(source, scope.notebookId)
+  ));
 }
 
 export async function listReadySourceChunks(scope: ReadySourceChunksScope = {}): Promise<ReadySourceChunksResult> {
@@ -860,9 +889,13 @@ export async function listReadySourceChunks(scope: ReadySourceChunksScope = {}):
   return buildReadySourceChunksResultFromSources(store.sources, scope);
 }
 
-export async function getIngestionSource(id: string): Promise<StoredSourceRecord | undefined> {
+export async function getIngestionSource(id: string, scope: { ownerMemberId?: string; notebookId?: string } = {}): Promise<StoredSourceRecord | undefined> {
   const store = await getSourceStoreAdapter().read();
-  return store.sources.find(source => source.id === id);
+  return store.sources.find(source => (
+    source.id === id &&
+    sourceMatchesOwner(source, scope.ownerMemberId) &&
+    sourceMatchesNotebook(source, scope.notebookId)
+  ));
 }
 
 export async function updateSourceMinerUStatus(

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle2, GraduationCap, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, GraduationCap, HelpCircle, RefreshCw } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import {
   buildVirtualClassroomEntry,
@@ -16,6 +16,7 @@ import { VirtualClassroomRecentList, type RecentClassroom } from './VirtualClass
 
 interface ClassroomStatus {
   ok: boolean;
+  mode?: 'external' | 'unavailable';
   origin: string;
   recentClassrooms: RecentClassroom[];
 }
@@ -23,6 +24,7 @@ interface ClassroomStatus {
 export function VirtualClassroomPanel() {
   const { getSelectedPapers, openVirtualClassroom, virtualClassroomViewer } = useApp();
   const selectedPapers = getSelectedPapers();
+  const selectedSourceSignature = selectedPapers.map(paper => paper.id).join('|');
   const [status, setStatus] = useState<ClassroomStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [outlineDraft, setOutlineDraft] = useState<ClassroomOutlineDraft | null>(null);
@@ -33,6 +35,8 @@ export function VirtualClassroomPanel() {
   const [confirmedClassroom, setConfirmedClassroom] = useState<ConfirmedClassroom | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
 
+  const classroomOrigin = status?.ok && status.mode === 'external' ? status.origin : undefined;
+
   const loadStatus = async () => {
     setLoading(true);
     try {
@@ -40,7 +44,7 @@ export function VirtualClassroomPanel() {
       const data = (await response.json()) as ClassroomStatus;
       setStatus(data);
     } catch {
-      setStatus({ ok: false, origin: CLASSROOM_ORIGIN, recentClassrooms: [] });
+      setStatus({ ok: false, mode: 'unavailable', origin: CLASSROOM_ORIGIN, recentClassrooms: [] });
     } finally {
       setLoading(false);
     }
@@ -51,14 +55,17 @@ export function VirtualClassroomPanel() {
   }, []);
 
   const openFullClassroom = () => {
-    openVirtualClassroom(buildVirtualClassroomEntry(selectedPapers));
+    if (!classroomOrigin) return;
+    openVirtualClassroom(buildVirtualClassroomEntry(selectedPapers, classroomOrigin));
   };
 
   useEffect(() => {
+    if (loading || !classroomOrigin || selectedPapers.length === 0) return;
+    if (virtualClassroomViewer?.source === 'confirmed') return;
+    if (virtualClassroomViewer?.sourceIds?.join('|') === selectedSourceSignature) return;
     openFullClassroom();
-    // Opening the full classroom is the product entry. Source selection changes should not reload it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loading, classroomOrigin, selectedSourceSignature, selectedPapers.length, virtualClassroomViewer?.source]);
 
   const generateOutlineDraft = async () => {
     if (selectedPapers.length === 0) {
@@ -163,11 +170,21 @@ export function VirtualClassroomPanel() {
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-subtle)]">
             <GraduationCap className="h-5 w-5 text-[var(--accent-blue)]" />
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-[var(--text-primary)]">虚拟教室</p>
-            <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
-              从左侧资料生成课程大纲，确认场景后在中间工作区查看课堂内容。
-            </p>
+          <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">虚拟课堂</p>
+              <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
+                生成大纲后进入中间工作区。
+              </p>
+            </div>
+            <button
+              type="button"
+              className="rounded-full p-1.5 text-[var(--text-tertiary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]"
+              title="先选择资料，再生成课程大纲；确认后课堂会在中间工作区打开。"
+              aria-label="虚拟课堂说明"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -179,7 +196,7 @@ export function VirtualClassroomPanel() {
               <AlertCircle className="h-4 w-4 text-amber-500" />
             )}
             <span className="text-[var(--text-primary)]">
-              {loading ? '正在检查课堂服务...' : status?.ok ? '课堂服务可用' : '课堂服务未连接'}
+              {loading ? '正在检查课堂...' : classroomOrigin ? '课堂服务可用' : '课堂服务未连接'}
             </span>
           </div>
           <button
@@ -195,27 +212,21 @@ export function VirtualClassroomPanel() {
         <button
           type="button"
           onClick={openFullClassroom}
-          className="liquid-glass-btn mt-4 w-full px-4 py-3 text-xs font-semibold"
+          disabled={!classroomOrigin || selectedPapers.length === 0}
+          className="liquid-glass-btn mt-4 w-full px-4 py-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
           data-testid="virtual-classroom-open"
+          title={selectedPapers.length > 0 ? '用左侧已选资料打开课堂' : '请先在左侧选择资料'}
         >
           <GraduationCap className="h-3.5 w-3.5" />
-          打开完整课堂
+          {selectedPapers.length > 0 ? `打开课堂 · ${selectedPapers.length} 个资料` : '先选择资料'}
         </button>
 
         {virtualClassroomViewer && (
-          <div
-            className="mt-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-3"
-            data-testid="virtual-classroom-active-status"
-          >
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-emerald-200">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              课堂已在中间工作区打开
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2" data-testid="virtual-classroom-active-status">
+            <div className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-emerald-700">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{virtualClassroomViewer.title || '课堂已打开'}</span>
             </div>
-            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[var(--text-secondary)]">
-              {virtualClassroomViewer.title || '虚拟教室'}
-              {virtualClassroomViewer.sceneCount ? ` · ${virtualClassroomViewer.sceneCount} 个场景` : ''}
-              {virtualClassroomViewer.actionsCount ? ` · ${virtualClassroomViewer.actionsCount} 个动作` : ''}
-            </p>
             <button
               type="button"
               onClick={() => openVirtualClassroom({
@@ -223,22 +234,20 @@ export function VirtualClassroomPanel() {
                 title: virtualClassroomViewer.title,
                 source: virtualClassroomViewer.source,
                 sourceCount: virtualClassroomViewer.sourceCount,
+                sourceIds: virtualClassroomViewer.sourceIds,
+                sourceSummary: virtualClassroomViewer.sourceSummary,
                 sceneCount: virtualClassroomViewer.sceneCount,
                 actionsCount: virtualClassroomViewer.actionsCount,
                 scenes: virtualClassroomViewer.scenes,
                 evidence: virtualClassroomViewer.evidence,
               })}
-              className="mt-2 w-full rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-[11px] font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+              className="shrink-0 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-500/15"
               data-testid="virtual-classroom-return-opened"
             >
-              回到已打开课堂
+              回到课堂
             </button>
           </div>
         )}
-
-        <div className="mt-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-3 text-[11px] leading-relaxed text-[var(--text-secondary)]">
-          点击后会直接在中间工作区进入课堂；已选资料会带入课堂输入框，后续在课堂内继续生成。
-        </div>
       </div>
 
       <VirtualClassroomOutlineCard
@@ -269,9 +278,6 @@ export function VirtualClassroomPanel() {
           currentViewer={virtualClassroomViewer}
           openVirtualClassroom={openVirtualClassroom}
         />
-      </div>
-      <div className="rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] p-4 text-xs leading-relaxed text-[var(--text-secondary)]">
-        右侧面板用于查看状态、生成大纲和确认课堂；打开课堂后会进入中间工作区，避免在窄栏里遮挡内容。
       </div>
     </div>
   );

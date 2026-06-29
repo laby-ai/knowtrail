@@ -6,6 +6,8 @@ import {
   Sparkles, BookOpen, FileText, AlertCircle, FileSearch, Link as LinkIcon,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { KnowledgeCardData } from '@/lib/knowledge-card-types';
 import type { Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
 
@@ -22,6 +24,10 @@ function readSessionJson<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function scopedSessionKey(scope: string, key: string) {
+  return `lingbi:${scope}:${key}`;
 }
 
 const CATEGORY_STYLES: Record<string, { tagBg: string; tagText: string; tagBorder: string }> = {
@@ -79,12 +85,13 @@ function formatCacheAge(storedAt?: string) {
 }
 
 export function KnowledgeCardPanel() {
-  const { getSelectedPapers, aiConfig } = useApp();
-  const [cards, setCards] = useState<KnowledgeCardData[]>(() => readSessionJson('knowledge_cards', []));
+  const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+  const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
+  const [cards, setCards] = useState<KnowledgeCardData[]>(() => readSessionJson(scopedSessionKey(storageScopeKey, 'knowledge_cards'), []));
   const [currentIndex, setCurrentIndex] = useState<number>(() => {
     if (typeof window === 'undefined') return 0;
     try {
-      const idx = sessionStorage.getItem('knowledge_cards_index');
+      const idx = sessionStorage.getItem(scopedSessionKey(storageScopeKey, 'knowledge_cards_index'));
       return idx ? parseInt(idx, 10) : 0;
     } catch {
       return 0;
@@ -93,27 +100,32 @@ export function KnowledgeCardPanel() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [citations, setCitations] = useState<Citation[]>(() => readSessionJson('knowledge_cards_citations', []));
-  const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(() => readSessionJson('knowledge_cards_retrieval', null));
-  const [citationAudit, setCitationAudit] = useState<CitationAuditResult | null>(() => readSessionJson('knowledge_cards_citation_audit', null));
-  const [cache, setCache] = useState<KnowledgeCacheData | null>(() => readSessionJson('knowledge_cards_cache', null));
+  const [citations, setCitations] = useState<Citation[]>(() => readSessionJson(scopedSessionKey(storageScopeKey, 'knowledge_cards_citations'), []));
+  const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(() => readSessionJson(scopedSessionKey(storageScopeKey, 'knowledge_cards_retrieval'), null));
+  const [citationAudit, setCitationAudit] = useState<CitationAuditResult | null>(() => readSessionJson(scopedSessionKey(storageScopeKey, 'knowledge_cards_citation_audit'), null));
+  const [cache, setCache] = useState<KnowledgeCacheData | null>(() => readSessionJson(scopedSessionKey(storageScopeKey, 'knowledge_cards_cache'), null));
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const sessionKeys = {
+      cards: scopedSessionKey(storageScopeKey, 'knowledge_cards'),
+      index: scopedSessionKey(storageScopeKey, 'knowledge_cards_index'),
+      citations: scopedSessionKey(storageScopeKey, 'knowledge_cards_citations'),
+      retrieval: scopedSessionKey(storageScopeKey, 'knowledge_cards_retrieval'),
+      citationAudit: scopedSessionKey(storageScopeKey, 'knowledge_cards_citation_audit'),
+      cache: scopedSessionKey(storageScopeKey, 'knowledge_cards_cache'),
+    };
     if (cards.length > 0) {
-      sessionStorage.setItem('knowledge_cards', JSON.stringify(cards));
-      sessionStorage.setItem('knowledge_cards_index', String(currentIndex));
-      sessionStorage.setItem('knowledge_cards_citations', JSON.stringify(citations));
-      sessionStorage.setItem('knowledge_cards_retrieval', JSON.stringify(retrieval));
-      sessionStorage.setItem('knowledge_cards_citation_audit', JSON.stringify(citationAudit));
-      sessionStorage.setItem('knowledge_cards_cache', JSON.stringify(cache));
+      sessionStorage.setItem(sessionKeys.cards, JSON.stringify(cards));
+      sessionStorage.setItem(sessionKeys.index, String(currentIndex));
+      sessionStorage.setItem(sessionKeys.citations, JSON.stringify(citations));
+      sessionStorage.setItem(sessionKeys.retrieval, JSON.stringify(retrieval));
+      sessionStorage.setItem(sessionKeys.citationAudit, JSON.stringify(citationAudit));
+      sessionStorage.setItem(sessionKeys.cache, JSON.stringify(cache));
       return;
     }
-    sessionStorage.removeItem('knowledge_cards_citations');
-    sessionStorage.removeItem('knowledge_cards_retrieval');
-    sessionStorage.removeItem('knowledge_cards_citation_audit');
-    sessionStorage.removeItem('knowledge_cards_cache');
-  }, [cache, cards, citationAudit, citations, currentIndex, retrieval]);
+    Object.values(sessionKeys).forEach(key => sessionStorage.removeItem(key));
+  }, [cache, cards, citationAudit, citations, currentIndex, retrieval, storageScopeKey]);
 
   const papers = getSelectedPapers();
   const hasSelectedPapers = papers.length > 0;
@@ -149,8 +161,8 @@ export function KnowledgeCardPanel() {
 
       const res = await fetch('/api/ai/knowledge-cards', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ papers: paperContents, aiConfig, forceRefresh: Boolean(options?.forceRefresh) }),
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+        body: JSON.stringify({ papers: paperContents, aiConfig, notebookId, forceRefresh: Boolean(options?.forceRefresh) }),
       });
 
       if (!res.ok) {
@@ -173,7 +185,7 @@ export function KnowledgeCardPanel() {
     } finally {
       setIsGenerating(false);
     }
-  }, [papers, aiConfig, hasSelectedPapers]);
+  }, [papers, aiConfig, notebookId, hasSelectedPapers]);
 
   const goNext = useCallback(() => {
     if (cards.length === 0) return;

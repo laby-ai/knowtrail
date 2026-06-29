@@ -5,6 +5,7 @@ export type AccountCenterStatus = {
   tenantIdConfigured: boolean;
   memberBindingConfigured: boolean;
   appSignatureConfigured: boolean;
+  authRequired: boolean;
   billingReservationReady: boolean;
   billingMode: 'not_configured' | 'portal_only' | 'reservation_ready';
 };
@@ -22,12 +23,13 @@ export function getAccountCenterStatus(): AccountCenterStatus {
   const apiBaseConfigured = Boolean(envValue('ACCOUNT_CENTER_API_BASE'));
   const tenantIdConfigured = Boolean(envValue('ACCOUNT_CENTER_TENANT_ID'));
   const memberBindingConfigured = Boolean(envValue('ACCOUNT_CENTER_DEFAULT_MEMBER_ID'));
+  const authRequired = process.env.ACCOUNT_CENTER_REQUIRE_AUTH?.trim().toLowerCase() === 'true';
   const appSignatureConfigured = Boolean(
     envValue('ACCOUNT_CENTER_APP_KEY') &&
     envValue('ACCOUNT_CENTER_CREDENTIAL_KEY') &&
     envValue('ACCOUNT_CENTER_CLIENT_SECRET')
   );
-  const billingReservationReady = apiBaseConfigured && tenantIdConfigured && memberBindingConfigured && appSignatureConfigured;
+  const billingReservationReady = apiBaseConfigured && tenantIdConfigured && appSignatureConfigured && (memberBindingConfigured || authRequired);
 
   return {
     configured: Boolean(publicUrl) || apiBaseConfigured,
@@ -36,6 +38,7 @@ export function getAccountCenterStatus(): AccountCenterStatus {
     tenantIdConfigured,
     memberBindingConfigured,
     appSignatureConfigured,
+    authRequired,
     billingReservationReady,
     billingMode: billingReservationReady ? 'reservation_ready' : publicUrl ? 'portal_only' : 'not_configured',
   };

@@ -6,9 +6,13 @@ import {
   type VirtualClassroomConfirmedOutline,
   type VirtualClassroomOutlineDraft,
 } from '@/lib/virtual-classroom/outline-draft';
+import { publicClassroomOrigin } from '@/lib/virtual-classroom/runtime-config';
 
 const OUTPUT_DIR = path.join(process.cwd(), 'output', 'virtual-classroom');
-const CLASSROOM_ORIGIN = process.env.NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN || 'http://127.0.0.1:5025';
+
+function configuredClassroomOrigin(): string {
+  return publicClassroomOrigin();
+}
 
 function isDraft(value: unknown): value is VirtualClassroomOutlineDraft {
   if (!value || typeof value !== 'object') return false;
@@ -31,7 +35,20 @@ async function writeConfirmedEvidence(confirmed: VirtualClassroomConfirmedOutlin
 }
 
 function buildRuntimeClassroomUrl(draft: VirtualClassroomOutlineDraft): string {
-  const url = new URL(CLASSROOM_ORIGIN);
+  const classroomOrigin = configuredClassroomOrigin();
+  if (!classroomOrigin) {
+    throw new Error('课堂服务未连接，请稍后再试。');
+  }
+
+  if (classroomOrigin.startsWith('/')) {
+    const params = new URLSearchParams({
+      draft: buildConfirmedClassroomDraft(draft).slice(0, 1800),
+      embed: 'lingbi',
+    });
+    return `${classroomOrigin}?${params.toString()}`;
+  }
+
+  const url = new URL(classroomOrigin);
   url.searchParams.set('draft', buildConfirmedClassroomDraft(draft).slice(0, 1800));
   url.searchParams.set('embed', 'lingbi');
   return url.toString();

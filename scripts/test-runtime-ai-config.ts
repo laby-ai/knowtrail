@@ -13,6 +13,7 @@ import { resolveInternalAppOrigin } from '../src/lib/internal-origin';
 const originalNodeEnv = process.env.NODE_ENV;
 const originalAllowInsecure = process.env.ALLOW_INSECURE_API_BASE;
 const originalAllowPrivate = process.env.ALLOW_PRIVATE_API_BASE;
+const originalAllowUserRuntimeAIConfig = process.env.ALLOW_USER_RUNTIME_AI_CONFIG;
 const originalInternalOrigin = process.env.INTERNAL_APP_ORIGIN;
 const originalDeployRunPort = process.env.DEPLOY_RUN_PORT;
 const originalPort = process.env.PORT;
@@ -45,6 +46,9 @@ function restoreEnv() {
 
   if (originalAllowPrivate === undefined) delete mutableEnv.ALLOW_PRIVATE_API_BASE;
   else mutableEnv.ALLOW_PRIVATE_API_BASE = originalAllowPrivate;
+
+  if (originalAllowUserRuntimeAIConfig === undefined) delete mutableEnv.ALLOW_USER_RUNTIME_AI_CONFIG;
+  else mutableEnv.ALLOW_USER_RUNTIME_AI_CONFIG = originalAllowUserRuntimeAIConfig;
 
   if (originalInternalOrigin === undefined) delete mutableEnv.INTERNAL_APP_ORIGIN;
   else mutableEnv.INTERNAL_APP_ORIGIN = originalInternalOrigin;
@@ -132,6 +136,12 @@ try {
     resolveServerRuntimeAIConfig({ apiBase: '', apiKey: '', model: '', visionModel: '', embeddingModel: '', ttsSpeaker: '' }),
     serverRuntimeAIConfigFromEnv(),
   );
+  delete mutableEnv.ALLOW_USER_RUNTIME_AI_CONFIG;
+  assert.deepEqual(
+    resolveServerRuntimeAIConfig({ apiBase: 'https://user.example.com/v1', apiKey: 'sk-user', model: 'user-model' }),
+    serverRuntimeAIConfigFromEnv(),
+  );
+  mutableEnv.ALLOW_USER_RUNTIME_AI_CONFIG = 'true';
   assert.deepEqual(
     resolveServerRuntimeAIConfig({ apiBase: 'https://user.example.com/v1', apiKey: 'sk-user', model: 'user-model' }),
     { apiBase: 'https://user.example.com/v1', apiKey: 'sk-user', model: 'user-model' },

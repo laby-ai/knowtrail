@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { AlertTriangle, ClipboardCopy, Loader2, Send } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
 import type { StudioArtifactToolId } from '@/lib/studio-tools';
 import { STUDIO_ARTIFACT_TOOLS, type StudioToolItem } from './StudioToolSwitcher';
@@ -26,7 +28,8 @@ interface StudioToolArtifactResult {
 }
 
 export function StudioArtifactToolPanel({ toolId }: { toolId: StudioToolItem['id'] }) {
-  const { getSelectedPapers, aiConfig } = useApp();
+  const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+  const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const tool = STUDIO_ARTIFACT_TOOLS.find(item => item.id === toolId) ?? STUDIO_ARTIFACT_TOOLS[0];
   const selectedCount = getSelectedPapers().length;
   const hasSelectedPapers = selectedCount > 0;
@@ -45,9 +48,10 @@ export function StudioArtifactToolPanel({ toolId }: { toolId: StudioToolItem['id
     try {
       const response = await fetch('/api/ai/studio-tool', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
           toolId: tool.id,
+          notebookId,
           papers: getSelectedPapers(),
           aiConfig,
         }),
@@ -86,15 +90,10 @@ export function StudioArtifactToolPanel({ toolId }: { toolId: StudioToolItem['id
             <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">{tool.desc}</p>
           </div>
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-[var(--text-tertiary)]">
-          这个工具会基于当前选中的资料生成可复核产物，并保留来源依据，方便继续追问或复制使用。
-        </p>
         <div className="mt-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-3">
-          <p className="text-[11px] font-semibold text-[var(--text-secondary)]">产出说明</p>
-          <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-tertiary)]">{tool.generationPattern}</p>
           <div
             data-testid={`studio-tool-result-shape-${tool.id}`}
-            className="mt-3 flex flex-wrap gap-1.5"
+            className="flex flex-wrap gap-1.5"
           >
             {tool.resultShape.map(item => (
               <span
@@ -105,27 +104,7 @@ export function StudioArtifactToolPanel({ toolId }: { toolId: StudioToolItem['id
               </span>
             ))}
           </div>
-        </div>
-        <div
-          data-testid={`studio-tool-pipeline-${tool.id}`}
-          className="mt-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-3"
-        >
-          <p className="text-[11px] font-semibold text-[var(--text-secondary)]">处理步骤</p>
-          <div className="mt-2 grid grid-cols-3 gap-1.5 text-[10px] text-[var(--text-secondary)]">
-            {['资料检索', '大纲拆解', '生成产物'].map((step, index) => (
-              <div
-                key={step}
-                className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-2 py-1.5 text-center"
-              >
-                <span className="mr-1 text-[var(--text-tertiary)]">{index + 1}</span>
-                {step}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="mt-3 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-3">
-          <p className="text-[11px] font-semibold text-[var(--text-secondary)]">本次生成要求</p>
-          <p className="mt-2 text-[11px] leading-relaxed text-[var(--text-tertiary)]">{tool.prompt}</p>
+          <p className="mt-3 text-[11px] leading-relaxed text-[var(--text-tertiary)]">{tool.generationPattern}</p>
         </div>
         {lastSubmittedAt && (
           <div

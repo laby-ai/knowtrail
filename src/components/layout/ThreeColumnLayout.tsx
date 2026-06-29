@@ -16,7 +16,7 @@ export function ThreeColumnLayout({
   centerPanel,
   rightPanel,
   defaultLeftWidth = 280,
-  defaultRightWidth = 380,
+  defaultRightWidth = 440,
   initialMobilePanel = 'center',
 }: ThreeColumnLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,7 +42,7 @@ export function ThreeColumnLayout({
       const newWidth = Math.max(220, Math.min(450, startWidthRef.current + delta));
       setLeftWidth(newWidth);
     } else {
-      const newWidth = Math.max(280, Math.min(550, startWidthRef.current - delta));
+      const newWidth = Math.max(360, Math.min(680, startWidthRef.current - delta));
       setRightWidth(newWidth);
     }
   }, [dragging]);
@@ -82,22 +82,23 @@ export function ThreeColumnLayout({
     const tabs: Array<{ id: 'left' | 'center' | 'right'; label: string }> = [
       { id: 'left', label: '资料' },
       { id: 'center', label: '对话' },
-      { id: 'right', label: 'Studio' },
+      { id: 'right', label: '产物' },
     ];
 
     return (
       <div ref={containerRef} className="h-full w-full min-w-0 overflow-hidden flex flex-col">
-        <div className="flex-shrink-0 border-b border-[var(--glass-border)] bg-black/25 px-3 py-2">
-          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/12 bg-white/[0.06] p-1">
+        <div className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]/92 px-3 py-2 backdrop-blur-xl">
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-1 shadow-[var(--glass-shadow-sm)]">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setMobilePanel(tab.id)}
+                data-testid={`workbench-mobile-tab-${tab.id}`}
                 className={`rounded-xl px-3 py-2 text-sm font-medium transition-all ${
                   mobilePanel === tab.id
-                    ? 'bg-white text-black shadow-[0_8px_24px_rgba(0,0,0,0.18)]'
-                    : 'text-[var(--text-secondary)] hover:bg-white/[0.08] hover:text-white'
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[0_8px_24px_rgba(15,23,42,0.14)]'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {tab.label}

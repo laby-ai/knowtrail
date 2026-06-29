@@ -1,4 +1,6 @@
 import { createServer } from 'http';
+import { request as httpRequest } from 'http';
+import type { IncomingMessage, ServerResponse } from 'http';
 import { createReadStream } from 'fs';
 import { stat } from 'fs/promises';
 import path from 'path';
@@ -16,6 +18,27 @@ const handle = app.getRequestHandler();
 
 const publicDir = path.resolve(process.cwd(), 'public');
 const runtimePublicPrefixes = ['/uploads/', '/mineru-figures/'];
+const classroomRuntimePrefix = '/classroom-runtime';
+const classroomRuntimeOrigin = (process.env.VIRTUAL_CLASSROOM_INTERNAL_ORIGIN || '').trim().replace(/\/$/, '');
+const classroomRootProxyPrefixes = [
+  '/api/access-code/',
+  '/api/azure-voices',
+  '/api/chat',
+  '/api/classroom',
+  '/api/classroom-media/',
+  '/api/generate/',
+  '/api/generate-classroom',
+  '/api/parse-pdf',
+  '/api/pbl/',
+  '/api/proxy-media',
+  '/api/quiz-grade',
+  '/api/server-providers',
+  '/api/transcription',
+  '/api/verify-',
+  '/api/web-search',
+  '/avatars/',
+  '/logos/',
+];
 const mimeTypes: Record<string, string> = {
   '.aac': 'audio/aac',
   '.gif': 'image/gif',
@@ -49,11 +72,49 @@ function resolveRuntimePublicPath(pathname: string): string | null {
   return absolutePath;
 }
 
+function proxyClassroomRuntime(req: IncomingMessage, res: ServerResponse, pathname: string): boolean {
+  if (!classroomRuntimeOrigin) return false;
+
+  const shouldProxyRuntimePath = pathname.startsWith(classroomRuntimePrefix);
+  const shouldProxyRootPath = classroomRootProxyPrefixes.some(prefix => pathname.startsWith(prefix));
+  if (!shouldProxyRuntimePath && !shouldProxyRootPath) return false;
+
+  const targetPath = shouldProxyRuntimePath
+    ? req.url || classroomRuntimePrefix
+    : `${classroomRuntimePrefix}${req.url || pathname}`;
+  const target = new URL(targetPath, classroomRuntimeOrigin.replace(/\/classroom-runtime$/, ''));
+  const headers = { ...req.headers };
+  delete headers.host;
+  delete headers.connection;
+
+  const proxyReq = httpRequest(target, {
+    method: req.method,
+    headers,
+  }, proxyRes => {
+    res.statusCode = proxyRes.statusCode || 502;
+    for (const [key, value] of Object.entries(proxyRes.headers)) {
+      if (typeof value !== 'undefined') res.setHeader(key, value);
+    }
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', error => {
+    console.error('Error proxying classroom runtime', pathname, error);
+    if (!res.headersSent) res.statusCode = 502;
+    res.end('Classroom runtime unavailable');
+  });
+
+  req.pipe(proxyReq);
+  return true;
+}
+
 app.prepare().then(() => {
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url!, true);
       const pathname = parsedUrl.pathname || '';
+      if (proxyClassroomRuntime(req, res, pathname)) return;
+
       const runtimeFilePath = resolveRuntimePublicPath(pathname);
       if (runtimeFilePath && (req.method === 'GET' || req.method === 'HEAD')) {
         const fileStat = await stat(runtimeFilePath).catch(() => null);

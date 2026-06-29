@@ -194,6 +194,7 @@ async function resolveSmokeApp() {
       PORT: String(port),
       DEPLOY_RUN_PORT: String(port),
       INTERNAL_APP_ORIGIN: '',
+      ALLOW_USER_RUNTIME_AI_CONFIG: 'true',
       ALLOW_INSECURE_API_BASE: 'true',
       ALLOW_PRIVATE_API_BASE: 'true',
     },

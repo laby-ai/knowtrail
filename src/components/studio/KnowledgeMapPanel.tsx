@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileSearch, GitBranch, Loader2, Sparkles } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { KnowledgeMapData } from '@/lib/knowledge-map-types';
 import type { Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
 
@@ -30,6 +32,10 @@ function readSessionJson<T>(key: string, fallback: T): T {
   }
 }
 
+function scopedSessionKey(scope: string, key: string) {
+  return `lingbi:${scope}:${key}`;
+}
+
 function formatCacheAge(storedAt?: string) {
   if (!storedAt) return '刚刚';
   const timestamp = new Date(storedAt).getTime();
@@ -43,29 +49,61 @@ function formatCacheAge(storedAt?: string) {
   return `${Math.floor(ageHours / 24)} 天前`;
 }
 
+function normalizeMapTitle(title: string | undefined) {
+  return (title || '资料脉络').replace(/资料地图/g, '资料脉络');
+}
+
 export function KnowledgeMapPanel() {
-  const { getSelectedPapers, aiConfig, openKnowledgeMap, knowledgeMapViewer } = useApp();
+  const {
+    activeFolderId,
+    folders,
+    getSelectedPapers,
+    aiConfig,
+    openKnowledgeMap,
+    knowledgeMapViewer,
+    selectAllPapers,
+    storageScopeKey,
+  } = useApp();
+  const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const selectedPapers = getSelectedPapers();
-  const [session, setSession] = useState<KnowledgeMapSession | null>(() => readSessionJson('knowledge_map_session', null));
+  const activeFolderPapers = useMemo(
+    () => folders.find(folder => folder.id === activeFolderId)?.papers || [],
+    [activeFolderId, folders],
+  );
+  const availablePapers = useMemo(
+    () => folders.flatMap(folder => folder.papers),
+    [folders],
+  );
+  const mapCandidatePapers = selectedPapers.length > 0
+    ? selectedPapers
+    : activeFolderPapers.length > 0
+      ? activeFolderPapers
+      : availablePapers;
+  const [session, setSession] = useState<KnowledgeMapSession | null>(() => readSessionJson(scopedSessionKey(storageScopeKey, 'knowledge_map_session'), null));
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const sessionKey = scopedSessionKey(storageScopeKey, 'knowledge_map_session');
     if (session) {
-      sessionStorage.setItem('knowledge_map_session', JSON.stringify(session));
+      sessionStorage.setItem(sessionKey, JSON.stringify(session));
     } else {
-      sessionStorage.removeItem('knowledge_map_session');
+      sessionStorage.removeItem(sessionKey);
     }
-  }, [session]);
+  }, [session, storageScopeKey]);
 
   const openCurrentMap = useCallback((nextSession = session) => {
     if (!nextSession) return;
+    const map = {
+      ...nextSession.map,
+      title: normalizeMapTitle(nextSession.map.title),
+    };
     openKnowledgeMap({
-      title: nextSession.map.title,
+      title: map.title,
       source: 'generated',
       sourceCount: nextSession.sourceCount,
-      map: nextSession.map,
+      map,
       citations: nextSession.citations,
       retrieval: nextSession.retrieval || undefined,
       citationAudit: nextSession.citationAudit || undefined,
@@ -73,15 +111,22 @@ export function KnowledgeMapPanel() {
   }, [openKnowledgeMap, session]);
 
   const generateMap = useCallback(async (forceRefresh = false) => {
-    if (selectedPapers.length === 0) {
-      setError('请先在左侧选择资料，再生成资料地图。');
+    if (mapCandidatePapers.length === 0) {
+      setError('先添加资料，再生成资料脉络。');
       return;
+    }
+
+    if (selectedPapers.length === 0) {
+      const targetFolderId =
+        (activeFolderId && folders.find(folder => folder.id === activeFolderId && folder.papers.length > 0)?.id) ||
+        folders.find(folder => folder.papers.length > 0)?.id;
+      if (targetFolderId) selectAllPapers(targetFolderId);
     }
 
     setIsGenerating(true);
     setError(null);
     try {
-      const paperContents = selectedPapers.map(paper => ({
+      const paperContents = mapCandidatePapers.map(paper => ({
         id: paper.id,
         title: paper.title,
         authors: paper.authors,
@@ -96,32 +141,33 @@ export function KnowledgeMapPanel() {
 
       const response = await fetch('/api/ai/knowledge-map', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ papers: paperContents, aiConfig, forceRefresh }),
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+        body: JSON.stringify({ papers: paperContents, aiConfig, notebookId, forceRefresh }),
       });
       const data = await response.json();
       if (!response.ok || !data.map?.nodes?.length || !data.map?.edges?.length) {
-        throw new Error(data.error || '资料地图生成失败');
+        throw new Error(data.error || '资料脉络生成失败');
       }
 
       const nextSession: KnowledgeMapSession = {
-        map: data.map,
+        map: { ...data.map, title: normalizeMapTitle(data.map?.title) },
         citations: Array.isArray(data.citations) ? data.citations : [],
         retrieval: data.retrieval || null,
         citationAudit: data.citationAudit || null,
         cache: data.cache || null,
-        sourceCount: selectedPapers.length,
+        sourceCount: mapCandidatePapers.length,
       };
       setSession(nextSession);
       openCurrentMap(nextSession);
     } catch (event) {
-      setError(event instanceof Error ? event.message : '资料地图生成失败');
+      setError(event instanceof Error ? event.message : '资料脉络生成失败');
     } finally {
       setIsGenerating(false);
     }
-  }, [aiConfig, openCurrentMap, selectedPapers]);
+  }, [activeFolderId, aiConfig, folders, mapCandidatePapers, notebookId, openCurrentMap, selectAllPapers, selectedPapers.length]);
 
   const hasSelectedPapers = selectedPapers.length > 0;
+  const hasAvailablePapers = mapCandidatePapers.length > 0;
   const activeMapOpened = Boolean(knowledgeMapViewer);
 
   return (
@@ -132,9 +178,9 @@ export function KnowledgeMapPanel() {
             <GitBranch className="h-5 w-5 text-[var(--accent-blue)]" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[var(--text-primary)]">资料地图</p>
+            <p className="text-sm font-semibold text-[var(--text-primary)]">资料脉络</p>
             <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
-              抽取核心词、关系和证据，在中间工作区查看可展开的关系网络。
+              核心词、关系和证据。
             </p>
           </div>
         </div>
@@ -142,23 +188,29 @@ export function KnowledgeMapPanel() {
         <button
           type="button"
           onClick={() => void generateMap(false)}
-          disabled={!hasSelectedPapers || isGenerating}
+          disabled={!hasAvailablePapers || isGenerating}
           className="liquid-glass-btn mt-4 w-full px-4 py-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-45"
-          title={!hasSelectedPapers ? '请先在左侧选择资料' : '生成资料地图并在中间工作区打开'}
+          title={!hasAvailablePapers ? '请先添加资料' : '生成资料脉络并在中间工作区打开'}
           data-testid="knowledge-map-generate"
         >
           {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          {!hasSelectedPapers ? '先选择资料' : isGenerating ? '正在生成资料地图' : '生成资料地图'}
+          {!hasAvailablePapers
+            ? '先添加资料'
+            : isGenerating
+              ? '正在生成资料脉络'
+              : hasSelectedPapers
+                ? '生成资料脉络'
+                : `用 ${mapCandidatePapers.length} 个资料生成`}
         </button>
 
         {!hasSelectedPapers && (
           <div className="mt-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-3" data-testid="knowledge-map-empty-state">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-secondary)]">
               <FileSearch className="h-3.5 w-3.5" />
-              <span>先选择要分析的资料</span>
+              <span>{hasAvailablePapers ? '将使用当前资料库' : '先添加要分析的资料'}</span>
             </div>
             <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-              在左侧勾选资料后，系统会抽取核心词、关系边和证据引用，并在中间工作区展示。
+              {hasAvailablePapers ? `将使用 ${mapCandidatePapers.length} 个资料。` : '添加资料后可生成。'}
             </p>
           </div>
         )}
@@ -189,7 +241,7 @@ export function KnowledgeMapPanel() {
         <div className="liquid-glass-card p-4 space-y-3" data-testid="knowledge-map-summary">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-secondary)]">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-            <span>{activeMapOpened ? '已在中间打开' : '已有资料地图'}</span>
+            <span>{activeMapOpened ? '已在中间打开' : '已有资料脉络'}</span>
           </div>
           <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">
             {session.map.nodes.length} 个节点 · {session.map.edges.length} 条关系 · {session.citations.length} 个引用来源。
@@ -217,15 +269,12 @@ export function KnowledgeMapPanel() {
               className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-4 py-2 text-[11px] font-medium text-[var(--text-secondary)] transition hover:bg-[var(--glass-hover)]"
               data-testid="knowledge-map-refresh"
             >
-              重新抽取关系
+              重新抽取脉络
             </button>
           </div>
         </div>
       )}
 
-      <div className="rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] p-4 text-xs leading-relaxed text-[var(--text-secondary)]">
-        资料地图会先抽取一批完整节点和关系，再默认聚焦核心词；点击节点可查看相邻关系、证据引用和后续问题。
-      </div>
     </div>
   );
 }

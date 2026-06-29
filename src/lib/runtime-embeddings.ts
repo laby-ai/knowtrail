@@ -63,7 +63,7 @@ export async function embedTexts(
 ): Promise<number[][]> {
   const resolvedRuntimeConfig = resolveServerRuntimeAIConfig(runtimeConfig);
   if (!hasRuntimeAIProvider(resolvedRuntimeConfig)) {
-    throw new Error('缺少 API Base 或 API Key，无法生成向量。');
+    throw new Error('账号绑定的向量模型服务尚未配置，无法生成向量。');
   }
 
   const normalizedInputs = inputs.map(input => input.trim()).filter(Boolean);

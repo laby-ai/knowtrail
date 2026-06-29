@@ -26,6 +26,8 @@ import type {
 
 // 应用状态接口
 interface AppState {
+  storageScopeKey: string;
+
   // 左侧文献库
   folders: ProjectFolder[];
   selectedPapers: string[];
@@ -64,7 +66,7 @@ interface AppState {
   // 引用格式
   citationFormat: CitationFormat;
 
-  // 公网使用时的用户模型配置
+  // 账号绑定模型配置。普通用户不再在浏览器内填写模型密钥。
   aiConfig: RuntimeAIConfig;
 }
 
@@ -132,6 +134,7 @@ interface AppContextType extends AppState {
 
 // 默认状态
 const defaultState: AppState = {
+  storageScopeKey: 'guest:default-workspace',
   folders: [],
   selectedPapers: [],
   activeFolderId: null,
@@ -178,38 +181,32 @@ const defaultState: AppState = {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 // Provider组件
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(defaultState);
+export function AppProvider({
+  children,
+  storageScopeKey = defaultState.storageScopeKey,
+  initialFolders = [],
+  initialSelectedPaperIds = [],
+}: {
+  children: ReactNode;
+  storageScopeKey?: string;
+  initialFolders?: ProjectFolder[];
+  initialSelectedPaperIds?: string[];
+}) {
+  const [state, setState] = useState<AppState>(() => ({
+    ...defaultState,
+    storageScopeKey,
+    folders: initialFolders,
+    selectedPapers: initialSelectedPaperIds,
+    activeFolderId: initialFolders[0]?.id || null,
+  }));
 
   React.useEffect(() => {
     try {
-      const saved = window.localStorage.getItem('lingbi-ai-config');
-      if (!saved) return;
-      const parsed = JSON.parse(saved) as Partial<RuntimeAIConfig>;
-      setState(prev => ({
-        ...prev,
-        aiConfig: {
-          ...prev.aiConfig,
-          apiBase: typeof parsed.apiBase === 'string' ? parsed.apiBase : '',
-          apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : '',
-          model: typeof parsed.model === 'string' ? parsed.model : '',
-          visionModel: typeof parsed.visionModel === 'string' ? parsed.visionModel : '',
-          embeddingModel: typeof parsed.embeddingModel === 'string' ? parsed.embeddingModel : '',
-          ttsSpeaker: typeof parsed.ttsSpeaker === 'string' ? parsed.ttsSpeaker : '',
-        },
-      }));
-    } catch {
       window.localStorage.removeItem('lingbi-ai-config');
-    }
-  }, []);
-
-  React.useEffect(() => {
-    try {
-      window.localStorage.setItem('lingbi-ai-config', JSON.stringify(state.aiConfig));
     } catch {
       // localStorage can be unavailable in privacy modes.
     }
-  }, [state.aiConfig]);
+  }, []);
 
   // ==================== 左侧文献库操作 ====================
   const addFolder = useCallback((name: string): string => {
@@ -565,7 +562,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...prev,
       aiConfig: {
         ...prev.aiConfig,
-        ...config,
+        apiBase: '',
+        apiKey: '',
+        model: '',
+        visionModel: '',
+        embeddingModel: '',
+        ttsSpeaker: typeof config.ttsSpeaker === 'string' ? config.ttsSpeaker : prev.aiConfig.ttsSpeaker,
       },
     }));
   }, []);

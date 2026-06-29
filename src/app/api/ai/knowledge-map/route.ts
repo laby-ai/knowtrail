@@ -1,15 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { buildKnowledgeMapPayload, type KnowledgeMapRequestInput } from '@/lib/knowledge-map-service';
 
 export async function POST(request: NextRequest) {
   try {
-    const result = await buildKnowledgeMapPayload(await request.json() as KnowledgeMapRequestInput);
+    const body = await request.json() as KnowledgeMapRequestInput;
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: body.notebookId,
+      loginMessage: '请先登录账号，再生成资料脉络。',
+    });
+    if (!scope.ok) return scope.response;
+    const result = await buildKnowledgeMapPayload({
+      ...body,
+      ownerMemberId: scope.ownerMemberId,
+      notebookId: scope.notebookId,
+    });
     if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
     return NextResponse.json(result.body, { status: result.status });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : '生成资料地图失败';
+    const msg = e instanceof Error ? e.message : '生成资料脉络失败';
     console.error('[knowledge-map] Error:', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

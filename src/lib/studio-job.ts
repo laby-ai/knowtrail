@@ -34,6 +34,8 @@ export interface StudioJobError {
 export interface StudioJob {
   id: string;
   type: StudioJobType;
+  ownerMemberId?: string;
+  notebookId?: string;
   status: StudioJobStatus;
   stage: StudioJobStage;
   progress: number;
@@ -51,6 +53,8 @@ export interface StudioJob {
 
 export interface CreateStudioJobInput {
   type: StudioJobType;
+  ownerMemberId?: string;
+  notebookId?: string;
   stage?: StudioJobStage;
   progress?: number;
   message?: string;
@@ -103,6 +107,13 @@ function isStudioJob(value: unknown): value is StudioJob {
     typeof candidate.createdAt === 'string' &&
     typeof candidate.updatedAt === 'string'
   );
+}
+
+function studioJobMatchesScope(job: StudioJob, scope: { ownerMemberId?: string; notebookId?: string }): boolean {
+  const { ownerMemberId, notebookId } = scope;
+  if (ownerMemberId && job.ownerMemberId !== ownerMemberId) return false;
+  if (notebookId && (job.notebookId || 'default-workspace') !== notebookId) return false;
+  return true;
 }
 
 function emptyStore(): StudioJobStoreFile {
@@ -171,6 +182,8 @@ export function createStudioJob(input: CreateStudioJobInput): StudioJob {
   const job: StudioJob = {
     id: `studio-${input.type}-${randomUUID()}`,
     type: input.type,
+    ownerMemberId: input.ownerMemberId,
+    notebookId: input.notebookId,
     status: 'queued',
     stage: input.stage || 'queued',
     progress: input.progress ?? 0,
@@ -187,10 +200,11 @@ export function createStudioJob(input: CreateStudioJobInput): StudioJob {
   return job;
 }
 
-export function getStudioJob(id: string): StudioJob | undefined {
+export function getStudioJob(id: string, scope: { ownerMemberId?: string; notebookId?: string } = {}): StudioJob | undefined {
   loadJobsFromDiskIfNeeded();
   pruneExpiredJobs();
-  return jobs.get(id);
+  const job = jobs.get(id);
+  return job && studioJobMatchesScope(job, scope) ? job : undefined;
 }
 
 export function updateStudioJob(id: string, patch: Partial<Omit<StudioJob, 'id' | 'type' | 'createdAt'>>): StudioJob {

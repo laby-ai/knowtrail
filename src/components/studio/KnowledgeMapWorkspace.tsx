@@ -64,7 +64,7 @@ export function KnowledgeMapWorkspace() {
           </button>
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold text-slate-950" data-testid="knowledge-map-title">
-              {map.title || '资料地图'}
+              {(map.title || '资料脉络').replace(/资料地图/g, '资料脉络')}
             </h2>
             <p className="text-[11px] text-slate-500">{sourceMeta}</p>
           </div>

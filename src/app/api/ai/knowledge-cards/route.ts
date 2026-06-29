@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { buildKnowledgeCardsPayload, type KnowledgeCardRequestInput } from '@/lib/knowledge-card-service';
 
 export async function POST(request: NextRequest) {
   try {
-    const result = await buildKnowledgeCardsPayload(await request.json() as KnowledgeCardRequestInput);
+    const body = await request.json() as KnowledgeCardRequestInput;
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: body.notebookId,
+      loginMessage: '请先登录账号，再生成知识卡片。',
+    });
+    if (!scope.ok) return scope.response;
+    const result = await buildKnowledgeCardsPayload({
+      ...body,
+      ownerMemberId: scope.ownerMemberId,
+      notebookId: scope.notebookId,
+    });
     if ('error' in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

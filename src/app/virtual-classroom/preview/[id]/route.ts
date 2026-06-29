@@ -28,6 +28,6 @@ export async function GET(
       },
     });
   } catch {
-    return new Response('Classroom preview not found', { status: 404 });
+    return new Response('课堂预览不存在', { status: 404 });
   }
 }

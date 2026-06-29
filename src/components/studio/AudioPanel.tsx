@@ -15,6 +15,8 @@ import {
   Check,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Citation, RetrievalMetadata } from '@/types';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
@@ -102,7 +104,8 @@ function PodcastSegmentsPanel({
 }
 
 export function AudioPanel() {
-  const { audioConfig, setAudioConfig, voiceClones, activeVoiceCloneId, setActiveVoiceClone, currentReport, getSelectedPapers, aiConfig } = useApp();
+  const { audioConfig, setAudioConfig, voiceClones, activeVoiceCloneId, setActiveVoiceClone, currentReport, getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+  const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -275,8 +278,8 @@ export function AudioPanel() {
 
       const response = await fetch('/api/ai/podcast', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: paperContent, papers: podcastPapers, aiConfig }),
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+        body: JSON.stringify({ content: paperContent, papers: podcastPapers, aiConfig, notebookId }),
         signal: abortController.signal,
       });
 
@@ -305,7 +308,10 @@ export function AudioPanel() {
         const pollInterval = setInterval(async () => {
           attempts++;
           try {
-            const statusResp = await fetch(`/api/ai/podcast?taskId=${data.taskId}`, {
+            const statusParams = new URLSearchParams({ taskId: data.taskId });
+            if (notebookId) statusParams.set('notebookId', notebookId);
+            const statusResp = await fetch(`/api/ai/podcast?${statusParams.toString()}`, {
+              headers: accountAuthHeaders(),
               signal: abortController.signal,
             });
             const statusData = await statusResp.json();
@@ -379,7 +385,7 @@ export function AudioPanel() {
         podcastAbortControllerRef.current = null;
       }
     }
-  }, [getSelectedPapers, aiConfig, buildPodcastErrorMessage, podcastProgressMessage, updatePodcastJobProgress]);
+  }, [getSelectedPapers, aiConfig, notebookId, buildPodcastErrorMessage, podcastProgressMessage, updatePodcastJobProgress]);
 
   const handleCancelPodcast = useCallback(() => {
     if (!isGeneratingPodcast) return;
@@ -413,7 +419,7 @@ export function AudioPanel() {
           <p className="section-label">播客音频生成</p>
         </div>
         <p className="text-[11px] text-[var(--text-secondary)] mb-3 leading-relaxed">
-          将选中的资料整理成可收听的语音摘要，保留脚本、分段和引用依据
+          基于已选资料生成可播放摘要。
         </p>
         <button
           onClick={handleGeneratePodcast}
@@ -557,7 +563,7 @@ export function AudioPanel() {
               <Mic className="h-4 w-4 text-amber-400" />
               <p className="section-label">声音样本</p>
             </div>
-            <p className="text-[11px] text-[var(--text-tertiary)] mb-3">上传声音样本用于后续音色配置，不影响默认语音摘要。</p>
+            <p className="text-[11px] text-[var(--text-tertiary)] mb-3">可选，不影响默认摘要。</p>
             <button className="btn-secondary w-full py-2.5 text-xs">
               <Mic className="h-3 w-3" /> 上传声音样本
             </button>

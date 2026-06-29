@@ -26,6 +26,10 @@ export function hasRuntimeAIProvider(runtimeConfig?: Partial<RuntimeAIConfig>): 
   return Boolean(runtimeConfig?.apiBase?.trim() && runtimeConfig?.apiKey?.trim());
 }
 
+export function allowRequestRuntimeAIConfig(): boolean {
+  return process.env.ALLOW_USER_RUNTIME_AI_CONFIG === 'true';
+}
+
 function envFirst(...names: string[]): string {
   for (const name of names) {
     const value = process.env[name]?.trim();
@@ -86,7 +90,7 @@ export function serverRuntimeAIConfigFromEnv(): Partial<RuntimeAIConfig> {
 }
 
 export function resolveServerRuntimeAIConfig(input?: Partial<RuntimeAIConfig>): Partial<RuntimeAIConfig> {
-  if (hasRuntimeAIProvider(input)) return input;
+  if (allowRequestRuntimeAIConfig() && hasRuntimeAIProvider(input)) return input;
   return serverRuntimeAIConfigFromEnv();
 }
 
@@ -146,28 +150,28 @@ function isPrivateOrLocalHost(hostname: string): boolean {
 
 export function resolveOpenAIChatEndpoint(runtimeConfig?: Partial<RuntimeAIConfig>): string {
   if (!hasRuntimeAIProvider(runtimeConfig)) {
-    throw new Error('请先填写 API Base 和 API Key。');
+    throw new Error('账号绑定的模型服务尚未配置，请稍后再试。');
   }
 
   let endpoint: URL;
   try {
     endpoint = new URL(openAIChatEndpoint(runtimeConfig.apiBase));
   } catch {
-    throw new Error('API Base 格式不正确，请填写完整 URL，例如 https://api.openai.com/v1。');
+    throw new Error('模型服务地址配置不正确，请联系部署方处理。');
   }
 
   if (!['https:', 'http:'].includes(endpoint.protocol)) {
-    throw new Error('API Base 仅支持 http 或 https 协议。');
+    throw new Error('模型网关地址仅支持 http 或 https 协议。');
   }
 
   const allowInsecure = process.env.ALLOW_INSECURE_API_BASE === 'true' || process.env.NODE_ENV !== 'production';
   if (endpoint.protocol === 'http:' && !allowInsecure) {
-    throw new Error('公网部署默认只允许 HTTPS API Base。如确需 HTTP 内网网关，请显式设置 ALLOW_INSECURE_API_BASE=true。');
+    throw new Error('公网部署默认只允许 HTTPS 模型网关。如确需 HTTP 内网网关，请显式设置 ALLOW_INSECURE_API_BASE=true。');
   }
 
   const allowPrivate = process.env.ALLOW_PRIVATE_API_BASE === 'true' || process.env.NODE_ENV !== 'production';
   if (isPrivateOrLocalHost(endpoint.hostname) && !allowPrivate) {
-    throw new Error('公网部署默认禁止把 API Base 指向 localhost 或私有网段，避免服务端被当作内网代理。');
+    throw new Error('公网部署默认禁止把模型网关指向 localhost 或私有网段，避免服务端被当作内网代理。');
   }
 
   return endpoint.toString().replace(/\/$/, '');
@@ -175,28 +179,28 @@ export function resolveOpenAIChatEndpoint(runtimeConfig?: Partial<RuntimeAIConfi
 
 export function resolveOpenAIEmbeddingsEndpoint(runtimeConfig?: Partial<RuntimeAIConfig>): string {
   if (!hasRuntimeAIProvider(runtimeConfig)) {
-    throw new Error('请先填写 API Base 和 API Key。');
+    throw new Error('账号绑定的模型服务尚未配置，请稍后再试。');
   }
 
   let endpoint: URL;
   try {
     endpoint = new URL(openAIEmbeddingsEndpoint(runtimeConfig.apiBase, runtimeConfig.embeddingModel));
   } catch {
-    throw new Error('API Base 格式不正确，请填写完整 URL，例如 https://api.openai.com/v1。');
+    throw new Error('模型服务地址配置不正确，请联系部署方处理。');
   }
 
   if (!['https:', 'http:'].includes(endpoint.protocol)) {
-    throw new Error('API Base 仅支持 http 或 https 协议。');
+    throw new Error('模型网关地址仅支持 http 或 https 协议。');
   }
 
   const allowInsecure = process.env.ALLOW_INSECURE_API_BASE === 'true' || process.env.NODE_ENV !== 'production';
   if (endpoint.protocol === 'http:' && !allowInsecure) {
-    throw new Error('公网部署默认只允许 HTTPS API Base。如确需 HTTP 内网网关，请显式设置 ALLOW_INSECURE_API_BASE=true。');
+    throw new Error('公网部署默认只允许 HTTPS 模型网关。如确需 HTTP 内网网关，请显式设置 ALLOW_INSECURE_API_BASE=true。');
   }
 
   const allowPrivate = process.env.ALLOW_PRIVATE_API_BASE === 'true' || process.env.NODE_ENV !== 'production';
   if (isPrivateOrLocalHost(endpoint.hostname) && !allowPrivate) {
-    throw new Error('公网部署默认禁止把 API Base 指向 localhost 或私有网段，避免服务端被当作内网代理。');
+    throw new Error('公网部署默认禁止把模型网关指向 localhost 或私有网段，避免服务端被当作内网代理。');
   }
 
   return endpoint.toString().replace(/\/$/, '');

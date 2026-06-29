@@ -33,6 +33,8 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Citation, RetrievalMetadata } from '@/types';
 import NarrationPlayer from './NarrationPlayer';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
@@ -73,15 +75,6 @@ const PRESET_STYLES: PresetStyle[] = [
 
 type PPTStyleId = typeof PRESET_STYLES[number]['id'];
 
-const STYLE_DESCRIPTIONS: Record<PPTStyleId, string> = {
-  academic: '适合论文、政策、研究资料',
-  modern: '适合日常汇报和项目同步',
-  tech: '适合产品、技术和路线图',
-  nature: '适合说明材料和轻量分享',
-  elegant: '适合提案、复盘和正式汇报',
-  creative: '适合故事化表达和活动内容',
-};
-
 // ─── 细节等级（对齐 banana-slides DETAIL_LEVEL_SPECS） ───
 interface DetailLevel {
   id: string;
@@ -112,7 +105,8 @@ const ASPECT_RATIOS = [
 ];
 
 function PresentationPanel() {
-  const { slides, setSlides, getSelectedPapers, aiConfig } = useApp();
+  const { slides, setSlides, getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+  const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
   const [progressStage, setProgressStage] = useState('');
@@ -174,8 +168,9 @@ function PresentationPanel() {
     try {
       const response = await fetch('/api/ai/ppt', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
+          notebookId,
           papers: papers.map(p => ({
             id: p.id,
             title: p.title,
@@ -283,7 +278,7 @@ function PresentationPanel() {
       if (abortControllerRef.current === abortController) abortControllerRef.current = null;
       setIsGenerating(false);
     }
-  }, [getSelectedPapers, aiConfig, pageCount, currentStyleVisualPrompt, selectedStyle, selectedDetailLevel, selectedLang, selectedAspectRatio, setSlides]);
+  }, [getSelectedPapers, aiConfig, notebookId, pageCount, currentStyleVisualPrompt, selectedStyle, selectedDetailLevel, selectedLang, selectedAspectRatio, setSlides]);
 
   const handleCancelGenerate = useCallback(() => {
     if (!isGenerating) return;
@@ -333,43 +328,43 @@ function PresentationPanel() {
   const hasSelectedPapers = getSelectedPapers().length > 0;
 
   return (
-    <div className="relative space-y-6" data-testid="image-ppt-panel">
+    <div className="relative space-y-4" data-testid="image-ppt-panel">
       {/* Apple-style ambient glow */}
       <div className="absolute -top-20 left-[10%] w-[80%] h-48 bg-blue-600/[0.04] blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute top-32 -right-10 w-[50%] h-36 bg-amber-500/[0.03] blur-[100px] rounded-full pointer-events-none" />
 
       {/* ── Style selector ── */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-center gap-2 text-[12px] font-semibold text-[var(--text-secondary)]">
+      <section className="space-y-2">
+        <div className="flex items-center justify-between gap-2 text-[12px] font-semibold text-[var(--text-secondary)]">
+          <span className="flex items-center gap-2">
           <Layout size={13} /> 简报风格
+          </span>
+          <span className="text-[10px] font-medium text-[var(--text-quaternary)]">选择一种</span>
         </div>
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {PRESET_STYLES.map(s => (
             <button
               key={s.id}
               onClick={() => setSelectedStyle(s.id)}
-              className={`presentation-template-card spotlight-glass-card group flex min-h-[62px] items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all duration-200 ${
+              className={`presentation-template-card spotlight-glass-card group flex min-h-[42px] items-center gap-2 rounded-xl border px-3 py-2 text-left transition-all duration-200 ${
                 selectedStyle === s.id
                   ? 'presentation-template-card-selected text-[var(--text-primary)]'
                   : 'text-[var(--text-primary)]'
               }`}
             >
-              <span className="flex h-10 w-5 shrink-0 items-center justify-center">
+              <span className="flex h-7 w-4 shrink-0 items-center justify-center">
                 <span
-                  className="h-8 w-1.5 rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                  className="h-6 w-1.5 rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10"
                   style={{ backgroundColor: s.color }}
                 />
               </span>
-              <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-                <span className="flex items-center gap-2 text-[15px] font-semibold leading-tight">
+              <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                <span className="truncate text-[12px] font-semibold leading-tight">
                   {s.label}
-                  {selectedStyle === s.id && (
-                    <Check size={14} className="text-blue-500" />
-                  )}
                 </span>
-                <span className="text-[12px] font-medium leading-snug text-[var(--text-secondary)]">
-                  {STYLE_DESCRIPTIONS[s.id]}
-                </span>
+                {selectedStyle === s.id && (
+                  <Check size={13} className="shrink-0 text-blue-500" />
+                )}
               </span>
             </button>
           ))}
@@ -377,9 +372,9 @@ function PresentationPanel() {
       </section>
 
       {/* ── Settings grid ── */}
-      <div className="liquid-glass-card p-6 space-y-6">
+      <div className="liquid-glass-card p-4 space-y-4">
         {/* Aspect Ratio + Detail Level */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-4">
           {/* Aspect Ratio */}
           <div className="space-y-3">
             <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
@@ -426,7 +421,7 @@ function PresentationPanel() {
         </div>
 
         {/* Language + Page Count */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-2 gap-4">
           {/* Language */}
           <div className="space-y-3">
             <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
@@ -512,7 +507,7 @@ function PresentationPanel() {
                 {generationError}
               </p>
               <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-                文本模型已进入生成流程，但图片模型未完成授权或配置不可用。请检查图片模型 API Base、Key 和模型名后重试。
+                文本模型已进入生成流程，但账号绑定的图片模型暂时不可用。请稍后重试或联系服务方检查模型配置。
               </p>
             </div>
           </div>

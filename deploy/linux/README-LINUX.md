@@ -89,12 +89,12 @@ sudo systemctl status lingbi-studio
 
 ## Nginx
 
-Copy `deploy/linux/nginx.conf.example`, change `server_name`, then enable HTTPS with your preferred ACME client. Public deployments must use HTTPS because users enter API keys in the browser.
+Copy `deploy/linux/nginx.conf.example`, change `server_name`, then enable HTTPS with your preferred ACME client. Public deployments should use HTTPS for account sessions and uploaded materials.
 
 ## Production Notes
 
 - For single-node deployment, keep `SOURCE_STORE_ADAPTER=local-json` and put `SOURCE_STORE_PATH` plus `ZVEC_STORE_PATH` on persistent disk.
 - For multi-instance deployment, use `SOURCE_STORE_ADAPTER=postgres` plus `DATABASE_URL`.
 - Keep `ALLOW_INSECURE_API_BASE=false` and `ALLOW_PRIVATE_API_BASE=false` on public servers.
-- Do not write real API keys into this bundle. Users can enter API Base/API Key in the model settings UI.
+- Do not write real API keys into this bundle. C-end model access is account-bound and should use deployment secrets or an approved gateway.
 - Use `.env.real.local` only for private server-side smoke tests; it is ignored and should never be archived with real secrets.

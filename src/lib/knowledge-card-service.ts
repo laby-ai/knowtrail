@@ -41,21 +41,24 @@ export interface KnowledgeCardRequestInput {
   debugRetrievalOnly?: boolean;
   debugAnswerText?: string;
   forceRefresh?: boolean;
+  ownerMemberId?: string;
+  notebookId?: string;
 }
 
 export async function buildKnowledgeCardsPayload(input: KnowledgeCardRequestInput) {
-  const { papers, aiConfig, debugRetrievalOnly, debugAnswerText, forceRefresh } = input;
+  const { papers, aiConfig, debugRetrievalOnly, debugAnswerText, forceRefresh, ownerMemberId, notebookId } = input;
   if (!papers || papers.length === 0) {
     return { error: '请提供资料内容', status: 400 as const };
   }
 
   const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
+  const scope = { ownerMemberId, notebookId };
   if (!debugRetrievalOnly && !forceRefresh) {
-    const cached = await readKnowledgeCardCache(papers, runtimeConfig);
+    const cached = await readKnowledgeCardCache(papers, runtimeConfig, scope);
     if (cached) return { body: cached, status: 200 as const };
   }
 
-  const grounded = await buildGroundedRetrievalContext('梳理核心概念、关键要点、背景脉络、方法线索和结论启发', papers, runtimeConfig, { topK: 10 });
+  const grounded = await buildGroundedRetrievalContext('梳理核心概念、关键要点、背景脉络、方法线索和结论启发', papers, runtimeConfig, { topK: 10, ownerMemberId, notebookId });
   if (debugRetrievalOnly) {
     return {
       body: {
@@ -97,7 +100,7 @@ export async function buildKnowledgeCardsPayload(input: KnowledgeCardRequestInpu
     retrieval,
     citationAudit,
   };
-  const cache = await writeKnowledgeCardCache(papers, runtimeConfig, response);
+  const cache = await writeKnowledgeCardCache(papers, runtimeConfig, response, scope);
   return {
     body: {
       ...response,

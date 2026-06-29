@@ -13,6 +13,8 @@ import {
   Check,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 import {
   buildStructuredPresentationOutlineDraft,
@@ -21,7 +23,8 @@ import {
 } from './StructuredPresentationOutlineDraft';
 
 export function StructuredPresentationPanel() {
-  const { getSelectedPapers, aiConfig } = useApp();
+  const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+  const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
   const [progressStep, setProgressStep] = useState('');
@@ -150,8 +153,9 @@ export function StructuredPresentationPanel() {
 
       const res = await fetch('/api/ai/ppt-v2', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
+          notebookId,
           papers: papersPayload,
           aiConfig,
           institution,

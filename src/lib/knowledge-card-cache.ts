@@ -38,9 +38,12 @@ function stablePaperSignature(paper: RagSourceInput) {
 export function knowledgeCardCacheKey(
   papers: RagSourceInput[],
   aiConfig?: Partial<RuntimeAIConfig>,
+  scope: { ownerMemberId?: string; notebookId?: string } = {},
 ): string {
   const signature = {
     version: CACHE_VERSION,
+    ownerMemberId: scope.ownerMemberId || '',
+    notebookId: scope.notebookId || '',
     papers: papers.map(stablePaperSignature),
     model: aiConfig?.model || '',
     apiBase: aiConfig?.apiBase || '',
@@ -55,8 +58,9 @@ function cachePath(key: string): string {
 export async function readKnowledgeCardCache(
   papers: RagSourceInput[],
   aiConfig?: Partial<RuntimeAIConfig>,
+  scope?: { ownerMemberId?: string; notebookId?: string },
 ): Promise<KnowledgeCardCacheHit | undefined> {
-  const key = knowledgeCardCacheKey(papers, aiConfig);
+  const key = knowledgeCardCacheKey(papers, aiConfig, scope);
   try {
     const raw = await readFile(cachePath(key), 'utf-8');
     const parsed = JSON.parse(raw) as { version?: number; storedAt?: string; response?: KnowledgeCardResponse };
@@ -78,8 +82,9 @@ export async function writeKnowledgeCardCache(
   papers: RagSourceInput[],
   aiConfig: Partial<RuntimeAIConfig> | undefined,
   response: KnowledgeCardResponse,
+  scope?: { ownerMemberId?: string; notebookId?: string },
 ): Promise<{ key: string; storedAt: string }> {
-  const key = knowledgeCardCacheKey(papers, aiConfig);
+  const key = knowledgeCardCacheKey(papers, aiConfig, scope);
   const storedAt = new Date().toISOString();
   await mkdir(CACHE_DIR, { recursive: true });
   await writeFile(

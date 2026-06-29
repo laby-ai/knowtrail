@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
-import { hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
+import { allowRequestRuntimeAIConfig, hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
 import { DETAIL_LEVEL_SPECS, getStyleDescription, PPT_LANG_INSTRUCTION } from '@/lib/ppt/image-ppt-style';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
 // ============================================================
 // Banana Slides PPT Generation Pipeline (Strict Alignment)
@@ -55,7 +56,7 @@ function envFirst(...names: string[]): string {
 }
 
 function resolveServerRuntimeAIConfig(input?: Partial<RuntimeAIConfig>): Partial<RuntimeAIConfig> {
-  if (hasRuntimeAIProvider(input)) return input;
+  if (allowRequestRuntimeAIConfig() && hasRuntimeAIProvider(input)) return input;
   return {
     apiBase: envFirst('OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE'),
     apiKey: envFirst('OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY'),
@@ -175,7 +176,7 @@ async function generateOpenAICompatibleImage(
   options?: { aspectRatio?: string; negativePrompt?: string; referenceImageBase64?: string },
 ): Promise<string> {
   if (!hasRuntimeAIProvider(runtimeConfig)) {
-    throw new Error('缺少真实图片模型配置：请填写 API Base、API Key 和视觉/图片模型。');
+    throw new Error('账号绑定的图片模型服务尚未配置，请稍后再试。');
   }
 
   const endpoint = normalizeOpenAIImageEndpoint(resolveImageApiBase(runtimeConfig));
@@ -264,6 +265,7 @@ interface PPTRequest {
   referenceImageIndex?: number | null; // index into source-media images (0-26), null = no reference
   aiConfig?: Partial<RuntimeAIConfig>;
   debugRetrievalOnly?: boolean;
+  notebookId?: string;
 }
 
 // ============================================================
@@ -732,6 +734,11 @@ export async function POST(request: NextRequest) {
     debugRetrievalOnly,
   } = body;
   const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
+  const scope = await resolveAccountNotebookScope(request, {
+    notebookId: body.notebookId,
+    loginMessage: '请先登录账号，再生成演示文稿。',
+  });
+  if (!scope.ok) return scope.response;
 
   if (!papers || papers.length === 0) {
     return NextResponse.json({ error: '请先选择要生成 PPT 的文献' }, { status: 400 });
@@ -741,7 +748,7 @@ export async function POST(request: NextRequest) {
     '生成学术演示文稿大纲、每页核心论点、关键证据、图表线索和可引用结论',
     papers,
     runtimeConfig,
-    { topK: 12 },
+    { topK: 12, ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId },
   );
 
   if (debugRetrievalOnly) {
@@ -869,7 +876,7 @@ export async function POST(request: NextRequest) {
         sendEvent({ stage: 'image', status: 'done', message: `图片生成完成 ${successCount}/${imageUrls.length}` });
         if (successCount !== imageUrls.length) {
           const firstError = imageResults.find(result => result.error)?.error;
-          throw new Error(`图片生成失败：${successCount}/${imageUrls.length} 页成功。${firstError ? `首个错误：${firstError}` : '请检查图片模型、图片 API Base 和 API Key。'}`);
+          throw new Error(`图片生成失败：${successCount}/${imageUrls.length} 页成功。${firstError ? `首个错误：${firstError}` : '请检查账号绑定的图片模型服务。'}`);
         }
 
         // ── Stage 5: Generate Narrations (演讲词) ──

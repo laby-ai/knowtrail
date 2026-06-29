@@ -109,7 +109,7 @@ export function buildFastKnowledgeMap(papers: RagSourceInput[], citations: Groun
 
   return {
     schemaVersion: 1,
-    title: `${cleanText(papers[0]?.title || '资料', 36)} 的资料地图`,
+    title: `${cleanText(papers[0]?.title || '资料', 36)} 的资料脉络`,
     generatedAt: new Date().toISOString(),
     nodes: nodes.sort((a, b) => Number(Boolean(b.focal)) - Number(Boolean(a.focal)) || b.degree - a.degree || a.label.localeCompare(b.label)),
     edges: dedupedEdges,

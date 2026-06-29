@@ -34,9 +34,9 @@
 }
 
 :root[data-theme="light"] {
-  --bg-primary: #f7f7f4;
+  --bg-primary: #ffffff;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #edf1f6;
+  --bg-tertiary: #f1f5f9;
   --bg-card: #ffffff;
   --text-primary: #111827;
   --text-secondary: #243042;

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { embedTexts, llmInvoke } from '@/lib/ai-service';
-import { redactRuntimeAISecrets, resolveOpenAIChatEndpoint, resolveOpenAIEmbeddingsEndpoint } from '@/lib/runtime-ai-config';
+import {
+  redactRuntimeAISecrets,
+  resolveOpenAIChatEndpoint,
+  resolveOpenAIEmbeddingsEndpoint,
+  resolveServerRuntimeAIConfig,
+} from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
 const VISION_TEST_TIMEOUT_MS = 60000;
@@ -20,7 +25,7 @@ const EMBEDDING_TIMEOUT_MS = readPositiveIntEnv('AI_TEST_CONFIG_EMBEDDING_TIMEOU
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('连接测试超时，请检查 API Base、网络或模型名。')), timeoutMs);
+    const timer = setTimeout(() => reject(new Error('模型服务连接测试超时，请稍后再试。')), timeoutMs);
     promise
       .then((value) => {
         clearTimeout(timer);
@@ -37,21 +42,22 @@ export async function POST(request: NextRequest) {
   let apiKeyForRedaction = '';
   try {
     const { aiConfig } = await request.json() as { aiConfig?: Partial<RuntimeAIConfig> };
-    apiKeyForRedaction = aiConfig?.apiKey || '';
+    const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
+    apiKeyForRedaction = runtimeConfig.apiKey || aiConfig?.apiKey || '';
 
-    if (!aiConfig?.apiBase?.trim() || !aiConfig.apiKey?.trim()) {
-      return NextResponse.json({ ok: false, error: '请先填写 API Base 和 API Key。' }, { status: 400 });
+    if (!runtimeConfig.apiBase?.trim() || !runtimeConfig.apiKey?.trim()) {
+      return NextResponse.json({ ok: false, error: '账号绑定的模型服务尚未配置，请稍后再试。' }, { status: 400 });
     }
 
     try {
-      resolveOpenAIChatEndpoint(aiConfig);
-      if (aiConfig.embeddingModel?.trim()) {
-        resolveOpenAIEmbeddingsEndpoint(aiConfig);
+      resolveOpenAIChatEndpoint(runtimeConfig);
+      if (runtimeConfig.embeddingModel?.trim()) {
+        resolveOpenAIEmbeddingsEndpoint(runtimeConfig);
       }
     } catch (error: unknown) {
       const message = redactRuntimeAISecrets(
-        error instanceof Error ? error.message : 'API Base 配置不正确',
-        aiConfig.apiKey,
+        error instanceof Error ? error.message : '模型服务配置不正确',
+        runtimeConfig.apiKey,
       );
       return NextResponse.json({ ok: false, error: message }, { status: 400 });
     }
@@ -62,14 +68,14 @@ export async function POST(request: NextRequest) {
           { role: 'system', content: 'You are a connectivity test endpoint. Reply with exactly OK.' },
           { role: 'user', content: 'Return OK.' },
         ],
-        { temperature: 0, model: aiConfig.model?.trim() || undefined },
+        { temperature: 0, model: runtimeConfig.model?.trim() || undefined },
         undefined,
-        aiConfig,
+        runtimeConfig,
       ),
       TEXT_TEST_TIMEOUT_MS,
     );
 
-    const visionModel = aiConfig.visionModel?.trim();
+    const visionModel = runtimeConfig.visionModel?.trim();
     let visionSample: string | undefined;
     if (visionModel) {
       visionSample = await withTimeout(
@@ -85,17 +91,17 @@ export async function POST(request: NextRequest) {
           ],
           { temperature: 0, model: visionModel, vision: true },
           undefined,
-          aiConfig,
+          runtimeConfig,
         ),
         VISION_TIMEOUT_MS,
       );
     }
 
-    const embeddingModel = aiConfig.embeddingModel?.trim();
+    const embeddingModel = runtimeConfig.embeddingModel?.trim();
     let embeddingDimension: number | undefined;
     if (embeddingModel) {
       const embeddings = await withTimeout(
-        embedTexts(['lingbi vector connectivity test'], aiConfig),
+        embedTexts(['lingbi vector connectivity test'], runtimeConfig),
         EMBEDDING_TIMEOUT_MS,
       );
       embeddingDimension = embeddings[0]?.length;
@@ -103,10 +109,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      model: aiConfig.model?.trim() || 'default',
+      model: runtimeConfig.model?.trim() || 'default',
       visionModel: visionModel || undefined,
       embeddingModel: embeddingModel || undefined,
-      ttsSpeaker: aiConfig.ttsSpeaker?.trim() || undefined,
+      ttsSpeaker: runtimeConfig.ttsSpeaker?.trim() || undefined,
       sample: content.slice(0, 80),
       visionSample: visionSample?.slice(0, 80),
       embeddingDimension,

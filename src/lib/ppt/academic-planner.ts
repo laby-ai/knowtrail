@@ -426,7 +426,7 @@ async function fillSlideContent(
       allResults.push(...batchStructure.map(item => ({
         type: item.type,
         title: item.title,
-        bullets: item.type === 'closing' ? ['核心结论已经形成可追溯验证链路', '后续重点是持续提升真实用户路径体验', '感谢关注灵笔工作室的产品化演进'] : [],
+        bullets: item.type === 'closing' ? ['核心结论已经形成可追溯验证链路', '后续重点是持续提升真实用户路径体验', '感谢关注灵笔的产品化演进'] : [],
         note: '',
         figureLabel: item.figureLabel,
         layout: (item.type === 'closing' ? 'quote_highlight' : 'title_only') as LayoutType,

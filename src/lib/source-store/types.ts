@@ -47,6 +47,8 @@ export interface MinerUExtractionRecord {
 
 export interface StoredSourceRecord {
   id: string;
+  ownerMemberId?: string;
+  notebookId?: string;
   fileName: string;
   fileType: string;
   fileSize?: number;
@@ -68,6 +70,8 @@ export interface StoredSourceRecord {
 
 export interface IngestionSourceInput extends RagSourceInput {
   id: string;
+  ownerMemberId?: string;
+  notebookId?: string;
   fileName: string;
   fileType: string;
   fileSize?: number;
@@ -179,6 +183,8 @@ export interface ReadySourceChunksResult {
 
 export interface ReadySourceChunksScope {
   identities?: string[];
+  ownerMemberId?: string;
+  notebookId?: string;
   query?: string;
   topK?: number;
 }

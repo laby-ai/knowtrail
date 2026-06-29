@@ -3,11 +3,11 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: '灵笔工作室',
-    template: '%s | 灵笔工作室',
+    default: 'KnowTrail',
+    template: '%s | KnowTrail',
   },
   description:
-    '资料理解与内容创作工作台，支持用户自带 API Base 和 API Key，提供来源管理、证据问答、报告生成、PPT制作、音频合成等能力。',
+    '把文档、网页和笔记放进一个工作本，围绕资料提问、核对来源，并整理成可以带走的内容。',
   keywords: [
     '资料工作台',
     '资料问答',
@@ -17,8 +17,8 @@ export const metadata: Metadata = {
     '知识管理',
     '知识卡片',
   ],
-  authors: [{ name: '灵笔工作室' }],
-  generator: '灵笔工作室',
+  authors: [{ name: 'KnowTrail' }],
+  generator: 'KnowTrail',
   icons: {
     icon: [
       { url: '/assets/brand/favicon.png', sizes: '32x32', type: 'image/png' },
@@ -29,21 +29,14 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: '灵笔工作室',
+    title: 'KnowTrail',
     description:
-      '资料理解、证据问答、报告生成、PPT制作和音频合成一体化工作台。',
-    url: process.env.NEXT_PUBLIC_DOMAIN || 'https://lingbi.example.com',
-    siteName: '灵笔工作室',
+      '围绕个人资料提问、查看来源，并整理成摘要、卡片和讲稿。',
+    url: process.env.NEXT_PUBLIC_DOMAIN || 'https://knowtrail.example.com',
+    siteName: 'KnowTrail',
     locale: 'zh_CN',
     type: 'website',
   },
-  // twitter: {
-  //   card: 'summary_large_image',
-  //   title: 'Lingbi Studio',
-  //   description:
-  //     'Build and deploy full-stack applications through AI conversation. No env setup, just flow.',
-  //   // images: [''],
-  // },
   robots: {
     index: true,
     follow: true,
@@ -56,7 +49,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" data-theme="light">
+    <html lang="zh-CN" data-theme="light" suppressHydrationWarning>
       <body className="antialiased bg-[var(--bg-primary)] text-[var(--text-primary)]">
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t==='dark'?'dark':'light')}catch(e){document.documentElement.setAttribute('data-theme','light')}})()` }} />
         {children}

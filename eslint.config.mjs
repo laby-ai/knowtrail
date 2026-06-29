@@ -49,6 +49,7 @@ const eslintConfig = defineConfig([
     '.data/**',
     'logs/**',
     'public/uploads/**',
+    'public/vendor/**',
     // Vendored/reference projects kept for prompt and implementation reference, not app lint:
     '.references/**',
     'banana-slides-main/**',

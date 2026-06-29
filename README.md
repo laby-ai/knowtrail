@@ -1,18 +1,17 @@
 # KnowTrail
 
-KnowTrail 是一个 NotebookLM-style 的开源资料工作台，面向资料上传、引用问答、综述报告、知识卡片、资料地图、演示文稿和语音摘要等工作流。中文产品名为“灵笔工作室”，默认支持用户自带 OpenAI-compatible API Base / API Key，也支持部署方配置服务端默认模型。
+KnowTrail 是一个 NotebookLM-style 的开源资料工作台，面向资料上传、引用问答、综述报告、知识卡片、资料地图、演示文稿和语音摘要等工作流。中文产品名为“灵笔”，C 端默认使用账号绑定的模型服务和额度结算。
 
 ## 发布版本能力
 
-- 用户可在工作台顶部「模型设置」填写兼容 OpenAI 的 `API Base`、`API Key`、文本模型、视觉理解模型和向量模型。
-- 用户配置仅保存在浏览器 `localStorage`，不会写入服务端文件或环境变量。
-- 聊天、综述、知识卡片、上传后的文本分析、图片/PDF OCR 和资料向量检索会优先使用用户配置；未配置时仅在部署方显式配置 `OPENAI_COMPAT_*` 或 `ARK_*` 服务端默认模型时才回退。历史平台变量不再作为主运行路径。
+- 普通用户只登录账号和使用工作本，不在浏览器内填写模型 API Key。
+- 聊天、综述、知识卡片、上传后的文本分析、图片/PDF OCR 和资料向量检索使用部署方配置的 `OPENAI_COMPAT_*` / `ARK_*` 模型服务，额度按账号侧 memberId 结算。
 - 本地生产级向量库使用 `@zvec/zvec`，通过 WAL 持久化资料 chunks 与 embeddings；生产部署必须把 `ZVEC_STORE_PATH` 放在持久磁盘上。
 - 上传后的 source/chunk 元数据通过 `SOURCE_STORE_PATH` 持久化，`/api/ingestion/sources` 可查询 ingestion 状态、chunk 数和向量索引状态。
 - source store 已有 adapter 边界；默认 adapter 是单机 `local-json`，多实例公网部署可设置 `SOURCE_STORE_ADAPTER=postgres` 和 `DATABASE_URL` 共享 source metadata。Postgres adapter 会保留 `lingbi_source_store` 的 `jsonb` 兼容快照，同时镜像到 `lingbi_sources`、`lingbi_source_chunks`、`lingbi_ingestion_stages` 三张规范化表；读取时优先从规范化表重建 source store，grounded retrieval 的 ready chunk 查询可直接读取 `lingbi_source_chunks` 并按问题文本/topK 裁剪候选，且 schema 会为 chunk 文本建立 Postgres GIN 全文索引契约；可用 `POSTGRES_READY_CHUNK_SEARCH=fts` 灰度启用 `ts_rank` 候选排序。
 - PDF 图表提取通过 MinerU 作为后台增强任务接入同一 ingestion 状态链路，可用 `MINERU_JOB_TIMEOUT_MS`、`MINERU_JOB_MAX_RETRIES`、`MINERU_JOB_RETRY_DELAY_MS` 控制超时和重试。
-- 公网生产环境默认只允许 `https://` API Base，并阻止 `localhost`、`127.0.0.1`、`10.x`、`172.16-31.x`、`192.168.x` 等私有网段，避免服务端被当作内网代理。
-- 适合公网提供“自带 Key 试用”版本，服务端无需替用户托管密钥。
+- 公网生产环境默认不采纳请求侧模型凭证；如需兼容旧 BYOK 测试流，必须显式设置 `ALLOW_USER_RUNTIME_AI_CONFIG=true`。
+- 适合公网提供普通用户注册登录后的个人工作本服务。
 
 ## 快速开始
 
@@ -28,7 +27,7 @@ pnpm install
 cp .env.example .env.local
 ```
 
-如果只提供用户自带 Key 的公网版本，可以不填写服务端模型密钥。若要提供服务端默认模型，请按部署平台补齐 `.env.local` 中的 OpenAI-compatible 或 Ark 配置；不要把历史平台变量作为新的主部署契约。
+按部署平台补齐 `.env.local` 中的账号系统和 OpenAI-compatible / Ark 配置；不要把真实模型密钥写入仓库或发布包。
 
 ### 3. 启动开发服务器
 
@@ -127,11 +126,11 @@ nano .env.production
 8. 如果启用 MinerU，设置 `MINERU_API_TOKEN`，并按部署平台请求时长设置 `MINERU_JOB_TIMEOUT_MS`、`MINERU_JOB_MAX_RETRIES` 和 `MINERU_JOB_RETRY_DELAY_MS`。默认 180 秒超时、1 次重试、3 秒重试间隔。
 9. 如果需要真实播客音频，默认配置豆包 AgentPlan TTS：`AGENTPLAN_TTS_ENDPOINT=https://openspeech.bytedance.com/api/v3/plan/tts/unidirectional`、`AGENTPLAN_TTS_RESOURCE_ID=seed-tts-2.0`、私有 `AGENTPLAN_TTS_API_KEY`、`AGENTPLAN_TTS_SPEAKER`。实验性的火山/豆包播客 WebSocket v3 仅在显式设置 `PODCAST_AUDIO_PROVIDER=volcengine-podcast` 时使用。
 10. 如果播客上游返回异步任务而不是立即返回音频地址，设置 `PODCAST_STATUS_URL_TEMPLATE`，用 `{taskId}` 作为任务 ID 占位符。未配置时前端仍会提示任务已提交并轮询到超时提示，但无法自动拿到最终音频。
-11. 确认公网 HTTPS 已开启。用户 API Key 会从浏览器发送到你的服务端代理，不能在明文 HTTP 下使用。
-12. 在浏览器「模型设置」中填写用户自己的兼容服务地址，例如 `https://api.openai.com/v1` 或第三方兼容网关。
-   - 火山方舟 Ark OpenAI-compatible 示例：`API Base=https://ark.cn-beijing.volces.com/api/v3`，文本模型填写控制台 `/models` 可访问的版本化模型 ID，例如 `doubao-seed-1-6-251015`。
-   - 「视觉理解模型」用于图片/PDF OCR 多模态理解。Ark 中应填写明确支持 `image_url` 的视觉模型 ID，例如 `doubao-seed-1-6-vision-250815`。
-   - 「向量模型」用于资料 chunks 的 embedding 和 zvec 检索。只填写控制台已开通且支持 `/embeddings` 的文本 embedding 模型；未开通时留空，系统会明确降级到持久片段/关键词检索。
+11. 确认公网 HTTPS 已开启。账号登录态、资料上传和模型调用都应走受保护的公网入口。
+12. 配置账号绑定的模型服务，例如 OpenAI-compatible 或第三方兼容网关；普通用户不在浏览器内填写 API Key。
+   - 火山方舟 Ark OpenAI-compatible 示例：`OPENAI_COMPAT_API_BASE=https://ark.cn-beijing.volces.com/api/v3`，文本模型填写控制台 `/models` 可访问的版本化模型 ID，例如 `doubao-seed-1-6-251015`。
+   - `OPENAI_COMPAT_VISION_MODEL` 用于图片/PDF OCR 多模态理解，应填写明确支持 `image_url` 的视觉模型 ID。
+   - `OPENAI_COMPAT_EMBEDDING_MODEL` 用于资料 chunks 的 embedding 和 zvec 检索；未配置时系统会明确降级到持久片段/关键词检索。
 13. 如果部署方要验证真实服务而不是 mock，设置 `OPENAI_COMPAT_API_BASE`、`OPENAI_COMPAT_API_KEY`、`OPENAI_COMPAT_MODEL` 和可选 `OPENAI_COMPAT_EMBEDDING_MODEL` 后运行 `pnpm smoke:real-openai-compatible`。Ark 也可使用 `ARK_API_BASE`、`ARK_API_KEY`、`ARK_MODEL`、`ARK_EMBEDDING_MODEL` 别名。脚本不会输出 Key；未配置 Base/Key 时会安全跳过。
 14. 访问 `/api/health` 确认服务可达，并检查上传限制、内部自调用 origin、对象存储、MinerU job、source store、`sourceStore.readyChunkSearch.mode`、zvec vector store、服务端兜底模型等能力是否已配置。
 15. 使用一份小 PDF/TXT 资料完成上传、`/api/ingestion/sources` 状态查询、问答、生成综述和播客音频五项冒烟测试。
@@ -155,16 +154,15 @@ POSTGRES_SMOKE_DATABASE_URL=postgres://user:pass@host:5432/lingbi_smoke pnpm smo
 
 该脚本不会隐式读取 `DATABASE_URL`，防止把生产库当作 smoke 目标。脚本会开启事务、创建临时 schema、执行建表 SQL、确认 `lingbi_source_chunks_fts_idx` 已创建、插入一条 source/chunk/stage 样例、执行一次全文查询、从规范化表重建 source store、检查行数，然后 rollback。
 
-### API Base 安全策略
+### 模型网关策略
 
-- 开发环境允许本机 mock 网关，便于运行 `pnpm smoke:openai-compatible`。
-- 生产环境默认拒绝 HTTP API Base。如果必须接入可信内网 HTTP 网关，显式设置 `ALLOW_INSECURE_API_BASE=true`。
-- 生产环境默认拒绝 localhost 和私有网段。如果你的部署拓扑确实需要内网兼容网关，显式设置 `ALLOW_PRIVATE_API_BASE=true`，并在网关侧做好鉴权和访问控制。
-- 上游模型服务返回错误时，服务端会脱敏 `Bearer ...`、`apiKey` 和 `authorization` 字段，避免把用户填写的 Key 回显到前端或日志里。
+- C 端默认不采纳请求体里的模型凭证，模型服务由部署环境或 approved gateway 托管。
+- 如果需要兼容旧 BYOK 测试流，显式设置 `ALLOW_USER_RUNTIME_AI_CONFIG=true`，并继续保留 HTTP/private base guardrails。
+- 上游模型服务返回错误时，服务端会脱敏 `Bearer ...`、`apiKey` 和 `authorization` 字段，避免把密钥回显到前端或日志里。
 
 ### OpenAI-compatible 后端烟测
 
-启动本地服务后，可以用内置 mock 网关验证“用户自带 API Base / API Key”链路是否可用：
+启动本地服务后，可以用内置 mock 网关验证账号绑定模型服务链路是否可用：
 
 ```bash
 # 如果用 pnpm next start / 生产模式跑本地 smoke，需要允许本机 HTTP mock：
@@ -177,10 +175,10 @@ APP_ORIGIN=http://localhost:5000 pnpm smoke:openai-compatible
 - `/api/health` 能否返回不含密钥的发布健康状态，并包含 source store、ready chunk search mode、zvec、MinerU、对象存储和上传限制。
 - `/api/upload` 能否拒绝超过 `MAX_UPLOAD_BYTES` 的文件，避免超限文件进入 OCR/LLM 分析链路。
 - `pnpm test:ingestion` 能否把解析后的 source 写入本地 source store、生成 chunks、可选写入 zvec 并查回 citation metadata。
-- `/api/ai/test-config` 能否携带用户填写的 `API Base`、`API Key`、文本模型、视觉理解模型和向量模型完成连接测试。
+- `/api/ai/test-config` 能否使用服务端模型配置完成连接测试。
 - `/api/ai/test-config` 在填写视觉理解模型时，会同时发送一张 16x16 测试图片验证 `image_url` 多模态链路。
 - `/api/ai/test-config` 在填写向量模型时，会调用 `/embeddings` 并验证返回向量维度。
-- `/api/ai/test-config` 能否拒绝不支持的 API Base 协议，并在上游认证失败时不回显用户 Key。
+- `/api/ai/test-config` 能否拒绝不支持的模型网关地址，并在上游认证失败时不回显密钥。
 - `/api/ai/chat` 能否通过同一配置完成流式 SSE 回答，向模型传入低 `max_tokens` smoke guard，把检索后的 `sourceId/chunkId` grounded context 传给模型，并在 SSE 中返回 `citations`、含 `degraded/reason` 的 `retrieval` 和最终 `citationAudit=pass`。
 - `pnpm smoke:configured-workbench-flow` 能否从浏览器用户路径确认本地保存的模型配置随 `/api/upload`、`/api/ai/chat` 和 `/api/ai/knowledge-cards` 进入后端，避免设置弹窗和实际工作台割裂。
 - `pnpm smoke:workbench-studio-ui` 能否从浏览器用户路径确认右侧 PPT、学术报告、知识卡片和播客的无资料禁用、有资料启用、Studio prompt 进入中央对话、请求体携带同一份用户模型配置与选中资料、长任务等待、取消与恢复体验。

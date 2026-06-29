@@ -6,6 +6,10 @@ import { sourceStoreStatus } from '@/lib/ingestion-store';
 import { mineruJobHealth } from '@/lib/mineru-job';
 import { studioJobStoreStatus } from '@/lib/studio-job';
 import { getAccountCenterStatus } from '@/lib/account-center';
+import { allowRequestRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { internalClassroomOrigin, publicClassroomOrigin } from '@/lib/virtual-classroom/runtime-config';
+
+export const dynamic = 'force-dynamic';
 
 function hasAll(values: Array<string | undefined>): boolean {
   return values.every(value => Boolean(value?.trim()));
@@ -43,7 +47,8 @@ export async function GET() {
     time: new Date().toISOString(),
     runtime: process.env.NODE_ENV || 'development',
     capabilities: {
-      userProvidedOpenAICompatibleConfig: true,
+      userProvidedOpenAICompatibleConfig: allowRequestRuntimeAIConfig(),
+      accountBoundModelConfig: true,
       serverFallbackModelConfigured: hasServerFallbackModel(),
       fileStorageAdapter: isUsingObjectStorage() ? 's3' : 'local',
       objectStorageConfigured: isObjectStorageConfigured(),
@@ -53,6 +58,11 @@ export async function GET() {
       sourceStore: sourceStoreStatus(),
       studioJobStore: studioJobStoreStatus(),
       accountCenter: getAccountCenterStatus(),
+      virtualClassroom: {
+        publicOrigin: publicClassroomOrigin() || null,
+        internalOriginConfigured: Boolean(internalClassroomOrigin()),
+        proxyEnabled: publicClassroomOrigin() === '/classroom-runtime',
+      },
     },
     deployment: {
       internalAppOriginConfigured: Boolean(process.env.INTERNAL_APP_ORIGIN?.trim()),

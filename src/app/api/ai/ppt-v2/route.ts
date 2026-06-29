@@ -10,6 +10,7 @@ import { buildAcademicPptx } from '@/lib/ppt/academic-renderer';
 import type { PaperInput, PptOptions, SlideSpec } from '@/lib/ppt/academic-types';
 import { genAcademicOutline } from '@/lib/ppt/academic-planner';
 import { llmCallLogs, llmInvokeObserved, markFallback, markJsonParsed, resetLlmCallLogs } from '@/lib/ppt/academic-observability';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
 // ── Grounded outline helpers ──
 function buildGroundedOutlinePapers(papers: PaperInput[], promptContext: string): PaperInput[] {
@@ -130,9 +131,15 @@ export async function POST(request: NextRequest) {
       aiConfig?: Partial<RuntimeAIConfig>;
       debugRetrievalOnly?: boolean;
       outlineDraft?: unknown;
+      notebookId?: string;
     };
     const outlineDraft = sanitizePptOutlineDraft(body.outlineDraft);
     const outlineDraftPrompt = formatPptOutlineDraftForPrompt(outlineDraft);
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: body.notebookId,
+      loginMessage: '请先登录账号，再生成结构化演示文稿。',
+    });
+    if (!scope.ok) return scope.response;
 
     if (!papers || papers.length === 0) {
       return NextResponse.json({ error: '请先选择文献' }, { status: 400 });
@@ -143,7 +150,7 @@ export async function POST(request: NextRequest) {
       '为学术报告 PPT 解析论证结构、研究背景、科学问题、方法、结果、讨论、结论和可引用证据',
       papers,
       runtimeConfig,
-      { topK: 12 },
+      { topK: 12, ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId },
     );
 
     if (debugRetrievalOnly) {
