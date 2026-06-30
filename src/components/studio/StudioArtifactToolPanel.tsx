@@ -11,6 +11,10 @@ import { STUDIO_ARTIFACT_TOOLS, type StudioToolItem } from './StudioToolSwitcher
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
 
 type StudioToolRunStatus = 'idle' | 'running' | 'succeeded' | 'failed';
+interface StudioMarkdownSection {
+  title: string;
+  lines: string[];
+}
 
 interface StudioToolArtifactResult {
   artifact: {
@@ -25,6 +29,82 @@ interface StudioToolArtifactResult {
   citations: Citation[];
   retrieval: RetrievalMetadata | null;
   citationAudit?: CitationAuditResult;
+}
+
+function cleanMarkdownLine(line: string) {
+  return line
+    .replace(/^[-*+]\s+/, '')
+    .replace(/^\d+[.)]\s+/, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .trim();
+}
+
+function parseMarkdownSections(markdown: string): StudioMarkdownSection[] {
+  const sections: StudioMarkdownSection[] = [];
+  let current: StudioMarkdownSection | null = null;
+
+  markdown.split(/\r?\n/).forEach(rawLine => {
+    const line = rawLine.trim();
+    if (!line) return;
+
+    const heading = line.match(/^#{1,3}\s+(.+)$/);
+    if (heading) {
+      current = { title: cleanMarkdownLine(heading[1]), lines: [] };
+      sections.push(current);
+      return;
+    }
+
+    if (!current) {
+      current = { title: '重点内容', lines: [] };
+      sections.push(current);
+    }
+
+    const cleaned = cleanMarkdownLine(line);
+    if (cleaned) current.lines.push(cleaned);
+  });
+
+  return sections
+    .map(section => ({ ...section, lines: section.lines.slice(0, 5) }))
+    .filter(section => section.title || section.lines.length > 0)
+    .slice(0, 6);
+}
+
+function StudioArtifactReadablePreview({ markdown }: { markdown: string }) {
+  const sections = parseMarkdownSections(markdown);
+
+  if (sections.length === 0) {
+    return (
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+        暂无可预览内容。
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3" data-testid="studio-tool-readable-preview">
+      {sections.map(section => (
+        <section
+          key={`${section.title}-${section.lines[0] || ''}`}
+          className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3"
+        >
+          <h4 className="text-[12px] font-semibold leading-snug text-[var(--text-primary)]">
+            {section.title}
+          </h4>
+          {section.lines.length > 0 && (
+            <ul className="mt-2 space-y-1.5">
+              {section.lines.map(line => (
+                <li key={line} className="flex gap-2 text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                  <span className="mt-[0.55em] h-1 w-1 shrink-0 rounded-full bg-[var(--text-tertiary)]" />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
+    </div>
+  );
 }
 
 export function StudioArtifactToolPanel({ toolId }: { toolId: StudioToolItem['id'] }) {
@@ -176,11 +256,17 @@ export function StudioArtifactToolPanel({ toolId }: { toolId: StudioToolItem['id
               复制
             </button>
           </div>
-          <div className="max-h-[360px] overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3">
-            <pre className="whitespace-pre-wrap break-words text-[11px] leading-relaxed text-[var(--text-secondary)]">
-              {result.artifact.markdown}
-            </pre>
-          </div>
+          <StudioArtifactReadablePreview markdown={result.artifact.markdown} />
+          <details className="rounded-xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-3">
+            <summary className="cursor-pointer text-[11px] font-semibold text-[var(--text-secondary)]">
+              查看完整 Markdown
+            </summary>
+            <div className="mt-3 max-h-[240px] overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3">
+              <pre className="whitespace-pre-wrap break-words text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                {result.artifact.markdown}
+              </pre>
+            </div>
+          </details>
           <StudioEvidenceStatusPanel
             citations={result.citations}
             retrieval={result.retrieval}
