@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowRight, BookOpen, Headphones, Menu, Quote, Sparkles, Upload } from 'lucide-react';
+import { ArrowRight, BookOpen, Menu, Presentation, Quote, Sparkles, Upload } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { BrandMark } from '@/components/brand/BrandMark';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
@@ -39,12 +39,12 @@ const researchFeatures = [
     detail: '每次回答都尽量贴近原始来源。',
   },
   {
-    icon: Headphones,
-    title: '生成音频概览',
-    body: '把一组来源整理成适合路上听的音频概览，之后继续回到工作本里追问。',
-    variant: 'audio' as FeatureMotionDemoVariant,
-    label: '音频概览',
-    detail: '把一组资料压缩成可听的结构化摘要。',
+    icon: Presentation,
+    title: '生成演示文稿',
+    body: '把一组来源整理成可编辑的演示文稿，图片页与 HTML 原生排版任选，随时回到工作本继续追问。',
+    variant: 'slides' as FeatureMotionDemoVariant,
+    label: '演示文稿',
+    detail: '一组资料一键生成可编辑幻灯片。',
   },
 ];
 
@@ -247,7 +247,7 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
                 了解<span className="bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400 bg-clip-text text-transparent">任何资料</span>
               </h1>
               <p className="mx-auto mt-7 max-w-3xl text-xl leading-8 text-slate-600">
-                以你信任的来源为基础，把 PDF、网页、音频和笔记放进一个工作本，用提问、引用和音频概览继续研究。
+                以你信任的来源为基础，把 PDF、网页、音频和笔记放进一个工作本，用提问、引用和演示文稿继续研究。
               </p>
               <div className="mt-8 flex justify-center">
                 <Link

@@ -7,7 +7,6 @@ import {
   MousePointer2,
   Presentation,
   ClipboardCheck,
-  Volume2,
   GitBranch,
 } from 'lucide-react';
 import { STUDIO_ARTIFACT_TOOL_DEFS, type StudioArtifactToolId } from '@/lib/studio-tools';
@@ -15,7 +14,6 @@ import { STUDIO_ARTIFACT_TOOL_DEFS, type StudioArtifactToolId } from '@/lib/stud
 export type StudioTab =
   | 'presentation'
   | 'presentation2'
-  | 'audio'
   | 'knowledge'
   | 'virtual-classroom'
   | 'interactive'
@@ -44,7 +42,6 @@ export interface StudioToolItem {
 
 export const STUDIO_NAV: StudioNavItem[] = [
   { id: 'presentation', label: '演示文稿', desc: '图片页 / 可编辑 PPT', icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
-  { id: 'audio', label: '语音摘要', desc: '脚本和音频产物', icon: Volume2, accent: 'from-purple-500/10 to-purple-500/5' },
   { id: 'knowledge', label: '资料脉络', desc: '核心词和关系', icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
   { id: 'virtual-classroom', label: '虚拟课堂', desc: '课堂系统', icon: GraduationCap, accent: 'from-emerald-500/10 to-sky-500/5' },
 ];

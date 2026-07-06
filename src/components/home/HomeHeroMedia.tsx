@@ -6,7 +6,7 @@ import { BrandMark } from '@/components/brand/BrandMark';
 const sourceTiles = [
   { label: '网页资料', icon: Globe2, className: 'left-[8%] top-[16%] bg-emerald-50/92 text-emerald-700' },
   { label: 'PDF 笔记', icon: FileText, className: 'left-[22%] top-[42%] bg-blue-50/94 text-blue-700' },
-  { label: '音频概览', icon: Headphones, className: 'right-[8%] top-[25%] bg-violet-50/92 text-violet-700' },
+  { label: '音频资料', icon: Headphones, className: 'right-[8%] top-[25%] bg-violet-50/92 text-violet-700' },
   { label: '演示文稿', icon: Presentation, className: 'right-[18%] bottom-[13%] bg-amber-50/94 text-amber-700' },
 ];
 

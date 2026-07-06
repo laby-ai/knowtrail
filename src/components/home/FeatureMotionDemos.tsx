@@ -1,9 +1,9 @@
 'use client';
 
-import { BookOpen, FileAudio, FileText, Globe2, Headphones, MessageCircle, Search, Sparkles } from 'lucide-react';
+import { BookOpen, FileAudio, FileText, Globe2, LayoutTemplate, Presentation, Sparkles } from 'lucide-react';
 import { BrandMark } from '@/components/brand/BrandMark';
 
-export type FeatureMotionDemoVariant = 'sources' | 'grounded' | 'audio';
+export type FeatureMotionDemoVariant = 'sources' | 'grounded' | 'slides';
 
 type FeatureMotionDemoProps = {
   variant: FeatureMotionDemoVariant;
@@ -150,45 +150,42 @@ function GroundedDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 
   );
 }
 
-function AudioDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 'detail'>) {
-  const bars = [22, 46, 30, 62, 38, 72, 44, 58, 34, 66, 40, 54, 28, 48, 24];
-
+function SlidesDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 'detail'>) {
   return (
     <div className="home-demo-frame home-demo-audio">
-      <div className="absolute left-[8%] top-[12%] w-[min(380px,45%)] rounded-[30px] border border-violet-100 bg-white/90 p-5 shadow-[0_24px_70px_rgba(91,65,199,0.13)] backdrop-blur">
+      <div className="absolute left-[8%] top-[12%] w-[min(380px,45%)] rounded-[30px] border border-amber-100 bg-white/90 p-5 shadow-[0_24px_70px_rgba(217,119,6,0.13)] backdrop-blur">
         <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
-            <Headphones className="h-5 w-5" />
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+            <Presentation className="h-5 w-5" />
           </span>
           <div>
-            <div className="text-sm font-semibold text-slate-950">音频概览</div>
-            <div className="text-xs text-slate-500">一段适合路上听的摘要</div>
+            <div className="text-sm font-semibold text-slate-950">演示文稿</div>
+            <div className="text-xs text-slate-500">图片页与 HTML 原生排版</div>
           </div>
         </div>
-        <div className="home-audio-visual mt-7 flex h-24 items-end gap-1.5 rounded-[24px] bg-violet-50/80 px-4 pb-4 pt-5">
-          {bars.map((height, index) => (
-            <span key={index} style={{ height: `${height}%`, animationDelay: `${index * -90}ms` }} />
-          ))}
+        <div className="mt-6 space-y-3">
+          <span className="block h-3 w-3/4 rounded-full bg-amber-200" />
+          <SkeletonLines tone="slate" />
         </div>
       </div>
 
       <div className="absolute left-1/2 top-[52%] w-[min(560px,calc(100%-3rem))] -translate-x-1/2 -translate-y-1/2 rounded-[32px] border border-blue-100 bg-white/94 p-5 shadow-[0_28px_82px_rgba(37,99,235,0.16)] backdrop-blur">
-        <div className="flex items-center gap-4">
-          <button type="button" aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/20">
-            <span className="ml-1 h-0 w-0 border-y-[9px] border-l-[14px] border-y-transparent border-l-white" />
-          </button>
-          <span className="text-sm font-medium text-slate-600">1:42</span>
-          <span className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200">
-            <span className="home-audio-progress absolute inset-y-0 left-0 rounded-full bg-blue-600" />
-          </span>
-          <span className="text-sm font-medium text-slate-500">3:01</span>
+        <div className="grid grid-cols-3 gap-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className={`home-slide-thumb rounded-2xl border border-slate-100 bg-slate-50/90 p-3 ${i === 1 ? 'ring-2 ring-blue-400/50' : ''}`} style={{ animationDelay: `${i * -0.7}s` }}>
+              <span className="block h-2 w-2/3 rounded-full bg-blue-300" />
+              <span className="mt-2 block h-1.5 w-full rounded-full bg-slate-200" />
+              <span className="mt-1.5 block h-1.5 w-4/5 rounded-full bg-slate-200" />
+              <span className="mt-3 block h-8 rounded-lg bg-white shadow-sm" />
+            </div>
+          ))}
         </div>
       </div>
 
       <div className="absolute bottom-[11%] right-[8%] w-[min(360px,38%)] rounded-[30px] border border-emerald-100 bg-emerald-50/86 p-5 shadow-[0_24px_70px_rgba(16,185,129,0.12)] backdrop-blur">
         <div className="mb-5 flex items-center gap-2 text-sm font-semibold text-emerald-700">
-          <MessageCircle className="h-4 w-4" />
-          继续追问
+          <LayoutTemplate className="h-4 w-4" />
+          可编辑导出
         </div>
         <div className="space-y-3">
           <span className="block h-10 rounded-2xl bg-white/82" />
@@ -198,8 +195,8 @@ function AudioDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 'de
 
       <div className="absolute right-[13%] top-[15%] hidden w-[210px] rounded-[26px] border border-amber-100 bg-amber-50/90 p-4 text-amber-700 shadow-[0_20px_58px_rgba(245,158,11,0.13)] backdrop-blur md:block">
         <div className="flex items-center gap-2 text-sm font-semibold">
-          <Search className="h-4 w-4" />
-          关键片段
+          <Sparkles className="h-4 w-4" />
+          自动质检
         </div>
         <div className="mt-4">
           <SkeletonLines />
@@ -217,5 +214,5 @@ function AudioDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 'de
 export function FeatureMotionDemo({ variant, label, detail }: FeatureMotionDemoProps) {
   if (variant === 'sources') return <SourcesDemo label={label} detail={detail} />;
   if (variant === 'grounded') return <GroundedDemo label={label} detail={detail} />;
-  return <AudioDemo label={label} detail={detail} />;
+  return <SlidesDemo label={label} detail={detail} />;
 }

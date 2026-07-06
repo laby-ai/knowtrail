@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { KnowledgeMapPanel } from './KnowledgeMapPanel';
 import { PresentationWorkspacePanel } from './PresentationPanels';
-import { AudioPanel } from './AudioPanel';
 import { VirtualClassroomPanel } from './VirtualClassroomPanel';
 import {
   STUDIO_ARTIFACT_TOOLS,
@@ -49,7 +48,6 @@ export function StudioPanel() {
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
         {activeTab === 'presentation' && <PresentationWorkspacePanel />}
         {activeTab === 'presentation2' && <PresentationWorkspacePanel initialMode="structured" />}
-        {activeTab === 'audio' && <AudioPanel />}
         {activeTab === 'knowledge' && <KnowledgeMapPanel />}
         {activeTab === 'virtual-classroom' && <VirtualClassroomPanel />}
         {activeTab === 'interactive' && <StudioArtifactToolPanel toolId="interactive" />}
