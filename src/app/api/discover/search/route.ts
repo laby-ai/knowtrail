@@ -34,6 +34,7 @@ interface MetasoWebpage {
 interface MetasoResponse {
   webpages?: MetasoWebpage[];
   documents?: MetasoWebpage[];
+  scholars?: MetasoWebpage[];
   papers?: MetasoWebpage[];
   total?: number;
   credits?: number;
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `搜索失败:${parsed.message}` }, { status: 502 });
     }
 
-    const items = (parsed.webpages || parsed.documents || parsed.papers || [])
+    const items = (parsed.webpages || parsed.scholars || parsed.documents || parsed.papers || [])
       .filter(item => item.link && item.title)
       .map(item => ({
         title: String(item.title).trim(),
