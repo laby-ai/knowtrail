@@ -8,6 +8,7 @@ import {
   MessageSquare,
   ChevronDown,
   FileSearch,
+  Square,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
@@ -30,6 +31,8 @@ export function EditorPanel() {
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const _msgSeq = useRef(0);
+  const chatAbortRef = useRef<AbortController | null>(null);
+  const userStoppedRef = useRef(false);
   const selectedSourceCount = getSelectedPapers().length;
   const totalSourceCount = folders.reduce((sum, folder) => sum + folder.papers.length, 0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
@@ -70,7 +73,10 @@ export function EditorPanel() {
 
     setIsGenerating(true);
     let assistantMsgId: string | null = null;
+    let streamedContent = '';
     const abortController = new AbortController();
+    chatAbortRef.current = abortController;
+    userStoppedRef.current = false;
     const timeoutId = window.setTimeout(() => abortController.abort(), CHAT_RESPONSE_TIMEOUT_MS);
 
     try {
@@ -126,6 +132,7 @@ export function EditorPanel() {
                 }
                 if (parsed.content) {
                   accumulatedContent += parsed.content;
+                  streamedContent = accumulatedContent;
                   updateChatMessage(assistantMsgId, { content: accumulatedContent });
                 }
                 if (Array.isArray(parsed.citations)) {
@@ -161,24 +168,39 @@ export function EditorPanel() {
         updateChatMessage(assistantMsgId, { content: '抱歉，未能获取到 AI 回答，请重试。' });
       }
     } catch (error) {
-      const timedOut = abortController.signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
+      const aborted = abortController.signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
+      const stoppedByUser = aborted && userStoppedRef.current;
       const errorMessage = error instanceof Error ? error.message : '';
       const quotaBlocked = /额度|积分|充值|分配|预占|quota|billing/i.test(errorMessage);
-      const content = timedOut
-        ? `真实模型生成超过 ${Math.round(CHAT_RESPONSE_TIMEOUT_MS / 1000)} 秒，已停止等待。上方检索证据已返回，但回答尚未生成完成。请稍后重试，或把问题缩短为更具体的一问。`
-        : quotaBlocked
-          ? '账号积分不足，请先充值，或联系管理员分配积分后再使用灵笔。'
-          : '抱歉，AI 服务暂时不可用，请稍后重试。';
+      const content = stoppedByUser
+        ? '已停止生成。可以换个问法继续提问。'
+        : aborted
+          ? `真实模型生成超过 ${Math.round(CHAT_RESPONSE_TIMEOUT_MS / 1000)} 秒，已停止等待。上方检索证据已返回，但回答尚未生成完成。请稍后重试，或把问题缩短为更具体的一问。`
+          : quotaBlocked
+            ? '账号积分不足，请先充值，或联系管理员分配积分后再使用灵笔。'
+            : '抱歉，AI 服务暂时不可用，请稍后重试。';
       if (assistantMsgId) {
-        updateChatMessage(assistantMsgId, { content });
+        // Keep whatever streamed before the user hit stop; only replace if nothing arrived.
+        if (stoppedByUser && streamedContent) {
+          updateChatMessage(assistantMsgId, { content: `${streamedContent}\n\n*(已停止生成)*` });
+        } else {
+          updateChatMessage(assistantMsgId, { content });
+        }
       } else {
         addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content, timestamp: new Date().toISOString() });
       }
     } finally {
       window.clearTimeout(timeoutId);
+      if (chatAbortRef.current === abortController) chatAbortRef.current = null;
       setIsGenerating(false);
     }
   }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
+
+  const stopGeneration = useCallback(() => {
+    if (!chatAbortRef.current) return;
+    userStoppedRef.current = true;
+    chatAbortRef.current.abort();
+  }, []);
 
   useEffect(() => {
     if (!queuedStudioPrompt || isGenerating) return;
@@ -339,6 +361,7 @@ export function EditorPanel() {
           inputMessage={inputMessage}
           setInputMessage={setInputMessage}
           onSend={() => sendQuestion(inputMessage)}
+          onStop={stopGeneration}
           onQuickQuestion={sendQuestion}
           isGenerating={isGenerating}
           expandedCitations={expandedCitations}
@@ -358,6 +381,7 @@ interface ChatViewProps {
   inputMessage: string;
   setInputMessage: (value: string) => void;
   onSend: () => void;
+  onStop: () => void;
   onQuickQuestion: (question: string) => void;
   isGenerating: boolean;
   expandedCitations: Set<string>;
@@ -368,7 +392,7 @@ interface ChatViewProps {
   totalSourceCount: number;
 }
 
-function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount }: ChatViewProps) {
+function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount }: ChatViewProps) {
   // --- Liquid pull physics ---
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
@@ -688,20 +712,43 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQues
 
       {/* Input */}
       <div className="px-6 pb-5 pt-3 border-t border-[var(--border-subtle)]">
-        <div className="max-w-3xl mx-auto flex items-center gap-3">
-            <input
-              type="text"
-              placeholder={hasSelectedSources ? '输入你的问题...' : '先选择左侧资料来源...'}
+        <div className="max-w-3xl mx-auto flex items-end gap-3">
+            <textarea
+              placeholder={hasSelectedSources ? '输入你的问题...(Shift+Enter 换行)' : '先选择左侧资料来源...'}
               value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { onSend(); setInputMessage(''); } }}
+              rows={1}
+              onChange={(e) => {
+                setInputMessage(e.target.value);
+                e.target.style.height = 'auto';
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  onSend();
+                  setInputMessage('');
+                  (e.target as HTMLTextAreaElement).style.height = 'auto';
+                }
+              }}
               disabled={isGenerating || !hasSelectedSources}
               aria-label="输入资料问题"
-              className="liquid-glass-input min-h-[48px] flex-1 rounded-2xl px-4 !text-[14px]"
+              className="liquid-glass-input min-h-[48px] max-h-[140px] flex-1 resize-none rounded-2xl px-4 py-3 !text-[14px] leading-relaxed"
             />
-          <button onClick={() => { onSend(); setInputMessage(''); }} disabled={isGenerating || !hasSelectedSources || !inputMessage.trim()} aria-label="发送问题" className="liquid-glass-btn flex h-12 w-[52px] items-center justify-center !rounded-2xl !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 disabled:!from-zinc-500/20 disabled:!to-zinc-500/20 disabled:!text-[var(--text-tertiary)] disabled:cursor-not-allowed">
-            <Send className="h-4 w-4" />
-          </button>
+          {isGenerating ? (
+            <button
+              onClick={onStop}
+              aria-label="停止生成"
+              data-testid="chat-stop"
+              className="liquid-glass-btn flex h-12 w-[52px] items-center justify-center !rounded-2xl !border-red-400/40 !bg-red-500/10 !text-red-400 hover:!bg-red-500/20"
+              title="停止生成"
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </button>
+          ) : (
+            <button onClick={() => { onSend(); setInputMessage(''); }} disabled={!hasSelectedSources || !inputMessage.trim()} aria-label="发送问题" className="liquid-glass-btn flex h-12 w-[52px] items-center justify-center !rounded-2xl !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 disabled:!from-zinc-500/20 disabled:!to-zinc-500/20 disabled:!text-[var(--text-tertiary)] disabled:cursor-not-allowed">
+              <Send className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>

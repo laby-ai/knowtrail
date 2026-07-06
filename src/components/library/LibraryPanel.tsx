@@ -183,6 +183,7 @@ export function LibraryPanel({
     addFolder,
     deleteFolder,
     addPaper,
+    removePaper,
     updatePaper,
     togglePaperSelection,
     selectAllPapers,
@@ -201,6 +202,7 @@ export function LibraryPanel({
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; paper: Paper } | null>(null);
+  const [skippedFilesNotice, setSkippedFilesNotice] = useState<string | null>(null);
   const [ingestionSyncState, setIngestionSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
   const [pastedSourceText, setPastedSourceText] = useState('');
@@ -437,6 +439,16 @@ export function LibraryPanel({
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
       return Object.values(SUPPORTED_TYPES).includes(ext as FileType) || Object.keys(SUPPORTED_TYPES).includes(file.type);
     });
+    const skipped = files.length - validFiles.length;
+    if (skipped > 0) {
+      const skippedNames = files
+        .filter(f => !validFiles.includes(f))
+        .map(f => f.name)
+        .slice(0, 3)
+        .join('、');
+      setSkippedFilesNotice(`${skipped} 个文件类型不支持已跳过:${skippedNames}${skipped > 3 ? ' 等' : ''}`);
+      window.setTimeout(() => setSkippedFilesNotice(null), 6000);
+    }
     if (validFiles.length === 0) {
       setUploadItems([]);
       setShowUploadProgress(false);
@@ -622,22 +634,35 @@ export function LibraryPanel({
             </button>
           </div>
           {uploadItems.map(item => (
-            <div key={item.id} className="flex items-center gap-2.5 text-xs py-1">
-              {item.status === 'uploading' && <Loader2 className="h-3 w-3 animate-spin text-blue-400" />}
-              {item.status === 'success' && <CheckCircle className="h-3 w-3 text-emerald-400" />}
-              {item.status === 'error' && <AlertCircle className="h-3 w-3 text-red-400" />}
-              {item.status === 'pending' && <Circle className="h-3 w-3 text-zinc-600" />}
-              <span className="truncate flex-1 text-[var(--text-secondary)]">{item.fileName}</span>
-              <span className={`
-                ${item.status === 'success' ? 'text-emerald-400' : ''}
-                ${item.status === 'error' ? 'text-red-400' : ''}
-                ${item.status === 'uploading' ? 'text-blue-400' : ''}
-                ${item.status === 'pending' ? 'text-zinc-600' : ''}
-              `}>
-                {item.status === 'uploading' ? '上传中...' : item.status === 'success' ? '完成' : item.status === 'error' ? '失败' : '等待'}
-              </span>
+            <div key={item.id} className="py-1">
+              <div className="flex items-center gap-2.5 text-xs">
+                {item.status === 'uploading' && <Loader2 className="h-3 w-3 animate-spin text-blue-400" />}
+                {item.status === 'success' && <CheckCircle className="h-3 w-3 text-emerald-400" />}
+                {item.status === 'error' && <AlertCircle className="h-3 w-3 text-red-400" />}
+                {item.status === 'pending' && <Circle className="h-3 w-3 text-zinc-600" />}
+                <span className="truncate flex-1 text-[var(--text-secondary)]">{item.fileName}</span>
+                <span className={`
+                  ${item.status === 'success' ? 'text-emerald-400' : ''}
+                  ${item.status === 'error' ? 'text-red-400' : ''}
+                  ${item.status === 'uploading' ? 'text-blue-400' : ''}
+                  ${item.status === 'pending' ? 'text-zinc-600' : ''}
+                `}>
+                  {item.status === 'uploading' ? '上传中...' : item.status === 'success' ? '完成' : item.status === 'error' ? '失败' : '等待'}
+                </span>
+              </div>
+              {item.status === 'error' && item.error && (
+                <p className="ml-5 mt-0.5 text-[10px] leading-relaxed text-red-400/80">{item.error}</p>
+              )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Skipped files notice */}
+      {skippedFilesNotice && (
+        <div className="mx-4 mt-2 flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 animate-fade-in" data-testid="library-skipped-notice">
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+          <p className="text-[11px] leading-relaxed text-amber-300">{skippedFilesNotice}(支持 PDF/DOCX/TXT/MD 等)</p>
         </div>
       )}
 
@@ -681,9 +706,14 @@ export function LibraryPanel({
                   <CheckCircle2 className="h-3 w-3" />
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (folder.papers.length === 0 || window.confirm(`删除分组「${folder.name}」及其中 ${folder.papers.length} 个资料?此操作不可撤销。`)) {
+                      deleteFolder(folder.id);
+                    }
+                  }}
                   className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--glass-subtle)] flex items-center justify-center text-zinc-500 hover:text-red-400 transition-all"
-                  title="删除"
+                  title="删除分组"
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -840,6 +870,15 @@ export function LibraryPanel({
           </button>
           <div className="h-px bg-[var(--border-subtle)] my-1" />
           <button
+            data-testid="library-remove-paper"
+            onClick={() => {
+              const paper = contextMenu.paper;
+              const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paper.id));
+              if (ownerFolder && window.confirm(`移除资料「${paper.title}」?`)) {
+                removePaper(ownerFolder.id, paper.id);
+              }
+              setContextMenu(null);
+            }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
           >
             <Trash2 className="h-3.5 w-3.5" />

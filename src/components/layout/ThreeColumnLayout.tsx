@@ -11,6 +11,17 @@ interface ThreeColumnLayoutProps {
   initialMobilePanel?: 'left' | 'center' | 'right';
 }
 
+const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths';
+
+function readStoredWidths(): { left?: number; right?: number } {
+  if (typeof window === 'undefined') return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(WIDTHS_STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
 export function ThreeColumnLayout({
   leftPanel,
   centerPanel,
@@ -20,8 +31,14 @@ export function ThreeColumnLayout({
   initialMobilePanel = 'center',
 }: ThreeColumnLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [leftWidth, setLeftWidth] = useState(defaultLeftWidth);
-  const [rightWidth, setRightWidth] = useState(defaultRightWidth);
+  const [leftWidth, setLeftWidth] = useState(() => {
+    const stored = readStoredWidths().left;
+    return stored && stored >= 220 && stored <= 450 ? stored : defaultLeftWidth;
+  });
+  const [rightWidth, setRightWidth] = useState(() => {
+    const stored = readStoredWidths().right;
+    return stored && stored >= 360 && stored <= 680 ? stored : defaultRightWidth;
+  });
   const [dragging, setDragging] = useState<'left' | 'right' | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'left' | 'center' | 'right'>(initialMobilePanel);
@@ -49,7 +66,10 @@ export function ThreeColumnLayout({
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
-  }, []);
+    try {
+      window.localStorage.setItem(WIDTHS_STORAGE_KEY, JSON.stringify({ left: leftWidth, right: rightWidth }));
+    } catch { /* quota — persistence is best-effort */ }
+  }, [leftWidth, rightWidth]);
 
   useEffect(() => {
     if (dragging) {

@@ -197,6 +197,19 @@ export function KnowledgeCardPanel() {
     setCurrentIndex((currentIndex - 1 + cards.length) % cards.length);
   }, [cards.length, currentIndex]);
 
+  // Arrow-key navigation while cards are shown (skip when typing in inputs).
+  useEffect(() => {
+    if (cards.length === 0) return;
+    const handleKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      if (e.key === 'ArrowLeft') goPrev();
+      if (e.key === 'ArrowRight') goNext();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [cards.length, goPrev, goNext]);
+
   const handleCopy = useCallback(() => {
     if (cards.length === 0 || copied) return;
     const card = cards[currentIndex];
@@ -206,6 +219,18 @@ export function KnowledgeCardPanel() {
       setTimeout(() => setCopied(false), 1200);
     });
   }, [cards, currentIndex, copied]);
+
+  const [copiedAll, setCopiedAll] = useState(false);
+  const handleCopyAll = useCallback(() => {
+    if (cards.length === 0 || copiedAll) return;
+    const markdown = cards
+      .map((card, i) => `## ${i + 1}. 【${card.category}】${card.title}\n\n${card.content}\n\n> ${card.extra}`)
+      .join('\n\n---\n\n');
+    navigator.clipboard.writeText(markdown).then(() => {
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 1200);
+    });
+  }, [cards, copiedAll]);
 
   const currentCard = cards[currentIndex];
   const currentStyle = currentCard ? getCategoryStyle(currentCard.category) : DEFAULT_STYLE;
@@ -350,7 +375,7 @@ export function KnowledgeCardPanel() {
             <button
               onClick={goPrev}
               className="liquid-glass-btn w-10 h-10 flex items-center justify-center rounded-full"
-              title="上一张卡片"
+              title="上一张卡片(←)"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -360,20 +385,32 @@ export function KnowledgeCardPanel() {
             <button
               onClick={goNext}
               className="liquid-glass-btn w-10 h-10 flex items-center justify-center rounded-full"
-              title="下一张卡片"
+              title="下一张卡片(→)"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
+          <p className="text-center text-[10px] text-[var(--text-quaternary)]">可用键盘 ← → 翻卡</p>
 
-          <button
-            onClick={() => handleGenerate({ forceRefresh: true })}
-            className="liquid-glass-btn w-full py-2 text-[11px] font-medium"
-            data-testid="knowledge-refresh"
-            title="重新分析选中资料，并更新知识卡片"
-          >
-            <Sparkles className="h-3 w-3 inline mr-1" /> 重新整理资料
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={handleCopyAll}
+              className="liquid-glass-btn py-2 text-[11px] font-medium"
+              data-testid="knowledge-copy-all"
+              title="把全部卡片复制为 Markdown,可直接粘贴进笔记"
+            >
+              {copiedAll ? <Check className="h-3 w-3 inline mr-1 text-emerald-400" /> : <Copy className="h-3 w-3 inline mr-1" />}
+              {copiedAll ? '已复制全部' : '复制全部卡片'}
+            </button>
+            <button
+              onClick={() => handleGenerate({ forceRefresh: true })}
+              className="liquid-glass-btn py-2 text-[11px] font-medium"
+              data-testid="knowledge-refresh"
+              title="重新分析选中资料，并更新知识卡片"
+            >
+              <Sparkles className="h-3 w-3 inline mr-1" /> 重新整理资料
+            </button>
+          </div>
 
           {(retrieval || citations.length > 0) && (
             <div className="liquid-glass-card p-3 space-y-2">
