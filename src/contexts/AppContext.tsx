@@ -82,6 +82,9 @@ interface AppContextType extends AppState {
   clearSelection: () => void;
   setActiveFolder: (folderId: string | null) => void;
   getSelectedPapers: () => Paper[];
+  // 让左侧资料库定位并高亮某个资料(引用点击跳转)
+  revealPaperRequest: { paperId: string; token: number } | null;
+  revealPaper: (paperId: string) => void;
 
   // 编辑器操作
   setEditorMode: (mode: EditorMode) => void;
@@ -296,6 +299,11 @@ export function AppProvider({
 
   const clearSelection = useCallback(() => {
     setState(prev => ({ ...prev, selectedPapers: [] }));
+  }, []);
+
+  const [revealPaperRequest, setRevealPaperRequest] = useState<{ paperId: string; token: number } | null>(null);
+  const revealPaper = useCallback((paperId: string) => {
+    setRevealPaperRequest({ paperId, token: Date.now() });
   }, []);
 
   const setActiveFolder = useCallback((folderId: string | null) => {
@@ -597,6 +605,8 @@ export function AppProvider({
     clearSelection,
     setActiveFolder,
     getSelectedPapers,
+    revealPaperRequest,
+    revealPaper,
     setEditorMode,
     addChatMessage,
     updateChatMessage,

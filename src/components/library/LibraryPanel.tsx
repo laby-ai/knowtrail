@@ -191,6 +191,7 @@ export function LibraryPanel({
     setActiveFolder,
     aiConfig,
     storageScopeKey,
+    revealPaperRequest,
   } = useApp();
 
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -219,6 +220,24 @@ export function LibraryPanel({
     if (folders.length === 0 || expandedFolders.size > 0) return;
     setExpandedFolders(new Set([activeFolderId || folders[0].id]));
   }, [activeFolderId, expandedFolders.size, folders]);
+
+  // Citation click-through: expand the owning folder, scroll to the source and flash it.
+  const [flashPaperId, setFlashPaperId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!revealPaperRequest) return;
+    const { paperId } = revealPaperRequest;
+    const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paperId));
+    if (!ownerFolder) return;
+    setExpandedFolders(prev => new Set([...prev, ownerFolder.id]));
+    setSearchQuery('');
+    const timer = window.setTimeout(() => {
+      const el = document.querySelector(`[data-testid="library-paper-${paperId}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setFlashPaperId(paperId);
+      window.setTimeout(() => setFlashPaperId(null), 2200);
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [revealPaperRequest, folders]);
 
   const syncIngestionSources = useCallback(async () => {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
@@ -375,7 +394,7 @@ export function LibraryPanel({
 
     setUploadItems(items);
     setShowUploadProgress(true);
-    setUploadItems(prev => prev.map(item => ({ ...item, status: 'uploading' as const, progress: 30 })));
+    setUploadItems(prev => prev.map(item => ({ ...item, status: 'uploading' as const, progress: 0 })));
 
     try {
       const formData = new FormData();
@@ -383,13 +402,27 @@ export function LibraryPanel({
       if (notebookId) formData.append('notebookId', notebookId);
       formData.append('aiConfig', JSON.stringify(aiConfig));
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        headers: accountAuthHeaders(),
-        body: formData,
+      // XHR instead of fetch so we can surface real byte-level upload progress.
+      const data = await new Promise<{ results?: Array<Paper & { error?: string }> }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload');
+        Object.entries(accountAuthHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+        xhr.upload.onprogress = (e) => {
+          if (!e.lengthComputable) return;
+          const pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+          setUploadItems(prev => prev.map(item => (item.status === 'uploading' ? { ...item, progress: pct } : item)));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('服务器响应解析失败')); }
+          } else {
+            reject(new Error(`上传失败(HTTP ${xhr.status})`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('网络错误,上传中断'));
+        xhr.ontimeout = () => reject(new Error('上传超时'));
+        xhr.send(formData);
       });
-      if (!response.ok) throw new Error('上传失败');
-      const data = await response.json();
 
       // Collect papers first, then batch add outside setState
       const uploadedPapers: Paper[] = [];
@@ -641,15 +674,22 @@ export function LibraryPanel({
                 {item.status === 'error' && <AlertCircle className="h-3 w-3 text-red-400" />}
                 {item.status === 'pending' && <Circle className="h-3 w-3 text-zinc-600" />}
                 <span className="truncate flex-1 text-[var(--text-secondary)]">{item.fileName}</span>
-                <span className={`
-                  ${item.status === 'success' ? 'text-emerald-400' : ''}
-                  ${item.status === 'error' ? 'text-red-400' : ''}
-                  ${item.status === 'uploading' ? 'text-blue-400' : ''}
-                  ${item.status === 'pending' ? 'text-zinc-600' : ''}
-                `}>
-                  {item.status === 'uploading' ? '上传中...' : item.status === 'success' ? '完成' : item.status === 'error' ? '失败' : '等待'}
+                <span className={`tabular-nums ${
+                  item.status === 'success' ? 'text-emerald-400' : item.status === 'error' ? 'text-red-400' : item.status === 'uploading' ? 'text-blue-400' : 'text-zinc-600'
+                }`}>
+                  {item.status === 'uploading'
+                    ? (item.progress >= 100 ? '解析中...' : `上传中 ${item.progress}%`)
+                    : item.status === 'success' ? '完成' : item.status === 'error' ? '失败' : '等待'}
                 </span>
               </div>
+              {item.status === 'uploading' && (
+                <div className="ml-5 mt-1 h-1 overflow-hidden rounded-full bg-[var(--glass-subtle)]">
+                  <div
+                    className={`h-full rounded-full bg-blue-500 transition-all duration-300 ${item.progress >= 100 ? 'animate-pulse' : ''}`}
+                    style={{ width: `${Math.max(4, item.progress)}%` }}
+                  />
+                </div>
+              )}
               {item.status === 'error' && item.error && (
                 <p className="ml-5 mt-0.5 text-[10px] leading-relaxed text-red-400/80">{item.error}</p>
               )}
@@ -731,7 +771,7 @@ export function LibraryPanel({
                         selectedPapers.includes(paper.id)
                           ? 'library-source-card-selected'
                           : ''
-                      }`}
+                      } ${flashPaperId === paper.id ? 'ring-2 ring-blue-400/80 bg-blue-500/10' : ''}`}
                       style={{ animationDelay: `${idx * 40}ms` }}
                       onClick={() => togglePaperSelection(paper.id)}
                       onContextMenu={(e) => handleContextMenu(e, paper)}

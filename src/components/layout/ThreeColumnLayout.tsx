@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 
 interface ThreeColumnLayoutProps {
   leftPanel: React.ReactNode;
@@ -42,6 +43,8 @@ export function ThreeColumnLayout({
   const [dragging, setDragging] = useState<'left' | 'right' | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'left' | 'center' | 'right'>(initialMobilePanel);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
 
@@ -136,41 +139,75 @@ export function ThreeColumnLayout({
   return (
     <div
       ref={containerRef}
-      className="h-full w-full flex"
+      className="relative h-full w-full flex"
       style={{ cursor: dragging ? 'col-resize' : undefined }}
     >
       {/* Left Panel — liquid glass */}
-      <div
-        className="h-full flex-shrink-0 overflow-hidden liquid-glass-panel"
-        style={{ width: leftWidth }}
-      >
-        {leftPanel}
-      </div>
+      {!leftCollapsed && (
+        <div
+          className="h-full flex-shrink-0 overflow-hidden liquid-glass-panel"
+          style={{ width: leftWidth }}
+        >
+          {leftPanel}
+        </div>
+      )}
 
       {/* Left Divider */}
-      <div
-        className="panel-divider flex-shrink-0"
-        onMouseDown={(e) => handleMouseDown('left', e)}
-      />
+      {!leftCollapsed && (
+        <div
+          className="panel-divider flex-shrink-0"
+          onMouseDown={(e) => handleMouseDown('left', e)}
+          onDoubleClick={() => setLeftCollapsed(true)}
+          title="拖拽调宽 · 双击收起"
+        />
+      )}
 
       {/* Center Panel — liquid glass */}
-      <div className="h-full flex-1 overflow-hidden liquid-glass-panel" style={{ borderRight: 'none', borderLeft: 'none' }}>
+      <div className="relative h-full flex-1 overflow-hidden liquid-glass-panel" style={{ borderRight: 'none', borderLeft: 'none' }}>
         {centerPanel}
+
+        {/* Collapse / expand toggles */}
+        <button
+          type="button"
+          onClick={() => setLeftCollapsed(v => !v)}
+          data-testid="workbench-toggle-left"
+          className="absolute left-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
+          title={leftCollapsed ? '展开资料库' : '收起资料库'}
+          aria-label={leftCollapsed ? '展开资料库' : '收起资料库'}
+        >
+          {leftCollapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          type="button"
+          onClick={() => setRightCollapsed(v => !v)}
+          data-testid="workbench-toggle-right"
+          className="absolute right-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
+          title={rightCollapsed ? '展开产物中心' : '收起产物中心'}
+          aria-label={rightCollapsed ? '展开产物中心' : '收起产物中心'}
+        >
+          {rightCollapsed ? <PanelRightOpen className="h-3.5 w-3.5" /> : <PanelRightClose className="h-3.5 w-3.5" />}
+        </button>
       </div>
 
       {/* Right Divider */}
-      <div
-        className="panel-divider flex-shrink-0"
-        onMouseDown={(e) => handleMouseDown('right', e)}
-      />
+      {!rightCollapsed && (
+        <div
+          className="panel-divider flex-shrink-0"
+          onMouseDown={(e) => handleMouseDown('right', e)}
+          onDoubleClick={() => setRightCollapsed(true)}
+          title="拖拽调宽 · 双击收起"
+        />
+      )}
 
       {/* Right Panel — liquid glass */}
-      <div
-        className="h-full flex-shrink-0 overflow-hidden liquid-glass-panel"
-        style={{ width: rightWidth, borderRight: 'none', borderLeft: '1px solid var(--glass-border)' }}
-      >
-        {rightPanel}
-      </div>
+      {!rightCollapsed && (
+        <div
+          className="h-full flex-shrink-0 overflow-hidden liquid-glass-panel"
+          style={{ width: rightWidth, borderRight: 'none', borderLeft: '1px solid var(--glass-border)' }}
+        >
+          {rightPanel}
+        </div>
+      )}
     </div>
   );
 }

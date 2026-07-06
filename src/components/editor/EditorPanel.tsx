@@ -23,7 +23,7 @@ const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
 export function EditorPanel() {
   const {
     folders, chatMessages, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig,
-    queuedStudioPrompt, consumeStudioPrompt, storageScopeKey,
+    queuedStudioPrompt, consumeStudioPrompt, storageScopeKey, revealPaper,
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState('');
@@ -202,6 +202,13 @@ export function EditorPanel() {
     chatAbortRef.current.abort();
   }, []);
 
+  // Re-ask the question that produced the last assistant answer.
+  const regenerateLastAnswer = useCallback(() => {
+    if (isGenerating) return;
+    const lastUserMessage = [...chatMessages].reverse().find(message => message.role === 'user');
+    if (lastUserMessage?.content) void sendQuestion(lastUserMessage.content);
+  }, [isGenerating, chatMessages, sendQuestion]);
+
   useEffect(() => {
     if (!queuedStudioPrompt || isGenerating) return;
     const request = queuedStudioPrompt;
@@ -370,6 +377,8 @@ export function EditorPanel() {
           quickQuestions={QUICK_QUESTIONS}
           selectedSourceCount={selectedSourceCount}
           totalSourceCount={totalSourceCount}
+          onCitationClick={revealPaper}
+          onRegenerate={regenerateLastAnswer}
         />
       </div>
     </div>
@@ -390,9 +399,11 @@ interface ChatViewProps {
   quickQuestions: QuickQuestion[];
   selectedSourceCount: number;
   totalSourceCount: number;
+  onCitationClick: (paperId: string) => void;
+  onRegenerate: () => void;
 }
 
-function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount }: ChatViewProps) {
+function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, onCitationClick, onRegenerate }: ChatViewProps) {
   // --- Liquid pull physics ---
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
@@ -612,6 +623,8 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                   isExpanded={expandedCitations.has(message.id)}
                   isPending={isGenerating && idx === messages.length - 1}
                   onToggleExpand={() => onToggleCitation(message.id)}
+                  onCitationClick={onCitationClick}
+                  onRegenerate={message.role === 'assistant' && idx === messages.length - 1 && !isGenerating ? onRegenerate : undefined}
                 />
                 {message.role === 'assistant' && message.followUps && message.followUps.length > 0 && !isGenerating && idx === messages.length - 1 && (
                   <div className="flex flex-wrap gap-2 mt-3 ml-12 animate-fade-in">

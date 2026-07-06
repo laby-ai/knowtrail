@@ -7,9 +7,10 @@ import {
   Link as LinkIcon,
   ChevronDown,
   FileSearch,
-  ThumbsUp,
   Copy,
   Check,
+  CornerUpRight,
+  RefreshCw,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -22,11 +23,15 @@ export function MessageItem({
   isExpanded,
   onToggleExpand,
   isPending = false,
+  onCitationClick,
+  onRegenerate,
 }: {
   message: ChatMessage;
   isExpanded: boolean;
   onToggleExpand: () => void;
   isPending?: boolean;
+  onCitationClick?: (paperId: string) => void;
+  onRegenerate?: () => void;
 }) {
   const isUser = message.role === 'user';
   const hasContent = message.content.trim().length > 0;
@@ -69,12 +74,6 @@ export function MessageItem({
         {!isUser && hasContent && (
           <div className="flex items-center gap-1 mt-1.5 ml-1">
             <button
-              className="p-1.5 rounded-lg text-zinc-600 hover:text-[var(--text-secondary)] hover:bg-[var(--bg-card)] transition-all"
-              title="点赞"
-            >
-              <ThumbsUp className="h-3.5 w-3.5" />
-            </button>
-            <button
               onClick={handleCopy}
               className="p-1.5 rounded-lg text-zinc-600 hover:text-[var(--text-secondary)] hover:bg-[var(--bg-card)] transition-all flex items-center gap-1"
               title="复制"
@@ -82,6 +81,17 @@ export function MessageItem({
               {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
               {copied && <span className="text-[10px] text-green-400">已复制</span>}
             </button>
+            {onRegenerate && (
+              <button
+                onClick={onRegenerate}
+                data-testid="chat-regenerate"
+                className="p-1.5 rounded-lg text-zinc-600 hover:text-[var(--text-secondary)] hover:bg-[var(--bg-card)] transition-all flex items-center gap-1"
+                title="重新生成这条回答"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span className="text-[10px]">重新生成</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -107,18 +117,40 @@ export function MessageItem({
                     {getReadableRetrievalDetail(message.retrieval)}
                   </div>
                 )}
-                {message.citations.map((citation, idx) => (
-                  <div key={idx} className="bg-black/5 rounded-xl px-4 py-3 border-l-2 border-[var(--accent-blue)]/40">
-                    <div className="text-[11px] text-[var(--accent-blue)] font-semibold mb-1">
-                      {citation.paperShortName}
-                      {citation.page ? ` · 第 ${citation.page} 页` : ''}
+                {message.citations.map((citation, idx) => {
+                  const targetPaperId = citation.paperId || citation.sourceId;
+                  const clickable = Boolean(targetPaperId && onCitationClick);
+                  return (
+                    <div
+                      key={idx}
+                      role={clickable ? 'button' : undefined}
+                      tabIndex={clickable ? 0 : undefined}
+                      onClick={clickable ? () => onCitationClick?.(targetPaperId as string) : undefined}
+                      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onCitationClick?.(targetPaperId as string); } : undefined}
+                      data-testid="chat-citation-item"
+                      className={`group bg-black/5 rounded-xl px-4 py-3 border-l-2 border-[var(--accent-blue)]/40 transition-all ${
+                        clickable ? 'cursor-pointer hover:bg-blue-500/10 hover:border-[var(--accent-blue)]' : ''
+                      }`}
+                      title={clickable ? '在左侧资料库中定位这份资料' : undefined}
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--accent-blue)] font-semibold mb-1">
+                        <span>
+                          {citation.paperShortName}
+                          {citation.page ? ` · 第 ${citation.page} 页` : ''}
+                        </span>
+                        {clickable && (
+                          <span className="flex shrink-0 items-center gap-0.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
+                            <CornerUpRight className="h-3 w-3" /> 定位资料
+                          </span>
+                        )}
+                      </div>
+                      {citation.sourceTitle && (
+                        <div className="text-[10px] text-[var(--text-muted)] mb-1">{citation.sourceTitle}</div>
+                      )}
+                      {citation.excerpt && <p className="text-[11px] text-[var(--text-secondary)] italic leading-relaxed">&ldquo;{citation.excerpt}&rdquo;</p>}
                     </div>
-                    {citation.sourceTitle && (
-                      <div className="text-[10px] text-[var(--text-muted)] mb-1">{citation.sourceTitle}</div>
-                    )}
-                    {citation.excerpt && <p className="text-[11px] text-[var(--text-secondary)] italic leading-relaxed">&ldquo;{citation.excerpt}&rdquo;</p>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
