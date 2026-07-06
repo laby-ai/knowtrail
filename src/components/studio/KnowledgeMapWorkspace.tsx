@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ArrowLeft, FileSearch, GitBranch, Link as LinkIcon, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, FileSearch, GitBranch, Link as LinkIcon, Search, ShieldCheck, X } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { KnowledgeMapGraph } from './KnowledgeMapGraph';
 import type { KnowledgeMapEdgeConfidence, KnowledgeMapNodeType } from '@/lib/knowledge-map-types';
@@ -19,16 +19,59 @@ const NODE_TYPE_LABEL: Record<KnowledgeMapNodeType, string> = {
   term: '术语',
 };
 
+const NODE_TYPE_COLOR: Record<KnowledgeMapNodeType, string> = {
+  concept: '#60a5fa',
+  method: '#34d399',
+  finding: '#f59e0b',
+  question: '#a78bfa',
+  source: '#94a3b8',
+  term: '#22d3ee',
+};
+
 const EDGE_CONFIDENCE_LABEL: Record<KnowledgeMapEdgeConfidence, string> = {
   EXTRACTED: '资料明示',
   INFERRED: '推断关系',
   AMBIGUOUS: '待复核',
 };
 
+const ALL_NODE_TYPES: KnowledgeMapNodeType[] = ['concept', 'method', 'finding', 'question', 'source', 'term'];
+const ALL_CONFIDENCES: KnowledgeMapEdgeConfidence[] = ['EXTRACTED', 'INFERRED', 'AMBIGUOUS'];
+
 export function KnowledgeMapWorkspace() {
   const { knowledgeMapViewer, closeKnowledgeMap } = useApp();
   const initialNodeId = knowledgeMapViewer?.map.nodes.find(node => node.focal)?.id || knowledgeMapViewer?.map.nodes[0]?.id || null;
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialNodeId);
+  const [visibleTypes, setVisibleTypes] = useState<Set<KnowledgeMapNodeType>>(() => new Set(ALL_NODE_TYPES));
+  const [visibleConfidences, setVisibleConfidences] = useState<Set<KnowledgeMapEdgeConfidence>>(() => new Set(ALL_CONFIDENCES));
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Which node types actually appear, so we only show relevant filter chips.
+  const presentTypes = useMemo(() => {
+    const set = new Set<KnowledgeMapNodeType>();
+    knowledgeMapViewer?.map.nodes.forEach(n => set.add(n.type));
+    return ALL_NODE_TYPES.filter(t => set.has(t));
+  }, [knowledgeMapViewer]);
+
+  const toggleType = (t: KnowledgeMapNodeType) => setVisibleTypes(prev => {
+    const next = new Set(prev);
+    if (next.has(t)) next.delete(t); else next.add(t);
+    return next.size === 0 ? new Set(ALL_NODE_TYPES) : next;
+  });
+  const toggleConfidence = (c: KnowledgeMapEdgeConfidence) => setVisibleConfidences(prev => {
+    const next = new Set(prev);
+    if (next.has(c)) next.delete(c); else next.add(c);
+    return next.size === 0 ? new Set(ALL_CONFIDENCES) : next;
+  });
+
+  // Jump selection to the first search hit.
+  useEffect(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q || !knowledgeMapViewer) return;
+    const hit = knowledgeMapViewer.map.nodes.find(
+      n => n.label.toLowerCase().includes(q) || n.summary.toLowerCase().includes(q),
+    );
+    if (hit) setSelectedNodeId(hit.id);
+  }, [searchTerm, knowledgeMapViewer]);
 
   const selectedNode = useMemo(() => {
     if (!knowledgeMapViewer) return null;
@@ -69,15 +112,83 @@ export function KnowledgeMapWorkspace() {
             <p className="text-[11px] text-slate-500">{sourceMeta}</p>
           </div>
         </div>
-        <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-2 text-[11px] text-slate-600 md:flex">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-          {citationAudit?.status === 'pass' ? '引用编号通过' : '引用需复核'}
+        <div className="flex items-center gap-2">
+          <div className="relative hidden sm:block">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+            <input
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="搜索节点"
+              data-testid="knowledge-map-search"
+              className="w-40 rounded-full border border-slate-200 bg-white/80 py-1.5 pl-8 pr-7 text-xs text-slate-700 outline-none transition focus:w-52 focus:border-blue-300"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                aria-label="清除搜索"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="hidden items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-2 text-[11px] text-slate-600 md:flex">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+            {citationAudit?.status === 'pass' ? '引用编号通过' : '引用需复核'}
+          </div>
         </div>
       </header>
 
+      {/* Filter toolbar */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/70 bg-white/60 px-5 py-2.5 backdrop-blur-xl" data-testid="knowledge-map-filters">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">类型</span>
+        {presentTypes.map(t => {
+          const active = visibleTypes.has(t);
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => toggleType(t)}
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                active ? 'border-slate-300 bg-white text-slate-700' : 'border-slate-200 bg-slate-50 text-slate-400 line-through'
+              }`}
+              data-testid={`knowledge-map-filter-type-${t}`}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: NODE_TYPE_COLOR[t], opacity: active ? 1 : 0.4 }} />
+              {NODE_TYPE_LABEL[t]}
+            </button>
+          );
+        })}
+        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">关系</span>
+        {ALL_CONFIDENCES.map(c => {
+          const active = visibleConfidences.has(c);
+          return (
+            <button
+              key={c}
+              type="button"
+              onClick={() => toggleConfidence(c)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                active ? 'border-slate-300 bg-white text-slate-700' : 'border-slate-200 bg-slate-50 text-slate-400 line-through'
+              }`}
+              data-testid={`knowledge-map-filter-confidence-${c}`}
+            >
+              {EDGE_CONFIDENCE_LABEL[c]}
+            </button>
+          );
+        })}
+      </div>
+
       <section className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 min-[1800px]:grid-cols-[minmax(0,1fr)_340px] min-[1800px]:overflow-hidden">
         <div className="min-h-[560px] min-[1800px]:min-h-0">
-          <KnowledgeMapGraph map={map} selectedNodeId={selectedNode?.id || null} onSelectNode={setSelectedNodeId} />
+          <KnowledgeMapGraph
+            map={map}
+            selectedNodeId={selectedNode?.id || null}
+            onSelectNode={setSelectedNodeId}
+            visibleTypes={visibleTypes}
+            visibleConfidences={visibleConfidences}
+            searchTerm={searchTerm}
+          />
         </div>
 
         <aside className="max-h-[360px] overflow-y-auto rounded-[1.35rem] border border-slate-200 bg-white/90 p-4 shadow-[var(--glass-shadow-sm)] backdrop-blur-xl min-[1800px]:max-h-none min-[1800px]:min-h-0" data-testid="knowledge-map-detail">
