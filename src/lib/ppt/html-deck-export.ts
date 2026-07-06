@@ -8,6 +8,7 @@
 export interface HtmlDeckSlide {
   title: string;
   html: string;
+  narration?: string;
 }
 
 const SLIDE_W_PX = 1280;
@@ -117,6 +118,7 @@ type PptxSlide = {
   addText: (runs: unknown, opts: Record<string, unknown>) => void;
   addShape: (type: string, opts: Record<string, unknown>) => void;
   addImage: (opts: Record<string, unknown>) => void;
+  addNotes: (notes: string) => void;
 };
 
 async function svgToPngDataUrl(svg: SVGElement, rect: DOMRect): Promise<string | null> {
@@ -248,6 +250,38 @@ function renderSlideInIframe(html: string): Promise<HTMLIFrameElement> {
   });
 }
 
+export interface SlideOverflowReport {
+  overflowX: number; // px beyond 1280
+  overflowY: number; // px beyond 720
+}
+
+// Quality-loop measurement: render the slide off-screen and check whether the
+// content spills out of the 1280x720 canvas (visual-deck-builder style audit).
+export async function measureSlideOverflow(html: string): Promise<SlideOverflowReport> {
+  const iframe = await renderSlideInIframe(html);
+  try {
+    const doc = iframe.contentDocument;
+    if (!doc?.body) return { overflowX: 0, overflowY: 0 };
+    const body = doc.body;
+    let maxRight = body.scrollWidth;
+    let maxBottom = body.scrollHeight;
+    // scrollWidth misses absolutely-positioned overflow under overflow:hidden,
+    // so also scan element bounding boxes.
+    for (const el of Array.from(body.querySelectorAll('*')).slice(0, 800)) {
+      const rect = (el as Element).getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      maxRight = Math.max(maxRight, rect.right);
+      maxBottom = Math.max(maxBottom, rect.bottom);
+    }
+    return {
+      overflowX: Math.max(0, Math.round(maxRight - SLIDE_W_PX)),
+      overflowY: Math.max(0, Math.round(maxBottom - SLIDE_H_PX)),
+    };
+  } finally {
+    iframe.remove();
+  }
+}
+
 export async function exportHtmlDeckToPptx(slides: HtmlDeckSlide[], fileName: string): Promise<void> {
   const PptxGenJS = (await import('pptxgenjs')).default;
   const pptx = new PptxGenJS();
@@ -269,6 +303,10 @@ export async function exportHtmlDeckToPptx(slides: HtmlDeckSlide[], fileName: st
 
       for (const child of Array.from(doc.body.children)) {
         await walkElement(child, win as unknown as Window, slide, pptx as unknown as { ShapeType: Record<string, string> }, 1);
+      }
+
+      if (deckSlide.narration?.trim()) {
+        slide.addNotes(deckSlide.narration.trim());
       }
     } finally {
       iframe.remove();

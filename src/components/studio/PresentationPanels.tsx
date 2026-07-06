@@ -121,6 +121,8 @@ function PresentationPanel() {
   const [isExporting, setIsExporting] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [annotatingIdx, setAnnotatingIdx] = useState<number | null>(null);
+  // Per-slide previous image versions (annotation revisions), for rollback.
+  const [revisionHistory, setRevisionHistory] = useState<Record<string, string[]>>({});
   const [imageCompleted, setImageCompleted] = useState(0);
   const [imageTotal, setImageTotal] = useState(0);
   const [generationNotice, setGenerationNotice] = useState<string | null>(null);
@@ -669,6 +671,23 @@ function PresentationPanel() {
           {/* Slide info + page count + annotate */}
           <div className="flex items-center justify-between gap-2">
             <p className="text-[13px] text-[var(--text-secondary)] truncate flex-1">{currentSlide?.title}</p>
+            {currentSlide && (revisionHistory[currentSlide.id]?.length ?? 0) > 0 && (
+              <button
+                onClick={() => {
+                  const slideId = currentSlide.id;
+                  const history = revisionHistory[slideId] || [];
+                  const previous = history[history.length - 1];
+                  if (!previous) return;
+                  setSlides(slides.map(s => (s.id === slideId ? { ...s, imageUrl: previous } : s)));
+                  setRevisionHistory(prev => ({ ...prev, [slideId]: history.slice(0, -1) }));
+                }}
+                data-testid="image-ppt-rollback"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--glass-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition-all hover:border-amber-400/40 hover:text-amber-400"
+                title="撤销最近一次标注修改,回到上一版"
+              >
+                回滚上一版
+              </button>
+            )}
             {currentSlide?.imageUrl && (
               <button
                 onClick={() => setAnnotatingIdx(activeSlideIdx)}
@@ -788,6 +807,13 @@ function PresentationPanel() {
           onClose={() => setAnnotatingIdx(null)}
           onRevised={(newImageUrl) => {
             const idx = annotatingIdx;
+            const slide = slides[idx];
+            if (slide?.imageUrl) {
+              setRevisionHistory(prev => ({
+                ...prev,
+                [slide.id]: [...(prev[slide.id] || []), slide.imageUrl as string],
+              }));
+            }
             setSlides(slides.map((s, i) => (i === idx ? { ...s, imageUrl: newImageUrl } : s)));
           }}
         />

@@ -9,28 +9,60 @@ import {
   Download,
   FileText,
   Layout,
+  Loader2,
   Maximize2,
   Monitor,
+  ShieldCheck,
   Sparkles,
+  Volume2,
+  Wand2,
+  X,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
+import NarrationPlayer from './NarrationPlayer';
 import { HTML_DECK_STYLES } from '@/lib/ppt/html-deck-style';
-import { buildStandaloneDeckHtml, exportHtmlDeckToPptx } from '@/lib/ppt/html-deck-export';
+import { buildStandaloneDeckHtml, exportHtmlDeckToPptx, measureSlideOverflow } from '@/lib/ppt/html-deck-export';
+
+interface SlideOutline {
+  title: string;
+  points: string[];
+  layoutHint?: string;
+  part?: string;
+}
 
 interface HtmlSlide {
   title: string;
   layoutHint: string;
   html: string;
+  narration?: string;
+  outline?: SlideOutline;
+}
+
+interface PersistedDeck {
+  version: 1;
+  deckTitle: string;
+  styleId: string;
+  language: 'zh' | 'en';
+  savedAt: number;
+  slides: HtmlSlide[];
 }
 
 const PIPELINE_STAGES: StudioJobProgressStage[] = [
   { key: 'outline', label: '大纲规划', icon: Layout },
   { key: 'html', label: '页面排版', icon: Code2 },
-  { key: 'done', label: '完成', icon: Check },
+  { key: 'narration', label: '演讲稿', icon: Volume2 },
+  { key: 'qa', label: '质量检查', icon: ShieldCheck },
 ];
+
+const OVERFLOW_TOLERANCE_PX = 8;
+const MAX_REPAIR_ROUNDS = 2;
+
+function deckStorageKey(notebookId: string | undefined) {
+  return `knowtrail:html-deck:${notebookId || 'default'}`;
+}
 
 function ScaledSlideFrame({ html, className }: { html: string; className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -84,6 +116,14 @@ export function HtmlPresentationPanel() {
   const [activeIdx, setActiveIdx] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [qaNotice, setQaNotice] = useState<string | null>(null);
+  const [restoredDeck, setRestoredDeck] = useState<PersistedDeck | null>(null);
+
+  // Per-slide re-layout
+  const [relayoutIdx, setRelayoutIdx] = useState<number | null>(null);
+  const [relayoutInstruction, setRelayoutInstruction] = useState('');
+  const [isRelayouting, setIsRelayouting] = useState(false);
+  const [relayoutError, setRelayoutError] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const presentRef = useRef<HTMLDivElement>(null);
@@ -99,6 +139,104 @@ export function HtmlPresentationPanel() {
     return () => window.clearInterval(timer);
   }, [isGenerating]);
 
+  // ── Persistence: offer to restore the last deck for this notebook ──
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(deckStorageKey(notebookId));
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as PersistedDeck;
+      if (parsed?.version === 1 && Array.isArray(parsed.slides) && parsed.slides.length > 0) {
+        setRestoredDeck(parsed);
+      }
+    } catch { /* corrupted cache is fine to ignore */ }
+  }, [notebookId]);
+
+  const persistDeck = useCallback((deck: Omit<PersistedDeck, 'version' | 'savedAt'>) => {
+    try {
+      window.localStorage.setItem(
+        deckStorageKey(notebookId),
+        JSON.stringify({ version: 1, savedAt: Date.now(), ...deck } satisfies PersistedDeck),
+      );
+    } catch (err) {
+      // localStorage quota — drop silently, persistence is best-effort.
+      console.warn('[HTML PPT] persist failed:', err);
+    }
+  }, [notebookId]);
+
+  const applySlides = useCallback((title: string, styleId: string, lang: 'zh' | 'en', next: HtmlSlide[]) => {
+    setDeckTitle(title);
+    setSlides(next);
+    setActiveIdx(0);
+    persistDeck({ deckTitle: title, styleId, language: lang, slides: next });
+  }, [persistDeck]);
+
+  const updateSlideHtml = useCallback((idx: number, html: string) => {
+    setSlides(prev => {
+      const next = prev.map((s, i) => (i === idx ? { ...s, html } : s));
+      persistDeck({ deckTitle, styleId: selectedStyle, language, slides: next });
+      return next;
+    });
+  }, [persistDeck, deckTitle, selectedStyle, language]);
+
+  // ── Quality loop: measure overflow, auto-repair offending slides ──
+  const runQualityLoop = useCallback(async (
+    generated: HtmlSlide[],
+    title: string,
+    styleId: string,
+    lang: 'zh' | 'en',
+  ): Promise<HtmlSlide[]> => {
+    const repaired = [...generated];
+    let repairedCount = 0;
+    let unresolvedCount = 0;
+
+    for (let i = 0; i < repaired.length; i++) {
+      let rounds = 0;
+      while (rounds < MAX_REPAIR_ROUNDS) {
+        const { overflowX, overflowY } = await measureSlideOverflow(repaired[i].html);
+        if (overflowX <= OVERFLOW_TOLERANCE_PX && overflowY <= OVERFLOW_TOLERANCE_PX) break;
+        rounds++;
+        setProgressMsg(`质量检查:第 ${i + 1} 页溢出 ${Math.max(overflowX, overflowY)}px,自动重排(第 ${rounds} 次)...`);
+        try {
+          const res = await fetch('/api/ai/ppt-html-repair', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+            body: JSON.stringify({
+              notebookId,
+              currentHtml: repaired[i].html,
+              problem: `页面内容溢出 1280×720 画布:横向超出 ${overflowX}px,纵向超出 ${overflowY}px。`,
+              outline: repaired[i].outline,
+              slideIndex: i,
+              slideTotal: repaired.length,
+              deckTitle: title,
+              styleId,
+              language: lang,
+              aiConfig,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.html) throw new Error(data.error || '修复失败');
+          repaired[i] = { ...repaired[i], html: data.html };
+          repairedCount++;
+        } catch (err) {
+          console.warn(`[HTML PPT] 第 ${i + 1} 页自动修复失败:`, err);
+          unresolvedCount++;
+          break;
+        }
+      }
+    }
+
+    if (repairedCount > 0 || unresolvedCount > 0) {
+      setQaNotice(
+        unresolvedCount > 0
+          ? `自动质检:重排了 ${repairedCount} 页;${unresolvedCount} 页仍可能溢出,建议用"重排此页"手动处理。`
+          : `自动质检:检测并重排了 ${repairedCount} 页溢出内容,全部通过。`,
+      );
+    } else {
+      setQaNotice('自动质检:全部页面通过溢出检查。');
+    }
+    return repaired;
+  }, [notebookId, aiConfig]);
+
   const handleGenerate = useCallback(async () => {
     const papers = getSelectedPapers();
     if (papers.length === 0) {
@@ -107,6 +245,8 @@ export function HtmlPresentationPanel() {
     }
     setError(null);
     setExportNotice(null);
+    setQaNotice(null);
+    setRestoredDeck(null);
     setSlides([]);
     setActiveIdx(0);
     setSlideCompleted(0);
@@ -171,6 +311,9 @@ export function HtmlPresentationPanel() {
               setProgressMsg(data.message);
               if (data.slideTotal) setSlideTotal(data.slideTotal);
               if (data.slideCompleted !== undefined) setSlideCompleted(data.slideCompleted);
+            } else if (data.stage === 'narration') {
+              setProgressStage('narration');
+              setProgressMsg(data.message);
             } else if (data.stage === 'done') {
               finalSlides = data.slides || [];
               if (data.deckTitle) finalTitle = data.deckTitle;
@@ -184,9 +327,13 @@ export function HtmlPresentationPanel() {
       }
 
       if (finalSlides.length === 0) throw new Error('生成结果为空,请重试');
-      setDeckTitle(finalTitle);
-      setSlides(finalSlides);
-      setActiveIdx(0);
+
+      // ── Automatic overflow QA + repair before showing the deck ──
+      setProgressStage('qa');
+      setProgressMsg('正在做溢出质检...');
+      const checked = await runQualityLoop(finalSlides, finalTitle, selectedStyle, language);
+
+      applySlides(finalTitle, selectedStyle, language, checked);
       setProgressMsg('');
     } catch (err) {
       const aborted = abortController.signal.aborted || (err instanceof DOMException && err.name === 'AbortError');
@@ -195,11 +342,65 @@ export function HtmlPresentationPanel() {
       if (abortControllerRef.current === abortController) abortControllerRef.current = null;
       setIsGenerating(false);
     }
-  }, [getSelectedPapers, aiConfig, notebookId, selectedStyle, pageCount, language]);
+  }, [getSelectedPapers, aiConfig, notebookId, selectedStyle, pageCount, language, runQualityLoop, applySlides]);
 
   const handleCancelGenerate = useCallback(() => {
     abortControllerRef.current?.abort();
   }, []);
+
+  const handleRestore = useCallback(() => {
+    if (!restoredDeck) return;
+    setDeckTitle(restoredDeck.deckTitle);
+    setSelectedStyle(restoredDeck.styleId);
+    setLanguage(restoredDeck.language);
+    setSlides(restoredDeck.slides);
+    setActiveIdx(0);
+    setRestoredDeck(null);
+  }, [restoredDeck]);
+
+  const handleDiscardRestore = useCallback(() => {
+    setRestoredDeck(null);
+    try { window.localStorage.removeItem(deckStorageKey(notebookId)); } catch { /* ignore */ }
+  }, [notebookId]);
+
+  // ── Per-slide re-layout (user instruction) ──
+  const handleRelayout = useCallback(async () => {
+    if (relayoutIdx === null || isRelayouting) return;
+    if (!relayoutInstruction.trim()) {
+      setRelayoutError('请填写重排要求');
+      return;
+    }
+    setIsRelayouting(true);
+    setRelayoutError(null);
+    try {
+      const slide = slides[relayoutIdx];
+      const res = await fetch('/api/ai/ppt-html-repair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+        body: JSON.stringify({
+          notebookId,
+          currentHtml: slide.html,
+          instruction: relayoutInstruction.trim(),
+          outline: slide.outline,
+          slideIndex: relayoutIdx,
+          slideTotal: slides.length,
+          deckTitle,
+          styleId: selectedStyle,
+          language,
+          aiConfig,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.html) throw new Error(data.error || '重排失败');
+      updateSlideHtml(relayoutIdx, data.html);
+      setRelayoutIdx(null);
+      setRelayoutInstruction('');
+    } catch (err) {
+      setRelayoutError(err instanceof Error ? err.message : '重排失败,请重试');
+    } finally {
+      setIsRelayouting(false);
+    }
+  }, [relayoutIdx, isRelayouting, relayoutInstruction, slides, notebookId, deckTitle, selectedStyle, language, aiConfig, updateSlideHtml]);
 
   const handleExportPptx = useCallback(async () => {
     if (slides.length === 0 || isExporting) return;
@@ -207,7 +408,7 @@ export function HtmlPresentationPanel() {
     setExportNotice(null);
     try {
       await exportHtmlDeckToPptx(slides, deckTitle);
-      setExportNotice('已导出可编辑 PPTX:文本框、色块与图表均可在 PowerPoint 中直接编辑。');
+      setExportNotice('已导出可编辑 PPTX:文本、色块与图表可在 PowerPoint 中直接编辑,演讲稿在每页备注栏。');
     } catch (err) {
       setExportNotice(`导出失败:${err instanceof Error ? err.message : '未知错误'}`);
     } finally {
@@ -231,23 +432,36 @@ export function HtmlPresentationPanel() {
     presentRef.current?.requestFullscreen?.();
   }, []);
 
-  // Keyboard navigation while previewing
   useEffect(() => {
     if (slides.length === 0) return;
     const handleKey = (e: KeyboardEvent) => {
+      if (relayoutIdx !== null) return;
       if (e.key === 'ArrowLeft') setActiveIdx(i => Math.max(0, i - 1));
       if (e.key === 'ArrowRight') setActiveIdx(i => Math.min(slides.length - 1, i + 1));
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [slides.length]);
+  }, [slides.length, relayoutIdx]);
 
   const longTaskHint = elapsedSeconds >= 90
-    ? 'HTML 排版仍在进行,每页由模型独立设计,通常 2-4 分钟内完成。'
-    : '正在按风格合同逐页排版,生成期间可以随时取消。';
+    ? 'HTML 排版仍在进行,每页由模型独立设计并质检,通常 2-5 分钟内完成。'
+    : '正在按风格合同逐页排版,完成后自动做溢出质检,期间可随时取消。';
 
   return (
     <div className="relative space-y-4" data-testid="html-ppt-panel">
+      {/* ── Restore banner ── */}
+      {restoredDeck && slides.length === 0 && !isGenerating && (
+        <div className="flex items-center gap-3 rounded-xl px-4 py-3 liquid-glass-static !border-blue-500/25" data-testid="html-ppt-restore">
+          <FileText className="h-4 w-4 shrink-0 text-blue-400" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-medium text-[var(--text-primary)]">上次生成的简报:{restoredDeck.deckTitle}</p>
+            <p className="text-[10px] text-[var(--text-tertiary)]">{restoredDeck.slides.length} 页 · {new Date(restoredDeck.savedAt).toLocaleString()}</p>
+          </div>
+          <button onClick={handleRestore} className="shrink-0 rounded-lg bg-blue-500/85 px-3 py-1.5 text-xs font-medium text-white">恢复</button>
+          <button onClick={handleDiscardRestore} className="shrink-0 rounded-lg px-2 py-1.5 text-xs text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)]">丢弃</button>
+        </div>
+      )}
+
       {/* ── Style selector ── */}
       {slides.length === 0 && !isGenerating && (
         <>
@@ -338,12 +552,19 @@ export function HtmlPresentationPanel() {
           stages={PIPELINE_STAGES}
           currentStageKey={progressStage}
           elapsedSeconds={elapsedSeconds}
-          hint={slideTotal > 0 ? `${longTaskHint}(${slideCompleted}/${slideTotal} 页)` : longTaskHint}
+          hint={slideTotal > 0 && progressStage === 'html' ? `${longTaskHint}(${slideCompleted}/${slideTotal} 页)` : longTaskHint}
           onCancel={handleCancelGenerate}
           testId="html-ppt-job-progress"
         />
       ) : slides.length > 0 ? (
         <div className="space-y-3" data-testid="html-ppt-result">
+          {qaNotice && (
+            <div className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs text-emerald-300 liquid-glass-static !border-emerald-500/25" data-testid="html-ppt-qa-notice">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+              {qaNotice}
+            </div>
+          )}
+
           {/* ── Main preview ── */}
           <div ref={presentRef} className="group relative overflow-hidden rounded-2xl border border-[var(--glass-border)] bg-black">
             <ScaledSlideFrame html={slides[activeIdx].html} />
@@ -370,6 +591,18 @@ export function HtmlPresentationPanel() {
             </div>
           </div>
 
+          {/* ── Slide toolbar ── */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-secondary)]">{slides[activeIdx].title}</p>
+            <button
+              onClick={() => { setRelayoutIdx(activeIdx); setRelayoutInstruction(''); setRelayoutError(null); }}
+              data-testid="html-ppt-relayout"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--glass-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition-all hover:border-blue-400/40 hover:text-blue-400"
+            >
+              <Wand2 className="h-3.5 w-3.5" /> 重排此页
+            </button>
+          </div>
+
           {/* ── Thumbnails ── */}
           <div className="flex gap-2 overflow-x-auto pb-1">
             {slides.map((s, i) => (
@@ -385,6 +618,19 @@ export function HtmlPresentationPanel() {
               </button>
             ))}
           </div>
+
+          {/* ── Narration ── */}
+          {slides[activeIdx].narration && (
+            <div className="liquid-glass-inset space-y-2 !border-blue-500/15 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-blue-400/80">
+                  <Volume2 className="h-3.5 w-3.5" /> 演讲稿
+                </div>
+                <span className="text-[10px] text-[var(--text-quaternary)]">{slides[activeIdx].narration!.length}字</span>
+              </div>
+              <NarrationPlayer key={activeIdx} text={slides[activeIdx].narration!} />
+            </div>
+          )}
 
           {exportNotice && (
             <div className={`rounded-xl px-4 py-2.5 text-xs liquid-glass-static ${exportNotice.startsWith('导出失败') ? '!border-red-500/20 text-red-400' : '!border-emerald-500/25 text-emerald-300'}`}>
@@ -415,7 +661,7 @@ export function HtmlPresentationPanel() {
               <Maximize2 className="h-4 w-4" /> 全屏演示
             </button>
             <button
-              onClick={() => { setSlides([]); setExportNotice(null); }}
+              onClick={() => { setSlides([]); setExportNotice(null); setQaNotice(null); }}
               className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium liquid-glass-btn hover:bg-[var(--glass-hover)] text-[var(--text-tertiary)]"
             >
               重新生成
@@ -435,6 +681,43 @@ export function HtmlPresentationPanel() {
             {hasSelectedPapers ? '生成 HTML 简报' : '先选择资料'}
           </span>
         </button>
+      )}
+
+      {/* ── Re-layout dialog ── */}
+      {relayoutIdx !== null && slides[relayoutIdx] && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" data-testid="html-ppt-relayout-dialog">
+          <div className="w-full max-w-2xl space-y-3 rounded-2xl border border-white/10 bg-[var(--bg-primary)] p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">重排此页 · {slides[relayoutIdx].title}</h3>
+              <button onClick={() => setRelayoutIdx(null)} className="rounded-full p-2 text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)]" aria-label="关闭">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-[var(--glass-border)]">
+              <ScaledSlideFrame html={slides[relayoutIdx].html} />
+            </div>
+            {relayoutError && <div className="rounded-lg px-3 py-2 text-xs text-red-400 liquid-glass-static !border-red-500/20">{relayoutError}</div>}
+            <div className="flex items-end gap-2">
+              <textarea
+                value={relayoutInstruction}
+                onChange={e => setRelayoutInstruction(e.target.value)}
+                rows={2}
+                autoFocus
+                placeholder="描述这一页要怎么改,例如:把三个要点改成左右对比;数字放大;换成图表呈现..."
+                className="liquid-glass-input min-h-[56px] flex-1 resize-none px-3 py-2.5 text-xs leading-relaxed"
+              />
+              <button
+                onClick={handleRelayout}
+                disabled={isRelayouting}
+                data-testid="html-ppt-relayout-submit"
+                className="flex h-[56px] shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 text-sm font-semibold text-white transition-all hover:from-blue-400 hover:to-blue-500 active:scale-[0.97] disabled:opacity-50"
+              >
+                {isRelayouting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                {isRelayouting ? '重排中...' : '重新排版'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

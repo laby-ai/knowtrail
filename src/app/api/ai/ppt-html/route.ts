@@ -4,7 +4,13 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
-import { getHtmlDeckStyle, HTML_SLIDE_HARD_CONTRACT } from '@/lib/ppt/html-deck-style';
+import { getHtmlDeckStyle } from '@/lib/ppt/html-deck-style';
+import {
+  generateDeckNarrations,
+  generateSlideHtml,
+  langInstruction,
+  type DeckOutlinePage,
+} from '@/lib/ppt/html-deck-generation';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
 export const maxDuration = 600;
@@ -12,6 +18,7 @@ export const maxDuration = 600;
 // ============================================================
 // HTML-native deck generation (huashu-design route)
 // Pipeline: grounded retrieval -> outline -> per-slide HTML (parallel)
+//           -> speaker narrations
 // Slides are self-contained 1280x720 HTML documents rendered in
 // sandboxed iframes on the client and reconstructed into editable
 // PPTX by walking the live DOM (see lib/ppt/html-deck-export.ts).
@@ -26,21 +33,8 @@ interface HtmlPptRequest {
   notebookId?: string;
 }
 
-interface OutlinePage {
-  title: string;
-  points: string[];
-  layoutHint?: string;
-  part?: string;
-}
-
 const LLM_TIMEOUT_MS = Number(process.env.PPT_LLM_TIMEOUT_MS || 240_000);
 const SLIDE_CONCURRENCY = Math.max(1, Number(process.env.PPT_HTML_CONCURRENCY || 4));
-
-function langInstruction(language: string): string {
-  return language === 'en'
-    ? 'All slide copy must be in English.'
-    : '所有幻灯片文案使用中文(专有名词、指标名可保留英文)。';
-}
 
 async function genOutline(
   ideaPrompt: string,
@@ -48,7 +42,7 @@ async function genOutline(
   language: string,
   styleLabel: string,
   runtimeConfig?: Partial<RuntimeAIConfig>,
-): Promise<OutlinePage[]> {
+): Promise<DeckOutlinePage[]> {
   const prompt = `你是一位顶级演示文稿策划。基于给定资料,为一份「${styleLabel}」风格的演示文稿规划大纲。
 
 输出 JSON 数组,恰好 ${pageCount} 个元素,每个元素:
@@ -81,78 +75,13 @@ ${ideaPrompt}
 
   const jsonMatch = result.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error('大纲生成失败:无法解析 JSON');
-  const pages = JSON.parse(jsonMatch[0]) as OutlinePage[];
+  const pages = JSON.parse(jsonMatch[0]) as DeckOutlinePage[];
   if (!Array.isArray(pages) || pages.length === 0) throw new Error('大纲生成失败:结果为空');
   return pages.slice(0, pageCount);
 }
 
-function extractHtmlDocument(raw: string): string | null {
-  const fenced = raw.match(/```(?:html)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1] : raw;
-  const docMatch = candidate.match(/<!DOCTYPE html>[\s\S]*<\/html>/i) || candidate.match(/<html[\s\S]*<\/html>/i);
-  if (!docMatch) return null;
-  const html = docMatch[0];
-  // Reject anything that could execute script or reach the network.
-  if (/<script\b/i.test(html)) return null;
-  if (/\bon[a-z]+\s*=/i.test(html)) return null;
-  if (/@import|<link\b|<iframe\b|<object\b|<embed\b/i.test(html)) return null;
-  if (/url\(\s*['"]?https?:/i.test(html) || /src\s*=\s*['"]https?:/i.test(html)) return null;
-  return html;
-}
-
-async function genSlideHtml(
-  page: OutlinePage,
-  index: number,
-  total: number,
-  deckTitle: string,
-  styleContract: string,
-  evidence: string,
-  language: string,
-  runtimeConfig?: Partial<RuntimeAIConfig>,
-): Promise<string> {
-  const prompt = `你是一位世界级演示设计师,用纯 HTML+CSS 制作单页幻灯片。
-
-【整份演示】${deckTitle},共 ${total} 页,当前是第 ${index + 1} 页。
-【本页大纲】标题:${page.title}
-要点:${page.points.join(' / ')}
-版式:${page.layoutHint || 'grid'}
-${page.part ? `所属章节:${page.part}` : ''}
-
-【视觉风格合同(必须严格遵守)】
-${styleContract}
-
-【硬性技术合同(必须逐条满足)】
-${HTML_SLIDE_HARD_CONTRACT}
-
-【可用证据(文案与数字只能来自这里)】
-${evidence.slice(0, 6000)}
-
-${langInstruction(language)}
-直接输出完整 HTML 文档(以 <!DOCTYPE html> 开头,以 </html> 结束),不要输出任何解释。`;
-
-  const attempts = 2;
-  let lastRaw = '';
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    const raw = await llmInvoke(
-      [{ role: 'user', content: prompt }],
-      {
-        model: runtimeConfig?.model,
-        temperature: attempt === 1 ? 0.5 : 0.7,
-        maxTokens: Number(process.env.PPT_HTML_SLIDE_MAX_TOKENS || 4000),
-        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
-      },
-      undefined,
-      runtimeConfig,
-    );
-    lastRaw = raw;
-    const html = extractHtmlDocument(raw);
-    if (html) return html;
-  }
-  throw new Error(`第 ${index + 1} 页 HTML 生成失败(输出不符合合同):${lastRaw.slice(0, 120)}`);
-}
-
 async function genSlidesParallel(
-  pages: OutlinePage[],
+  pages: DeckOutlinePage[],
   deckTitle: string,
   styleContract: string,
   evidence: string,
@@ -168,7 +97,12 @@ async function genSlidesParallel(
     while (cursor < pages.length) {
       const i = cursor++;
       try {
-        results[i] = { html: await genSlideHtml(pages[i], i, pages.length, deckTitle, styleContract, evidence, language, runtimeConfig) };
+        results[i] = {
+          html: await generateSlideHtml({
+            page: pages[i], index: i, total: pages.length,
+            deckTitle, styleContract, evidence, language, runtimeConfig,
+          }),
+        };
       } catch (err) {
         results[i] = { html: null, error: err instanceof Error ? err.message : String(err) };
       }
@@ -265,10 +199,16 @@ export async function POST(request: NextRequest) {
         }
         sendEvent({ stage: 'html', status: 'done', message: `全部 ${results.length} 页排版完成` });
 
+        sendEvent({ stage: 'narration', status: 'generating', message: '正在生成每页演讲稿...' });
+        const narrations = await generateDeckNarrations(pages, deckTitle, language, runtimeConfig);
+        sendEvent({ stage: 'narration', status: 'done', message: '演讲稿生成完成' });
+
         const slides = pages.map((page, i) => ({
           title: page.title,
           layoutHint: page.layoutHint || 'grid',
           html: results[i].html as string,
+          narration: narrations[i] || '',
+          outline: { title: page.title, points: page.points || [], layoutHint: page.layoutHint, part: page.part },
         }));
 
         sendEvent({
