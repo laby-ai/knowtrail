@@ -41,6 +41,8 @@ import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgr
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
 import { PresentationModeSelector, type PresentationMode } from './PresentationModeSelector';
 import { StructuredPresentationPanel } from './StructuredPresentationPanel';
+import { HtmlPresentationPanel } from './HtmlPresentationPanel';
+import { SlideAnnotationEditor } from './SlideAnnotationEditor';
 
 export function PresentationWorkspacePanel({ initialMode = 'image' }: { initialMode?: PresentationMode }) {
   const [mode, setMode] = useState<PresentationMode>(initialMode);
@@ -49,7 +51,7 @@ export function PresentationWorkspacePanel({ initialMode = 'image' }: { initialM
     <div className="space-y-5" data-testid="presentation-workspace-panel">
       <PresentationModeSelector mode={mode} onModeChange={setMode} />
 
-      {mode === 'image' ? <PresentationPanel /> : <StructuredPresentationPanel />}
+      {mode === 'image' ? <PresentationPanel /> : mode === 'html' ? <HtmlPresentationPanel /> : <StructuredPresentationPanel />}
     </div>
   );
 }
@@ -118,6 +120,7 @@ function PresentationPanel() {
   const [selectedAspectRatio, setSelectedAspectRatio] = useState('16:9');
   const [isExporting, setIsExporting] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [annotatingIdx, setAnnotatingIdx] = useState<number | null>(null);
   const [imageCompleted, setImageCompleted] = useState(0);
   const [imageTotal, setImageTotal] = useState(0);
   const [generationNotice, setGenerationNotice] = useState<string | null>(null);
@@ -663,9 +666,19 @@ function PresentationPanel() {
             ))}
           </div>
 
-          {/* Slide info + page count */}
-          <div className="flex items-center justify-between">
+          {/* Slide info + page count + annotate */}
+          <div className="flex items-center justify-between gap-2">
             <p className="text-[13px] text-[var(--text-secondary)] truncate flex-1">{currentSlide?.title}</p>
+            {currentSlide?.imageUrl && (
+              <button
+                onClick={() => setAnnotatingIdx(activeSlideIdx)}
+                data-testid="image-ppt-annotate"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--glass-border)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition-all hover:border-red-400/40 hover:text-red-400"
+                title="在页面上圈点标注,让 AI 重新生成这一页"
+              >
+                <Wand2 className="h-3.5 w-3.5" /> 标注修改
+              </button>
+            )}
             <span className="text-[11px] text-[var(--text-tertiary)] tabular-nums">{activeSlideIdx + 1} / {slides.length}</span>
           </div>
 
@@ -761,6 +774,23 @@ function PresentationPanel() {
             </p>
           </div>
         </div>
+      )}
+
+      {/* ── Annotation-driven revision (Cowart-style) ── */}
+      {annotatingIdx !== null && slides[annotatingIdx]?.imageUrl && (
+        <SlideAnnotationEditor
+          imageUrl={slides[annotatingIdx].imageUrl as string}
+          slideTitle={slides[annotatingIdx].title}
+          styleDescription={currentStyleVisualPrompt}
+          aspectRatio={selectedAspectRatio}
+          aiConfig={aiConfig}
+          notebookId={notebookId}
+          onClose={() => setAnnotatingIdx(null)}
+          onRevised={(newImageUrl) => {
+            const idx = annotatingIdx;
+            setSlides(slides.map((s, i) => (i === idx ? { ...s, imageUrl: newImageUrl } : s)));
+          }}
+        />
       )}
     </div>
   );

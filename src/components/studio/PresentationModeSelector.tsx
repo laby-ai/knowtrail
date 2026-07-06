@@ -1,9 +1,9 @@
 'use client';
 
-import { Check, FileText, ImageIcon, Presentation } from 'lucide-react';
+import { Check, Code2, FileText, ImageIcon, Presentation } from 'lucide-react';
 import type { ElementType } from 'react';
 
-export type PresentationMode = 'image' | 'structured';
+export type PresentationMode = 'image' | 'html' | 'structured';
 
 type PresentationModeOption = {
   id: PresentationMode;
@@ -20,9 +20,15 @@ const MODE_OPTIONS: PresentationModeOption[] = [
     icon: ImageIcon,
   },
   {
+    id: 'html',
+    label: 'HTML 简报',
+    badge: '设计版',
+    icon: Code2,
+  },
+  {
     id: 'structured',
     label: '结构化 PPT',
-    badge: '可编辑',
+    badge: '学术版',
     icon: FileText,
   },
 ];
@@ -46,7 +52,7 @@ export function PresentationModeSelector({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {MODE_OPTIONS.map(option => {
           const Icon = option.icon;
           const selected = mode === option.id;
