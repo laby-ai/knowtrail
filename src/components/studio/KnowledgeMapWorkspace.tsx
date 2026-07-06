@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, FileSearch, GitBranch, Link as LinkIcon, Search, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeft, FileSearch, GitBranch, Link as LinkIcon, Network, Search, ShieldCheck, Waypoints, X, Zap } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { KnowledgeMapGraph } from './KnowledgeMapGraph';
+import { KnowledgeMapGraph, type KnowledgeMapColorMode } from './KnowledgeMapGraph';
 import type { KnowledgeMapEdgeConfidence, KnowledgeMapNodeType } from '@/lib/knowledge-map-types';
 
 function formatCitationNumbers(numbers: number[]) {
@@ -44,6 +44,7 @@ export function KnowledgeMapWorkspace() {
   const [visibleTypes, setVisibleTypes] = useState<Set<KnowledgeMapNodeType>>(() => new Set(ALL_NODE_TYPES));
   const [visibleConfidences, setVisibleConfidences] = useState<Set<KnowledgeMapEdgeConfidence>>(() => new Set(ALL_CONFIDENCES));
   const [searchTerm, setSearchTerm] = useState('');
+  const [colorMode, setColorMode] = useState<KnowledgeMapColorMode>('type');
 
   // Which node types actually appear, so we only show relevant filter chips.
   const presentTypes = useMemo(() => {
@@ -177,6 +178,25 @@ export function KnowledgeMapWorkspace() {
             </button>
           );
         })}
+
+        {map.communities.length > 0 && (
+          <div className="ml-auto flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-0.5" data-testid="knowledge-map-color-mode">
+            {([['type', '按类型'], ['community', '按社区']] as const).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setColorMode(mode)}
+                className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
+                  colorMode === mode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+                data-testid={`knowledge-map-color-mode-${mode}`}
+              >
+                <Network className="h-3 w-3" />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <section className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 min-[1800px]:grid-cols-[minmax(0,1fr)_340px] min-[1800px]:overflow-hidden">
@@ -192,6 +212,69 @@ export function KnowledgeMapWorkspace() {
         </div>
 
         <aside className="max-h-[360px] overflow-y-auto rounded-[1.35rem] border border-slate-200 bg-white/90 p-4 shadow-[var(--glass-shadow-sm)] backdrop-blur-xl min-[1800px]:max-h-none min-[1800px]:min-h-0" data-testid="knowledge-map-detail">
+          {/* Graph-level insights derived by the extractor (hubs + bridges) */}
+          {(map.analysis.hubNodes.length > 0 || map.analysis.bridgeEdges.length > 0) && (
+            <section className="mb-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3" data-testid="knowledge-map-insights">
+              {map.analysis.hubNodes.length > 0 && (
+                <div>
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+                    <Zap className="h-3.5 w-3.5 text-amber-500" />
+                    枢纽节点
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {map.analysis.hubNodes.slice(0, 6).map(hub => (
+                      <button
+                        key={hub.id}
+                        type="button"
+                        onClick={() => setSelectedNodeId(hub.id)}
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition ${
+                          hub.id === selectedNode?.id
+                            ? 'border-amber-300 bg-amber-100 text-amber-800'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-amber-200 hover:text-amber-700'
+                        }`}
+                        data-testid="knowledge-map-hub"
+                        title={`${hub.degree} 条关系`}
+                      >
+                        {hub.label}
+                        <span className="ml-1 text-[9px] text-slate-400">{hub.degree}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {map.analysis.bridgeEdges.length > 0 && (
+                <div>
+                  <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+                    <Waypoints className="h-3.5 w-3.5 text-cyan-500" />
+                    桥接关系
+                  </div>
+                  <div className="space-y-1.5">
+                    {map.analysis.bridgeEdges.slice(0, 3).map((bridge, index) => {
+                      const sourceNode = map.nodes.find(n => n.id === bridge.source);
+                      const targetNode = map.nodes.find(n => n.id === bridge.target);
+                      return (
+                        <button
+                          key={`${bridge.source}-${bridge.target}-${index}`}
+                          type="button"
+                          onClick={() => setSelectedNodeId(bridge.source)}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-cyan-200"
+                          data-testid="knowledge-map-bridge"
+                        >
+                          <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-800">
+                            <span className="truncate">{sourceNode?.label || bridge.source}</span>
+                            <span className="text-slate-400">·{bridge.relation}·</span>
+                            <span className="truncate">{targetNode?.label || bridge.target}</span>
+                          </div>
+                          <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-500">{bridge.why}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
           <div className="mb-4 flex items-center gap-2 text-xs font-semibold text-slate-600">
             <GitBranch className="h-4 w-4 text-[var(--accent-blue)]" />
             <span>节点详情</span>

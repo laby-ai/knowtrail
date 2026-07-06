@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Minus, Plus } from 'lucide-react';
+import { Download, Maximize2, Minus, Plus } from 'lucide-react';
 import type { KnowledgeMapData, KnowledgeMapEdgeConfidence, KnowledgeMapNodeType } from '@/lib/knowledge-map-types';
+
+export type KnowledgeMapColorMode = 'type' | 'community';
 
 interface KnowledgeMapGraphProps {
   map: KnowledgeMapData;
@@ -11,6 +13,27 @@ interface KnowledgeMapGraphProps {
   visibleTypes?: Set<KnowledgeMapNodeType>;
   visibleConfidences?: Set<KnowledgeMapEdgeConfidence>;
   searchTerm?: string;
+  colorMode?: KnowledgeMapColorMode;
+}
+
+// Distinct, print-friendly palette for community clustering.
+export const COMMUNITY_PALETTE = [
+  { fill: '#60a5fa', glow: 'rgba(96,165,250,0.3)' },
+  { fill: '#f59e0b', glow: 'rgba(245,158,11,0.26)' },
+  { fill: '#34d399', glow: 'rgba(52,211,153,0.26)' },
+  { fill: '#f472b6', glow: 'rgba(244,114,182,0.26)' },
+  { fill: '#a78bfa', glow: 'rgba(167,139,250,0.26)' },
+  { fill: '#22d3ee', glow: 'rgba(34,211,238,0.26)' },
+  { fill: '#fb923c', glow: 'rgba(251,146,60,0.26)' },
+  { fill: '#4ade80', glow: 'rgba(74,222,128,0.26)' },
+];
+
+export function communityColorMap(map: KnowledgeMapData): Map<string, number> {
+  const nodeToPalette = new Map<string, number>();
+  map.communities.forEach((community, index) => {
+    community.nodeIds.forEach(id => nodeToPalette.set(id, index % COMMUNITY_PALETTE.length));
+  });
+  return nodeToPalette;
 }
 
 type PositionedNode = KnowledgeMapData['nodes'][number] & {
@@ -157,10 +180,24 @@ export function KnowledgeMapGraph({
   visibleTypes,
   visibleConfidences,
   searchTerm,
+  colorMode = 'type',
 }: KnowledgeMapGraphProps) {
   const { nodes, edges } = useMemo(() => layoutGraph(map), [map]);
   const focalId = useMemo(() => nodes.find(node => node.focal)?.id || nodes[0]?.id || null, [nodes]);
   const selectedId = selectedNodeId || focalId;
+  const nodeCommunity = useMemo(() => communityColorMap(map), [map]);
+
+  const colorForNode = useCallback((node: PositionedNode) => {
+    if (colorMode === 'community') {
+      const idx = nodeCommunity.get(node.id);
+      if (idx !== undefined) {
+        const c = COMMUNITY_PALETTE[idx];
+        return { fill: c.fill, border: '#ffffff', glow: c.glow };
+      }
+      return { fill: '#64748b', border: '#e2e8f0', glow: 'rgba(100,116,139,0.22)' };
+    }
+    return TYPE_COLOR[node.type] || TYPE_COLOR.concept;
+  }, [colorMode, nodeCommunity]);
 
   // ── Pan / zoom ──
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
@@ -215,6 +252,39 @@ export function KnowledgeMapGraph({
   }, []);
 
   const endDrag = useCallback(() => { dragState.current = null; }, []);
+
+  // ── Export current graph as PNG ──
+  const exportPng = useCallback(async () => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute('width', String(WIDTH));
+    clone.setAttribute('height', String(HEIGHT));
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    // Solid background so the PNG isn't transparent.
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    bg.setAttribute('x', '0'); bg.setAttribute('y', '0');
+    bg.setAttribute('width', String(WIDTH)); bg.setAttribute('height', String(HEIGHT));
+    bg.setAttribute('fill', '#07111f');
+    clone.insertBefore(bg, clone.firstChild);
+    const source = new XMLSerializer().serializeToString(clone);
+    const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
+    const img = new Image();
+    const loaded = new Promise<boolean>(resolve => { img.onload = () => resolve(true); img.onerror = () => resolve(false); });
+    img.src = svgUrl;
+    if (!(await loaded)) return;
+    const scale = 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = WIDTH * scale;
+    canvas.height = HEIGHT * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `${(map.title || '资料脉络').replace(/[\\/:*?"<>|]/g, '_')}.png`;
+    a.click();
+  }, [map.title]);
 
   // ── Filters + search ──
   const typeOk = useCallback((t: KnowledgeMapNodeType) => !visibleTypes || visibleTypes.has(t), [visibleTypes]);
@@ -320,7 +390,7 @@ export function KnowledgeMapGraph({
 
           {nodes.map(node => {
             if (!typeOk(node.type)) return null;
-            const color = TYPE_COLOR[node.type] || TYPE_COLOR.concept;
+            const color = colorForNode(node);
             const selected = node.id === selectedId;
             const isNeighbor = neighborIds.has(node.id);
             const dimmed = hasSelection && !selected && !isNeighbor;
@@ -409,19 +479,35 @@ export function KnowledgeMapGraph({
         >
           <Maximize2 className="h-4 w-4" />
         </button>
+        <button
+          type="button"
+          onClick={exportPng}
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-slate-950/60 text-slate-200 backdrop-blur-xl transition hover:bg-slate-800/70"
+          aria-label="导出为图片"
+          data-testid="knowledge-map-export-png"
+        >
+          <Download className="h-4 w-4" />
+        </button>
       </div>
 
       <div className="pointer-events-none absolute left-5 top-5 rounded-full border border-white/10 bg-slate-950/50 px-3 py-1.5 text-xs text-slate-200 backdrop-blur-xl">
         滚轮缩放 · 拖拽平移 · 点击节点看关系
       </div>
 
-      <div className="pointer-events-none absolute bottom-4 left-4 flex flex-wrap gap-2">
-        {Object.entries(CONFIDENCE_STYLE).map(([key, style]) => (
-          <span key={key} className="rounded-full border border-white/10 bg-slate-950/55 px-2.5 py-1 text-[10px] text-slate-200 backdrop-blur-xl">
-            <span className="mr-1 inline-block h-1.5 w-5 rounded-full align-middle" style={{ background: style.color, opacity: style.dash ? 0.55 : 0.9 }} />
-            {CONFIDENCE_LABEL[key as KnowledgeMapEdgeConfidence] || '推断关系'}
-          </span>
-        ))}
+      <div className="pointer-events-none absolute bottom-4 left-4 flex max-w-[70%] flex-wrap gap-2">
+        {colorMode === 'community'
+          ? map.communities.slice(0, COMMUNITY_PALETTE.length).map((community, index) => (
+              <span key={community.id} className="rounded-full border border-white/10 bg-slate-950/55 px-2.5 py-1 text-[10px] text-slate-200 backdrop-blur-xl">
+                <span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ background: COMMUNITY_PALETTE[index % COMMUNITY_PALETTE.length].fill }} />
+                {truncateLabel(community.label, 10)}
+              </span>
+            ))
+          : Object.entries(CONFIDENCE_STYLE).map(([key, style]) => (
+              <span key={key} className="rounded-full border border-white/10 bg-slate-950/55 px-2.5 py-1 text-[10px] text-slate-200 backdrop-blur-xl">
+                <span className="mr-1 inline-block h-1.5 w-5 rounded-full align-middle" style={{ background: style.color, opacity: style.dash ? 0.55 : 0.9 }} />
+                {CONFIDENCE_LABEL[key as KnowledgeMapEdgeConfidence] || '推断关系'}
+              </span>
+            ))}
       </div>
     </div>
   );
