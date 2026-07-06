@@ -18,6 +18,7 @@ import {
   X,
   CheckCircle,
   AlertCircle,
+  Globe2,
   Loader2,
   MoreHorizontal,
 } from 'lucide-react';
@@ -27,6 +28,7 @@ import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
+import { DiscoverSourcesModal } from './DiscoverSourcesModal';
 
 const SUPPORTED_TYPES: Record<string, FileType> = {
   'application/pdf': 'pdf',
@@ -206,6 +208,7 @@ export function LibraryPanel({
   const [skippedFilesNotice, setSkippedFilesNotice] = useState<string | null>(null);
   const [ingestionSyncState, setIngestionSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
+  const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
   const [pastedSourceText, setPastedSourceText] = useState('');
   const [pastedSourceTitle, setPastedSourceTitle] = useState('');
   const ingestionSyncInFlightRef = useRef(false);
@@ -526,6 +529,19 @@ export function LibraryPanel({
     await uploadFiles([file], targetFolder);
   }, [activeFolderId, addFolder, dismissSourceGuide, pastedSourceText, pastedSourceTitle, setActiveFolder, uploadFiles]);
 
+  // Discovered web sources arrive as ready-made text files and reuse the
+  // regular upload/ingestion pipeline.
+  const handleIngestDiscoveredFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    let targetFolder = activeFolderId;
+    if (!targetFolder) {
+      targetFolder = addFolder('网络信源');
+      setExpandedFolders(prev => new Set([...prev, targetFolder!]));
+      setActiveFolder(targetFolder);
+    }
+    await uploadFiles(files, targetFolder);
+  }, [activeFolderId, addFolder, setActiveFolder, uploadFiles]);
+
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -611,14 +627,26 @@ export function LibraryPanel({
               {totalPapers} 个来源{ingestionSyncState === 'syncing' ? ' · 同步中' : ingestionSyncState === 'error' ? ' · 状态同步失败' : ''}
             </p>
           </div>
-          <button
-            onClick={() => setIsCreatingFolder(true)}
-            className="w-8 h-8 rounded-xl liquid-glass-btn !p-0 flex items-center justify-center"
-            aria-label="新建资料分组"
-            title="新建资料分组"
-          >
-            <FolderPlus className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setIsDiscoverOpen(true)}
+              data-testid="library-discover"
+              className="flex h-8 items-center gap-1.5 rounded-xl liquid-glass-btn px-2.5 !py-0 text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              aria-label="搜索网络信源"
+              title="搜索网络内容并加入资料库"
+            >
+              <Globe2 className="h-3.5 w-3.5 text-blue-400" />
+              发现信源
+            </button>
+            <button
+              onClick={() => setIsCreatingFolder(true)}
+              className="w-8 h-8 rounded-xl liquid-glass-btn !p-0 flex items-center justify-center"
+              aria-label="新建资料分组"
+              title="新建资料分组"
+            >
+              <FolderPlus className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -868,6 +896,15 @@ export function LibraryPanel({
           onPasteTitleChange={setPastedSourceTitle}
           onPasteSubmit={handlePasteTextAsSource}
           onUpload={openFilePickerFromGuide}
+        />
+      )}
+
+      {/* Discover web sources */}
+      {isDiscoverOpen && (
+        <DiscoverSourcesModal
+          notebookId={notebookId}
+          onClose={() => setIsDiscoverOpen(false)}
+          onIngestFiles={handleIngestDiscoveredFiles}
         />
       )}
 
