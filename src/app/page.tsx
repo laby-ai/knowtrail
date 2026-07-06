@@ -6,6 +6,7 @@ import { ThreeColumnLayout } from '@/components/layout/ThreeColumnLayout';
 import { LibraryPanel } from '@/components/library/LibraryPanel';
 import { EditorPanel } from '@/components/editor/EditorPanel';
 import { StudioPanel } from '@/components/studio/StudioPanel';
+import { WorkbenchTopBar } from '@/components/workbench/WorkbenchTopBar';
 import { VirtualClassroomWorkspace } from '@/components/studio/VirtualClassroomWorkspace';
 import { KnowledgeMapWorkspace } from '@/components/studio/KnowledgeMapWorkspace';
 import { LiquidGlassProvider } from '@/components/ui/liquid-glass-provider';
@@ -41,6 +42,7 @@ function WorkbenchCenterPanel() {
 function AcademicPresenterContent({
   workspaceTitle,
   onBackHome,
+  onSignOut,
   showSourceGuide,
   onSourceGuideDismiss,
   accountSession,
@@ -48,6 +50,7 @@ function AcademicPresenterContent({
 }: {
   workspaceTitle: string;
   onBackHome: () => void;
+  onSignOut: () => void;
   showSourceGuide: boolean;
   onSourceGuideDismiss: () => void;
   accountSession: AccountAuthSession | null;
@@ -59,24 +62,31 @@ function AcademicPresenterContent({
   }, []);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[var(--bg-primary)]">
-      <ThreeColumnLayout
-        leftPanel={(
-          <LibraryPanel
-            workspaceTitle={workspaceTitle}
-            onBackHome={onBackHome}
-            accountSession={accountSession}
-            accountAuthRequired={accountAuthRequired}
-            showSourceGuide={showSourceGuide}
-            onSourceGuideDismiss={onSourceGuideDismiss}
-          />
-        )}
-        centerPanel={<WorkbenchCenterPanel />}
-        rightPanel={<StudioPanel />}
-        defaultLeftWidth={280}
-        defaultRightWidth={500}
-        initialMobilePanel={showSourceGuide ? 'left' : 'center'}
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[var(--bg-primary)]">
+      <WorkbenchTopBar
+        workspaceTitle={workspaceTitle}
+        onBackHome={onBackHome}
+        onSignOut={onSignOut}
       />
+      <div className="min-h-0 flex-1">
+        <ThreeColumnLayout
+          leftPanel={(
+            <LibraryPanel
+              workspaceTitle={workspaceTitle}
+              onBackHome={onBackHome}
+              accountSession={accountSession}
+              accountAuthRequired={accountAuthRequired}
+              showSourceGuide={showSourceGuide}
+              onSourceGuideDismiss={onSourceGuideDismiss}
+            />
+          )}
+          centerPanel={<WorkbenchCenterPanel />}
+          rightPanel={<StudioPanel />}
+          defaultLeftWidth={280}
+          defaultRightWidth={500}
+          initialMobilePanel={showSourceGuide ? 'left' : 'center'}
+        />
+      </div>
     </div>
   );
 }
@@ -370,6 +380,7 @@ export default function HomePage() {
           <AcademicPresenterContent
             workspaceTitle={activeNotebook.title}
             onBackHome={openNotebookHome}
+            onSignOut={signOut}
             showSourceGuide={showSourceGuide}
             onSourceGuideDismiss={() => setShowSourceGuide(false)}
             accountSession={accountSession}

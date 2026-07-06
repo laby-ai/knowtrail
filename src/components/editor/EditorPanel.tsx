@@ -7,8 +7,10 @@ import {
   Sparkles,
   MessageSquare,
   ChevronDown,
+  Download,
   FileSearch,
   Square,
+  Trash2,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
@@ -22,7 +24,7 @@ const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
 
 export function EditorPanel() {
   const {
-    folders, chatMessages, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig,
+    folders, chatMessages, addChatMessage, updateChatMessage, clearChat, getSelectedPapers, aiConfig,
     queuedStudioPrompt, consumeStudioPrompt, storageScopeKey, revealPaper,
   } = useApp();
 
@@ -328,6 +330,30 @@ export function EditorPanel() {
     setExpandedCitations(prev => { const next = new Set(prev); if (next.has(citationId)) next.delete(citationId); else next.add(citationId); return next; });
   }, []);
 
+  const handleClearChat = useCallback(() => {
+    if (chatMessages.length === 0) return;
+    if (window.confirm(`清空当前 ${chatMessages.length} 条对话记录?此操作不可撤销。`)) clearChat();
+  }, [chatMessages.length, clearChat]);
+
+  const handleExportChat = useCallback(() => {
+    if (chatMessages.length === 0) return;
+    const lines = chatMessages.map(message => {
+      const role = message.role === 'user' ? '**提问**' : '**回答**';
+      const citations = message.citations?.length
+        ? `\n\n> 引用来源:${message.citations.map(c => c.paperShortName || c.sourceTitle || c.paperId).filter(Boolean).join('、')}`
+        : '';
+      return `${role}\n\n${message.content}${citations}`;
+    });
+    const markdown = `# 资料对话记录\n\n导出时间:${new Date().toLocaleString()}\n\n---\n\n${lines.join('\n\n---\n\n')}\n`;
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `资料对话-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [chatMessages]);
+
   return (
     <div className="h-full flex flex-col">
       {/* Top bar */}
@@ -346,18 +372,44 @@ export function EditorPanel() {
                   : '先添加资料，再围绕来源提问。'}
             </p>
           </div>
-          <button
-            type="button"
-            data-testid="chat-generate-report"
-            onClick={handleGenerateReport}
-            disabled={isGenerating || selectedSourceCount === 0}
-            aria-label={selectedSourceCount > 0 ? '生成资料报告' : '先选择资料再生成报告'}
-            title={selectedSourceCount > 0 ? `基于 ${selectedSourceCount} 个已选资料生成报告` : '请先在左侧资料卡片圆点处选择来源'}
-            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-blue-500/20 bg-blue-600 px-4 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-500 disabled:border-[var(--border-subtle)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none disabled:cursor-not-allowed"
-          >
-            {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {selectedSourceCount > 0 ? '生成报告' : '选择资料'}
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {chatMessages.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleExportChat}
+                  data-testid="chat-export"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-tertiary)] transition hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
+                  title="导出对话为 Markdown"
+                  aria-label="导出对话"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClearChat}
+                  data-testid="chat-clear"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-tertiary)] transition hover:border-red-400/40 hover:text-red-400"
+                  title="清空对话记录"
+                  aria-label="清空对话"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              data-testid="chat-generate-report"
+              onClick={handleGenerateReport}
+              disabled={isGenerating || selectedSourceCount === 0}
+              aria-label={selectedSourceCount > 0 ? '生成资料报告' : '先选择资料再生成报告'}
+              title={selectedSourceCount > 0 ? `基于 ${selectedSourceCount} 个已选资料生成报告` : '请先在左侧资料卡片圆点处选择来源'}
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-blue-500/20 bg-blue-600 px-4 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-500 disabled:border-[var(--border-subtle)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none disabled:cursor-not-allowed"
+            >
+              {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              {selectedSourceCount > 0 ? '生成报告' : '选择资料'}
+            </button>
+          </div>
         </div>
       </div>
 
