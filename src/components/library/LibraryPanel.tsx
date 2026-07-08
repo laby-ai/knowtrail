@@ -266,7 +266,7 @@ export function LibraryPanel({
       const missingSources = sources.filter(source => !knownPapers.has(source.id));
       let importFolderId = activeFolderId || folders[0]?.id || null;
       if (missingSources.length > 0 && !importFolderId) {
-        importFolderId = addFolder('资料库');
+        importFolderId = addFolder('文献库');
         setExpandedFolders(prev => new Set([...prev, importFolderId!]));
         setActiveFolder(importFolderId);
       }
@@ -291,11 +291,11 @@ export function LibraryPanel({
         addPaper(importFolderId, {
           id: detail.id,
           title: detail.title || detail.fileName,
-          authors: ['已入库资料'],
+          authors: ['已入库来源'],
           year: new Date(detail.createdAt || detail.updatedAt || Date.now()).getFullYear(),
-          keywords: ['持久资料'],
-          abstract: rawContent.slice(0, 240) || `${detail.title || detail.fileName} 已完成资料摄取。`,
-          content: rawContent || `${detail.title || detail.fileName} 已完成资料摄取。`,
+          keywords: ['持久来源'],
+          abstract: rawContent.slice(0, 240) || `${detail.title || detail.fileName} 已完成来源摄取。`,
+          content: rawContent || `${detail.title || detail.fileName} 已完成来源摄取。`,
           rawContent,
           shortName: detail.shortName || detail.fileName,
           fileName: detail.fileName,
@@ -313,9 +313,9 @@ export function LibraryPanel({
         knownPapers.set(detail.id, {
           id: detail.id,
           title: detail.title || detail.fileName,
-          authors: ['已入库资料'],
+          authors: ['已入库来源'],
           year: new Date().getFullYear(),
-          keywords: ['持久资料'],
+          keywords: ['持久来源'],
           abstract: rawContent.slice(0, 240),
           content: rawContent,
           rawContent,
@@ -515,11 +515,11 @@ export function LibraryPanel({
   const handlePasteTextAsSource = useCallback(async () => {
     const content = pastedSourceText.trim();
     if (!content) return;
-    const title = (pastedSourceTitle.trim() || '粘贴文本资料').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
+    const title = (pastedSourceTitle.trim() || '粘贴文献笔记').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
     const file = new globalThis.File([content], `${title}.txt`, { type: 'text/plain' });
     let targetFolder = activeFolderId;
     if (!targetFolder) {
-      targetFolder = addFolder('资料库');
+      targetFolder = addFolder('文献库');
       setExpandedFolders(prev => new Set([...prev, targetFolder!]));
       setActiveFolder(targetFolder);
     }
@@ -612,7 +612,7 @@ export function LibraryPanel({
         <div className="absolute inset-0 z-50 bg-blue-500/5 border-2 border-dashed border-blue-500/30 rounded-2xl flex items-center justify-center backdrop-blur-sm">
           <div className="text-center animate-scale-in">
             <Upload className="h-10 w-10 text-blue-400 mx-auto mb-3 animate-float" />
-            <p className="text-sm font-medium text-[var(--text-primary)]">释放文件以上传</p>
+            <p className="text-sm font-medium text-[var(--text-primary)]">释放文献或资料文件以上传</p>
             <p className="text-xs text-zinc-500 mt-1">PDF / Word / 图片 / Excel / PPT / TXT</p>
           </div>
         </div>
@@ -622,7 +622,7 @@ export function LibraryPanel({
       <div className="px-4 pt-4 pb-3 border-b border-[var(--border-subtle)]">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-[var(--text-primary)]">资料库</p>
+            <p className="text-xs font-semibold text-[var(--text-primary)]">文献库</p>
             <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">
               {totalPapers} 个来源{ingestionSyncState === 'syncing' ? ' · 同步中' : ingestionSyncState === 'error' ? ' · 状态同步失败' : ''}
             </p>
@@ -633,7 +633,7 @@ export function LibraryPanel({
               data-testid="library-discover"
               className="flex h-8 items-center gap-1.5 rounded-xl liquid-glass-btn px-2.5 !py-0 text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               aria-label="搜索网络信源"
-              title="搜索网络内容并加入资料库"
+              title="搜索网络信源并加入文献库"
             >
               <Globe2 className="h-3.5 w-3.5 text-blue-400" />
               发现信源
@@ -641,8 +641,8 @@ export function LibraryPanel({
             <button
               onClick={() => setIsCreatingFolder(true)}
               className="w-8 h-8 rounded-xl liquid-glass-btn !p-0 flex items-center justify-center"
-              aria-label="新建资料分组"
-              title="新建资料分组"
+              aria-label="新建文献分组"
+              title="新建文献分组"
             >
               <FolderPlus className="h-4 w-4" />
             </button>
@@ -654,7 +654,7 @@ export function LibraryPanel({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600" />
           <input
             type="text"
-            placeholder="搜索资料..."
+            placeholder="搜索文献、作者或关键词..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="liquid-glass-input pl-9 text-xs"
@@ -669,7 +669,7 @@ export function LibraryPanel({
           className="px-5 py-2.5 bg-blue-500/[0.06] border-b border-blue-500/10 flex items-center justify-between animate-fade-in"
         >
           <span className="text-xs font-medium text-blue-400">
-            已选 {selectedPapers.length} 个来源
+            已选 {selectedPapers.length} 个文献来源
           </span>
           <button onClick={clearSelection} className="btn-ghost text-xs text-[var(--accent-blue)] hover:opacity-80 py-1 px-2">
             <X className="h-3 w-3" /> 清除
@@ -741,8 +741,8 @@ export function LibraryPanel({
             <div className="w-16 h-16 rounded-2xl liquid-glass-inset flex items-center justify-center mx-auto mb-4">
               <FileText className="h-7 w-7 text-zinc-700" />
             </div>
-            <p className="text-sm text-zinc-500 font-medium">暂无资料</p>
-            <p className="text-xs text-zinc-600 mt-1.5">拖拽文件到此处，或点击下方上传</p>
+            <p className="text-sm text-zinc-500 font-medium">暂无文献来源</p>
+            <p className="text-xs text-zinc-600 mt-1.5">拖拽论文、网页笔记或资料文件到此处，建立文献本来源。</p>
             <button
               type="button"
               onClick={() => setIsSourceGuideOpen(true)}
@@ -776,7 +776,7 @@ export function LibraryPanel({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (folder.papers.length === 0 || window.confirm(`删除分组「${folder.name}」及其中 ${folder.papers.length} 个资料?此操作不可撤销。`)) {
+                    if (folder.papers.length === 0 || window.confirm(`删除分组「${folder.name}」及其中 ${folder.papers.length} 个来源?此操作不可撤销。`)) {
                       deleteFolder(folder.id);
                     }
                   }}
@@ -881,8 +881,8 @@ export function LibraryPanel({
           onClick={() => fileInputRef.current?.click()}
         >
           <Upload className="h-6 w-6 mx-auto mb-2 text-[var(--text-quaternary)]" />
-          <p className="text-xs font-medium text-[var(--text-tertiary)]">拖拽文件到此处上传</p>
-          <p className="text-[10px] text-[var(--text-quaternary)] mt-1">或点击选择文件</p>
+          <p className="text-xs font-medium text-[var(--text-tertiary)]">拖拽文献或资料文件到此处上传</p>
+          <p className="text-[10px] text-[var(--text-quaternary)] mt-1">或点击选择论文、笔记、表格等文件</p>
         </div>
       </div>
 
@@ -912,11 +912,11 @@ export function LibraryPanel({
       {isCreatingFolder && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--bg-primary)]/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsCreatingFolder(false)}>
           <div className="liquid-glass-card w-[300px] p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">新建项目</h3>
-            <p className="text-xs text-zinc-500 mb-4">创建文件夹来组织您的资料</p>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">新建文献分组</h3>
+            <p className="text-xs text-zinc-500 mb-4">按课题、实验或组会主题组织文献、网页和笔记来源。</p>
             <input
               type="text"
-              placeholder="项目名称..."
+              placeholder="课题或分组名称..."
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
@@ -943,7 +943,7 @@ export function LibraryPanel({
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
           >
             <Copy className="h-3.5 w-3.5 text-zinc-500" />
-            复制资料简称 [{contextMenu.paper.shortName}]
+            复制文献简称 [{contextMenu.paper.shortName}]
           </button>
           <div className="h-px bg-[var(--border-subtle)] my-1" />
           <button
@@ -951,7 +951,7 @@ export function LibraryPanel({
             onClick={() => {
               const paper = contextMenu.paper;
               const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paper.id));
-              if (ownerFolder && window.confirm(`移除资料「${paper.title}」?`)) {
+              if (ownerFolder && window.confirm(`移除来源「${paper.title}」?`)) {
                 removePaper(ownerFolder.id, paper.id);
               }
               setContextMenu(null);
@@ -959,7 +959,7 @@ export function LibraryPanel({
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            移除资料
+            移除来源
           </button>
         </div>
       )}
