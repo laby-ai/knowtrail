@@ -21,8 +21,8 @@ export function WorkbenchTopBar({
           type="button"
           onClick={onBackHome}
           className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
-          aria-label="返回工作本列表"
-          title="返回工作本列表"
+          aria-label="返回文献本列表"
+          title="返回文献本列表"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -37,7 +37,7 @@ export function WorkbenchTopBar({
             </span>
           </div>
           <p className="truncate text-[11px] leading-4 text-[var(--text-tertiary)]">
-            资料、对话和产物会保存在当前工作本。
+            证据来源、问答和科研产物会保存在当前文献本。
           </p>
         </div>
       </div>
