@@ -22,7 +22,16 @@ import type {
   StudioPromptRequest,
   VirtualClassroomViewer,
   KnowledgeMapViewer,
+  Citation,
 } from '@/types';
+
+export type CitationReveal = Pick<Citation, 'chunkId' | 'chunkIndex' | 'page' | 'excerpt' | 'sourceTitle' | 'paperShortName'>;
+
+export interface RevealPaperRequest {
+  paperId: string;
+  token: number;
+  citation?: CitationReveal;
+}
 
 // 应用状态接口
 interface AppState {
@@ -82,9 +91,9 @@ interface AppContextType extends AppState {
   clearSelection: () => void;
   setActiveFolder: (folderId: string | null) => void;
   getSelectedPapers: () => Paper[];
-  // 让左侧资料库定位并高亮某个资料(引用点击跳转)
-  revealPaperRequest: { paperId: string; token: number } | null;
-  revealPaper: (paperId: string) => void;
+  // 让左侧文献库定位并高亮引用对应的证据来源。
+  revealPaperRequest: RevealPaperRequest | null;
+  revealPaper: (paperId: string, citation?: Citation) => void;
 
   // 编辑器操作
   setEditorMode: (mode: EditorMode) => void;
@@ -301,9 +310,20 @@ export function AppProvider({
     setState(prev => ({ ...prev, selectedPapers: [] }));
   }, []);
 
-  const [revealPaperRequest, setRevealPaperRequest] = useState<{ paperId: string; token: number } | null>(null);
-  const revealPaper = useCallback((paperId: string) => {
-    setRevealPaperRequest({ paperId, token: Date.now() });
+  const [revealPaperRequest, setRevealPaperRequest] = useState<RevealPaperRequest | null>(null);
+  const revealPaper = useCallback((paperId: string, citation?: Citation) => {
+    setRevealPaperRequest({
+      paperId,
+      token: Date.now(),
+      citation: citation ? {
+        chunkId: citation.chunkId,
+        chunkIndex: citation.chunkIndex,
+        page: citation.page,
+        excerpt: citation.excerpt,
+        sourceTitle: citation.sourceTitle,
+        paperShortName: citation.paperShortName,
+      } : undefined,
+    });
   }, []);
 
   const setActiveFolder = useCallback((folderId: string | null) => {

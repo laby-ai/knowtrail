@@ -23,6 +23,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import type { CitationReveal } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
@@ -86,6 +87,19 @@ function fileTypeBadgeStyle(fileType: FileType): string {
     pptx: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
   };
   return map[fileType] || 'bg-[var(--glass-hover)] text-[var(--text-secondary)] border-[var(--border-subtle)]';
+}
+
+function formatCitationReveal(citation: CitationReveal): string {
+  const parts: string[] = [];
+  if (citation.page) parts.push(`第 ${citation.page} 页`);
+  if (typeof citation.chunkIndex === 'number') parts.push(`片段 ${citation.chunkIndex + 1}`);
+  return parts.length > 0 ? parts.join(' · ') : '对应证据片段';
+}
+
+function truncateEvidenceText(text: string, maxLength = 96): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength)}...`;
 }
 
 interface UploadItem {
@@ -226,9 +240,10 @@ export function LibraryPanel({
 
   // Citation click-through: expand the owning folder, scroll to the source and flash it.
   const [flashPaperId, setFlashPaperId] = useState<string | null>(null);
+  const [citationFocus, setCitationFocus] = useState<{ paperId: string; citation: CitationReveal } | null>(null);
   useEffect(() => {
     if (!revealPaperRequest) return;
-    const { paperId } = revealPaperRequest;
+    const { paperId, citation } = revealPaperRequest;
     const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paperId));
     if (!ownerFolder) return;
     setExpandedFolders(prev => new Set([...prev, ownerFolder.id]));
@@ -237,7 +252,11 @@ export function LibraryPanel({
       const el = document.querySelector(`[data-testid="library-paper-${paperId}"]`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setFlashPaperId(paperId);
-      window.setTimeout(() => setFlashPaperId(null), 2200);
+      if (citation) setCitationFocus({ paperId, citation });
+      window.setTimeout(() => {
+        setFlashPaperId(null);
+        setCitationFocus(prev => (prev?.paperId === paperId ? null : prev));
+      }, 3200);
     }, 80);
     return () => window.clearTimeout(timer);
   }, [revealPaperRequest, folders]);
@@ -847,6 +866,26 @@ export function LibraryPanel({
                             </span>
                           )}
                         </div>
+                        {citationFocus?.paperId === paper.id && (
+                          <div
+                            data-testid="library-citation-focus"
+                            className="mt-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-blue-100"
+                          >
+                            <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-300">
+                              <span>证据定位</span>
+                              <span className="text-blue-300/50">·</span>
+                              <span>{formatCitationReveal(citationFocus.citation)}</span>
+                            </div>
+                            {citationFocus.citation.sourceTitle && citationFocus.citation.sourceTitle !== paper.title && (
+                              <p className="mt-1 truncate text-[var(--text-tertiary)]">{citationFocus.citation.sourceTitle}</p>
+                            )}
+                            {citationFocus.citation.excerpt && (
+                              <p className="mt-1 text-[var(--text-secondary)]">
+                                &ldquo;{truncateEvidenceText(citationFocus.citation.excerpt)}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* More button */}

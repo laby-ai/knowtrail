@@ -451,7 +451,7 @@ interface ChatViewProps {
   quickQuestions: QuickQuestion[];
   selectedSourceCount: number;
   totalSourceCount: number;
-  onCitationClick: (paperId: string) => void;
+  onCitationClick: (paperId: string, citation?: Citation) => void;
   onRegenerate: () => void;
 }
 
