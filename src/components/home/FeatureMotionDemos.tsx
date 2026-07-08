@@ -30,9 +30,9 @@ function SkeletonLines({ tone = 'slate' }: { tone?: 'slate' | 'blue' | 'emerald'
 
 function SourcesDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 'detail'>) {
   const sources = [
-    { title: '网页资料', detail: '市场信号', icon: Globe2, className: 'home-demo-source-a border-emerald-100 bg-emerald-50 text-emerald-700' },
-    { title: 'PDF 笔记', detail: '关键段落', icon: FileText, className: 'home-demo-source-b border-blue-100 bg-blue-50 text-blue-700' },
-    { title: '音频片段', detail: '讨论要点', icon: FileAudio, className: 'home-demo-source-c border-violet-100 bg-violet-50 text-violet-700' },
+    { title: '网页文献', detail: '研究背景', icon: Globe2, className: 'home-demo-source-a border-emerald-100 bg-emerald-50 text-emerald-700' },
+    { title: '论文 PDF', detail: '关键段落', icon: FileText, className: 'home-demo-source-b border-blue-100 bg-blue-50 text-blue-700' },
+    { title: '实验记录', detail: '方法要点', icon: FileAudio, className: 'home-demo-source-c border-violet-100 bg-violet-50 text-violet-700' },
   ];
 
   return (
@@ -42,7 +42,7 @@ function SourcesDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | '
 
       <div className="absolute left-[10%] top-[12%] flex items-center gap-2 rounded-full border border-blue-100 bg-white/86 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm backdrop-blur">
         <Sparkles className="h-4 w-4 text-blue-600" />
-        加入来源
+        加入文献库
       </div>
 
       {sources.map((source) => {
@@ -59,7 +59,7 @@ function SourcesDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | '
               </div>
             </div>
             <div className="mt-4">
-              <SkeletonLines tone={source.title === '网页资料' ? 'emerald' : source.title === 'PDF 笔记' ? 'blue' : 'violet'} />
+              <SkeletonLines tone={source.title === '网页文献' ? 'emerald' : source.title === '论文 PDF' ? 'blue' : 'violet'} />
             </div>
           </div>
         );
@@ -70,7 +70,7 @@ function SourcesDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | '
           <BrandMark compact className="h-11 w-11 border-blue-100 shadow-none" />
           <div className="min-w-0">
             <div className="text-sm font-semibold text-slate-950">KnowTrail</div>
-            <div className="truncate text-xs text-slate-500">资料会变成可以追问的工作本。</div>
+            <div className="truncate text-xs text-slate-500">资料会变成可以追问的文献本。</div>
           </div>
           <BookOpen className="ml-auto h-5 w-5 text-blue-600" />
         </div>
@@ -91,9 +91,9 @@ function SourcesDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | '
 
 function GroundedDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 'detail'>) {
   const sourceRows = [
-    { id: '1', title: '来源 1', tone: 'blue' },
-    { id: '2', title: '来源 2', tone: 'emerald' },
-    { id: '3', title: '来源 3', tone: 'violet' },
+    { id: '1', title: '文献 1', tone: 'blue' },
+    { id: '2', title: '文献 2', tone: 'emerald' },
+    { id: '3', title: '记录 3', tone: 'violet' },
   ] as const;
 
   return (
@@ -106,7 +106,7 @@ function GroundedDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 
       <div className="home-grounded-answer absolute bottom-[12%] left-[7%] w-[min(510px,56%)] rounded-[30px] border border-blue-100 bg-white/92 p-6 shadow-[0_24px_72px_rgba(37,99,235,0.14)] backdrop-blur">
         <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-slate-700">
           <span className="home-grounded-dot h-2.5 w-2.5 rounded-full bg-blue-600" />
-          带依据回答
+          证据溯源回答
         </div>
         <div className="space-y-3.5">
           <span className="block h-3 w-[76%] rounded-full bg-slate-200" />
@@ -122,7 +122,7 @@ function GroundedDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 
       </div>
 
       <div className="home-grounded-source-list absolute right-[7%] top-[14%] w-[min(360px,34%)] rounded-[30px] border border-blue-100 bg-white/92 p-5 shadow-[0_24px_72px_rgba(76,96,140,0.14)] backdrop-blur">
-        <div className="mb-5 inline-flex rounded-full border border-slate-200 bg-slate-50 px-5 py-2 text-sm font-medium text-slate-600">来源</div>
+        <div className="mb-5 inline-flex rounded-full border border-slate-200 bg-slate-50 px-5 py-2 text-sm font-medium text-slate-600">证据来源</div>
         <div className="space-y-4">
           {sourceRows.map((source, index) => (
             <div
@@ -159,7 +159,7 @@ function SlidesDemo({ label, detail }: Pick<FeatureMotionDemoProps, 'label' | 'd
             <Presentation className="h-5 w-5" />
           </span>
           <div>
-            <div className="text-sm font-semibold text-slate-950">演示文稿</div>
+            <div className="text-sm font-semibold text-slate-950">组会材料</div>
             <div className="text-xs text-slate-500">图片页与 HTML 原生排版</div>
           </div>
         </div>

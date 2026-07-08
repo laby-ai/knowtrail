@@ -30,16 +30,16 @@ export function scopedStorageKey(base: string, session: AccountAuthSession | nul
 }
 
 export function normalizeNotebookTitle(title: string, index = 0): string {
-  if (title === '默认工作本' || title === 'Untitled notebook') return '未命名工作本';
-  if (title.startsWith('资料工作台') || title.startsWith('Untitled notebook')) return index > 0 ? `未命名工作本 ${index + 1}` : '未命名工作本';
-  return title || '未命名工作本';
+  if (title === '默认工作本' || title === 'Untitled notebook') return '未命名文献本';
+  if (title.startsWith('资料工作台') || title.startsWith('Untitled notebook')) return index > 0 ? `未命名文献本 ${index + 1}` : '未命名文献本';
+  return title || '未命名文献本';
 }
 
 export function createDefaultNotebooks(): WorkspaceNotebook[] {
   return [
     {
       id: 'default-workspace',
-      title: '未命名工作本',
+      title: '未命名文献本',
       sourceCount: 0,
       updatedAt: DEFAULT_WORKSPACE_UPDATED_AT,
       accent: 'from-sky-50 via-white to-cyan-50',
