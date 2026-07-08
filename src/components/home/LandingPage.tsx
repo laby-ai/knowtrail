@@ -2,7 +2,24 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowRight, BookOpen, Menu, Presentation, Quote, Sparkles, Upload } from 'lucide-react';
+import {
+  ArrowRight,
+  BarChart3,
+  BookOpen,
+  ClipboardCheck,
+  Database,
+  FileDown,
+  GitCompare,
+  Menu,
+  PenLine,
+  Presentation,
+  Quote,
+  Sparkles,
+  Table2,
+  Upload,
+  UsersRound,
+  type LucideIcon,
+} from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { BrandMark } from '@/components/brand/BrandMark';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
@@ -54,6 +71,56 @@ const principleSources = [
   { number: '3', title: '实验记录', body: '定位证据段落', badgeClass: 'bg-violet-500', className: 'right-[12%] top-[9%] border-violet-200 bg-violet-50/92 text-violet-700' },
 ];
 
+type ResearchRoadmapGroup = {
+  label: string;
+  title: string;
+  body: string;
+  accentClass: string;
+  items: {
+    icon: LucideIcon;
+    title: string;
+    body: string;
+  }[];
+};
+
+const researchRoadmap: ResearchRoadmapGroup[] = [
+  {
+    label: '已在使用',
+    title: '先把可溯源的文献本做扎实',
+    body: '围绕用户已上传的论文、网页和研究笔记组织问答与产物，不把来源和分析判断混在一起。',
+    accentClass: 'border-blue-100 bg-blue-50/70 text-blue-700',
+    items: [
+      { icon: Quote, title: '证据溯源问答', body: '回答优先基于已选来源，并保留可复核的引用线索。' },
+      { icon: BookOpen, title: '文献本 / 课题本', body: '把文献、笔记和后续产物留在同一个研究上下文。' },
+      { icon: Presentation, title: '组会材料', body: '把一组资料整理成可继续编辑和核对来源的汇报材料。' },
+    ],
+  },
+  {
+    label: '正在强化',
+    title: '把 PDF 建议拆成可验证的小闭环',
+    body: '优先做科研用户最敏感的段落证据、跨文献比较和文献矩阵，而不是一次性堆功能入口。',
+    accentClass: 'border-emerald-100 bg-emerald-50/70 text-emerald-700',
+    items: [
+      { icon: ClipboardCheck, title: '段落级引用定位', body: '让摘要、观点和对比结论能回到具体来源片段。' },
+      { icon: GitCompare, title: '跨文献对比', body: '抽取多篇文献的共识、分歧和研究演化线索。' },
+      { icon: Table2, title: '文献矩阵', body: '按方法、数据、结果和局限组织横向对比表。' },
+    ],
+  },
+  {
+    label: '规划中',
+    title: '重能力只在可交付后开放',
+    body: '涉及外部学术库、代码执行和多人协作的能力会分阶段接入，避免把未上线能力写成承诺。',
+    accentClass: 'border-slate-200 bg-slate-50 text-slate-700',
+    items: [
+      { icon: BarChart3, title: '数据分析与 Results 草稿', body: '面向 CSV/Excel 的统计分析、图表和结果段落仍需独立验证。' },
+      { icon: PenLine, title: '证据驱动写作', body: '引言、章节草稿和每句话来源追踪会在引用体系稳定后推进。' },
+      { icon: Database, title: '学术数据库接入', body: 'DOI、arXiv、PubMed 等检索源属于后续扩展，不伪装为当前已上线。' },
+      { icon: FileDown, title: 'LaTeX / Word 导出', body: '期刊模板与导出格式会在内容结构稳定后接入。' },
+      { icon: UsersRound, title: '课题组协作', body: '共享文献本和多人编辑会作为团队场景单独设计权限与审计。' },
+    ],
+  },
+];
+
 function ResearchPartnerSection() {
   return (
     <section className="mx-auto max-w-7xl px-5 py-20">
@@ -81,6 +148,57 @@ function ResearchPartnerSection() {
             </MotionReveal>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function ResearchRoadmapSection() {
+  return (
+    <section className="mx-auto max-w-7xl px-5 py-20">
+      <MotionReveal>
+        <div className="max-w-3xl">
+          <p className="text-sm font-semibold text-blue-600">科研能力路线图</p>
+          <h2 className="mt-3 text-4xl font-normal tracking-tight text-slate-950 md:text-5xl">
+            功能建议会进入路线图，但不提前冒充已上线
+          </h2>
+          <p className="mt-5 text-lg leading-8 text-slate-600">
+            灵笔会沿着文献调研、实验设计、数据分析、论文写作和投稿准备逐步打磨。当前先把可信来源、证据溯源和研究产物闭环做稳。
+          </p>
+        </div>
+      </MotionReveal>
+
+      <div className="mt-10 grid gap-5 lg:grid-cols-3">
+        {researchRoadmap.map((group, groupIndex) => (
+          <MotionReveal key={group.title} delay={groupIndex * 0.08}>
+            <div className="h-full rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+              <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${group.accentClass}`}>
+                {group.label}
+              </span>
+              <h3 className="mt-5 text-2xl font-normal leading-tight tracking-tight text-slate-950">{group.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-600">{group.body}</p>
+
+              <div className="mt-6 space-y-3">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.title} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm">
+                          <Icon className="h-4.5 w-4.5" />
+                        </span>
+                        <div>
+                          <div className="text-sm font-semibold text-slate-950">{item.title}</div>
+                          <p className="mt-1 text-xs leading-5 text-slate-600">{item.body}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </MotionReveal>
+        ))}
       </div>
     </section>
   );
@@ -270,6 +388,7 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
         <div id="how-it-works">
           <WorkPrincipleSection />
         </div>
+        <ResearchRoadmapSection />
 
         <section className="mx-auto max-w-7xl px-5 pb-24">
           <div className="flex flex-col items-center justify-between gap-5 rounded-[28px] border border-blue-100 bg-white p-7 shadow-sm md:flex-row">
