@@ -7,15 +7,15 @@ export const metadata: Metadata = {
     template: '%s | KnowTrail',
   },
   description:
-    '把文档、网页和笔记放进一个工作本，围绕资料提问、核对来源，并整理成可以带走的内容。',
+    '把论文、网页和研究笔记放进一个文献本，围绕证据来源提问、核对引用线索，并整理成可复用的科研笔记。',
   keywords: [
-    '资料工作台',
-    '资料问答',
+    '文献问答',
+    '证据溯源',
+    '科研笔记',
+    '文献速览',
     'PPT生成',
     '语音合成',
-    '资料理解',
     '知识管理',
-    '知识卡片',
   ],
   authors: [{ name: 'KnowTrail' }],
   generator: 'KnowTrail',
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'KnowTrail',
     description:
-      '围绕个人资料提问、查看来源，并整理成摘要、卡片和讲稿。',
+      '围绕文献和研究笔记提问、查看证据来源，并整理成摘要、卡片和组会材料。',
     url: process.env.NEXT_PUBLIC_DOMAIN || 'https://knowtrail.example.com',
     siteName: 'KnowTrail',
     locale: 'zh_CN',
