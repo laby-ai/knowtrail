@@ -9,7 +9,7 @@ const SOURCE_EXAMPLES = [
     body: [
       '研究主题：近期多模态模型在科学图像理解中的应用进展。',
       '文献要点：先把论文和研究笔记放进同一个文献本，再围绕方法、数据集、指标和局限提出具体问题。',
-      '待追问问题：哪些结论有原文支持？哪些部分还需要补充资料？这组文献适合整理成怎样的组会材料？',
+      '待追问问题：哪些结论有原文支持？哪些部分还需要补充证据来源？这组文献适合整理成怎样的组会材料？',
     ].join('\n\n'),
   },
   {
@@ -23,7 +23,7 @@ const SOURCE_EXAMPLES = [
   },
   {
     title: '论文精读记录',
-    tag: '科研资料',
+    tag: '精读摘要',
     body: [
       '研究问题：这篇论文想解决什么问题，为什么重要？',
       '方法摘要：作者使用了哪些数据、模型或实验设计？对照组和评估指标是什么？',
@@ -61,17 +61,17 @@ export function SourceGuideModal({
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <p className="mb-2 text-xs font-semibold text-[var(--accent-blue)]">添加文献/资料</p>
+            <p className="mb-2 text-xs font-semibold text-[var(--accent-blue)]">添加证据来源</p>
             <h3 className="text-2xl font-semibold tracking-tight text-[var(--text-primary)]">先建立可溯源的文献本</h3>
             <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-              上传论文 PDF、实验记录或粘贴文本后，系统会解析、切片、建立索引。之后问答、精读摘要、资料脉络和组会材料都会复用同一组证据。
+              上传论文 PDF、实验记录或粘贴文本后，系统会解析、切片、建立索引。之后问答、精读摘要、研究脉络和组会材料都会复用同一组证据来源。
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="liquid-glass-btn !p-2"
-            aria-label="关闭添加文献资料"
+            aria-label="关闭添加证据来源"
           >
             <X className="h-4 w-4" />
           </button>
@@ -148,7 +148,7 @@ export function SourceGuideModal({
           <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4">
             <FileText className="mb-4 h-5 w-5 text-violet-400" />
             <span className="block text-sm font-semibold text-[var(--text-primary)]">生成前先看证据</span>
-            <span className="mt-1 block text-xs leading-relaxed text-[var(--text-tertiary)]">看来源片段数、索引状态和选中文献，再继续问答、文献速览或资料脉络。</span>
+            <span className="mt-1 block text-xs leading-relaxed text-[var(--text-tertiary)]">看来源片段数、索引状态和选中文献，再继续问答、文献速览或研究脉络。</span>
           </div>
         </div>
         <button
