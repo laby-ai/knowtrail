@@ -69,7 +69,7 @@ export function EditorPanel() {
 
     const selectedPapers = getSelectedPapers();
     if (selectedPapers.length === 0) {
-      addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: '请先在左侧资料区选择要分析的来源。', timestamp: new Date().toISOString() });
+      addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: '请先在左侧文献库选择要分析的证据来源。', timestamp: new Date().toISOString() });
       return;
     }
 
@@ -225,7 +225,7 @@ export function EditorPanel() {
       addChatMessage({
         id: `msg-${Date.now()}-${++_msgSeq.current}`,
         role: 'assistant',
-        content: '请先在左侧资料区上传或选择来源，再生成资料报告。',
+        content: '请先在左侧文献库上传或选择证据来源，再生成文献综述。',
         timestamp: new Date().toISOString(),
       });
       return;
@@ -233,8 +233,8 @@ export function EditorPanel() {
     setIsGenerating(true);
 
     const reportTitle = selectedPapers.length === 1
-      ? `请为《${selectedPapers[0].title}》生成资料综述报告`
-      : `请为以下 ${selectedPapers.length} 个资料来源生成综合报告`;
+      ? `请为《${selectedPapers[0].title}》生成文献综述`
+      : `请为以下 ${selectedPapers.length} 个证据来源生成跨文献综述`;
 
     const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
     addChatMessage({ id: userMsgId, role: 'user', content: reportTitle, timestamp: new Date().toISOString() });
@@ -344,12 +344,12 @@ export function EditorPanel() {
         : '';
       return `${role}\n\n${message.content}${citations}`;
     });
-    const markdown = `# 资料对话记录\n\n导出时间:${new Date().toLocaleString()}\n\n---\n\n${lines.join('\n\n---\n\n')}\n`;
+    const markdown = `# 文献问答记录\n\n导出时间:${new Date().toLocaleString()}\n\n---\n\n${lines.join('\n\n---\n\n')}\n`;
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `资料对话-${new Date().toISOString().slice(0, 10)}.md`;
+    a.download = `文献问答-${new Date().toISOString().slice(0, 10)}.md`;
     a.click();
     URL.revokeObjectURL(url);
   }, [chatMessages]);
@@ -362,14 +362,14 @@ export function EditorPanel() {
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
               <MessageSquare className="h-4 w-4 text-blue-500" />
-              资料对话
+              文献问答
             </div>
             <p className="mt-1 truncate text-[11px] text-[var(--text-tertiary)]">
               {selectedSourceCount > 0
-                ? `已选择 ${selectedSourceCount} 个来源，可以继续提问或生成报告。`
+                ? `已选择 ${selectedSourceCount} 个证据来源，可以继续追问研究问题或生成综述。`
                 : totalSourceCount > 0
-                  ? `资料库已有 ${totalSourceCount} 个来源，请先选择要分析的资料。`
-                  : '先添加资料，再围绕来源提问。'}
+                  ? `文献库已有 ${totalSourceCount} 个来源，请先选择要分析的证据来源。`
+                  : '先添加文献或实验记录，再围绕证据来源提问。'}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
@@ -402,12 +402,12 @@ export function EditorPanel() {
               data-testid="chat-generate-report"
               onClick={handleGenerateReport}
               disabled={isGenerating || selectedSourceCount === 0}
-              aria-label={selectedSourceCount > 0 ? '生成资料报告' : '先选择资料再生成报告'}
-              title={selectedSourceCount > 0 ? `基于 ${selectedSourceCount} 个已选资料生成报告` : '请先在左侧资料卡片圆点处选择来源'}
+              aria-label={selectedSourceCount > 0 ? '生成文献综述' : '先选择证据来源再生成综述'}
+              title={selectedSourceCount > 0 ? `基于 ${selectedSourceCount} 个已选证据来源生成综述` : '请先在左侧文献卡片圆点处选择来源'}
               className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-blue-500/20 bg-blue-600 px-4 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-500 disabled:border-[var(--border-subtle)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none disabled:cursor-not-allowed"
             >
               {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {selectedSourceCount > 0 ? '生成报告' : '选择资料'}
+              {selectedSourceCount > 0 ? '生成综述' : '选择来源'}
             </button>
           </div>
         </div>
@@ -630,13 +630,13 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
               <div className="w-16 h-16 rounded-2xl liquid-glass-inset flex items-center justify-center mx-auto mb-5">
                 <MessageSquare className="h-7 w-7 text-[var(--text-tertiary)]" />
               </div>
-              <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">开始资料问答</h3>
+              <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">开始文献问答</h3>
               <p className="text-sm text-[var(--text-tertiary)] max-w-xs mx-auto">
                 {hasSelectedSources
-                  ? `已选择 ${selectedSourceCount} 个资料来源，可以开始问答、对比和证据追溯。`
+                  ? `已选择 ${selectedSourceCount} 个证据来源，可以开始问答、对比和证据追溯。`
                   : totalSourceCount > 0
-                    ? `资料库已有 ${totalSourceCount} 个来源，请先点选左侧资料卡片的圆点。`
-                    : '先上传或粘贴资料，再基于来源内容进行问答、对比和证据追溯。'}
+                    ? `文献库已有 ${totalSourceCount} 个来源，请先点选左侧文献卡片的圆点。`
+                    : '先上传论文、实验记录或粘贴研究笔记，再基于证据来源进行问答、对比和证据追溯。'}
               </p>
               <div
                 data-testid="chat-source-readiness"
@@ -647,7 +647,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                 }`}
               >
                 <FileSearch className="h-3.5 w-3.5" />
-                {hasSelectedSources ? `已选 ${selectedSourceCount} 个资料` : '未选择资料'}
+                {hasSelectedSources ? `已选 ${selectedSourceCount} 个证据来源` : '未选择证据来源'}
               </div>
               <div className="mt-8 grid grid-cols-4 gap-3 max-w-2xl mx-auto">
                 {quickQuestions.map((q) => {
@@ -657,7 +657,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                       key={q.label}
                       onClick={() => onQuickQuestion(q.question)}
                       disabled={!hasSelectedSources}
-                      title={hasSelectedSources ? q.question : '请先在左侧选择资料'}
+                      title={hasSelectedSources ? q.question : '请先在左侧选择证据来源'}
                       className="quick-question-button liquid-glass-static flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-3 text-[13px] font-semibold leading-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:!border-[var(--border-hover)] transition-all disabled:cursor-not-allowed disabled:text-[var(--text-secondary)] disabled:hover:text-[var(--text-secondary)]"
                     >
                       <Icon className="h-[19px] w-[19px]" />
@@ -702,7 +702,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
               <div className="liquid-glass-card px-5 py-4">
                 <div className="flex items-center gap-2.5 text-zinc-500">
                   <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
-                  <span className="text-sm">正在分析资料...</span>
+                  <span className="text-sm">正在分析证据来源...</span>
                 </div>
               </div>
             </div>
@@ -779,7 +779,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
       <div className="px-6 pb-5 pt-3 border-t border-[var(--border-subtle)]">
         <div className="max-w-3xl mx-auto flex items-end gap-3">
             <textarea
-              placeholder={hasSelectedSources ? '输入你的问题...(Shift+Enter 换行)' : '先选择左侧资料来源...'}
+              placeholder={hasSelectedSources ? '输入研究问题...(Shift+Enter 换行)' : '先选择左侧证据来源...'}
               value={inputMessage}
               rows={1}
               onChange={(e) => {
@@ -796,7 +796,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                 }
               }}
               disabled={isGenerating || !hasSelectedSources}
-              aria-label="输入资料问题"
+              aria-label="输入研究问题"
               className="liquid-glass-input min-h-[48px] max-h-[140px] flex-1 resize-none rounded-2xl px-4 py-3 !text-[14px] leading-relaxed"
             />
           {isGenerating ? (
