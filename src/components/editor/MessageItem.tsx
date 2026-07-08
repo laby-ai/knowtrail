@@ -30,7 +30,7 @@ export function MessageItem({
   isExpanded: boolean;
   onToggleExpand: () => void;
   isPending?: boolean;
-  onCitationClick?: (paperId: string) => void;
+  onCitationClick?: (paperId: string, citation?: Citation) => void;
   onRegenerate?: () => void;
 }) {
   const isUser = message.role === 'user';
@@ -126,8 +126,8 @@ export function MessageItem({
                       key={idx}
                       role={clickable ? 'button' : undefined}
                       tabIndex={clickable ? 0 : undefined}
-                      onClick={clickable ? () => onCitationClick?.(targetPaperId as string) : undefined}
-                      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onCitationClick?.(targetPaperId as string); } : undefined}
+                      onClick={clickable ? () => onCitationClick?.(targetPaperId as string, citation) : undefined}
+                      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') onCitationClick?.(targetPaperId as string, citation); } : undefined}
                       data-testid="chat-citation-item"
                       className={`group bg-black/5 rounded-xl px-4 py-3 border-l-2 border-[var(--accent-blue)]/40 transition-all ${
                         clickable ? 'cursor-pointer hover:bg-blue-500/10 hover:border-[var(--accent-blue)]' : ''
