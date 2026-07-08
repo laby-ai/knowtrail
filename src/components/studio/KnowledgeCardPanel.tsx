@@ -132,7 +132,7 @@ export function KnowledgeCardPanel() {
 
   const handleGenerate = useCallback(async (options?: { forceRefresh?: boolean }) => {
     if (!hasSelectedPapers) {
-      setError('请先在左侧资料库中选择资料');
+      setError('请先在左侧文献库中选择文献');
       return;
     }
 
@@ -167,12 +167,12 @@ export function KnowledgeCardPanel() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || '生成失败');
+        throw new Error(err.error || '生成文献速览失败');
       }
 
       const data = await res.json();
       const generated: KnowledgeCardData[] = data.cards || [];
-      if (generated.length === 0) throw new Error('未能生成知识卡片');
+      if (generated.length === 0) throw new Error('未能生成文献速览卡片');
 
       setCards(generated);
       setCitations(Array.isArray(data.citations) ? data.citations : []);
@@ -180,7 +180,7 @@ export function KnowledgeCardPanel() {
       setCitationAudit(data.citationAudit || null);
       setCache(data.cache || null);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : '生成知识卡片失败';
+      const msg = e instanceof Error ? e.message : '生成文献速览卡片失败';
       setError(msg);
     } finally {
       setIsGenerating(false);
@@ -238,7 +238,7 @@ export function KnowledgeCardPanel() {
   return (
     <div className="space-y-4">
       <p className="text-[11px] text-[var(--text-tertiary)] leading-relaxed">
-        从选中资料中整理核心概念、关键要点和引用出处，生成可复用的知识卡片。
+        从选中文献中整理研究问题、方法线索、关键发现和引用线索，生成可复用的文献速览卡片。
       </p>
 
       {cards.length === 0 && !isGenerating && (
@@ -246,11 +246,11 @@ export function KnowledgeCardPanel() {
           onClick={() => handleGenerate()}
           disabled={!hasSelectedPapers}
           data-testid="knowledge-generate"
-          title={!hasSelectedPapers ? '请先在左侧选择资料' : '生成知识卡片'}
+          title={!hasSelectedPapers ? '请先在左侧选择文献' : '生成文献速览卡片'}
           className="liquid-glass-btn w-full py-3 text-xs font-semibold flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Sparkles className="h-4 w-4 text-indigo-400" />
-          {!hasSelectedPapers ? '先选择资料' : '生成知识卡片'}
+          {!hasSelectedPapers ? '先选择文献' : '生成文献速览卡片'}
         </button>
       )}
 
@@ -258,10 +258,10 @@ export function KnowledgeCardPanel() {
         <div className="liquid-glass-card p-3 space-y-1.5" data-testid="knowledge-empty-state">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-secondary)]">
             <FileSearch className="h-3.5 w-3.5" />
-            <span>先选择要整理的资料</span>
+            <span>先选择要精读的文献</span>
           </div>
           <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-            在左侧资料库勾选一份或多份资料后，知识卡片会提炼概念、要点和引用来源。
+            在左侧文献库勾选一份或多份文献后，文献速览会提炼研究问题、方法线索、关键发现和引用来源。
           </p>
         </div>
       )}
@@ -269,9 +269,9 @@ export function KnowledgeCardPanel() {
       {isGenerating && (
         <div className="flex flex-col items-center justify-center py-12 gap-3" data-testid="knowledge-loading">
           <Loader2 className="h-8 w-8 text-indigo-400 animate-spin" />
-          <p className="text-xs text-[var(--text-tertiary)]">正在生成知识卡片…</p>
+          <p className="text-xs text-[var(--text-tertiary)]">正在生成文献速览卡片…</p>
           <p className="text-[11px] text-[var(--text-quaternary)] text-center leading-relaxed">
-            正在从选中资料中整理概念、要点和证据来源，请稍候。
+            正在从选中文献中整理研究问题、方法线索、关键发现和证据来源，请稍候。
           </p>
         </div>
       )}
@@ -288,7 +288,7 @@ export function KnowledgeCardPanel() {
                 className="liquid-glass-btn px-3 py-1.5 text-[11px] font-medium"
                 data-testid="knowledge-retry"
               >
-                重新尝试
+                重新精读
               </button>
             )}
           </div>
@@ -300,24 +300,24 @@ export function KnowledgeCardPanel() {
           <div className="liquid-glass-card p-3 space-y-1.5" data-testid="knowledge-card-summary">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-secondary)]">
               <BookOpen className="h-3.5 w-3.5" />
-              <span>知识卡片</span>
+              <span>文献速览卡片</span>
             </div>
             <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-              已生成 {cards.length} 张卡片，引用 {citations.length} 个来源。
+              已生成 {cards.length} 张卡片，引用 {citations.length} 条证据来源。
               {retrieval?.degraded && retrieval.reason ? ` 当前使用降级检索：${retrieval.reason}` : ''}
             </p>
             {cache && (
               <p className="rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-2 text-[11px] leading-relaxed text-emerald-300" data-testid="knowledge-cache-badge">
                 {cache.hit
-                  ? `已从 ${formatCacheAge(cache.storedAt)}的整理结果快速打开；如需纳入最新资料，可点“重新整理资料”。`
-                  : '已更新整理结果；后续打开同一批资料会更快。'}
+                  ? `已从 ${formatCacheAge(cache.storedAt)}的文献速览结果快速打开；如需纳入最新文献，可点“重新精读文献”。`
+                  : '已更新文献速览结果；后续打开同一批文献会更快。'}
               </p>
             )}
           </div>
 
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-secondary)]" data-testid="knowledge-detail-heading">
             <FileText className="h-3.5 w-3.5" />
-            <span>卡片详情</span>
+            <span>速览卡片详情</span>
           </div>
 
           <section
@@ -357,7 +357,7 @@ export function KnowledgeCardPanel() {
 
             <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-3">
               <span className="text-[10px] leading-relaxed text-[var(--text-quaternary)]">
-                可复制当前卡片，用于报告、讲稿或后续提问。
+                可复制当前卡片，用于组会材料、论文笔记或后续追问。
               </span>
               <button
                 onClick={handleCopy}
@@ -397,18 +397,18 @@ export function KnowledgeCardPanel() {
               onClick={handleCopyAll}
               className="liquid-glass-btn py-2 text-[11px] font-medium"
               data-testid="knowledge-copy-all"
-              title="把全部卡片复制为 Markdown,可直接粘贴进笔记"
+              title="把全部速览卡片复制为 Markdown, 可直接粘贴进论文笔记"
             >
               {copiedAll ? <Check className="h-3 w-3 inline mr-1 text-emerald-400" /> : <Copy className="h-3 w-3 inline mr-1" />}
-              {copiedAll ? '已复制全部' : '复制全部卡片'}
+              {copiedAll ? '已复制全部' : '复制全部速览'}
             </button>
             <button
               onClick={() => handleGenerate({ forceRefresh: true })}
               className="liquid-glass-btn py-2 text-[11px] font-medium"
               data-testid="knowledge-refresh"
-              title="重新分析选中资料，并更新知识卡片"
+              title="重新精读选中文献，并更新文献速览卡片"
             >
-              <Sparkles className="h-3 w-3 inline mr-1" /> 重新整理资料
+              <Sparkles className="h-3 w-3 inline mr-1" /> 重新精读文献
             </button>
           </div>
 
@@ -422,14 +422,14 @@ export function KnowledgeCardPanel() {
                 <div
                   data-testid="knowledge-retrieval-badge"
                   className="rounded-lg border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-2 text-[11px] text-cyan-300 leading-relaxed"
-                  title="资料来源匹配状态"
+                  title="文献证据来源匹配状态"
                 >
                   {retrieval.mode === 'persisted-vector'
                     ? '向量索引检索'
                     : retrieval.mode === 'persisted-keyword'
                       ? '持久片段检索'
                       : retrieval.mode === 'request-keyword'
-                        ? '请求内资料兜底'
+                        ? '请求内文献兜底'
                         : retrieval.mode}
                   {' · '}
                   引用 {citations.length}
@@ -446,7 +446,7 @@ export function KnowledgeCardPanel() {
                 <div
                   data-testid="knowledge-citation-audit-badge"
                   className={`rounded-lg border px-2.5 py-2 text-[11px] leading-relaxed ${getCitationAuditClassName(citationAudit)}`}
-                  title="服务端审计知识卡片是否使用了检索证据来源编号"
+                  title="服务端审计文献速览是否使用了检索证据来源编号"
                 >
                   {getCitationAuditLabel(citationAudit)}
                   {citationAudit.warning && (
@@ -458,7 +458,7 @@ export function KnowledgeCardPanel() {
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)]">
                     <LinkIcon className="h-3 w-3" />
-                    <span>{citations.length} 个引用来源</span>
+                    <span>{citations.length} 条引用线索</span>
                   </div>
                   {citations.slice(0, 3).map((citation, idx) => (
                     <div key={`${citation.sourceId || citation.paperId || idx}-${citation.chunkId || idx}`} className="rounded-lg border-l-2 border-[var(--accent-blue)]/40 bg-black/5 px-3 py-2">
