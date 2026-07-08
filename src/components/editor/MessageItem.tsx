@@ -16,7 +16,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import type { ChatMessage, CitationAuditResult, RetrievalMetadata } from '@/types';
+import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
 
 export function MessageItem({
   message,
@@ -120,6 +120,7 @@ export function MessageItem({
                 {message.citations.map((citation, idx) => {
                   const targetPaperId = citation.paperId || citation.sourceId;
                   const clickable = Boolean(targetPaperId && onCitationClick);
+                  const locator = getCitationLocator(citation);
                   return (
                     <div
                       key={idx}
@@ -131,12 +132,19 @@ export function MessageItem({
                       className={`group bg-black/5 rounded-xl px-4 py-3 border-l-2 border-[var(--accent-blue)]/40 transition-all ${
                         clickable ? 'cursor-pointer hover:bg-blue-500/10 hover:border-[var(--accent-blue)]' : ''
                       }`}
-                      title={clickable ? '在左侧文献库中定位这份来源' : undefined}
+                      title={clickable ? '在左侧文献库中定位这份来源，并核对对应证据片段' : undefined}
                     >
                       <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--accent-blue)] font-semibold mb-1">
-                        <span>
-                          {citation.paperShortName}
-                          {citation.page ? ` · 第 ${citation.page} 页` : ''}
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span>证据 [{idx + 1}]</span>
+                          <span className="text-[var(--text-muted)]">·</span>
+                          <span>{citation.paperShortName}</span>
+                          {locator ? (
+                            <>
+                              <span className="text-[var(--text-muted)]">·</span>
+                              <span data-testid="chat-citation-locator">{locator}</span>
+                            </>
+                          ) : null}
                         </span>
                         {clickable && (
                           <span className="flex shrink-0 items-center gap-0.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
@@ -147,7 +155,11 @@ export function MessageItem({
                       {citation.sourceTitle && (
                         <div className="text-[10px] text-[var(--text-muted)] mb-1">{citation.sourceTitle}</div>
                       )}
-                      {citation.excerpt && <p className="text-[11px] text-[var(--text-secondary)] italic leading-relaxed">&ldquo;{citation.excerpt}&rdquo;</p>}
+                      {citation.excerpt && (
+                        <p className="text-[11px] text-[var(--text-secondary)] italic leading-relaxed">
+                          &ldquo;{citation.excerpt}&rdquo;
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -200,8 +212,8 @@ function SourceStatusLine({
         </span>
       )}
       {citationCount > 0 && (
-        <span className="inline-flex rounded-full bg-transparent px-1 py-1">
-          {citationCount} 个引用
+        <span className="inline-flex rounded-full bg-transparent px-1 py-1" title="每个引用都对应一个可展开的来源片段">
+          精确到 {citationCount} 个证据片段
         </span>
       )}
     </div>
@@ -231,12 +243,19 @@ function getReadableRetrievalLabel(retrieval: RetrievalMetadata) {
 
 function getReadableRetrievalDetail(retrieval: RetrievalMetadata) {
   if (retrieval.mode === 'persisted-vector' && !retrieval.degraded) {
-    return `已从 ${retrieval.vectorIndexedSourceCount || retrieval.persistedSourceCount} 个已索引来源中匹配相关证据片段。`;
+    return `已从 ${retrieval.vectorIndexedSourceCount || retrieval.persistedSourceCount} 个已索引来源中匹配相关证据片段；展开引用可核对页码、片段号和原文摘录。`;
   }
   if (retrieval.degraded) {
-    return '当前先使用已解析的证据片段回答；来源索引完善后，会自动优先使用更精确的语义匹配。';
+    return '当前先使用已解析的证据片段回答；展开引用可核对片段号和原文摘录，来源索引完善后会优先使用更精确的语义匹配。';
   }
-  return `已从 ${retrieval.persistedSourceCount} 个来源中匹配相关证据片段。`;
+  return `已从 ${retrieval.persistedSourceCount} 个来源中匹配相关证据片段；展开引用可核对页码、片段号和原文摘录。`;
+}
+
+function getCitationLocator(citation: Citation) {
+  const parts: string[] = [];
+  if (citation.page) parts.push(`第 ${citation.page} 页`);
+  if (typeof citation.chunkIndex === 'number') parts.push(`片段 ${citation.chunkIndex + 1}`);
+  return parts.join(' · ');
 }
 
 function preprocessReferences(content: string): string {
