@@ -17,7 +17,7 @@ export function FeaturedNotebookStrip({
   return (
     <section className="mx-auto max-w-7xl px-5 py-10" data-testid="notebook-home-featured-strip">
       <div className="mb-5 flex items-end justify-between gap-4">
-        <h2 className="text-2xl font-medium tracking-tight text-slate-950">精选工作本</h2>
+        <h2 className="text-2xl font-medium tracking-tight text-slate-950">精选文献本</h2>
         <span className="hidden h-10 items-center rounded-full border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm sm:inline-flex">
           示例可直接打开
         </span>
@@ -32,7 +32,7 @@ export function FeaturedNotebookStrip({
             className="home-motion-card group min-h-[176px] overflow-hidden rounded-2xl p-5 text-left text-white shadow-[0_18px_44px_rgba(15,23,42,0.12)] transition hover:-translate-y-1 hover:shadow-[0_24px_54px_rgba(15,23,42,0.18)] focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
             style={{ background: item.image }}
             data-testid={`notebook-home-featured-${item.id}`}
-            aria-label={`打开精选工作本 ${item.title}`}
+            aria-label={`打开精选文献本 ${item.title}`}
           >
             <div className="flex items-center gap-2 text-sm font-semibold text-white/92">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/92 text-slate-950">
@@ -61,7 +61,7 @@ export function CreateNotebookCard({ disabled, onCreate }: { disabled: boolean; 
       <span className="flex h-20 w-20 items-center justify-center rounded-full bg-[#eef2ff] text-blue-600">
         <Plus className="h-7 w-7" />
       </span>
-      <span className="mt-8 block text-2xl font-normal tracking-tight text-slate-950">新建工作本</span>
+      <span className="mt-8 block text-2xl font-normal tracking-tight text-slate-950">新建文献本</span>
     </button>
   );
 }

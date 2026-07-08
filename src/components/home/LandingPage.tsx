@@ -24,41 +24,41 @@ type LandingPageProps = {
 const researchFeatures = [
   {
     icon: Upload,
-    title: '加入来源',
-    body: '上传 PDF、网页、音频、文档或笔记。KnowTrail 会整理要点，并把不同主题关联起来。',
+    title: '建立文献库',
+    body: '上传 PDF、网页、音频、文档或研究笔记。KnowTrail 会整理要点、保留出处，并把主题词和证据线索关联起来。',
     variant: 'sources' as FeatureMotionDemoVariant,
-    label: '来源整理',
-    detail: 'PDF、网页、音频和笔记放在同一个工作本里。',
+    label: '文献库整理',
+    detail: 'PDF、网页、音频和研究笔记放在同一个文献本里。',
   },
   {
     icon: Quote,
-    title: '带着依据回答',
-    body: '围绕来源提问。回答会尽量回到原文，并保留可以复核的引用线索。',
+    title: '证据溯源回答',
+    body: '围绕来源提问。回答会回到原文依据，保留可复核的引用线索，区分资料原文与分析判断。',
     variant: 'grounded' as FeatureMotionDemoVariant,
-    label: '带依据回答',
+    label: '证据溯源',
     detail: '每次回答都尽量贴近原始来源。',
   },
   {
     icon: Presentation,
-    title: '生成演示文稿',
-    body: '把一组来源整理成可编辑的演示文稿，图片页与 HTML 原生排版任选，随时回到工作本继续追问。',
+    title: '形成组会材料',
+    body: '把一组文献和实验记录整理成可编辑的汇报材料，图片页与 HTML 原生排版任选，随时回到文献本继续追问。',
     variant: 'slides' as FeatureMotionDemoVariant,
-    label: '演示文稿',
-    detail: '一组资料一键生成可编辑幻灯片。',
+    label: '组会材料',
+    detail: '一组资料一键生成可编辑汇报。',
   },
 ];
 
 const principleSources = [
-  { number: '1', title: '来源摘录', body: '标记关键段落', badgeClass: 'bg-blue-600', className: 'left-[6%] top-[14%] border-blue-200 bg-blue-50/92 text-blue-700' },
+  { number: '1', title: '文献摘录', body: '标记关键段落', badgeClass: 'bg-blue-600', className: 'left-[6%] top-[14%] border-blue-200 bg-blue-50/92 text-blue-700' },
   { number: '2', title: '研究笔记', body: '保留观点与上下文', badgeClass: 'bg-emerald-500', className: 'bottom-[10%] left-[12%] border-emerald-200 bg-emerald-50/92 text-emerald-700' },
-  { number: '3', title: '音频片段', body: '定位相关段落', badgeClass: 'bg-violet-500', className: 'right-[12%] top-[9%] border-violet-200 bg-violet-50/92 text-violet-700' },
+  { number: '3', title: '实验记录', body: '定位证据段落', badgeClass: 'bg-violet-500', className: 'right-[12%] top-[9%] border-violet-200 bg-violet-50/92 text-violet-700' },
 ];
 
 function ResearchPartnerSection() {
   return (
     <section className="mx-auto max-w-7xl px-5 py-20">
       <MotionReveal>
-        <h2 className="text-center text-4xl font-normal tracking-tight text-slate-950 md:text-5xl">从来源到理解</h2>
+        <h2 className="text-center text-4xl font-normal tracking-tight text-slate-950 md:text-5xl">从文献到证据链</h2>
       </MotionReveal>
       <div className="mt-12 space-y-16">
         {researchFeatures.map((feature, index) => {
@@ -92,9 +92,9 @@ function WorkPrincipleSection() {
   return (
     <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-20 lg:grid-cols-[0.72fr_1.28fr]">
       <MotionReveal>
-        <h2 className="text-4xl font-normal tracking-tight text-slate-950 md:text-5xl">工作原理</h2>
+        <h2 className="text-4xl font-normal tracking-tight text-slate-950 md:text-5xl">科研工作流</h2>
         <p className="mt-6 max-w-md text-lg leading-8 text-slate-600">
-          把来源放进一个工作本。提问时，回答会围绕这组来源组织，并保留可复核的依据。
+          把来源放进一个文献本。提问时，回答会围绕这组来源组织，并保留可复核的依据。
         </p>
       </MotionReveal>
 
@@ -132,11 +132,11 @@ function WorkPrincipleSection() {
           >
             <div className="flex items-center justify-between gap-4">
               <div className="rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
-                带依据回答
+                证据溯源回答
               </div>
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                来源已检查
+                引用线索已检查
               </div>
             </div>
             <div className="mt-8 space-y-3">
@@ -146,7 +146,7 @@ function WorkPrincipleSection() {
               <span className="block h-3 w-5/6 rounded-full bg-slate-200" />
             </div>
             <div className="mt-8 flex flex-wrap gap-2">
-              {['来源 1', '来源 2', '来源 3'].map((item, index) => (
+              {['文献 1', '文献 2', '记录 3'].map((item, index) => (
                 <span
                   key={item}
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold ${index === 1 ? 'home-evidence-chip bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}
@@ -165,7 +165,7 @@ function WorkPrincipleSection() {
             <BrandMark compact className="h-10 w-10 border-blue-100 shadow-none" />
             <div>
               <div className="text-sm font-semibold text-slate-950">KnowTrail</div>
-              <div className="text-xs text-slate-500">问题、回答和来源上下文保存在一起。</div>
+              <div className="text-xs text-slate-500">问题、回答和引用依据保存在一起。</div>
             </div>
           </motion.div>
         </div>
@@ -178,7 +178,7 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const opensNotebookDirectly = Boolean(accountSession);
   const accountUrl = opensNotebookDirectly ? NOTEBOOK_HOME_HREF : `/account?next=${ACCOUNT_NOTEBOOK_NEXT}`;
-  const accountCtaText = accountSession ? '进入工作本' : accountStatus?.configured ? '登录后使用' : '试用 KnowTrail';
+  const accountCtaText = accountSession ? '进入文献本' : accountStatus?.configured ? '登录后使用' : '试用 KnowTrail';
   const mobileAccountCtaText = accountSession ? '进入' : accountStatus?.configured ? '登录' : '试用';
   const openNotebookHomeFromLink = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -205,7 +205,7 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
               className="hidden h-11 items-center rounded-full px-4 text-sm font-semibold text-slate-700 transition hover:bg-white/70 md:inline-flex"
               data-testid="nav-open-notebooks"
             >
-              工作本
+              文献本
             </Link>
             <Link
               href={accountUrl}
@@ -233,7 +233,7 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
             <a href="#overview" className="rounded-xl px-4 py-3 hover:bg-blue-50" onClick={() => setMobileMenuOpen(false)}>概览</a>
             <a href="#how-it-works" className="rounded-xl px-4 py-3 hover:bg-blue-50" onClick={() => setMobileMenuOpen(false)}>方案</a>
             <Link href={accountUrl} onClick={(event) => { setMobileMenuOpen(false); accountLinkClick?.(event); }} className="rounded-xl px-4 py-3 hover:bg-blue-50">
-              工作本
+              文献本
             </Link>
           </div>
         )}
@@ -244,10 +244,10 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
           <div className="mx-auto max-w-[1560px] rounded-[34px] bg-white px-5 pb-6 pt-16 shadow-[0_30px_90px_rgba(37,99,235,0.08)] md:px-8 md:pt-28">
             <div className="mx-auto max-w-5xl text-center">
               <h1 className="text-5xl font-normal leading-[1.08] tracking-[-0.03em] text-[#303134] md:text-7xl">
-                了解<span className="bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400 bg-clip-text text-transparent">任何资料</span>
+                读懂<span className="bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400 bg-clip-text text-transparent">每篇文献</span>
               </h1>
               <p className="mx-auto mt-7 max-w-3xl text-xl leading-8 text-slate-600">
-                以你信任的来源为基础，把 PDF、网页、音频和笔记放进一个工作本，用提问、引用和演示文稿继续研究。
+                以你信任的来源为基础，把论文 PDF、网页、音频和研究笔记放进一个文献本，用提问、引用和组会材料继续研究。
               </p>
               <div className="mt-8 flex justify-center">
                 <Link
@@ -256,7 +256,7 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
                   className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-blue-600 px-8 text-lg font-semibold text-white shadow-[0_14px_30px_rgba(37,99,235,0.22)] transition hover:bg-blue-700"
                   data-testid="hero-login-account"
                 >
-                  试用 KnowTrail
+                  开启科研模式
                 </Link>
               </div>
             </div>
@@ -278,8 +278,8 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
                 <Sparkles className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="text-2xl font-normal tracking-tight text-slate-950">从一个工作本开始</h2>
-                <p className="mt-1 text-sm text-slate-600">上传来源、提出问题、保存结果。</p>
+                <h2 className="text-2xl font-normal tracking-tight text-slate-950">从一个文献本开始</h2>
+                <p className="mt-1 text-sm text-slate-600">上传文献、提出研究问题、保存可追溯结果。</p>
               </div>
             </div>
             <Link
@@ -288,7 +288,7 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
               className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
               data-testid="hero-open-notebooks"
             >
-              进入工作本
+              进入文献本
               <BookOpen className="h-4 w-4" />
             </Link>
           </div>

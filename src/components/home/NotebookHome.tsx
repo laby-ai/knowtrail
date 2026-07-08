@@ -116,7 +116,7 @@ export function NotebookHome({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索工作本或资料"
+                  placeholder="搜索文献本或资料"
                   className="h-12 w-[300px] rounded-full border border-slate-200 bg-white pl-12 pr-4 text-sm outline-none transition placeholder:text-slate-500 focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
                   data-testid="notebook-home-search"
                 />
@@ -149,7 +149,7 @@ export function NotebookHome({
               data-testid="notebook-home-create"
             >
               <Plus className="h-4 w-4" />
-              新建
+              新建文献本
             </button>
           </div>
         </div>
@@ -159,8 +159,8 @@ export function NotebookHome({
         <div className="mx-auto max-w-[1440px] px-5 pt-8">
           <div className="mx-auto mb-9 flex w-fit items-center gap-2 rounded-full bg-white p-1 text-sm font-medium text-slate-600">
             <button className="rounded-full bg-[#eef2ff] px-5 py-3 text-slate-900">全部</button>
-            <button className="rounded-full px-5 py-3 hover:bg-slate-50">我的工作本</button>
-            <button className="rounded-full px-5 py-3 hover:bg-slate-50">精选工作本</button>
+            <button className="rounded-full px-5 py-3 hover:bg-slate-50">我的文献本</button>
+            <button className="rounded-full px-5 py-3 hover:bg-slate-50">精选文献本</button>
           </div>
         </div>
 
@@ -168,13 +168,13 @@ export function NotebookHome({
 
         <section className="mx-auto max-w-7xl px-5 py-8">
           <div className="mb-5 flex items-end justify-between gap-4">
-            <h1 className="text-3xl font-normal tracking-tight text-slate-950">最近打开的工作本</h1>
+            <h1 className="text-3xl font-normal tracking-tight text-slate-950">最近打开的文献本</h1>
             <label className="relative w-full max-w-sm lg:hidden">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索工作本"
+                placeholder="搜索文献本"
                 className="h-11 w-full rounded-full border border-slate-200 bg-white pl-11 pr-3 text-sm outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
               />
             </label>
@@ -200,7 +200,7 @@ export function NotebookHome({
           <div className="mx-auto mt-6 flex max-w-7xl items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <div className="flex items-center gap-2">
               <BrandMark compact className="h-7 w-7" />
-              登录后可以继续保存和打开你的工作本。
+              登录后可以继续保存和打开你的文献本。
             </div>
             <Link href={`/account?next=${ACCOUNT_NOTEBOOK_NEXT}`} className="font-semibold underline underline-offset-4">
               去登录
