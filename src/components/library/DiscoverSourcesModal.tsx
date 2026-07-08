@@ -113,7 +113,7 @@ export function DiscoverSourcesModal({
         });
         const data = await res.json();
         if (!res.ok || !data.success) throw new Error(data.error || '抓取失败');
-        const safeTitle = (item.title || data.title || '网络资料').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
+        const safeTitle = (item.title || data.title || '网络文献线索').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
         const header = `来源链接:${item.link}\n${item.date ? `发布时间:${item.date}\n` : ''}${item.authors?.length ? `作者:${item.authors.join('、')}\n` : ''}\n`;
         files.push(new globalThis.File([header + data.text], `${safeTitle}.txt`, { type: 'text/plain' }));
       } catch (err) {
@@ -132,9 +132,9 @@ export function DiscoverSourcesModal({
       }
       // Keep failed items selected so the user can retry just those.
       setSelected(new Set(Object.keys(failures)));
-      setError(`${files.length} 个信源已加入资料库;${Object.keys(failures).length} 个抓取失败,可重试或换一条结果。`);
+      setError(`${files.length} 个文献线索已加入文献库;${Object.keys(failures).length} 个抓取失败,可重试或换一条来源。`);
     } else {
-      setError('所选网页都未能抓取成功,请换几条结果试试。');
+      setError('所选来源都未能抓取成功,请换几条结果试试。');
     }
     setIngestPhase('idle');
   }, [results, selected, ingestPhase, notebookId, onIngestFiles, onClose]);
@@ -150,9 +150,9 @@ export function DiscoverSourcesModal({
           <div className="min-w-0">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
               <Globe2 className="h-4 w-4 text-blue-400" />
-              发现信源
+              发现文献线索
             </h3>
-            <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">搜索网络内容,勾选后一键加入资料库作为可引用来源</p>
+            <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">搜索网页或学术线索,勾选后加入文献库作为可引用来源</p>
           </div>
           <button onClick={onClose} className="rounded-full p-2 text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)]" aria-label="关闭">
             <X className="h-4 w-4" />
@@ -211,11 +211,11 @@ export function DiscoverSourcesModal({
           {isSearching ? (
             <div className="flex flex-col items-center gap-3 py-14 text-[var(--text-tertiary)]">
               <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
-              <span className="text-xs">正在搜索{scope === 'scholar' ? '学术' : '网页'}信源...</span>
+              <span className="text-xs">正在搜索{scope === 'scholar' ? '学术' : '网页'}文献线索...</span>
             </div>
           ) : results.length === 0 ? (
             <div className="py-14 text-center text-xs text-[var(--text-tertiary)]">
-              {searched ? '没有找到相关结果,换个关键词试试。' : '输入主题开始搜索,结果可勾选加入资料库。'}
+              {searched ? '没有找到相关结果,换个关键词试试。' : '输入研究主题开始发现文献线索,结果可勾选加入文献库。'}
             </div>
           ) : (
             results.map(item => {
@@ -277,7 +277,7 @@ export function DiscoverSourcesModal({
               {ingestPhase === 'fetching'
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 : <Plus className="h-3.5 w-3.5" />}
-              {ingestPhase === 'fetching' ? '抓取网页中...' : `添加所选为信源`}
+              {ingestPhase === 'fetching' ? '抓取来源中...' : `加入文献库`}
             </button>
           </div>
         )}
