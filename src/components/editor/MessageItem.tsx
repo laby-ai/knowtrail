@@ -64,7 +64,7 @@ export function MessageItem({
           {showPending ? (
             <div className="flex items-center gap-2.5 text-[var(--text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin text-[var(--accent-blue)]" />
-              <span className="text-sm">正在分析资料...</span>
+              <span className="text-sm">正在分析证据来源...</span>
             </div>
           ) : (
             renderFormattedText(message.content)
@@ -131,7 +131,7 @@ export function MessageItem({
                       className={`group bg-black/5 rounded-xl px-4 py-3 border-l-2 border-[var(--accent-blue)]/40 transition-all ${
                         clickable ? 'cursor-pointer hover:bg-blue-500/10 hover:border-[var(--accent-blue)]' : ''
                       }`}
-                      title={clickable ? '在左侧资料库中定位这份资料' : undefined}
+                      title={clickable ? '在左侧文献库中定位这份来源' : undefined}
                     >
                       <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--accent-blue)] font-semibold mb-1">
                         <span>
@@ -140,7 +140,7 @@ export function MessageItem({
                         </span>
                         {clickable && (
                           <span className="flex shrink-0 items-center gap-0.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
-                            <CornerUpRight className="h-3 w-3" /> 定位资料
+                            <CornerUpRight className="h-3 w-3" /> 定位来源
                           </span>
                         )}
                       </div>
@@ -225,18 +225,18 @@ function getReadableAuditDetail(audit: CitationAuditResult) {
 
 function getReadableRetrievalLabel(retrieval: RetrievalMetadata) {
   if (retrieval.degraded) return '来源可用，索引完善中';
-  if (retrieval.mode === 'persisted-vector') return '已匹配资料索引';
-  return '已匹配资料片段';
+  if (retrieval.mode === 'persisted-vector') return '已匹配证据索引';
+  return '已匹配证据片段';
 }
 
 function getReadableRetrievalDetail(retrieval: RetrievalMetadata) {
   if (retrieval.mode === 'persisted-vector' && !retrieval.degraded) {
-    return `已从 ${retrieval.vectorIndexedSourceCount || retrieval.persistedSourceCount} 个已索引资料中匹配相关片段。`;
+    return `已从 ${retrieval.vectorIndexedSourceCount || retrieval.persistedSourceCount} 个已索引来源中匹配相关证据片段。`;
   }
   if (retrieval.degraded) {
-    return '当前先使用已解析的资料片段回答；资料索引完善后，会自动优先使用更精确的语义匹配。';
+    return '当前先使用已解析的证据片段回答；来源索引完善后，会自动优先使用更精确的语义匹配。';
   }
-  return `已从 ${retrieval.persistedSourceCount} 个资料来源中匹配相关片段。`;
+  return `已从 ${retrieval.persistedSourceCount} 个来源中匹配相关证据片段。`;
 }
 
 function preprocessReferences(content: string): string {
