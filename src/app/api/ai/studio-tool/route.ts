@@ -80,15 +80,36 @@ export async function POST(request: NextRequest) {
       ? Math.min(Math.max(maxTokens, 256), 4096)
       : 1800;
 
+    if (tool.id === 'results' && grounded.citations.length === 0) {
+      return Response.json({
+        success: false,
+        error: '当前资料没有可引用片段，暂时不能生成可追溯的 Results 初稿。',
+        errorType: 'results_citations_unavailable',
+        citations: grounded.citations,
+        retrieval: toRetrievalMetadata(grounded),
+      }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+    }
+
     if (debugRetrievalOnly) {
+      const citationAudit = typeof debugAnswerText === 'string'
+        ? auditCitationMarkers(debugAnswerText, grounded.citations)
+        : undefined;
+      if (tool.id === 'results' && citationAudit && citationAudit.status !== 'pass') {
+        return Response.json({
+          success: false,
+          error: 'Results 初稿未通过引用校验，请重新生成后再使用。',
+          errorType: 'results_citation_audit_failed',
+          citations: grounded.citations,
+          retrieval: toRetrievalMetadata(grounded),
+          citationAudit,
+        }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+      }
       return Response.json({
         success: true,
         citations: grounded.citations,
         retrieval: toRetrievalMetadata(grounded),
         promptContextLength: grounded.promptContext.length,
-        citationAudit: typeof debugAnswerText === 'string'
-          ? auditCitationMarkers(debugAnswerText, grounded.citations)
-          : undefined,
+        citationAudit,
       }, {
         headers: { 'Cache-Control': 'no-store' },
       });
@@ -177,13 +198,27 @@ export async function POST(request: NextRequest) {
       generationPattern: tool.generationPattern,
       resultShape: tool.resultShape,
     };
+    const citationAudit = auditCitationMarkers(markdown, grounded.citations);
+
+    if (tool.id === 'results' && citationAudit.status !== 'pass') {
+      return Response.json({
+        success: false,
+        error: 'Results 初稿未通过引用校验，请重新生成后再使用。',
+        errorType: 'results_citation_audit_failed',
+        artifact,
+        citations: grounded.citations,
+        retrieval: toRetrievalMetadata(grounded),
+        citationAudit,
+        billing,
+      }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+    }
 
     return Response.json({
       success: true,
       artifact,
       citations: grounded.citations,
       retrieval: toRetrievalMetadata(grounded),
-      citationAudit: auditCitationMarkers(markdown, grounded.citations),
+      citationAudit,
       billing,
     }, {
       headers: { 'Cache-Control': 'no-store' },
