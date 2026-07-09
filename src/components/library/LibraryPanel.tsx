@@ -132,7 +132,56 @@ interface IngestionSourceSummary {
 }
 
 interface IngestionSourceDetail extends IngestionSourceSummary {
-  chunks?: Array<{ text?: string }>;
+  chunks?: Array<{
+    id?: string;
+    text?: string;
+    page?: number | null;
+    chunkIndex?: number;
+    paperShortName?: string;
+    sourceTitle?: string;
+  }>;
+}
+
+interface CitationContextSnippet {
+  locator: string;
+  text: string;
+}
+
+type CitationContextState =
+  | { paperId: string; status: 'loading' }
+  | { paperId: string; status: 'ready'; snippet: CitationContextSnippet }
+  | { paperId: string; status: 'missing' }
+  | { paperId: string; status: 'error' };
+
+function normalizeEvidenceText(text?: string): string {
+  return (text || '').replace(/\s+/g, ' ').trim();
+}
+
+function citationChunkLocator(chunk: NonNullable<IngestionSourceDetail['chunks']>[number], citation: CitationReveal): string {
+  const parts: string[] = [];
+  const page = typeof chunk.page === 'number' ? chunk.page : citation.page;
+  const chunkIndex = typeof chunk.chunkIndex === 'number' ? chunk.chunkIndex : citation.chunkIndex;
+  if (page) parts.push(`第 ${page} 页`);
+  if (typeof chunkIndex === 'number') parts.push(`片段 ${chunkIndex + 1}`);
+  return parts.length > 0 ? parts.join(' · ') : '原文片段';
+}
+
+function findCitationContextSnippet(
+  chunks: IngestionSourceDetail['chunks'] | undefined,
+  citation: CitationReveal,
+): CitationContextSnippet | null {
+  if (!chunks || chunks.length === 0) return null;
+  const excerpt = normalizeEvidenceText(citation.excerpt);
+  const matched = chunks.find(chunk => (
+    (citation.chunkId && chunk.id === citation.chunkId) ||
+    (typeof citation.chunkIndex === 'number' && chunk.chunkIndex === citation.chunkIndex) ||
+    (excerpt && normalizeEvidenceText(chunk.text).includes(excerpt.slice(0, Math.min(excerpt.length, 80))))
+  ));
+  if (!matched?.text) return null;
+  return {
+    locator: citationChunkLocator(matched, citation),
+    text: matched.text,
+  };
 }
 
 function legacyMinerUStatus(mineru?: Paper['mineru']): Paper['mineruStatus'] | undefined {
@@ -241,6 +290,7 @@ export function LibraryPanel({
   // Citation click-through: expand the owning folder, scroll to the source and flash it.
   const [flashPaperId, setFlashPaperId] = useState<string | null>(null);
   const [citationFocus, setCitationFocus] = useState<{ paperId: string; citation: CitationReveal } | null>(null);
+  const [citationContext, setCitationContext] = useState<CitationContextState | null>(null);
   useEffect(() => {
     if (!revealPaperRequest) return;
     const { paperId, citation } = revealPaperRequest;
@@ -248,6 +298,7 @@ export function LibraryPanel({
     if (!ownerFolder) return;
     setExpandedFolders(prev => new Set([...prev, ownerFolder.id]));
     setSearchQuery('');
+    setCitationContext(null);
     const timer = window.setTimeout(() => {
       const el = document.querySelector(`[data-testid="library-paper-${paperId}"]`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -256,10 +307,52 @@ export function LibraryPanel({
       window.setTimeout(() => {
         setFlashPaperId(null);
         setCitationFocus(prev => (prev?.paperId === paperId ? null : prev));
-      }, 3200);
+        setCitationContext(prev => (prev?.paperId === paperId ? null : prev));
+      }, 8000);
     }, 80);
     return () => window.clearTimeout(timer);
   }, [revealPaperRequest, folders]);
+
+  useEffect(() => {
+    if (!citationFocus) {
+      setCitationContext(null);
+      return;
+    }
+    const { paperId, citation } = citationFocus;
+    const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
+    if (accountAuthRequired && !accountHeaders.Authorization) {
+      setCitationContext({ paperId, status: 'missing' });
+      return;
+    }
+
+    let cancelled = false;
+    const loadCitationContext = async () => {
+      try {
+        setCitationContext({ paperId, status: 'loading' });
+        const detailParams = new URLSearchParams({ id: paperId });
+        if (notebookId) detailParams.set('notebookId', notebookId);
+        const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+          cache: 'no-store',
+          headers: accountHeaders,
+        });
+        if (!response.ok) {
+          if (!cancelled) setCitationContext({ paperId, status: 'missing' });
+          return;
+        }
+        const data = await response.json() as { source?: IngestionSourceDetail };
+        const snippet = findCitationContextSnippet(data.source?.chunks, citation);
+        if (cancelled) return;
+        setCitationContext(snippet ? { paperId, status: 'ready', snippet } : { paperId, status: 'missing' });
+      } catch {
+        if (!cancelled) setCitationContext({ paperId, status: 'error' });
+      }
+    };
+
+    void loadCitationContext();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountAuthRequired, accountSession?.token, citationFocus, notebookId]);
 
   const syncIngestionSources = useCallback(async () => {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
@@ -395,7 +488,7 @@ export function LibraryPanel({
       setNewFolderName('');
       setIsCreatingFolder(false);
     }
-  }, [newFolderName, addFolder]);
+  }, [newFolderName, addFolder, setActiveFolder]);
 
   const uploadFiles = useCallback(async (files: File[], targetFolderId: string | null) => {
     if (!files.length) return;
@@ -882,6 +975,34 @@ export function LibraryPanel({
                             {citationFocus.citation.excerpt && (
                               <p className="mt-1 text-[var(--text-secondary)]">
                                 &ldquo;{truncateEvidenceText(citationFocus.citation.excerpt)}&rdquo;
+                              </p>
+                            )}
+                            {citationContext?.paperId === paper.id && citationContext.status === 'loading' && (
+                              <p className="mt-1.5 text-[var(--text-tertiary)]">正在调取来源片段...</p>
+                            )}
+                            {citationContext?.paperId === paper.id && citationContext.status === 'ready' && (
+                              <div
+                                data-testid="library-citation-context"
+                                className="mt-1.5 rounded-md border border-blue-300/15 bg-black/15 px-2 py-1.5"
+                              >
+                                <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-200">
+                                  <span>原文片段</span>
+                                  <span className="text-blue-300/50">·</span>
+                                  <span>{citationContext.snippet.locator}</span>
+                                </div>
+                                <p className="mt-1 text-[var(--text-secondary)]">
+                                  &ldquo;{truncateEvidenceText(citationContext.snippet.text, 180)}&rdquo;
+                                </p>
+                              </div>
+                            )}
+                            {citationContext?.paperId === paper.id && citationContext.status === 'missing' && (
+                              <p className="mt-1.5 text-[var(--text-tertiary)]">
+                                当前卡片已有引用摘录；完整来源片段尚未同步到文献库。
+                              </p>
+                            )}
+                            {citationContext?.paperId === paper.id && citationContext.status === 'error' && (
+                              <p className="mt-1.5 text-[var(--text-tertiary)]">
+                                来源片段读取失败，请稍后重试。
                               </p>
                             )}
                           </div>
