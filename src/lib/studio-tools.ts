@@ -1,4 +1,4 @@
-export type StudioArtifactToolId = 'interactive' | 'quiz' | 'project' | 'seminar' | 'experiment';
+export type StudioArtifactToolId = 'interactive' | 'quiz' | 'project' | 'seminar' | 'experiment' | 'results';
 
 export interface StudioArtifactToolDef {
   id: StudioArtifactToolId;
@@ -60,6 +60,16 @@ export const STUDIO_ARTIFACT_TOOL_DEFS: StudioArtifactToolDef[] = [
     resultShape: ['实验目的', '样本/参数', '观察结果', '异常/偏差', '下一步', '待补证据'],
     prompt:
       '请基于我选中的资料生成一份实验记录草稿。要求：1）按“实验目的、材料/样本、关键参数或步骤、观察结果、异常/偏差、下一步、待补证据”组织；2）每个实验条件、观察和结论边界都要标出资料依据或引用片段；3）把推测、未验证现象和需要补实验的部分单独列出；4）当前只生成可复核的 Markdown 实验记录，不要声称已经生成统计脚本、论文图表、自动数据分析或投稿材料。',
+  },
+  {
+    id: 'results',
+    label: 'Results 初稿',
+    desc: '整理结果、证据和局限边界',
+    actionLabel: '生成 Results 初稿',
+    generationPattern: '把选中资料中的数据观察和引用证据整理成可追溯的 Results 文本草稿，明确结果、依据、局限和待补分析。',
+    resultShape: ['结果概述', '数据/观察', '证据依据', '局限边界', '待补分析'],
+    prompt:
+      '请基于我选中的资料生成一份 Results 初稿。要求：1）按“结果概述、数据/观察、证据依据、局限边界、待补分析”组织；2）每个定量描述、观察和结果判断都要标出资料依据或引用片段；3）严格区分资料中已经报告的结果、当前可支持的解释和仍需补做的分析；4）不补造样本量、效应量、显著性、图表编号或统计结论；5）当前只生成可追溯的 Results 文本草稿，不要声称已经完成统计检验、论文图表生成、Word/LaTeX 导出或投稿。',
   },
 ];
 

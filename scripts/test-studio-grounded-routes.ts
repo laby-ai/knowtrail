@@ -207,6 +207,18 @@ async function main() {
     assert.equal((experimentToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
     assert.equal((experimentToolJson.citationAudit as { status?: string }).status, 'pass');
 
+    const resultsToolResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'results',
+      papers,
+      debugRetrievalOnly: true,
+      debugAnswerText: 'Results 初稿必须区分数据观察、证据依据和局限边界[1]。',
+    }));
+    assert.equal(resultsToolResponse.status, 200);
+    const resultsToolJson = await readJson(resultsToolResponse);
+    assert.equal((resultsToolJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
+    assert.equal((resultsToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
+    assert.equal((resultsToolJson.citationAudit as { status?: string }).status, 'pass');
+
     const accountMock = await startAccountAuthMock();
     try {
       process.env.ACCOUNT_CENTER_API_BASE = accountMock.origin;
@@ -297,6 +309,7 @@ async function main() {
         'studio-tool route builds grounded artifact evidence debug path',
         'seminar material Studio tool builds grounded artifact evidence debug path',
         'experiment record Studio tool builds grounded artifact evidence debug path',
+        'Results draft Studio tool builds grounded artifact evidence debug path',
         'studio-tool route returns 401 when account auth is required and no token is provided',
         'studio-tool route scopes persisted retrieval by ownerMemberId from account token',
         'studio-tool route scopes persisted retrieval by notebookId under the same owner',

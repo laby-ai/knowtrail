@@ -7,6 +7,7 @@ import {
   MousePointer2,
   Presentation,
   ClipboardCheck,
+  FileText,
   FlaskConical,
   GitBranch,
   UsersRound,
@@ -22,7 +23,8 @@ export type StudioTab =
   | 'quiz'
   | 'project'
   | 'seminar'
-  | 'experiment';
+  | 'experiment'
+  | 'results';
 
 export interface StudioNavItem {
   id: StudioTab;
@@ -56,6 +58,7 @@ const STUDIO_TOOL_ICONS: Record<StudioArtifactToolId, ElementType> = {
   project: Layers,
   seminar: UsersRound,
   experiment: FlaskConical,
+  results: FileText,
 };
 
 export const STUDIO_ARTIFACT_TOOLS: StudioToolItem[] = STUDIO_ARTIFACT_TOOL_DEFS.map(tool => ({
