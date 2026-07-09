@@ -24,6 +24,7 @@ const requiredFiles = [
   'README-LINUX.md',
   '.env.production.example',
   '.env.real.local.example',
+  'docs/api-conventions.md',
   'dist/server.js',
   '.next/BUILD_ID',
   'scripts/smoke-real-studio-products.mjs',
@@ -113,6 +114,9 @@ function main() {
   const missingManifestCommands = requiredScripts
     .filter(name => name.startsWith('smoke:') || name === 'audit:pptx-quality')
     .filter(name => !(manifest.realSmokeCommands || []).some(command => command.includes(name)));
+  const missingDocumentationArtifacts = [
+    'docs/api-conventions.md',
+  ].filter(name => !(manifest.documentationArtifacts || []).includes(name));
   const missingReadmeCommands = [
     'pnpm smoke:real-env-preflight',
     'pnpm smoke:real-openai-compatible',
@@ -138,6 +142,7 @@ function main() {
   const ok = missingScripts.length === 0
     && missingFiles.length === 0
     && missingManifestCommands.length === 0
+    && missingDocumentationArtifacts.length === 0
     && missingReadmeCommands.length === 0
     && missingTtsEnv.length === 0
     && forbiddenEntries.length === 0
@@ -156,11 +161,13 @@ function main() {
       '.env.real.local.example includes Doubao AgentPlan TTS contract without secrets',
       'archive excludes .env.real.local, .data, and .logs',
       'packaged files include Studio product and PPTX audit scripts',
+      'packaged files include API conventions docs for release/source parity',
       'packaged tree secret scan has no possible real keys',
     ],
     missingScripts,
     missingFiles,
     missingManifestCommands,
+    missingDocumentationArtifacts,
     missingReadmeCommands,
     missingTtsEnv,
     forbiddenEntries,
