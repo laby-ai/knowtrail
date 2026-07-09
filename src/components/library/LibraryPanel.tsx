@@ -27,7 +27,9 @@ import type { CitationReveal } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
+import { buildDataTablePreviewForPaper } from '@/lib/data-table-preview';
 import { buildSourceMatrixFacets } from '@/lib/source-matrix';
+import type { DataColumnSummary } from '@/lib/data-table-preview';
 import type { SourceMatrixFacet } from '@/lib/source-matrix';
 import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
@@ -56,6 +58,13 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function formatPreviewNumber(value?: number): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-';
+  if (Math.abs(value) >= 100) return value.toFixed(0);
+  if (Math.abs(value) >= 10) return value.toFixed(1);
+  return value.toFixed(2);
 }
 
 function FileTypeIcon({ fileType }: { fileType: FileType }) {
@@ -208,6 +217,12 @@ function buildSourceCitationLeads(chunks: NonNullable<IngestionSourceDetail['chu
       return true;
     })
     .slice(0, 3);
+}
+
+function dataColumnTypeLabel(column: DataColumnSummary): string {
+  if (column.type === 'numeric') return '数值列';
+  if (column.type === 'mixed') return '混合列';
+  return '文本列';
 }
 
 function sourceMatrixEvidenceStatus(paper: Paper): string {
@@ -1386,7 +1401,8 @@ export function LibraryPanel({
                 const chunks = (sourcePreview.source.chunks || [])
                   .filter(chunk => Boolean(chunk.text?.trim()))
                   .slice(0, 12);
-                if (chunks.length === 0) {
+                const dataPreview = buildDataTablePreviewForPaper(sourcePreview.paper);
+                if (chunks.length === 0 && !dataPreview) {
                   return (
                     <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
                       来源详情已找到，但暂未包含可展示的原文片段。
@@ -1405,6 +1421,62 @@ export function LibraryPanel({
                         <p className="mt-1 text-[11px] leading-relaxed text-teal-100/80">
                           {sourcePreviewFocus.excerpt}
                         </p>
+                      </div>
+                    )}
+                    {dataPreview && (
+                      <div
+                        data-testid="library-data-table-preview"
+                        className="rounded-xl border border-teal-400/20 bg-teal-500/10 px-3 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-100">
+                            <FileSpreadsheet className="h-3.5 w-3.5" />
+                            <span>数据速览</span>
+                          </div>
+                          <div className="text-[10px] text-teal-100/65">
+                            {dataPreview.sheetName ? `${dataPreview.sheetName} · ` : ''}
+                            {dataPreview.rowCount} 行 · {dataPreview.columnCount} 列
+                          </div>
+                        </div>
+                        <p className="mt-1 text-[10px] leading-relaxed text-[var(--text-tertiary)]">
+                          基于上传表格文本的本地采样分析，用于确认变量、缺失值和 Results 写作线索；不替代正式统计检验。
+                        </p>
+                        <div className="mt-2 grid gap-1.5">
+                          {dataPreview.columns.slice(0, 6).map(column => (
+                            <div
+                              key={column.name}
+                              className="rounded-lg border border-teal-300/15 bg-black/10 px-2.5 py-2"
+                            >
+                              <div className="flex items-center justify-between gap-2 text-[10px]">
+                                <span className="truncate font-semibold text-teal-100">{column.name}</span>
+                                <span className="shrink-0 text-teal-100/60">{dataColumnTypeLabel(column)}</span>
+                              </div>
+                              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-[var(--text-tertiary)]">
+                                <span>非空 {column.nonEmptyCount}</span>
+                                <span>缺失 {column.missingCount}</span>
+                                {column.type !== 'text' && (
+                                  <>
+                                    <span>均值 {formatPreviewNumber(column.mean)}</span>
+                                    <span>范围 {formatPreviewNumber(column.min)}-{formatPreviewNumber(column.max)}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-2 rounded-lg border border-teal-300/15 bg-teal-950/20 px-2.5 py-2 text-[11px] leading-relaxed text-teal-100/80">
+                          {dataPreview.resultsDraftHint}
+                        </div>
+                        {dataPreview.columnCount > dataPreview.columns.length && (
+                          <p className="mt-1.5 text-[10px] text-[var(--text-tertiary)]">
+                            为保持界面轻量，仅展示前 {dataPreview.columns.length} 列。
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {chunks.length === 0 && (
+                      <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
+                        当前来源暂未包含可展示的原文片段；可先使用数据速览检查表格结构。
                       </div>
                     )}
                     {citationLeads.length > 0 && (
