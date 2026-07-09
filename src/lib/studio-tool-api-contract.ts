@@ -4,11 +4,34 @@ import type { StudioArtifactToolId } from '@/lib/studio-tools';
 
 export const STUDIO_TOOL_NO_STORE_HEADERS = { 'Cache-Control': 'no-store' } as const;
 
+export type StudioToolErrorType =
+  | 'studio_tool_invalid_request'
+  | 'studio_tool_unknown'
+  | 'studio_tool_sources_required'
+  | 'studio_tool_citations_unavailable'
+  | 'results_citations_unavailable'
+  | 'studio_tool_debug_answer_required'
+  | 'studio_tool_citation_audit_failed'
+  | 'results_citation_audit_failed'
+  | 'studio_tool_citation_coverage_failed'
+  | 'account_login_required'
+  | 'invalid_account_session'
+  | 'account_billing_failed'
+  | 'studio_tool_timeout'
+  | 'studio_tool_generation_failed'
+  | (string & {});
+
 export interface StudioToolApiError {
   success: false;
   error: string;
-  errorType: string;
+  errorType: StudioToolErrorType;
   status?: 'failed';
+  artifact?: StudioToolArtifact;
+  citations?: Citation[];
+  retrieval?: RetrievalMetadata | null;
+  citationAudit?: CitationAuditResult;
+  citationCoverage?: CitationSectionCoverageResult;
+  billing?: StudioToolBilling;
 }
 
 export interface StudioToolArtifact {
@@ -22,24 +45,35 @@ export interface StudioToolArtifact {
   resultShape: string[];
 }
 
-export interface StudioToolGenerateSuccess {
-  success: true;
-  artifact: StudioToolArtifact;
+export interface StudioToolEvidencePayload {
   citations: Citation[];
   retrieval: RetrievalMetadata | null;
   citationAudit?: CitationAuditResult;
   citationCoverage?: CitationSectionCoverageResult;
-  billing?: {
-    status: 'settled' | 'settle_failed';
-    estimatedUnits?: number;
-    code?: string;
-  };
+}
+
+export interface StudioToolBilling {
+  status: 'settled' | 'settle_failed';
+  estimatedUnits?: number;
+  code?: string;
+}
+
+export interface StudioToolGenerateSuccess extends StudioToolEvidencePayload {
+  success: true;
+  artifact: StudioToolArtifact;
+  billing?: StudioToolBilling;
+}
+
+export interface StudioToolDebugSuccess extends StudioToolEvidencePayload {
+  success: true;
+  promptContextLength: number;
 }
 
 export type StudioToolGenerateResponse = StudioToolGenerateSuccess | StudioToolApiError;
+export type StudioToolDebugResponse = StudioToolDebugSuccess | StudioToolApiError;
 
 export function studioToolError<T extends Record<string, unknown>>(
-  errorType: string,
+  errorType: StudioToolErrorType,
   error: string,
   httpStatus: number,
   extra?: T,

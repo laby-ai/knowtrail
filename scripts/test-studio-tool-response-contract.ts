@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { NextRequest } from 'next/server';
 import { POST as studioToolPost } from '../src/app/api/ai/studio-tool/route';
+import {
+  studioToolError,
+  studioToolSuccess,
+  type StudioToolDebugResponse,
+  type StudioToolGenerateResponse,
+} from '../src/lib/studio-tool-api-contract';
 
 function jsonRequest(body: unknown) {
   return new NextRequest('http://localhost/api/ai/studio-tool', {
@@ -10,8 +16,8 @@ function jsonRequest(body: unknown) {
   });
 }
 
-async function readJson(response: Response) {
-  return await response.json() as Record<string, unknown>;
+async function readJson<T = Record<string, unknown>>(response: Response) {
+  return await response.json() as T;
 }
 
 function assertNoStore(response: Response) {
@@ -47,12 +53,21 @@ async function main() {
       body: '{',
     });
     const malformed = await studioToolPost(malformedRequest);
-    assert.equal(malformed.status, 500);
+    assert.equal(malformed.status, 400);
     assertNoStore(malformed);
     const malformedJson = await readJson(malformed);
     assert.equal(malformedJson.success, false);
-    assert.equal(malformedJson.errorType, 'studio_tool_generation_failed');
-    assert.equal(typeof malformedJson.error, 'string');
+    assert.equal(malformedJson.errorType, 'studio_tool_invalid_request');
+    assert.equal(malformedJson.error, '请求内容不是有效的 JSON 对象。');
+
+    const nullBody = await studioToolPost(jsonRequest(null));
+    assert.equal(nullBody.status, 400);
+    assertNoStore(nullBody);
+    assert.deepEqual(await readJson(nullBody), {
+      success: false,
+      error: '请求内容不是有效的 JSON 对象。',
+      errorType: 'studio_tool_invalid_request',
+    });
 
     process.env.ACCOUNT_CENTER_REQUIRE_AUTH = 'true';
     const loginRequired = await studioToolPost(jsonRequest({
@@ -86,7 +101,66 @@ async function main() {
     }));
     assert.equal(debugSuccess.status, 200);
     assertNoStore(debugSuccess);
-    assert.equal((await readJson(debugSuccess)).success, true);
+    const debugSuccessJson = await readJson<StudioToolDebugResponse>(debugSuccess);
+    assert.equal(debugSuccessJson.success, true);
+    if (debugSuccessJson.success) {
+      assert.equal(typeof debugSuccessJson.promptContextLength, 'number');
+      assert.ok(!('artifact' in debugSuccessJson));
+    }
+
+    const generatedContractResponse = studioToolSuccess({
+      artifact: {
+        id: 'studio-tool-contract-1',
+        type: 'discussion' as const,
+        notebookId: 'notebook-contract',
+        title: 'Discussion 初稿',
+        markdown: '## 核心发现\n证据支持当前结论[1]。',
+        createdAt: '2026-07-10T00:00:00.000Z',
+        generationPattern: '按证据生成',
+        resultShape: ['核心发现'],
+      },
+      citations: [],
+      retrieval: null,
+      billing: { status: 'settled' as const, estimatedUnits: 1 },
+    });
+    const generatedContract = await readJson<StudioToolGenerateResponse>(generatedContractResponse);
+    assert.equal(generatedContract.success, true);
+    if (generatedContract.success) {
+      assert.equal(generatedContract.artifact.type, 'discussion');
+      assert.deepEqual(generatedContract.citations, []);
+      assert.equal(generatedContract.retrieval, null);
+      assert.equal(generatedContract.billing?.status, 'settled');
+    }
+
+    const timeoutContract = studioToolError(
+      'studio_tool_timeout',
+      '产物生成超时。请减少资料数量或稍后重试。',
+      504,
+    );
+    assert.equal(timeoutContract.status, 504);
+    assertNoStore(timeoutContract);
+    assert.equal((await readJson(timeoutContract)).errorType, 'studio_tool_timeout');
+
+    const billingContract = studioToolError(
+      'quota_reservation_failed',
+      '账号额度预占失败，请检查账号额度或稍后重试。',
+      402,
+      { status: 'failed' },
+    );
+    assert.equal(billingContract.status, 402);
+    assertNoStore(billingContract);
+    const billingContractJson = await readJson(billingContract);
+    assert.equal(billingContractJson.success, false);
+    assert.equal(billingContractJson.status, 'failed');
+
+    const auditContract = studioToolError(
+      'studio_tool_citation_audit_failed',
+      '引用校验失败。',
+      422,
+      { artifact: generatedContract.success ? generatedContract.artifact : undefined, citations: [], retrieval: null },
+    );
+    assert.equal(auditContract.status, 422);
+    assert.equal((await readJson(auditContract)).success, false);
 
     console.log(JSON.stringify({
       ok: true,
@@ -95,8 +169,11 @@ async function main() {
         'missing Studio sources have stable 400 error contract',
         'account login failures retain the compatible 401 contract',
         'evidence failures use the stable 422 contract',
-        'unexpected Studio failure has stable 500 error contract',
+        'malformed and null JSON bodies have a user-safe 400 contract',
         'Studio success response remains backwards compatible and no-store',
+        'debug and generated success response types are distinct',
+        'generated success exposes the complete client-consumed contract',
+        'timeout, billing, and audit failures preserve stable status and metadata contracts',
       ],
     }, null, 2));
   } finally {

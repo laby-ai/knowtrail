@@ -23,24 +23,43 @@ function sanitizeUserFacingArtifact(markdown: string) {
 }
 
 export async function POST(request: NextRequest) {
+  let requestBody: unknown;
   try {
-    const {
-      toolId,
-      papers,
-      aiConfig,
-      maxTokens,
-      debugRetrievalOnly,
-      debugAnswerText,
-      notebookId: rawNotebookId,
-    } = await request.json() as {
-      toolId?: string;
-      papers?: RagSourceInput[];
-      aiConfig?: Partial<RuntimeAIConfig>;
-      maxTokens?: number;
-      debugRetrievalOnly?: boolean;
-      debugAnswerText?: string;
-      notebookId?: string;
-    };
+    requestBody = await request.json();
+  } catch {
+    return studioToolError(
+      'studio_tool_invalid_request',
+      '请求内容不是有效的 JSON 对象。',
+      400,
+    );
+  }
+  if (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody)) {
+    return studioToolError(
+      'studio_tool_invalid_request',
+      '请求内容不是有效的 JSON 对象。',
+      400,
+    );
+  }
+
+  const {
+    toolId,
+    papers,
+    aiConfig,
+    maxTokens,
+    debugRetrievalOnly,
+    debugAnswerText,
+    notebookId: rawNotebookId,
+  } = requestBody as {
+    toolId?: string;
+    papers?: RagSourceInput[];
+    aiConfig?: Partial<RuntimeAIConfig>;
+    maxTokens?: number;
+    debugRetrievalOnly?: boolean;
+    debugAnswerText?: string;
+    notebookId?: string;
+  };
+
+  try {
     const notebookId = normalizeNotebookId(rawNotebookId);
 
     const tool = getStudioArtifactTool(toolId);
@@ -265,7 +284,7 @@ export async function POST(request: NextRequest) {
     const timedOut = error instanceof Error && /abort|timeout|timed out/i.test(error.message);
     const message = timedOut
       ? '产物生成超时。请减少资料数量或稍后重试。'
-      : error instanceof Error ? error.message : '产物生成失败';
+      : '产物生成失败，请稍后重试。';
     return studioToolError(
       timedOut ? 'studio_tool_timeout' : 'studio_tool_generation_failed',
       message,
