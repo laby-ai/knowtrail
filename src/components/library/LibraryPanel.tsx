@@ -147,6 +147,12 @@ interface CitationContextSnippet {
   text: string;
 }
 
+interface SourceCitationLead {
+  id: string;
+  locator: string;
+  text: string;
+}
+
 type CitationContextState =
   | { paperId: string; status: 'loading' }
   | { paperId: string; status: 'ready'; snippet: CitationContextSnippet }
@@ -177,6 +183,27 @@ function sourceChunkLocator(chunk: NonNullable<IngestionSourceDetail['chunks']>[
   if (typeof chunk.page === 'number') parts.push(`第 ${chunk.page} 页`);
   if (typeof chunk.chunkIndex === 'number') parts.push(`片段 ${chunk.chunkIndex + 1}`);
   return parts.length > 0 ? parts.join(' · ') : '来源片段';
+}
+
+function buildSourceCitationLeads(chunks: NonNullable<IngestionSourceDetail['chunks']>[number][]): SourceCitationLead[] {
+  const seen = new Set<string>();
+  return chunks
+    .map((chunk, index) => {
+      const text = normalizeEvidenceText(chunk.text);
+      return text ? {
+        id: chunk.id || `lead-${index}`,
+        locator: sourceChunkLocator(chunk),
+        text,
+      } : null;
+    })
+    .filter((lead): lead is SourceCitationLead => Boolean(lead))
+    .filter((lead) => {
+      const key = lead.text.slice(0, 120);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
 }
 
 function findCitationContextSnippet(
@@ -1192,8 +1219,41 @@ export function LibraryPanel({
                     </div>
                   );
                 }
+                const citationLeads = buildSourceCitationLeads(chunks);
                 return (
                   <div className="space-y-2">
+                    {citationLeads.length > 0 && (
+                      <div
+                        data-testid="library-source-citation-leads"
+                        className="rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-semibold text-blue-200">引用线索</div>
+                          <div className="text-[10px] text-blue-200/65">基于已入库片段</div>
+                        </div>
+                        <p className="mt-1 text-[10px] leading-relaxed text-[var(--text-tertiary)]">
+                          以下候选句只来自当前来源片段，用于写作时回查证据，不替代阅读全文。
+                        </p>
+                        <div className="mt-2 space-y-1.5">
+                          {citationLeads.map((lead, index) => (
+                            <div
+                              key={lead.id}
+                              data-testid="library-source-citation-lead"
+                              className="rounded-lg border border-blue-300/15 bg-black/10 px-2.5 py-2"
+                            >
+                              <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-200">
+                                <span>线索 {index + 1}</span>
+                                <span className="text-blue-300/45">·</span>
+                                <span>{lead.locator}</span>
+                              </div>
+                              <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                                {truncateEvidenceText(lead.text, 180)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-3 text-[11px] text-[var(--text-tertiary)]">
                       <span>已入库 {sourcePreview.source.chunkCount || sourcePreview.source.chunks?.length || chunks.length} 个片段</span>
                       {sourcePreview.source.chunks && sourcePreview.source.chunks.length > chunks.length && (

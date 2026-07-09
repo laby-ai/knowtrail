@@ -254,6 +254,8 @@ async function main() {
     await page.getByTestId('library-paper-studio-evidence-source').click({ button: 'right' });
     await page.getByTestId('library-open-source-detail').click();
     await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源片段[\s\S]*Studio Evidence Source/ }), 'Library source detail panel did not render.');
+    await expectVisible(page.getByTestId('library-source-citation-leads').filter({ hasText: /引用线索[\s\S]*基于已入库片段/ }), 'Library source citation leads did not render.');
+    await expectVisible(page.getByTestId('library-source-citation-lead').filter({ hasText: /线索 1[\s\S]*第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source citation lead did not render source evidence.');
     await expectVisible(page.getByTestId('library-source-detail-chunk').filter({ hasText: /第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source detail chunk did not render source text.');
 
     const bodyText = await page.locator('body').innerText();
@@ -273,6 +275,7 @@ async function main() {
         'central report citation click focuses source evidence in the library',
         'library citation focus renders the matched source chunk context',
         'library source detail panel lists stored source chunks',
+        'library source detail panel renders source-backed citation leads',
         'visible evidence UI does not leak API keys',
       ],
       requests: {
