@@ -8,6 +8,7 @@ import {
   Presentation,
   ClipboardCheck,
   GitBranch,
+  UsersRound,
 } from 'lucide-react';
 import { STUDIO_ARTIFACT_TOOL_DEFS, type StudioArtifactToolId } from '@/lib/studio-tools';
 
@@ -18,7 +19,8 @@ export type StudioTab =
   | 'virtual-classroom'
   | 'interactive'
   | 'quiz'
-  | 'project';
+  | 'project'
+  | 'seminar';
 
 export interface StudioNavItem {
   id: StudioTab;
@@ -50,6 +52,7 @@ const STUDIO_TOOL_ICONS: Record<StudioArtifactToolId, ElementType> = {
   interactive: MousePointer2,
   quiz: ClipboardCheck,
   project: Layers,
+  seminar: UsersRound,
 };
 
 export const STUDIO_ARTIFACT_TOOLS: StudioToolItem[] = STUDIO_ARTIFACT_TOOL_DEFS.map(tool => ({
@@ -64,7 +67,7 @@ export function StudioToolSwitcher({
   activeTab: StudioTab;
   onSelect: (tab: StudioTab) => void;
 }) {
-  const renderNavButton = (item: StudioNavItem) => {
+  const renderNavButton = (item: StudioNavItem | StudioToolItem) => {
     const Icon = item.icon;
     const isActive = activeTab === item.id;
 
@@ -104,6 +107,15 @@ export function StudioToolSwitcher({
       </div>
       <div className="grid grid-cols-2 gap-2">
         {STUDIO_NAV.map(item => renderNavButton(item))}
+      </div>
+      <div className="pt-2">
+        <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-[var(--text-tertiary)]">
+          <span>科研产物</span>
+          <span className="text-[10px] font-medium text-[var(--text-quaternary)]">引用可追溯</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {STUDIO_ARTIFACT_TOOLS.map(item => renderNavButton(item))}
+        </div>
       </div>
     </div>
   );

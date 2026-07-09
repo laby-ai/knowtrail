@@ -1,4 +1,4 @@
-export type StudioArtifactToolId = 'interactive' | 'quiz' | 'project';
+export type StudioArtifactToolId = 'interactive' | 'quiz' | 'project' | 'seminar';
 
 export interface StudioArtifactToolDef {
   id: StudioArtifactToolId;
@@ -40,6 +40,16 @@ export const STUDIO_ARTIFACT_TOOL_DEFS: StudioArtifactToolDef[] = [
     resultShape: ['项目目标', '角色分工', '问题板', '阶段任务', '验收标准'],
     prompt:
       '请把我选中的资料设计成一个项目研习任务。要求：1）输出项目目标、背景情境、角色分工、问题板、阶段任务、风险和验收标准；2）每个任务都要说明来源依据；3）给出适合个人工作台执行的最小行动；4）用 Markdown 分组，不要泛泛而谈。',
+  },
+  {
+    id: 'seminar',
+    label: '组会材料',
+    desc: '生成汇报提纲和讨论问题',
+    actionLabel: '生成组会材料',
+    generationPattern: '把选中资料整理成组会前可检查的汇报草稿，先输出研究问题、证据摘要、方法/数据/结果/局限和讨论问题。',
+    resultShape: ['汇报标题', '研究问题', '证据摘要', '方法/数据/结果/局限', '讨论问题', '待补证据'],
+    prompt:
+      '请基于我选中的资料生成一份组会材料草稿。要求：1）给出一个谨慎的汇报标题和 3 个汇报目标；2）按“研究问题、核心证据、方法/数据、主要结果、局限与待补证据、组会讨论问题”组织；3）每个关键判断都要标出资料依据或引用片段；4）明确哪些内容只是待讨论假设，不能写成已经证实的结论；5）当前只生成 Markdown 草稿，不要声称已经生成 PPT、Word、LaTeX 或投稿材料。',
   },
 ];
 
