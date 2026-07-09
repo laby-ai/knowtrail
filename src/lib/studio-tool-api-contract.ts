@@ -89,8 +89,20 @@ export function studioToolError<T extends Record<string, unknown>>(
   });
 }
 
-export function studioToolSuccess<T extends Record<string, unknown>>(data: T): Response {
+function studioToolSuccess<T extends Record<string, unknown>>(data: T): Response {
   return Response.json({ ...data, success: true }, {
     headers: STUDIO_TOOL_NO_STORE_HEADERS,
   });
+}
+
+export function studioToolGenerateSuccess(
+  data: Omit<StudioToolGenerateSuccess, 'success'>,
+): Response {
+  return studioToolSuccess(data);
+}
+
+export function studioToolDebugSuccess(
+  data: Omit<StudioToolDebugSuccess, 'success'>,
+): Response {
+  return studioToolSuccess(data);
 }

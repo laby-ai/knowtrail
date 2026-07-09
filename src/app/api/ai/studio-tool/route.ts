@@ -8,7 +8,11 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import type { RagSourceInput } from '@/lib/rag';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { getStudioArtifactTool } from '@/lib/studio-tools';
-import { studioToolError, studioToolSuccess } from '@/lib/studio-tool-api-contract';
+import {
+  studioToolDebugSuccess,
+  studioToolError,
+  studioToolGenerateSuccess,
+} from '@/lib/studio-tool-api-contract';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
 import type { RuntimeAIConfig } from '@/types';
 
@@ -147,7 +151,7 @@ export async function POST(request: NextRequest) {
           },
         );
       }
-      return studioToolSuccess({
+      return studioToolDebugSuccess({
         citations: grounded.citations,
         retrieval: toRetrievalMetadata(grounded),
         promptContextLength: grounded.promptContext.length,
@@ -272,7 +276,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return studioToolSuccess({
+    return studioToolGenerateSuccess({
       artifact,
       citations: grounded.citations,
       retrieval: toRetrievalMetadata(grounded),

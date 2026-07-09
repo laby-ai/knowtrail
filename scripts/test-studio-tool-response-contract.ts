@@ -3,7 +3,7 @@ import { NextRequest } from 'next/server';
 import { POST as studioToolPost } from '../src/app/api/ai/studio-tool/route';
 import {
   studioToolError,
-  studioToolSuccess,
+  studioToolGenerateSuccess,
   type StudioToolDebugResponse,
   type StudioToolGenerateResponse,
 } from '../src/lib/studio-tool-api-contract';
@@ -108,7 +108,7 @@ async function main() {
       assert.ok(!('artifact' in debugSuccessJson));
     }
 
-    const generatedContractResponse = studioToolSuccess({
+    const generatedContractResponse = studioToolGenerateSuccess({
       artifact: {
         id: 'studio-tool-contract-1',
         type: 'discussion' as const,
