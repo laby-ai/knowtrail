@@ -104,6 +104,9 @@ for (const academicCitation of [
   '该结果与 Smith et al. [1] 的发现一致。',
   '该结果与既有示例（e.g. Smith, 2024）一致[1]。',
   '该结果与 J. R. Smith 的观察一致[1]。',
+  'Smith, J. [1] 报告了相同趋势。',
+  'Smith J. [1] 报告了相同趋势。',
+  'Smith, J. R. [1] 报告了相同趋势。',
 ]) {
   const academicCoverage = auditCitationSectionCoverage([
     '## 核心发现',
@@ -128,7 +131,7 @@ console.log(JSON.stringify({
     'section citation coverage audits every sentence on the same line',
     'section citation coverage preserves required section scope across nested headings',
     'section citation coverage rejects required sections without substantive claims',
-    'section citation coverage preserves et al., e.g., and author-initial academic prose',
+    'section citation coverage preserves et al., e.g., and surname-first or surname-last author initials',
   ],
   statuses: [pass.status, missing.status, invalid.status, none.status],
 }, null, 2));
