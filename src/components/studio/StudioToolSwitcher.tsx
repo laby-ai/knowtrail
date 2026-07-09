@@ -7,6 +7,7 @@ import {
   MousePointer2,
   Presentation,
   ClipboardCheck,
+  FlaskConical,
   GitBranch,
   UsersRound,
 } from 'lucide-react';
@@ -20,7 +21,8 @@ export type StudioTab =
   | 'interactive'
   | 'quiz'
   | 'project'
-  | 'seminar';
+  | 'seminar'
+  | 'experiment';
 
 export interface StudioNavItem {
   id: StudioTab;
@@ -53,6 +55,7 @@ const STUDIO_TOOL_ICONS: Record<StudioArtifactToolId, ElementType> = {
   quiz: ClipboardCheck,
   project: Layers,
   seminar: UsersRound,
+  experiment: FlaskConical,
 };
 
 export const STUDIO_ARTIFACT_TOOLS: StudioToolItem[] = STUDIO_ARTIFACT_TOOL_DEFS.map(tool => ({

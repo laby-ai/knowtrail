@@ -195,6 +195,18 @@ async function main() {
     assert.equal((seminarToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
     assert.equal((seminarToolJson.citationAudit as { status?: string }).status, 'pass');
 
+    const experimentToolResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'experiment',
+      papers,
+      debugRetrievalOnly: true,
+      debugAnswerText: '实验记录草稿必须标出实验条件、观察结果和证据来源[1]。',
+    }));
+    assert.equal(experimentToolResponse.status, 200);
+    const experimentToolJson = await readJson(experimentToolResponse);
+    assert.equal((experimentToolJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
+    assert.equal((experimentToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
+    assert.equal((experimentToolJson.citationAudit as { status?: string }).status, 'pass');
+
     const accountMock = await startAccountAuthMock();
     try {
       process.env.ACCOUNT_CENTER_API_BASE = accountMock.origin;
@@ -284,6 +296,7 @@ async function main() {
         'ppt-v2 route builds academic evidence outline debug path',
         'studio-tool route builds grounded artifact evidence debug path',
         'seminar material Studio tool builds grounded artifact evidence debug path',
+        'experiment record Studio tool builds grounded artifact evidence debug path',
         'studio-tool route returns 401 when account auth is required and no token is provided',
         'studio-tool route scopes persisted retrieval by ownerMemberId from account token',
         'studio-tool route scopes persisted retrieval by notebookId under the same owner',
