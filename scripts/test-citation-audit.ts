@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { auditCitationMarkers } from '../src/lib/citation-audit';
+import { auditCitationMarkers, auditCitationSectionCoverage } from '../src/lib/citation-audit';
 import type { GroundedCitation } from '../src/lib/rag';
 
 const citations: GroundedCitation[] = [
@@ -44,6 +44,28 @@ const none = auditCitationMarkers('没有检索证据时不强制引用。', [])
 assert.equal(none.status, 'none');
 assert.deepEqual(none.citedNumbers, []);
 
+const sectionCoveragePass = auditCitationSectionCoverage([
+  '## 核心发现',
+  '主要结果支持研究假设[1]。',
+  '## 与既有研究的关系',
+  '该趋势与既有研究一致[2]。',
+  '## 可支持解释',
+  '当前证据支持一种谨慎解释[1]。',
+].join('\n'), ['核心发现', '与既有研究的关系', '可支持解释']);
+assert.equal(sectionCoveragePass.status, 'pass');
+assert.deepEqual(sectionCoveragePass.uncitedClaims, []);
+
+const sectionCoverageMissing = auditCitationSectionCoverage([
+  '## 核心发现',
+  '主要结果支持研究假设[1]。',
+  '## 与既有研究的关系',
+  '该趋势与既有研究一致。',
+  '## 可支持解释',
+  '当前证据支持一种机制解释。',
+].join('\n'), ['核心发现', '与既有研究的关系', '可支持解释']);
+assert.equal(sectionCoverageMissing.status, 'missing-claim-citations');
+assert.deepEqual(sectionCoverageMissing.uncitedClaims.map(item => item.section), ['与既有研究的关系', '可支持解释']);
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
@@ -51,6 +73,8 @@ console.log(JSON.stringify({
     'citation audit flags missing markers when citations exist',
     'citation audit flags invalid marker numbers',
     'citation audit does not require markers without citations',
+    'section citation coverage passes when every claim line is cited',
+    'section citation coverage identifies uncited comparison and interpretation claims',
   ],
   statuses: [pass.status, missing.status, invalid.status, none.status],
 }, null, 2));

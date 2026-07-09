@@ -247,7 +247,14 @@ async function main() {
       toolId: 'discussion',
       papers,
       debugRetrievalOnly: true,
-      debugAnswerText: 'Discussion 初稿必须区分核心发现、可支持解释和研究局限[1]。',
+      debugAnswerText: [
+        '## 核心发现',
+        '主要发现来自已选资料[1]。',
+        '## 与既有研究的关系',
+        '该结果与既有研究形成可追溯比较[1]。',
+        '## 可支持解释',
+        '当前只给出证据范围内的谨慎解释[1]。',
+      ].join('\n'),
     }));
     assert.equal(discussionToolResponse.status, 200);
     const discussionToolJson = await readJson(discussionToolResponse);
@@ -278,6 +285,42 @@ async function main() {
     assert.equal(discussionInvalidMarkersJson.success, false);
     assert.equal(discussionInvalidMarkersJson.errorType, 'studio_tool_citation_audit_failed');
     assert.equal((discussionInvalidMarkersJson.citationAudit as { status?: string }).status, 'invalid-markers');
+
+    const discussionPartialCitationResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'discussion',
+      papers,
+      debugRetrievalOnly: true,
+      debugAnswerText: [
+        '## 核心发现',
+        '主要发现来自已选资料[1]。',
+        '## 与既有研究的关系',
+        '该结果与既有研究一致。',
+        '## 可支持解释',
+        '这可能说明存在新的机制。',
+      ].join('\n'),
+    }));
+    assert.equal(discussionPartialCitationResponse.status, 422);
+    const discussionPartialCitationJson = await readJson(discussionPartialCitationResponse);
+    assert.equal(discussionPartialCitationJson.success, false);
+    assert.equal(discussionPartialCitationJson.errorType, 'studio_tool_citation_coverage_failed');
+    assert.equal((discussionPartialCitationJson.citationCoverage as { status?: string }).status, 'missing-claim-citations');
+
+    const discussionMissingDebugTextResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'discussion',
+      papers,
+      debugRetrievalOnly: true,
+    }));
+    assert.equal(discussionMissingDebugTextResponse.status, 400);
+    assert.equal((await readJson(discussionMissingDebugTextResponse)).errorType, 'studio_tool_debug_answer_required');
+
+    const discussionNoCitationsResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'discussion',
+      papers: [{ id: 'paper-without-content' }],
+      debugRetrievalOnly: true,
+      debugAnswerText: '没有可引用内容。',
+    }));
+    assert.equal(discussionNoCitationsResponse.status, 422);
+    assert.equal((await readJson(discussionNoCitationsResponse)).errorType, 'studio_tool_citations_unavailable');
 
     const accountMock = await startAccountAuthMock();
     try {
@@ -375,6 +418,9 @@ async function main() {
         'Discussion draft Studio tool builds grounded artifact evidence debug path',
         'Discussion draft rejects missing citation markers',
         'Discussion draft rejects invalid citation markers',
+        'Discussion draft rejects partially cited claim sections',
+        'strict Studio tools require debug answer text for citation audits',
+        'Discussion draft rejects source selections without retrievable citations',
         'studio-tool route returns 401 when account auth is required and no token is provided',
         'studio-tool route scopes persisted retrieval by ownerMemberId from account token',
         'studio-tool route scopes persisted retrieval by notebookId under the same owner',

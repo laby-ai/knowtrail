@@ -12,6 +12,73 @@ export interface CitationAuditResult {
   warning?: string;
 }
 
+export interface CitationCoverageClaim {
+  section: string;
+  line: number;
+  text: string;
+}
+
+export interface CitationSectionCoverageResult {
+  status: 'pass' | 'missing-required-sections' | 'missing-claim-citations';
+  requiredSections: string[];
+  missingSections: string[];
+  uncitedClaims: CitationCoverageClaim[];
+}
+
+function normalizeSectionHeading(line: string): string {
+  return line
+    .trim()
+    .replace(/^#{1,6}\s*/, '')
+    .replace(/^\d+(?:\.\d+)*[.)、]\s*/, '')
+    .replace(/^\*\*(.+)\*\*$/, '$1')
+    .replace(/[：:]$/, '')
+    .trim();
+}
+
+export function auditCitationSectionCoverage(
+  answer: string,
+  requiredSections: string[],
+): CitationSectionCoverageResult {
+  const seenSections = new Set<string>();
+  const uncitedClaims: CitationCoverageClaim[] = [];
+  let activeSection: string | undefined;
+
+  for (const [index, rawLine] of answer.split(/\r?\n/).entries()) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const normalizedHeading = normalizeSectionHeading(line);
+    const matchedSection = requiredSections.find(section => normalizedHeading === section);
+    if (matchedSection) {
+      activeSection = matchedSection;
+      seenSections.add(matchedSection);
+      continue;
+    }
+
+    if (/^#{1,6}\s+/.test(line)) {
+      activeSection = undefined;
+      continue;
+    }
+    if (!activeSection) continue;
+
+    const claimText = line.replace(/^[-*+]\s+/, '').replace(/^>\s*/, '').trim();
+    if (claimText.length < 4) continue;
+    if (!/\[\d{1,3}\]/.test(claimText)) {
+      uncitedClaims.push({ section: activeSection, line: index + 1, text: claimText });
+    }
+  }
+
+  const missingSections = requiredSections.filter(section => !seenSections.has(section));
+  return {
+    status: missingSections.length > 0
+      ? 'missing-required-sections'
+      : uncitedClaims.length > 0 ? 'missing-claim-citations' : 'pass',
+    requiredSections,
+    missingSections,
+    uncitedClaims,
+  };
+}
+
 export function auditCitationMarkers(answer: string, citations: GroundedCitation[]): CitationAuditResult {
   const citationCount = citations.length;
   const citedNumbers = Array.from(

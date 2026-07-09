@@ -3,7 +3,7 @@ import { llmStream, SYSTEM_PROMPTS } from '@/lib/ai-service';
 import { reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
-import { auditCitationMarkers } from '@/lib/citation-audit';
+import { auditCitationMarkers, auditCitationSectionCoverage } from '@/lib/citation-audit';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
 import type { RagSourceInput } from '@/lib/rag';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
@@ -91,6 +91,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (debugRetrievalOnly) {
+      if (tool.requiresCitationPass && typeof debugAnswerText !== 'string') {
+        return Response.json({
+          success: false,
+          error: '严格引用工具的调试请求必须提供待审文本。',
+          errorType: 'studio_tool_debug_answer_required',
+        }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+      }
       const citationAudit = typeof debugAnswerText === 'string'
         ? auditCitationMarkers(debugAnswerText, grounded.citations)
         : undefined;
@@ -104,12 +111,27 @@ export async function POST(request: NextRequest) {
           citationAudit,
         }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
       }
+      const citationCoverage = typeof debugAnswerText === 'string' && tool.citationCoverageSections?.length
+        ? auditCitationSectionCoverage(debugAnswerText, tool.citationCoverageSections)
+        : undefined;
+      if (citationCoverage && citationCoverage.status !== 'pass') {
+        return Response.json({
+          success: false,
+          error: `${tool.label}仍有未引用的关键论述，请补齐来源后再使用。`,
+          errorType: 'studio_tool_citation_coverage_failed',
+          citations: grounded.citations,
+          retrieval: toRetrievalMetadata(grounded),
+          citationAudit,
+          citationCoverage,
+        }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+      }
       return Response.json({
         success: true,
         citations: grounded.citations,
         retrieval: toRetrievalMetadata(grounded),
         promptContextLength: grounded.promptContext.length,
         citationAudit,
+        citationCoverage,
       }, {
         headers: { 'Cache-Control': 'no-store' },
       });
@@ -212,6 +234,22 @@ export async function POST(request: NextRequest) {
         billing,
       }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
     }
+    const citationCoverage = tool.citationCoverageSections?.length
+      ? auditCitationSectionCoverage(markdown, tool.citationCoverageSections)
+      : undefined;
+    if (citationCoverage && citationCoverage.status !== 'pass') {
+      return Response.json({
+        success: false,
+        error: `${tool.label}仍有未引用的关键论述，请补齐来源后再使用。`,
+        errorType: 'studio_tool_citation_coverage_failed',
+        artifact,
+        citations: grounded.citations,
+        retrieval: toRetrievalMetadata(grounded),
+        citationAudit,
+        citationCoverage,
+        billing,
+      }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+    }
 
     return Response.json({
       success: true,
@@ -219,6 +257,7 @@ export async function POST(request: NextRequest) {
       citations: grounded.citations,
       retrieval: toRetrievalMetadata(grounded),
       citationAudit,
+      citationCoverage,
       billing,
     }, {
       headers: { 'Cache-Control': 'no-store' },
