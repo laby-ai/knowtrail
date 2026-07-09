@@ -265,7 +265,7 @@ importers:
         specifier: ^2.0.1
         version: 2.0.1(@types/react@19.2.10)(eslint@9.39.2(jiti@2.6.1))(react@19.2.3)(typescript@5.9.3)(webpack@5.104.1(esbuild@0.25.12))
       shadcn:
-        specifier: latest
+        specifier: 3.7.0
         version: 3.7.0(@cfworker/json-schema@4.1.1)(@types/node@20.19.30)(hono@4.11.7)(typescript@5.9.3)
       tailwindcss:
         specifier: ^4
