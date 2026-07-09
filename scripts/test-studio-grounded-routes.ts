@@ -243,6 +243,42 @@ async function main() {
     assert.equal(resultsInvalidMarkersJson.errorType, 'results_citation_audit_failed');
     assert.equal((resultsInvalidMarkersJson.citationAudit as { status?: string }).status, 'invalid-markers');
 
+    const discussionToolResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'discussion',
+      papers,
+      debugRetrievalOnly: true,
+      debugAnswerText: 'Discussion 初稿必须区分核心发现、可支持解释和研究局限[1]。',
+    }));
+    assert.equal(discussionToolResponse.status, 200);
+    const discussionToolJson = await readJson(discussionToolResponse);
+    assert.equal((discussionToolJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
+    assert.equal((discussionToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
+    assert.equal((discussionToolJson.citationAudit as { status?: string }).status, 'pass');
+
+    const discussionMissingMarkersResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'discussion',
+      papers,
+      debugRetrievalOnly: true,
+      debugAnswerText: 'Discussion 初稿缺少来源标记。',
+    }));
+    assert.equal(discussionMissingMarkersResponse.status, 422);
+    const discussionMissingMarkersJson = await readJson(discussionMissingMarkersResponse);
+    assert.equal(discussionMissingMarkersJson.success, false);
+    assert.equal(discussionMissingMarkersJson.errorType, 'studio_tool_citation_audit_failed');
+    assert.equal((discussionMissingMarkersJson.citationAudit as { status?: string }).status, 'missing-markers');
+
+    const discussionInvalidMarkersResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'discussion',
+      papers,
+      debugRetrievalOnly: true,
+      debugAnswerText: 'Discussion 初稿引用了不存在的来源[99]。',
+    }));
+    assert.equal(discussionInvalidMarkersResponse.status, 422);
+    const discussionInvalidMarkersJson = await readJson(discussionInvalidMarkersResponse);
+    assert.equal(discussionInvalidMarkersJson.success, false);
+    assert.equal(discussionInvalidMarkersJson.errorType, 'studio_tool_citation_audit_failed');
+    assert.equal((discussionInvalidMarkersJson.citationAudit as { status?: string }).status, 'invalid-markers');
+
     const accountMock = await startAccountAuthMock();
     try {
       process.env.ACCOUNT_CENTER_API_BASE = accountMock.origin;
@@ -336,6 +372,9 @@ async function main() {
         'Results draft Studio tool builds grounded artifact evidence debug path',
         'Results draft rejects missing citation markers',
         'Results draft rejects invalid citation markers',
+        'Discussion draft Studio tool builds grounded artifact evidence debug path',
+        'Discussion draft rejects missing citation markers',
+        'Discussion draft rejects invalid citation markers',
         'studio-tool route returns 401 when account auth is required and no token is provided',
         'studio-tool route scopes persisted retrieval by ownerMemberId from account token',
         'studio-tool route scopes persisted retrieval by notebookId under the same owner',
