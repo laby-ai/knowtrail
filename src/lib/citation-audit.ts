@@ -19,9 +19,10 @@ export interface CitationCoverageClaim {
 }
 
 export interface CitationSectionCoverageResult {
-  status: 'pass' | 'missing-required-sections' | 'missing-claim-citations';
+  status: 'pass' | 'missing-required-sections' | 'missing-section-claims' | 'missing-claim-citations';
   requiredSections: string[];
   missingSections: string[];
+  emptySections: string[];
   uncitedClaims: CitationCoverageClaim[];
 }
 
@@ -35,46 +36,79 @@ function normalizeSectionHeading(line: string): string {
     .trim();
 }
 
+function parseMarkdownHeading(line: string): { level: number; text: string } | undefined {
+  const match = /^(#{1,6})\s+(.+)$/.exec(line.trim());
+  if (!match) return undefined;
+  return { level: match[1].length, text: normalizeSectionHeading(match[2]) };
+}
+
+function splitSubstantiveClaims(line: string): string[] {
+  const claimText = line
+    .replace(/^[-*+]\s+/, '')
+    .replace(/^\d+[.)、]\s+/, '')
+    .replace(/^>\s*/, '')
+    .trim();
+  if (!claimText) return [];
+
+  return claimText
+    .split(/(?<=[。！？；])|(?<=[.!?;])\s+/)
+    .map(claim => claim.trim())
+    .filter(claim => claim.length >= 4);
+}
+
 export function auditCitationSectionCoverage(
   answer: string,
   requiredSections: string[],
 ): CitationSectionCoverageResult {
   const seenSections = new Set<string>();
+  const claimCounts = new Map<string, number>();
   const uncitedClaims: CitationCoverageClaim[] = [];
   let activeSection: string | undefined;
+  let activeSectionHeadingLevel: number | undefined;
 
   for (const [index, rawLine] of answer.split(/\r?\n/).entries()) {
     const line = rawLine.trim();
     if (!line) continue;
 
-    const normalizedHeading = normalizeSectionHeading(line);
+    const markdownHeading = parseMarkdownHeading(line);
+    const normalizedHeading = markdownHeading?.text ?? normalizeSectionHeading(line);
     const matchedSection = requiredSections.find(section => normalizedHeading === section);
     if (matchedSection) {
       activeSection = matchedSection;
+      activeSectionHeadingLevel = markdownHeading?.level ?? 1;
       seenSections.add(matchedSection);
       continue;
     }
 
-    if (/^#{1,6}\s+/.test(line)) {
-      activeSection = undefined;
+    if (markdownHeading) {
+      if (activeSectionHeadingLevel === undefined || markdownHeading.level <= activeSectionHeadingLevel) {
+        activeSection = undefined;
+        activeSectionHeadingLevel = undefined;
+      }
       continue;
     }
     if (!activeSection) continue;
 
-    const claimText = line.replace(/^[-*+]\s+/, '').replace(/^>\s*/, '').trim();
-    if (claimText.length < 4) continue;
-    if (!/\[\d{1,3}\]/.test(claimText)) {
-      uncitedClaims.push({ section: activeSection, line: index + 1, text: claimText });
+    const claims = splitSubstantiveClaims(line);
+    claimCounts.set(activeSection, (claimCounts.get(activeSection) ?? 0) + claims.length);
+    for (const claim of claims) {
+      if (!/\[\d{1,3}\]/.test(claim)) {
+        uncitedClaims.push({ section: activeSection, line: index + 1, text: claim });
+      }
     }
   }
 
   const missingSections = requiredSections.filter(section => !seenSections.has(section));
+  const emptySections = requiredSections.filter(section => seenSections.has(section) && !claimCounts.get(section));
   return {
     status: missingSections.length > 0
       ? 'missing-required-sections'
-      : uncitedClaims.length > 0 ? 'missing-claim-citations' : 'pass',
+      : emptySections.length > 0
+        ? 'missing-section-claims'
+        : uncitedClaims.length > 0 ? 'missing-claim-citations' : 'pass',
     requiredSections,
     missingSections,
+    emptySections,
     uncitedClaims,
   };
 }

@@ -66,6 +66,40 @@ const sectionCoverageMissing = auditCitationSectionCoverage([
 assert.equal(sectionCoverageMissing.status, 'missing-claim-citations');
 assert.deepEqual(sectionCoverageMissing.uncitedClaims.map(item => item.section), ['与既有研究的关系', '可支持解释']);
 
+const sameLineCoverageMissing = auditCitationSectionCoverage([
+  '## 核心发现',
+  '主要结果支持研究假设[1]。另一项观察仍缺少来源。',
+  '## 与既有研究的关系',
+  '该趋势与既有研究一致[2]。',
+  '## 可支持解释',
+  '当前证据支持一种谨慎解释[1]。',
+].join('\n'), ['核心发现', '与既有研究的关系', '可支持解释']);
+assert.equal(sameLineCoverageMissing.status, 'missing-claim-citations');
+assert.deepEqual(sameLineCoverageMissing.uncitedClaims.map(item => item.text), ['另一项观察仍缺少来源。']);
+
+const nestedHeadingCoverageMissing = auditCitationSectionCoverage([
+  '## 核心发现',
+  '主要结果支持研究假设[1]。',
+  '### 补充观察',
+  '这项补充观察没有来源。',
+  '## 与既有研究的关系',
+  '该趋势与既有研究一致[2]。',
+  '## 可支持解释',
+  '当前证据支持一种谨慎解释[1]。',
+].join('\n'), ['核心发现', '与既有研究的关系', '可支持解释']);
+assert.equal(nestedHeadingCoverageMissing.status, 'missing-claim-citations');
+assert.deepEqual(nestedHeadingCoverageMissing.uncitedClaims.map(item => item.text), ['这项补充观察没有来源。']);
+
+const emptySectionCoverage = auditCitationSectionCoverage([
+  '## 核心发现',
+  '## 与既有研究的关系',
+  '该趋势与既有研究一致[2]。',
+  '## 可支持解释',
+  '当前证据支持一种谨慎解释[1]。',
+].join('\n'), ['核心发现', '与既有研究的关系', '可支持解释']);
+assert.equal(emptySectionCoverage.status, 'missing-section-claims');
+assert.deepEqual(emptySectionCoverage.emptySections, ['核心发现']);
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
@@ -75,6 +109,9 @@ console.log(JSON.stringify({
     'citation audit does not require markers without citations',
     'section citation coverage passes when every claim line is cited',
     'section citation coverage identifies uncited comparison and interpretation claims',
+    'section citation coverage audits every sentence on the same line',
+    'section citation coverage preserves required section scope across nested headings',
+    'section citation coverage rejects required sections without substantive claims',
   ],
   statuses: [pass.status, missing.status, invalid.status, none.status],
 }, null, 2));
