@@ -47,6 +47,17 @@ For new non-streaming JSON endpoints, prefer this target shape:
 
 For existing endpoints, keep backwards compatibility unless a migration is explicitly planned. If an existing route must keep `success`, `ok`, or direct domain objects, document that in the route-specific code or tests.
 
+### Studio tool compatibility contract
+
+`POST /api/ai/studio-tool` keeps its existing client-facing shape while it moves toward a more predictable contract:
+
+- Successful responses include `success: true` plus the existing artifact, citation, retrieval, audit, and billing fields.
+- Error responses include `success: false`, a user-safe `error`, and a stable `errorType`; account and billing errors may retain the legacy `status: "failed"` field.
+- Input errors use `400`, authentication errors use `401`, evidence/audit failures use `422`, unexpected generation failures use `500`, and timeouts use `504`.
+- Every JSON response from this route uses `Cache-Control: no-store` because artifacts, evidence, account state, and billing metadata are user-specific.
+
+This is a backwards-compatible route-level convergence step. It does not mean all KnowTrail APIs already use the target `{ code, msg, data }` shape.
+
 ## Status codes
 
 Use HTTP status codes consistently:
@@ -129,4 +140,3 @@ For each API contract change:
 4. Run `pnpm run lint:build`.
 5. Run `git diff --check`.
 6. Scan the diff for secrets before committing.
-
