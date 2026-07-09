@@ -28,6 +28,7 @@ import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { buildSourceMatrixFacets } from '@/lib/source-matrix';
+import type { SourceMatrixFacet } from '@/lib/source-matrix';
 import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
 import { DiscoverSourcesModal } from './DiscoverSourcesModal';
@@ -166,6 +167,8 @@ type SourcePreviewState =
   | { paper: Paper; status: 'missing' }
   | { paper: Paper; status: 'error' };
 
+type SourceMatrixPreviewFocus = Pick<SourceMatrixFacet, 'key' | 'label' | 'excerpt'>;
+
 function normalizeEvidenceText(text?: string): string {
   return (text || '').replace(/\s+/g, ' ').trim();
 }
@@ -233,6 +236,18 @@ function findCitationContextSnippet(
     locator: citationChunkLocator(matched, citation),
     text: matched.text,
   };
+}
+
+function sourceMatrixFocusMatchesChunk(
+  chunk: NonNullable<IngestionSourceDetail['chunks']>[number],
+  focus: SourceMatrixPreviewFocus | null,
+): boolean {
+  if (!focus?.excerpt || !chunk.text) return false;
+  const chunkText = normalizeEvidenceText(chunk.text);
+  const focusText = normalizeEvidenceText(focus.excerpt).replace(/\.\.\.$/, '');
+  if (!focusText) return false;
+  if (chunkText.includes(focusText)) return true;
+  return chunkText.includes(focusText.slice(0, Math.min(focusText.length, 72)));
 }
 
 function legacyMinerUStatus(mineru?: Paper['mineru']): Paper['mineruStatus'] | undefined {
@@ -326,6 +341,7 @@ export function LibraryPanel({
   const [pastedSourceText, setPastedSourceText] = useState('');
   const [pastedSourceTitle, setPastedSourceTitle] = useState('');
   const [sourcePreview, setSourcePreview] = useState<SourcePreviewState | null>(null);
+  const [sourcePreviewFocus, setSourcePreviewFocus] = useState<SourceMatrixPreviewFocus | null>(null);
   const [isSourceMatrixOpen, setIsSourceMatrixOpen] = useState(false);
   const ingestionSyncInFlightRef = useRef(false);
   const lastIngestionSyncAtRef = useRef(0);
@@ -533,8 +549,9 @@ export function LibraryPanel({
     return () => window.clearInterval(interval);
   }, [folders.length, syncIngestionSources]);
 
-  const openSourcePreview = useCallback(async (paper: Paper) => {
+  const openSourcePreview = useCallback(async (paper: Paper, focus: SourceMatrixPreviewFocus | null = null) => {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
+    setSourcePreviewFocus(focus);
     setSourcePreview({ paper, status: 'loading' });
     if (accountAuthRequired && !accountHeaders.Authorization) {
       setSourcePreview({ paper, status: 'missing' });
@@ -1277,9 +1294,28 @@ export function LibraryPanel({
                                 <div className={`mb-1 text-[10px] font-medium ${facet.extracted ? 'text-emerald-300' : 'text-amber-300'}`}>
                                   {facet.evidenceLabel}
                                 </div>
-                                <p className={`leading-relaxed ${facet.extracted ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'}`}>
-                                  {facet.excerpt || facet.emptyHint}
-                                </p>
+                                {facet.extracted ? (
+                                  <button
+                                    type="button"
+                                    data-testid={`library-source-matrix-${facet.key}-jump`}
+                                    className="block w-full rounded-lg text-left leading-relaxed text-[var(--text-secondary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-300/60"
+                                    title="打开来源片段并核验这条矩阵线索"
+                                    onClick={() => {
+                                      setIsSourceMatrixOpen(false);
+                                      void openSourcePreview(paper, {
+                                        key: facet.key,
+                                        label: facet.label,
+                                        excerpt: facet.excerpt,
+                                      });
+                                    }}
+                                  >
+                                    {facet.excerpt}
+                                  </button>
+                                ) : (
+                                  <p className="leading-relaxed text-[var(--text-tertiary)]">
+                                    {facet.emptyHint}
+                                  </p>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1298,7 +1334,10 @@ export function LibraryPanel({
       {sourcePreview && (
         <div
           className="absolute inset-0 z-[80] flex items-center justify-center bg-[var(--bg-primary)]/65 p-4 backdrop-blur-sm animate-fade-in"
-          onClick={() => setSourcePreview(null)}
+          onClick={() => {
+            setSourcePreview(null);
+            setSourcePreviewFocus(null);
+          }}
         >
           <div
             data-testid="library-source-detail-panel"
@@ -1315,7 +1354,10 @@ export function LibraryPanel({
               </div>
               <button
                 type="button"
-                onClick={() => setSourcePreview(null)}
+                onClick={() => {
+                  setSourcePreview(null);
+                  setSourcePreviewFocus(null);
+                }}
                 className="rounded-lg p-1.5 text-[var(--text-tertiary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]"
                 aria-label="关闭来源片段"
               >
@@ -1354,6 +1396,17 @@ export function LibraryPanel({
                 const citationLeads = buildSourceCitationLeads(chunks);
                 return (
                   <div className="space-y-2">
+                    {sourcePreviewFocus && (
+                      <div
+                        data-testid="library-source-matrix-focus"
+                        className="rounded-xl border border-teal-400/20 bg-teal-500/10 px-3 py-3"
+                      >
+                        <div className="text-xs font-semibold text-teal-100">正在核验：{sourcePreviewFocus.label}</div>
+                        <p className="mt-1 text-[11px] leading-relaxed text-teal-100/80">
+                          {sourcePreviewFocus.excerpt}
+                        </p>
+                      </div>
+                    )}
                     {citationLeads.length > 0 && (
                       <div
                         data-testid="library-source-citation-leads"
@@ -1396,7 +1449,11 @@ export function LibraryPanel({
                       <div
                         key={chunk.id || `${sourcePreview.source.id}-${index}`}
                         data-testid="library-source-detail-chunk"
-                        className="rounded-xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-3 py-2.5"
+                        className={`rounded-xl border px-3 py-2.5 ${
+                          sourceMatrixFocusMatchesChunk(chunk, sourcePreviewFocus)
+                            ? 'border-teal-300/40 bg-teal-500/10'
+                            : 'border-[var(--border-subtle)] bg-[var(--glass-subtle)]'
+                        }`}
                       >
                         <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-300">
                           <span>{sourceChunkLocator(chunk)}</span>
