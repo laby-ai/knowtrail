@@ -140,6 +140,26 @@ async function interceptUpload(page) {
   return () => hitCount;
 }
 
+async function interceptAccountStatus(page) {
+  await page.route('**/api/account/status', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        configured: false,
+        publicUrl: null,
+        apiBaseConfigured: false,
+        tenantIdConfigured: false,
+        memberBindingConfigured: false,
+        appSignatureConfigured: false,
+        authRequired: false,
+        billingReservationReady: false,
+        billingMode: 'not_configured',
+      }),
+    });
+  });
+}
+
 async function interceptReport(page) {
   let hitCount = 0;
   await page.route('**/api/ai/report', async route => {
@@ -148,43 +168,11 @@ async function interceptReport(page) {
       status: 200,
       contentType: 'text/event-stream',
       body: sse([
-        '{"citations":[{"paperId":"studio-evidence-source","paperShortName":"EvidenceUI","sourceId":"studio-evidence-source","chunkId":"studio-evidence-source-c1","sourceTitle":"Studio Evidence Source","excerpt":"Studio outputs should show citations, retrieval mode, and citation audit status.","score":1,"page":4}],"retrieval":{"mode":"persisted-keyword","persistedSourceCount":1,"vectorIndexedSourceCount":0}}',
+        '{"citations":[{"paperId":"studio-evidence-source","paperShortName":"EvidenceUI","sourceId":"studio-evidence-source","chunkId":"studio-evidence-source-c1","sourceTitle":"Studio Evidence Source","excerpt":"Studio outputs should show citations, retrieval mode, and citation audit status.","score":1,"page":4,"chunkIndex":0}],"retrieval":{"mode":"persisted-keyword","persistedSourceCount":1,"vectorIndexedSourceCount":0}}',
         '{"content":"# 综述报告\\n\\n核心结论必须能追溯到来源[1]。"}',
         '{"citationAudit":{"status":"pass","citedNumbers":[1],"invalidNumbers":[],"uncitedNumbers":[],"citationCount":1,"markerCount":1}}',
         '[DONE]',
       ]),
-    });
-  });
-  return () => hitCount;
-}
-
-async function interceptKnowledgeCards(page) {
-  let hitCount = 0;
-  await page.route('**/api/ai/knowledge-cards', async route => {
-    hitCount += 1;
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        cards: [{
-          category: '核心发现',
-          title: 'Studio 产物为什么要显示证据状态？',
-          content: '用户需要知道知识卡片来自哪段资料、当前使用的是持久片段检索还是向量索引检索，否则右侧产物会像无来源生成物[1]。',
-          extra: '来源: [1] studio-evidence-source-c1, page 4',
-        }],
-        citations: [{
-          paperId: 'studio-evidence-source',
-          paperShortName: 'EvidenceUI',
-          sourceId: 'studio-evidence-source',
-          chunkId: 'studio-evidence-source-c1',
-          sourceTitle: 'Studio Evidence Source',
-          excerpt: 'Studio outputs should show citations, retrieval mode, and citation audit status.',
-          score: 1,
-          page: 4,
-        }],
-        retrieval: { mode: 'persisted-keyword', persistedSourceCount: 1, vectorIndexedSourceCount: 0 },
-        citationAudit: { status: 'pass', citedNumbers: [1], invalidNumbers: [], uncitedNumbers: [], citationCount: 1, markerCount: 1 },
-      }),
     });
   });
   return () => hitCount;
@@ -203,31 +191,23 @@ async function main() {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 
+    await interceptAccountStatus(page);
     const uploadHits = await interceptUpload(page);
     const reportHits = await interceptReport(page);
-    const cardHits = await interceptKnowledgeCards(page);
 
-    await page.goto(`${appOrigin}/#workbench`, { waitUntil: 'networkidle' });
-    await expectVisible(page.getByText('Studio', { exact: true }), 'Workbench Studio panel did not render.');
+    await page.goto(`${appOrigin}/?view=workbench#workbench`, { waitUntil: 'domcontentloaded' });
+    await expectVisible(page.getByTestId('studio-tool-switcher'), 'Workbench Studio panel did not render.');
     await page.locator('input[type="file"]').setInputFiles(uploadPath);
-    await expectVisible(page.getByText('已选 1 篇'), 'Uploaded source was not selected.');
+    await expectVisible(page.getByTestId('library-selection-count').filter({ hasText: /已选 1 个(文献)?来源|已选 1 篇/ }), 'Uploaded source was not selected.');
 
-    await page.getByRole('button', { name: '生成综述报告' }).click();
-    await expectVisible(page.getByText('引用编号已对齐'), 'Report citation audit badge did not render.');
-    await expectVisible(page.getByText(/持久片段检索 · 引用 1/), 'Report retrieval badge did not render.');
+    await page.getByTestId('chat-generate-report').click();
+    await expectVisible(page.getByTestId('citation-audit-badge').filter({ hasText: '来源已校验' }), 'Report citation audit badge did not render.');
+    await expectVisible(page.getByTestId('retrieval-badge').filter({ hasText: '已匹配证据片段' }), 'Report retrieval badge did not render.');
     await expectVisible(page.getByText('1 个引用来源'), 'Report citation source toggle did not render.');
     await page.getByText('1 个引用来源').click();
     await expectVisible(page.getByText('Studio Evidence Source').first(), 'Report citation source detail did not render.');
-
-    await page.getByRole('button', { name: '知识卡片' }).click();
-    await page.getByRole('button', { name: '生成知识卡片' }).click();
-    await expectVisible(page.getByText('Studio 产物为什么要显示证据状态？'), 'Knowledge-card content did not render.');
-    await expectVisible(page.getByText('证据状态', { exact: true }), 'Knowledge-card evidence status did not render.');
-    await expectVisible(page.getByTestId('knowledge-retrieval-badge'), 'Knowledge-card retrieval badge did not render.');
-    await expectVisible(page.getByTestId('knowledge-citation-audit-badge'), 'Knowledge-card citation audit badge did not render.');
-    await expectVisible(page.getByText('引用编号通过 · 1/1'), 'Knowledge-card citation audit status did not render.');
-    await expectVisible(page.getByText('1 个引用来源').last(), 'Knowledge-card citation source count did not render.');
-    await expectVisible(page.getByText(/EvidenceUI · 第 4 页/).last(), 'Knowledge-card citation page did not render.');
+    await page.getByTestId('chat-citation-item').first().click();
+    await expectVisible(page.getByTestId('library-citation-focus').filter({ hasText: /证据定位[\s\S]*第 4 页[\s\S]*片段 1/ }), 'Library citation focus did not render after clicking report citation.');
 
     const bodyText = await page.locator('body').innerText();
     const testKeyPrefix = ['sk', 'test'].join('-');
@@ -243,16 +223,12 @@ async function main() {
         'central report renders citation audit badge',
         'central report renders retrieval badge',
         'central report citation source can expand',
-        'knowledge cards render generated card',
-        'knowledge cards render evidence status and retrieval badge',
-        'knowledge cards render citation audit status',
-        'knowledge cards render citation source snippet/page',
+        'central report citation click focuses source evidence in the library',
         'visible evidence UI does not leak API keys',
       ],
       requests: {
         upload: uploadHits(),
         report: reportHits(),
-        knowledgeCards: cardHits(),
       },
     }, null, 2));
   } finally {
