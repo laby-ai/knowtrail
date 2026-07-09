@@ -3,6 +3,7 @@
 import type { ElementType } from 'react';
 import {
   GraduationCap,
+  BookOpen,
   Layers,
   MousePointer2,
   Presentation,
@@ -24,7 +25,8 @@ export type StudioTab =
   | 'project'
   | 'seminar'
   | 'experiment'
-  | 'results';
+  | 'results'
+  | 'discussion';
 
 export interface StudioNavItem {
   id: StudioTab;
@@ -59,6 +61,7 @@ const STUDIO_TOOL_ICONS: Record<StudioArtifactToolId, ElementType> = {
   seminar: UsersRound,
   experiment: FlaskConical,
   results: FileText,
+  discussion: BookOpen,
 };
 
 export const STUDIO_ARTIFACT_TOOLS: StudioToolItem[] = STUDIO_ARTIFACT_TOOL_DEFS.map(tool => ({

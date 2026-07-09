@@ -1,4 +1,4 @@
-export type StudioArtifactToolId = 'interactive' | 'quiz' | 'project' | 'seminar' | 'experiment' | 'results';
+export type StudioArtifactToolId = 'interactive' | 'quiz' | 'project' | 'seminar' | 'experiment' | 'results' | 'discussion';
 
 export interface StudioArtifactToolDef {
   id: StudioArtifactToolId;
@@ -8,6 +8,8 @@ export interface StudioArtifactToolDef {
   generationPattern: string;
   resultShape: string[];
   prompt: string;
+  requiresCitationPass?: boolean;
+  citationCoverageSections?: string[];
 }
 
 export const STUDIO_ARTIFACT_TOOL_DEFS: StudioArtifactToolDef[] = [
@@ -68,8 +70,21 @@ export const STUDIO_ARTIFACT_TOOL_DEFS: StudioArtifactToolDef[] = [
     actionLabel: '生成 Results 初稿',
     generationPattern: '把选中资料中的数据观察和引用证据整理成可追溯的 Results 文本草稿，明确结果、依据、局限和待补分析。',
     resultShape: ['结果概述', '数据/观察', '证据依据', '局限边界', '待补分析'],
+    requiresCitationPass: true,
     prompt:
       '请基于我选中的资料生成一份 Results 初稿。要求：1）按“结果概述、数据/观察、证据依据、局限边界、待补分析”组织；2）每个定量描述、观察和结果判断都要标出资料依据或引用片段；3）严格区分资料中已经报告的结果、当前可支持的解释和仍需补做的分析；4）不补造样本量、效应量、显著性、图表编号或统计结论；5）当前只生成可追溯的 Results 文本草稿，不要声称已经完成统计检验、论文图表生成、Word/LaTeX 导出或投稿。',
+  },
+  {
+    id: 'discussion',
+    label: 'Discussion 初稿',
+    desc: '讨论发现、解释和研究局限',
+    actionLabel: '生成 Discussion 初稿',
+    generationPattern: '把选中资料中的结果证据组织成可追溯的 Discussion 文本草稿，区分核心发现、既有研究关系、可支持解释、局限和后续工作。',
+    resultShape: ['核心发现', '与既有研究的关系', '可支持解释', '局限', '后续工作'],
+    requiresCitationPass: true,
+    citationCoverageSections: ['核心发现', '与既有研究的关系', '可支持解释'],
+    prompt:
+      '请基于我选中的资料生成一份 Discussion 初稿。要求：1）按“核心发现、与既有研究的关系、可支持解释、局限、后续工作”组织；2）每个发现、比较和解释都要标出资料依据或引用片段；3）明确区分资料已支持的结论、合理但待验证的解释和不能下结论的证据缺口；4）不补造因果关系、统计显著性或超出资料范围的机制解释；5）不要推荐或选择具体期刊；6）当前只生成可追溯的 Discussion 文本草稿，不要声称已经完成期刊选择、Word/LaTeX 导出或投稿。',
   },
 ];
 
