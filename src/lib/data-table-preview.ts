@@ -225,7 +225,7 @@ export function buildDataTablePreviewFromText(text: string): DataTablePreview | 
 
 export function buildDataTablePreviewForPaper(paper: Paper): DataTablePreview | null {
   if (paper.fileType !== 'csv' && paper.fileType !== 'xlsx') return null;
-  const text = [paper.rawContent, paper.content, paper.abstract].filter(Boolean).join('\n');
+  const text = paper.rawContent || paper.content || paper.abstract || '';
   if (!text.trim()) return null;
   return buildDataTablePreviewFromText(text);
 }
