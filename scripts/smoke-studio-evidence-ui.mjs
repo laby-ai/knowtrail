@@ -160,6 +160,47 @@ async function interceptAccountStatus(page) {
   });
 }
 
+async function interceptIngestionSources(page) {
+  let hitCount = 0;
+  await page.route('**/api/ingestion/sources**', async route => {
+    hitCount += 1;
+    const url = new URL(route.request().url());
+    const id = url.searchParams.get('id');
+    const source = {
+      id: 'studio-evidence-source',
+      title: 'Studio Evidence Source',
+      shortName: 'EvidenceUI',
+      fileName: 'studio-evidence.txt',
+      fileType: 'txt',
+      fileSize: 240,
+      status: 'succeeded',
+      stages: [{ name: 'chunk', status: 'succeeded' }],
+      chunkCount: 1,
+      tokenEstimate: 18,
+      vectorIndex: { status: 'not_configured', count: 0 },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      chunks: [{
+        id: 'studio-evidence-source-c1',
+        sourceId: 'studio-evidence-source',
+        sourceIndex: 0,
+        chunkIndex: 0,
+        page: 4,
+        paperShortName: 'EvidenceUI',
+        sourceTitle: 'Studio Evidence Source',
+        text: '第 4 页：Studio outputs should show citations, retrieval mode, and citation audit status.',
+        tokenEstimate: 18,
+      }],
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(id === 'studio-evidence-source' ? { source } : { sources: [] }),
+    });
+  });
+  return () => hitCount;
+}
+
 async function interceptReport(page) {
   let hitCount = 0;
   await page.route('**/api/ai/report', async route => {
@@ -192,6 +233,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 
     await interceptAccountStatus(page);
+    const ingestionHits = await interceptIngestionSources(page);
     const uploadHits = await interceptUpload(page);
     const reportHits = await interceptReport(page);
 
@@ -208,6 +250,7 @@ async function main() {
     await expectVisible(page.getByText('Studio Evidence Source').first(), 'Report citation source detail did not render.');
     await page.getByTestId('chat-citation-item').first().click();
     await expectVisible(page.getByTestId('library-citation-focus').filter({ hasText: /证据定位[\s\S]*第 4 页[\s\S]*片段 1/ }), 'Library citation focus did not render after clicking report citation.');
+    await expectVisible(page.getByTestId('library-citation-context').filter({ hasText: /原文片段[\s\S]*第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library citation context did not render source chunk text.');
 
     const bodyText = await page.locator('body').innerText();
     const testKeyPrefix = ['sk', 'test'].join('-');
@@ -224,10 +267,12 @@ async function main() {
         'central report renders retrieval badge',
         'central report citation source can expand',
         'central report citation click focuses source evidence in the library',
+        'library citation focus renders the matched source chunk context',
         'visible evidence UI does not leak API keys',
       ],
       requests: {
         upload: uploadHits(),
+        ingestionSources: ingestionHits(),
         report: reportHits(),
       },
     }, null, 2));
