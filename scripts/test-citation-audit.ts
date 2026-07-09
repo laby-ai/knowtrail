@@ -100,6 +100,22 @@ const emptySectionCoverage = auditCitationSectionCoverage([
 assert.equal(emptySectionCoverage.status, 'missing-section-claims');
 assert.deepEqual(emptySectionCoverage.emptySections, ['核心发现']);
 
+for (const academicCitation of [
+  '该结果与 Smith et al. [1] 的发现一致。',
+  '该结果与既有示例（e.g. Smith, 2024）一致[1]。',
+  '该结果与 J. R. Smith 的观察一致[1]。',
+]) {
+  const academicCoverage = auditCitationSectionCoverage([
+    '## 核心发现',
+    '主要结果支持研究假设[1]。',
+    '## 与既有研究的关系',
+    academicCitation,
+    '## 可支持解释',
+    '当前证据支持一种谨慎解释[1]。',
+  ].join('\n'), ['核心发现', '与既有研究的关系', '可支持解释']);
+  assert.equal(academicCoverage.status, 'pass', `academic citation should not be split: ${academicCitation}`);
+}
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
@@ -112,6 +128,7 @@ console.log(JSON.stringify({
     'section citation coverage audits every sentence on the same line',
     'section citation coverage preserves required section scope across nested headings',
     'section citation coverage rejects required sections without substantive claims',
+    'section citation coverage preserves et al., e.g., and author-initial academic prose',
   ],
   statuses: [pass.status, missing.status, invalid.status, none.status],
 }, null, 2));

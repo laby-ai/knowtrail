@@ -50,9 +50,14 @@ function splitSubstantiveClaims(line: string): string[] {
     .trim();
   if (!claimText) return [];
 
-  return claimText
+  const protectedPeriod = '\uE000';
+  const citationAwareText = claimText
+    .replace(/\b(?:et al|e\.g|i\.e|cf|vs|Fig|Eq|Dr|Prof)\./gi, match => match.replaceAll('.', protectedPeriod))
+    .replace(/\b[A-Z]\.(?=\s*(?:[A-Z]\.\s*)*[A-Z][a-z])/g, match => match.replace('.', protectedPeriod));
+
+  return citationAwareText
     .split(/(?<=[。！？；])|(?<=[.!?;])\s+/)
-    .map(claim => claim.trim())
+    .map(claim => claim.replaceAll(protectedPeriod, '.').trim())
     .filter(claim => claim.length >= 4);
 }
 
