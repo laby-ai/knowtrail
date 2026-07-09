@@ -153,6 +153,12 @@ type CitationContextState =
   | { paperId: string; status: 'missing' }
   | { paperId: string; status: 'error' };
 
+type SourcePreviewState =
+  | { paper: Paper; status: 'loading' }
+  | { paper: Paper; status: 'ready'; source: IngestionSourceDetail }
+  | { paper: Paper; status: 'missing' }
+  | { paper: Paper; status: 'error' };
+
 function normalizeEvidenceText(text?: string): string {
   return (text || '').replace(/\s+/g, ' ').trim();
 }
@@ -164,6 +170,13 @@ function citationChunkLocator(chunk: NonNullable<IngestionSourceDetail['chunks']
   if (page) parts.push(`第 ${page} 页`);
   if (typeof chunkIndex === 'number') parts.push(`片段 ${chunkIndex + 1}`);
   return parts.length > 0 ? parts.join(' · ') : '原文片段';
+}
+
+function sourceChunkLocator(chunk: NonNullable<IngestionSourceDetail['chunks']>[number]): string {
+  const parts: string[] = [];
+  if (typeof chunk.page === 'number') parts.push(`第 ${chunk.page} 页`);
+  if (typeof chunk.chunkIndex === 'number') parts.push(`片段 ${chunk.chunkIndex + 1}`);
+  return parts.length > 0 ? parts.join(' · ') : '来源片段';
 }
 
 function findCitationContextSnippet(
@@ -274,6 +287,7 @@ export function LibraryPanel({
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
   const [pastedSourceText, setPastedSourceText] = useState('');
   const [pastedSourceTitle, setPastedSourceTitle] = useState('');
+  const [sourcePreview, setSourcePreview] = useState<SourcePreviewState | null>(null);
   const ingestionSyncInFlightRef = useRef(false);
   const lastIngestionSyncAtRef = useRef(0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
@@ -479,6 +493,36 @@ export function LibraryPanel({
     }, 15000);
     return () => window.clearInterval(interval);
   }, [folders.length, syncIngestionSources]);
+
+  const openSourcePreview = useCallback(async (paper: Paper) => {
+    const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
+    setSourcePreview({ paper, status: 'loading' });
+    if (accountAuthRequired && !accountHeaders.Authorization) {
+      setSourcePreview({ paper, status: 'missing' });
+      return;
+    }
+
+    try {
+      const detailParams = new URLSearchParams({ id: paper.id });
+      if (notebookId) detailParams.set('notebookId', notebookId);
+      const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+        cache: 'no-store',
+        headers: accountHeaders,
+      });
+      if (!response.ok) {
+        setSourcePreview({ paper, status: 'missing' });
+        return;
+      }
+      const data = await response.json() as { source?: IngestionSourceDetail };
+      if (!data.source) {
+        setSourcePreview({ paper, status: 'missing' });
+        return;
+      }
+      setSourcePreview({ paper, status: 'ready', source: data.source });
+    } catch {
+      setSourcePreview({ paper, status: 'error' });
+    }
+  }, [accountAuthRequired, accountSession?.token, notebookId]);
 
   const handleCreateFolder = useCallback(() => {
     if (newFolderName.trim()) {
@@ -1091,6 +1135,99 @@ export function LibraryPanel({
         </div>
       )}
 
+      {/* Source chunks detail */}
+      {sourcePreview && (
+        <div
+          className="absolute inset-0 z-[80] flex items-center justify-center bg-[var(--bg-primary)]/65 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={() => setSourcePreview(null)}
+        >
+          <div
+            data-testid="library-source-detail-panel"
+            className="liquid-glass-card flex max-h-[82vh] w-full max-w-[420px] flex-col p-0 animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-4 py-3.5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                  <FileText className="h-4 w-4 text-blue-400" />
+                  <span>来源片段</span>
+                </div>
+                <p className="mt-1 truncate text-xs text-[var(--text-secondary)]">{sourcePreview.paper.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSourcePreview(null)}
+                className="rounded-lg p-1.5 text-[var(--text-tertiary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]"
+                aria-label="关闭来源片段"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+              {sourcePreview.status === 'loading' && (
+                <div className="flex items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-3 text-xs text-blue-200">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  正在读取来源片段...
+                </div>
+              )}
+              {sourcePreview.status === 'missing' && (
+                <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
+                  当前来源尚未同步完整片段列表；仍可使用已保存的标题、摘要和引用摘录。
+                </div>
+              )}
+              {sourcePreview.status === 'error' && (
+                <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-3 text-xs leading-relaxed text-red-200">
+                  来源片段读取失败，请稍后重试。
+                </div>
+              )}
+              {sourcePreview.status === 'ready' && (() => {
+                const chunks = (sourcePreview.source.chunks || [])
+                  .filter(chunk => Boolean(chunk.text?.trim()))
+                  .slice(0, 12);
+                if (chunks.length === 0) {
+                  return (
+                    <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
+                      来源详情已找到，但暂未包含可展示的原文片段。
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3 text-[11px] text-[var(--text-tertiary)]">
+                      <span>已入库 {sourcePreview.source.chunkCount || sourcePreview.source.chunks?.length || chunks.length} 个片段</span>
+                      {sourcePreview.source.chunks && sourcePreview.source.chunks.length > chunks.length && (
+                        <span>显示前 {chunks.length} 个</span>
+                      )}
+                    </div>
+                    {chunks.map((chunk, index) => (
+                      <div
+                        key={chunk.id || `${sourcePreview.source.id}-${index}`}
+                        data-testid="library-source-detail-chunk"
+                        className="rounded-xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-3 py-2.5"
+                      >
+                        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-300">
+                          <span>{sourceChunkLocator(chunk)}</span>
+                          {chunk.sourceTitle && chunk.sourceTitle !== sourcePreview.source.title && (
+                            <>
+                              <span className="text-blue-300/45">·</span>
+                              <span className="truncate text-[var(--text-tertiary)]">{chunk.sourceTitle}</span>
+                            </>
+                          )}
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                          {truncateEvidenceText(chunk.text || '', 260)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Context menu */}
       {contextMenu && (
         <div
@@ -1104,6 +1241,18 @@ export function LibraryPanel({
           >
             <Copy className="h-3.5 w-3.5 text-zinc-500" />
             复制文献简称 [{contextMenu.paper.shortName}]
+          </button>
+          <button
+            data-testid="library-open-source-detail"
+            onClick={() => {
+              const paper = contextMenu.paper;
+              setContextMenu(null);
+              void openSourcePreview(paper);
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
+          >
+            <FileText className="h-3.5 w-3.5 text-blue-400" />
+            查看来源片段
           </button>
           <div className="h-px bg-[var(--border-subtle)] my-1" />
           <button

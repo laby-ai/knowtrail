@@ -251,6 +251,10 @@ async function main() {
     await page.getByTestId('chat-citation-item').first().click();
     await expectVisible(page.getByTestId('library-citation-focus').filter({ hasText: /证据定位[\s\S]*第 4 页[\s\S]*片段 1/ }), 'Library citation focus did not render after clicking report citation.');
     await expectVisible(page.getByTestId('library-citation-context').filter({ hasText: /原文片段[\s\S]*第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library citation context did not render source chunk text.');
+    await page.getByTestId('library-paper-studio-evidence-source').click({ button: 'right' });
+    await page.getByTestId('library-open-source-detail').click();
+    await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源片段[\s\S]*Studio Evidence Source/ }), 'Library source detail panel did not render.');
+    await expectVisible(page.getByTestId('library-source-detail-chunk').filter({ hasText: /第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source detail chunk did not render source text.');
 
     const bodyText = await page.locator('body').innerText();
     const testKeyPrefix = ['sk', 'test'].join('-');
@@ -268,6 +272,7 @@ async function main() {
         'central report citation source can expand',
         'central report citation click focuses source evidence in the library',
         'library citation focus renders the matched source chunk context',
+        'library source detail panel lists stored source chunks',
         'visible evidence UI does not leak API keys',
       ],
       requests: {
