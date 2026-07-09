@@ -125,6 +125,7 @@ mkdirSync(appDir, { recursive: true });
   'eslint.config.mjs',
   'components.json',
   'README.md',
+  'docs',
   '.env.example',
   '.env.real.local.example',
   'public',
@@ -179,6 +180,7 @@ writeFileSync(path.join(appDir, 'BUNDLE_MANIFEST.json'), `${JSON.stringify({
   start: './start.sh',
   healthcheck: './healthcheck.sh',
   requiredRuntimeArtifacts: ['dist/server.js', '.next/BUILD_ID', 'public'],
+  documentationArtifacts: ['docs/api-conventions.md'],
   optionalRuntimeArtifacts: classroomRuntimeIncluded ? ['virtual classroom standalone runtime'] : [],
   persistentPaths: ['.data/zvec', '.data/sources', 'logs'],
   notes: [
@@ -231,6 +233,7 @@ console.log(JSON.stringify({
     'env.production.example included without real secrets',
     'real smoke env template included without real secrets',
     'right-side Studio real smoke and PPTX quality audit commands included in bundle manifest',
+    'API conventions and engineering docs included for release/source parity',
     'runtime public uploads and MinerU figure outputs excluded from bundle',
     classroomRuntimeIncluded
       ? 'virtual classroom runtime included'
