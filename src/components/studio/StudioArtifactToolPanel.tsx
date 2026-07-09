@@ -5,8 +5,7 @@ import { AlertTriangle, ClipboardCopy, Loader2, Send } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
-import type { Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
-import type { StudioArtifactToolId } from '@/lib/studio-tools';
+import type { StudioToolGenerateResponse, StudioToolGenerateSuccess } from '@/lib/studio-tool-api-contract';
 import { STUDIO_ARTIFACT_TOOLS, type StudioToolItem } from './StudioToolSwitcher';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
 
@@ -14,21 +13,6 @@ type StudioToolRunStatus = 'idle' | 'running' | 'succeeded' | 'failed';
 interface StudioMarkdownSection {
   title: string;
   lines: string[];
-}
-
-interface StudioToolArtifactResult {
-  artifact: {
-    id: string;
-    type: StudioArtifactToolId;
-    title: string;
-    markdown: string;
-    createdAt: string;
-    generationPattern: string;
-    resultShape: string[];
-  };
-  citations: Citation[];
-  retrieval: RetrievalMetadata | null;
-  citationAudit?: CitationAuditResult;
 }
 
 function cleanMarkdownLine(line: string) {
@@ -116,7 +100,7 @@ export function StudioArtifactToolPanel({ toolId }: { toolId: StudioToolItem['id
   const Icon = tool.icon;
   const [lastSubmittedAt, setLastSubmittedAt] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<StudioToolRunStatus>('idle');
-  const [result, setResult] = useState<StudioToolArtifactResult | null>(null);
+  const [result, setResult] = useState<StudioToolGenerateSuccess | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleRun = async () => {
@@ -136,16 +120,12 @@ export function StudioArtifactToolPanel({ toolId }: { toolId: StudioToolItem['id
           aiConfig,
         }),
       });
-      const payload = await response.json();
-      if (!response.ok || !payload.success) {
+      const payload = await response.json() as StudioToolGenerateResponse;
+      if (!payload.success) {
         throw new Error(payload.error || `${tool.label}生成失败`);
       }
-      setResult({
-        artifact: payload.artifact,
-        citations: payload.citations || [],
-        retrieval: payload.retrieval || null,
-        citationAudit: payload.citationAudit,
-      });
+      if (!response.ok) throw new Error(`${tool.label}生成失败`);
+      setResult(payload);
       setRunStatus('succeeded');
     } catch (err) {
       setError(err instanceof Error ? err.message : `${tool.label}生成失败`);

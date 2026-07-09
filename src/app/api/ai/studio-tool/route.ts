@@ -8,6 +8,11 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import type { RagSourceInput } from '@/lib/rag';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { getStudioArtifactTool } from '@/lib/studio-tools';
+import {
+  studioToolDebugSuccess,
+  studioToolError,
+  studioToolGenerateSuccess,
+} from '@/lib/studio-tool-api-contract';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
 import type { RuntimeAIConfig } from '@/types';
 
@@ -22,52 +27,67 @@ function sanitizeUserFacingArtifact(markdown: string) {
 }
 
 export async function POST(request: NextRequest) {
+  let requestBody: unknown;
   try {
-    const {
-      toolId,
-      papers,
-      aiConfig,
-      maxTokens,
-      debugRetrievalOnly,
-      debugAnswerText,
-      notebookId: rawNotebookId,
-    } = await request.json() as {
-      toolId?: string;
-      papers?: RagSourceInput[];
-      aiConfig?: Partial<RuntimeAIConfig>;
-      maxTokens?: number;
-      debugRetrievalOnly?: boolean;
-      debugAnswerText?: string;
-      notebookId?: string;
-    };
+    requestBody = await request.json();
+  } catch {
+    return studioToolError(
+      'studio_tool_invalid_request',
+      '请求内容不是有效的 JSON 对象。',
+      400,
+    );
+  }
+  if (!requestBody || typeof requestBody !== 'object' || Array.isArray(requestBody)) {
+    return studioToolError(
+      'studio_tool_invalid_request',
+      '请求内容不是有效的 JSON 对象。',
+      400,
+    );
+  }
+
+  const {
+    toolId,
+    papers,
+    aiConfig,
+    maxTokens,
+    debugRetrievalOnly,
+    debugAnswerText,
+    notebookId: rawNotebookId,
+  } = requestBody as {
+    toolId?: string;
+    papers?: RagSourceInput[];
+    aiConfig?: Partial<RuntimeAIConfig>;
+    maxTokens?: number;
+    debugRetrievalOnly?: boolean;
+    debugAnswerText?: string;
+    notebookId?: string;
+  };
+
+  try {
     const notebookId = normalizeNotebookId(rawNotebookId);
 
     const tool = getStudioArtifactTool(toolId);
     if (!tool) {
-      return Response.json({ error: '未知的产物工具' }, { status: 400 });
+      return studioToolError('studio_tool_unknown', '未知的产物工具', 400);
     }
 
     if (!Array.isArray(papers) || papers.length === 0) {
-      return Response.json({ error: '请先选择资料，再生成产物。' }, { status: 400 });
+      return studioToolError('studio_tool_sources_required', '请先选择资料，再生成产物。', 400);
     }
 
     let ownerMemberId: string | undefined;
     try {
       const accountSession = await resolveAccountSessionFromRequest(request);
       if (accountAuthRequired() && !accountSession) {
-        return Response.json({
-          error: '请先登录账号，再生成产物。',
+        return studioToolError('account_login_required', '请先登录账号，再生成产物。', 401, {
           status: 'failed',
-          errorType: 'account_login_required',
-        }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+        });
       }
       ownerMemberId = accountSession?.member.id;
     } catch {
-      return Response.json({
-        error: '账号登录已过期，请重新登录。',
+      return studioToolError('invalid_account_session', '账号登录已过期，请重新登录。', 401, {
         status: 'failed',
-        errorType: 'invalid_account_session',
-      }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+      });
     }
 
     const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
@@ -81,59 +101,62 @@ export async function POST(request: NextRequest) {
       : 1800;
 
     if (tool.requiresCitationPass && grounded.citations.length === 0) {
-      return Response.json({
-        success: false,
-        error: `当前资料没有可引用片段，暂时不能生成可追溯的${tool.label}。`,
-        errorType: tool.id === 'results' ? 'results_citations_unavailable' : 'studio_tool_citations_unavailable',
-        citations: grounded.citations,
-        retrieval: toRetrievalMetadata(grounded),
-      }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+      return studioToolError(
+        tool.id === 'results' ? 'results_citations_unavailable' : 'studio_tool_citations_unavailable',
+        `当前资料没有可引用片段，暂时不能生成可追溯的${tool.label}。`,
+        422,
+        {
+          citations: grounded.citations,
+          retrieval: toRetrievalMetadata(grounded),
+        },
+      );
     }
 
     if (debugRetrievalOnly) {
       if (tool.requiresCitationPass && typeof debugAnswerText !== 'string') {
-        return Response.json({
-          success: false,
-          error: '严格引用工具的调试请求必须提供待审文本。',
-          errorType: 'studio_tool_debug_answer_required',
-        }, { status: 400, headers: { 'Cache-Control': 'no-store' } });
+        return studioToolError(
+          'studio_tool_debug_answer_required',
+          '严格引用工具的调试请求必须提供待审文本。',
+          400,
+        );
       }
       const citationAudit = typeof debugAnswerText === 'string'
         ? auditCitationMarkers(debugAnswerText, grounded.citations)
         : undefined;
       if (tool.requiresCitationPass && citationAudit && citationAudit.status !== 'pass') {
-        return Response.json({
-          success: false,
-          error: `${tool.label}未通过引用校验，请重新生成后再使用。`,
-          errorType: tool.id === 'results' ? 'results_citation_audit_failed' : 'studio_tool_citation_audit_failed',
-          citations: grounded.citations,
-          retrieval: toRetrievalMetadata(grounded),
-          citationAudit,
-        }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+        return studioToolError(
+          tool.id === 'results' ? 'results_citation_audit_failed' : 'studio_tool_citation_audit_failed',
+          `${tool.label}未通过引用校验，请重新生成后再使用。`,
+          422,
+          {
+            citations: grounded.citations,
+            retrieval: toRetrievalMetadata(grounded),
+            citationAudit,
+          },
+        );
       }
       const citationCoverage = typeof debugAnswerText === 'string' && tool.citationCoverageSections?.length
         ? auditCitationSectionCoverage(debugAnswerText, tool.citationCoverageSections)
         : undefined;
       if (citationCoverage && citationCoverage.status !== 'pass') {
-        return Response.json({
-          success: false,
-          error: `${tool.label}仍有未引用的关键论述，请补齐来源后再使用。`,
-          errorType: 'studio_tool_citation_coverage_failed',
-          citations: grounded.citations,
-          retrieval: toRetrievalMetadata(grounded),
-          citationAudit,
-          citationCoverage,
-        }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+        return studioToolError(
+          'studio_tool_citation_coverage_failed',
+          `${tool.label}仍有未引用的关键论述，请补齐来源后再使用。`,
+          422,
+          {
+            citations: grounded.citations,
+            retrieval: toRetrievalMetadata(grounded),
+            citationAudit,
+            citationCoverage,
+          },
+        );
       }
-      return Response.json({
-        success: true,
+      return studioToolDebugSuccess({
         citations: grounded.citations,
         retrieval: toRetrievalMetadata(grounded),
         promptContextLength: grounded.promptContext.length,
         citationAudit,
         citationCoverage,
-      }, {
-        headers: { 'Cache-Control': 'no-store' },
       });
     }
 
@@ -176,11 +199,9 @@ export async function POST(request: NextRequest) {
     } catch (billingError) {
       const status = billingError instanceof AccountServiceError ? billingError.status : 402;
       const code = billingError instanceof AccountServiceError ? billingError.code : 'account_billing_failed';
-      return Response.json({
-        error: '账号额度预占失败，请检查账号额度或稍后重试。',
+      return studioToolError(code, '账号额度预占失败，请检查账号额度或稍后重试。', status, {
         status: 'failed',
-        errorType: code,
-      }, { status, headers: { 'Cache-Control': 'no-store' } });
+      });
     }
 
     let markdown = '';
@@ -223,50 +244,55 @@ export async function POST(request: NextRequest) {
     const citationAudit = auditCitationMarkers(markdown, grounded.citations);
 
     if (tool.requiresCitationPass && citationAudit.status !== 'pass') {
-      return Response.json({
-        success: false,
-        error: `${tool.label}未通过引用校验，请重新生成后再使用。`,
-        errorType: tool.id === 'results' ? 'results_citation_audit_failed' : 'studio_tool_citation_audit_failed',
-        artifact,
-        citations: grounded.citations,
-        retrieval: toRetrievalMetadata(grounded),
-        citationAudit,
-        billing,
-      }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+      return studioToolError(
+        tool.id === 'results' ? 'results_citation_audit_failed' : 'studio_tool_citation_audit_failed',
+        `${tool.label}未通过引用校验，请重新生成后再使用。`,
+        422,
+        {
+          artifact,
+          citations: grounded.citations,
+          retrieval: toRetrievalMetadata(grounded),
+          citationAudit,
+          billing,
+        },
+      );
     }
     const citationCoverage = tool.citationCoverageSections?.length
       ? auditCitationSectionCoverage(markdown, tool.citationCoverageSections)
       : undefined;
     if (citationCoverage && citationCoverage.status !== 'pass') {
-      return Response.json({
-        success: false,
-        error: `${tool.label}仍有未引用的关键论述，请补齐来源后再使用。`,
-        errorType: 'studio_tool_citation_coverage_failed',
-        artifact,
-        citations: grounded.citations,
-        retrieval: toRetrievalMetadata(grounded),
-        citationAudit,
-        citationCoverage,
-        billing,
-      }, { status: 422, headers: { 'Cache-Control': 'no-store' } });
+      return studioToolError(
+        'studio_tool_citation_coverage_failed',
+        `${tool.label}仍有未引用的关键论述，请补齐来源后再使用。`,
+        422,
+        {
+          artifact,
+          citations: grounded.citations,
+          retrieval: toRetrievalMetadata(grounded),
+          citationAudit,
+          citationCoverage,
+          billing,
+        },
+      );
     }
 
-    return Response.json({
-      success: true,
+    return studioToolGenerateSuccess({
       artifact,
       citations: grounded.citations,
       retrieval: toRetrievalMetadata(grounded),
       citationAudit,
       citationCoverage,
       billing,
-    }, {
-      headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {
     const timedOut = error instanceof Error && /abort|timeout|timed out/i.test(error.message);
     const message = timedOut
       ? '产物生成超时。请减少资料数量或稍后重试。'
-      : error instanceof Error ? error.message : '产物生成失败';
-    return Response.json({ error: message }, { status: timedOut ? 504 : 500 });
+      : '产物生成失败，请稍后重试。';
+    return studioToolError(
+      timedOut ? 'studio_tool_timeout' : 'studio_tool_generation_failed',
+      message,
+      timedOut ? 504 : 500,
+    );
   }
 }

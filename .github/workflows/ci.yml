@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Studio tool response contract
+        run: pnpm test:studio-tool-response-contract
+
       - name: Typecheck
         run: pnpm run ts-check
 
