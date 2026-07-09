@@ -219,6 +219,30 @@ async function main() {
     assert.equal((resultsToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
     assert.equal((resultsToolJson.citationAudit as { status?: string }).status, 'pass');
 
+    const resultsMissingMarkersResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'results',
+      papers,
+      debugRetrievalOnly: true,
+      debugAnswerText: 'Results 初稿缺少来源标记。',
+    }));
+    assert.equal(resultsMissingMarkersResponse.status, 422);
+    const resultsMissingMarkersJson = await readJson(resultsMissingMarkersResponse);
+    assert.equal(resultsMissingMarkersJson.success, false);
+    assert.equal(resultsMissingMarkersJson.errorType, 'results_citation_audit_failed');
+    assert.equal((resultsMissingMarkersJson.citationAudit as { status?: string }).status, 'missing-markers');
+
+    const resultsInvalidMarkersResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
+      toolId: 'results',
+      papers,
+      debugRetrievalOnly: true,
+      debugAnswerText: 'Results 初稿引用了不存在的来源[99]。',
+    }));
+    assert.equal(resultsInvalidMarkersResponse.status, 422);
+    const resultsInvalidMarkersJson = await readJson(resultsInvalidMarkersResponse);
+    assert.equal(resultsInvalidMarkersJson.success, false);
+    assert.equal(resultsInvalidMarkersJson.errorType, 'results_citation_audit_failed');
+    assert.equal((resultsInvalidMarkersJson.citationAudit as { status?: string }).status, 'invalid-markers');
+
     const accountMock = await startAccountAuthMock();
     try {
       process.env.ACCOUNT_CENTER_API_BASE = accountMock.origin;
@@ -310,6 +334,8 @@ async function main() {
         'seminar material Studio tool builds grounded artifact evidence debug path',
         'experiment record Studio tool builds grounded artifact evidence debug path',
         'Results draft Studio tool builds grounded artifact evidence debug path',
+        'Results draft rejects missing citation markers',
+        'Results draft rejects invalid citation markers',
         'studio-tool route returns 401 when account auth is required and no token is provided',
         'studio-tool route scopes persisted retrieval by ownerMemberId from account token',
         'studio-tool route scopes persisted retrieval by notebookId under the same owner',

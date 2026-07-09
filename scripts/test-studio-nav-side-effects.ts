@@ -76,6 +76,7 @@ assert.match(combinedSource, /activeTab === 'results' && <StudioArtifactToolPane
 assert.match(toolContractSource, /只生成 Markdown 草稿，不要声称已经生成 PPT、Word、LaTeX 或投稿材料/, 'Seminar prompt must not claim unavailable export or submission capabilities');
 assert.match(toolContractSource, /不要声称已经生成统计脚本、论文图表、自动数据分析或投稿材料/, 'Experiment prompt must not claim unavailable analysis, chart, or submission capabilities');
 assert.match(toolContractSource, /只生成可追溯的 Results 文本草稿，不要声称已经完成统计检验、论文图表生成、Word\/LaTeX 导出或投稿/, 'Results prompt must not claim unavailable statistical, chart, export, or submission capabilities');
+assert.match(toolContractSource, /不补造样本量、效应量、显著性、图表编号或统计结论/, 'Results prompt must prohibit invented quantitative or statistical claims');
 assert.doesNotMatch(combinedSource, /label: '视频分镜'|视频分镜|试拍|不会导出 MP4|不要假装已经生成 MP4|StudioVideo|videoReadiness|mediaRequest,/, 'Studio must not expose removed video/storyboard capability as a user-facing tool');
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/video/route.ts')), 'Removed video capability must not keep a product API route');
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'scripts/smoke-real-agentplan-video.mjs')), 'Removed video capability must not keep an automation smoke as a required product path');
