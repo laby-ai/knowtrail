@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { buildDataTablePreviewFromText } from '../src/lib/data-table-preview';
+import { buildDataTablePreviewForPaper, buildDataTablePreviewFromText } from '../src/lib/data-table-preview';
+import type { Paper } from '../src/types';
 
 const csvPreview = buildDataTablePreviewFromText([
   'group,score,age,note',
@@ -36,6 +37,26 @@ assert.equal(xlsxPreview.columns.find(column => column.name === 'value')?.max, 3
 const prosePreview = buildDataTablePreviewFromText('这是一段文献摘要，没有表格结构。');
 assert.equal(prosePreview, null);
 
+const duplicatedPaperPreview = buildDataTablePreviewForPaper({
+  id: 'paper-csv',
+  title: 'Duplicated CSV',
+  authors: [],
+  year: 2026,
+  keywords: [],
+  abstract: 'CSV source',
+  content: 'group,score\ncontrol,12\ntreatment,20',
+  rawContent: 'group,score\ncontrol,12\ntreatment,20',
+  shortName: 'CSV',
+  fileName: 'data.csv',
+  fileType: 'csv',
+  fileSize: 80,
+  uploadTime: '2026-07-09T00:00:00.000Z',
+} satisfies Paper);
+
+assert.ok(duplicatedPaperPreview, 'paper preview should use the canonical rawContent instead of duplicating content fields');
+assert.equal(duplicatedPaperPreview.rowCount, 2);
+assert.equal(duplicatedPaperPreview.columns.find(column => column.name === 'score')?.mean, 16);
+
 console.log(JSON.stringify({
   ok: true,
   csv: {
@@ -47,4 +68,5 @@ console.log(JSON.stringify({
     sheetName: xlsxPreview.sheetName,
     rows: xlsxPreview.rowCount,
   },
+  duplicatedPaperRows: duplicatedPaperPreview.rowCount,
 }, null, 2));

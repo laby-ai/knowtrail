@@ -152,6 +152,25 @@ async function interceptUpload(page) {
           ingestionChunkCount: 1,
           vectorIndex: { status: 'not_configured', count: 0 },
           mineruFigures: [],
+        }, {
+          id: 'studio-data-source',
+          title: 'Studio Data Source',
+          authors: ['Smoke Test'],
+          year: 2026,
+          keywords: ['data-preview', 'results-draft'],
+          abstract: 'CSV source for validating tabular data preview and Results draft hints.',
+          content: 'group,score,age,note\ncontrol,12,31,baseline\ncontrol,15,29,\ntreatment,20,34,improved\ntreatment,22,,improved',
+          rawContent: 'group,score,age,note\ncontrol,12,31,baseline\ncontrol,15,29,\ntreatment,20,34,improved\ntreatment,22,,improved',
+          shortName: 'DataUI',
+          fileName: 'studio-data.csv',
+          fileType: 'csv',
+          fileSize: 140,
+          uploadTime: new Date().toISOString(),
+          ingestionStatus: 'succeeded',
+          ingestionStages: [{ name: 'chunk', status: 'succeeded' }],
+          ingestionChunkCount: 0,
+          vectorIndex: { status: 'not_configured', count: 0 },
+          mineruFigures: [],
         }],
       }),
     });
@@ -237,6 +256,35 @@ async function interceptIngestionSources(page) {
         tokenEstimate: 16,
       }],
     };
+    const dataSource = {
+      id: 'studio-data-source',
+      title: 'Studio Data Source',
+      shortName: 'DataUI',
+      fileName: 'studio-data.csv',
+      fileType: 'csv',
+      fileSize: 140,
+      abstract: 'CSV source for validating tabular data preview and Results draft hints.',
+      content: 'group,score,age,note\ncontrol,12,31,baseline\ncontrol,15,29,\ntreatment,20,34,improved\ntreatment,22,,improved',
+      rawContent: 'group,score,age,note\ncontrol,12,31,baseline\ncontrol,15,29,\ntreatment,20,34,improved\ntreatment,22,,improved',
+      status: 'succeeded',
+      stages: [{ name: 'chunk', status: 'succeeded' }],
+      chunkCount: 0,
+      tokenEstimate: 12,
+      vectorIndex: { status: 'not_configured', count: 0 },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      chunks: [{
+        id: 'studio-data-source-c1',
+        sourceId: 'studio-data-source',
+        sourceIndex: 2,
+        chunkIndex: 0,
+        page: null,
+        paperShortName: 'DataUI',
+        sourceTitle: 'Studio Data Source',
+        text: 'group,score,age,note\ncontrol,12,31,baseline\ncontrol,15,29,\ntreatment,20,34,improved\ntreatment,22,,improved',
+        tokenEstimate: 12,
+      }],
+    };
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -244,7 +292,9 @@ async function interceptIngestionSources(page) {
         ? { source }
         : id === 'studio-contrast-source'
           ? { source: contrastSource }
-          : { sources: [] }),
+          : id === 'studio-data-source'
+            ? { source: dataSource }
+            : { sources: [] }),
     });
   });
   return () => hitCount;
@@ -272,8 +322,16 @@ async function main() {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'lingbi-studio-evidence-ui-'));
   const uploadPath = path.join(tempDir, 'studio-evidence.txt');
   const contrastUploadPath = path.join(tempDir, 'studio-contrast.txt');
+  const dataUploadPath = path.join(tempDir, 'studio-data.csv');
   await writeFile(uploadPath, 'Studio evidence UI smoke source.', 'utf8');
   await writeFile(contrastUploadPath, 'Studio contrast UI smoke source.', 'utf8');
+  await writeFile(dataUploadPath, [
+    'group,score,age,note',
+    'control,12,31,baseline',
+    'control,15,29,',
+    'treatment,20,34,improved',
+    'treatment,22,,improved',
+  ].join('\n'), 'utf8');
 
   let smokeApp;
   let browser;
@@ -290,8 +348,8 @@ async function main() {
 
     await page.goto(`${appOrigin}/?view=workbench#workbench`, { waitUntil: 'domcontentloaded' });
     await expectVisible(page.getByTestId('studio-tool-switcher'), 'Workbench Studio panel did not render.');
-    await page.locator('input[type="file"]').setInputFiles([uploadPath, contrastUploadPath]);
-    await expectVisible(page.getByTestId('library-selection-count').filter({ hasText: /已选 2 个(文献)?来源|已选 2 篇/ }), 'Uploaded sources were not selected.');
+    await page.locator('input[type="file"]').setInputFiles([uploadPath, contrastUploadPath, dataUploadPath]);
+    await expectVisible(page.getByTestId('library-selection-count').filter({ hasText: /已选 3 个(文献)?来源|已选 3 篇/ }), 'Uploaded sources were not selected.');
 
     await page.getByTestId('chat-generate-report').click();
     await expectVisible(page.getByTestId('citation-audit-badge').filter({ hasText: '来源已校验' }), 'Report citation audit badge did not render.');
@@ -309,9 +367,17 @@ async function main() {
     await expectVisible(page.getByTestId('library-source-citation-lead').filter({ hasText: /线索 1[\s\S]*第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source citation lead did not render source evidence.');
     await expectVisible(page.getByTestId('library-source-detail-chunk').filter({ hasText: /第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library source detail chunk did not render source text.');
     await page.getByLabel('关闭来源片段').click();
+    await page.getByTestId('library-paper-studio-data-source').click({ button: 'right' });
+    await page.getByTestId('library-open-source-detail').click();
+    await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源片段[\s\S]*Studio Data Source/ }), 'CSV source detail panel did not render.');
+    await expectVisible(page.getByTestId('library-data-table-preview').filter({ hasText: /数据速览[\s\S]*4 行[\s\S]*4 列/ }), 'CSV data table preview did not render row and column counts.');
+    await expectVisible(page.getByTestId('library-data-table-preview').filter({ hasText: /score[\s\S]*数值列[\s\S]*均值 17\.3/ }), 'CSV data table preview did not render numeric score summary.');
+    await expectVisible(page.getByTestId('library-data-table-preview').filter({ hasText: /age[\s\S]*缺失 1/ }), 'CSV data table preview did not render missing-value summary.');
+    await expectVisible(page.getByTestId('library-data-table-preview').filter({ hasText: /Results 初稿线索[\s\S]*score[\s\S]*age/ }), 'CSV data table preview did not render Results draft hint.');
+    await page.getByLabel('关闭来源片段').click();
     await page.getByTestId('library-open-source-matrix').click();
     await expectVisible(page.getByTestId('library-source-matrix-panel').filter({ hasText: /文献矩阵[\s\S]*基于已选来源的本地字段对比/ }), 'Library source matrix panel did not render.');
-    await expectVisible(page.getByTestId('library-source-matrix-note').filter({ hasText: /不生成跨文献结论/ }), 'Library source matrix did not explain its evidence boundary.');
+    await expectVisible(page.getByTestId('library-source-matrix-note').filter({ hasText: /不会生成未在来源中出现的结论/ }), 'Library source matrix did not explain its evidence boundary.');
     await expectVisible(page.getByTestId('library-source-matrix-row').filter({ hasText: /Studio Evidence Source[\s\S]*1 个片段[\s\S]*EvidenceUI/ }), 'Library source matrix did not render the first selected source.');
     await expectVisible(page.getByTestId('library-source-matrix-row').filter({ hasText: /Studio Contrast Source[\s\S]*1 个片段[\s\S]*ContrastUI/ }), 'Library source matrix did not render the second selected source.');
 
@@ -333,6 +399,7 @@ async function main() {
         'library citation focus renders the matched source chunk context',
         'library source detail panel lists stored source chunks',
         'library source detail panel renders source-backed citation leads',
+        'library CSV source detail renders data preview, missing values, numeric summaries, and Results draft hint',
         'library source matrix compares selected sources without AI conclusions',
         'visible evidence UI does not leak API keys',
       ],

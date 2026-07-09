@@ -27,7 +27,7 @@ import type { CitationReveal } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
-import { buildDataTablePreviewForPaper } from '@/lib/data-table-preview';
+import { buildDataTablePreviewForPaper, buildDataTablePreviewFromText } from '@/lib/data-table-preview';
 import { buildSourceMatrixFacets } from '@/lib/source-matrix';
 import type { DataColumnSummary } from '@/lib/data-table-preview';
 import type { SourceMatrixFacet } from '@/lib/source-matrix';
@@ -143,6 +143,9 @@ interface IngestionSourceSummary {
 }
 
 interface IngestionSourceDetail extends IngestionSourceSummary {
+  abstract?: string;
+  content?: string;
+  rawContent?: string;
   chunks?: Array<{
     id?: string;
     text?: string;
@@ -223,6 +226,19 @@ function dataColumnTypeLabel(column: DataColumnSummary): string {
   if (column.type === 'numeric') return '数值列';
   if (column.type === 'mixed') return '混合列';
   return '文本列';
+}
+
+function buildSourceDataPreview(paper: Paper, source?: IngestionSourceDetail) {
+  const directPreview = buildDataTablePreviewForPaper(paper);
+  if (directPreview) return directPreview;
+  if (paper.fileType !== 'csv' && paper.fileType !== 'xlsx') return null;
+
+  const sourceText = source?.rawContent
+    || source?.content
+    || source?.abstract
+    || (source?.chunks || []).map(chunk => chunk.text || '').filter(Boolean).join('\n');
+
+  return sourceText.trim() ? buildDataTablePreviewFromText(sourceText) : null;
 }
 
 function sourceMatrixEvidenceStatus(paper: Paper): string {
@@ -1401,7 +1417,7 @@ export function LibraryPanel({
                 const chunks = (sourcePreview.source.chunks || [])
                   .filter(chunk => Boolean(chunk.text?.trim()))
                   .slice(0, 12);
-                const dataPreview = buildDataTablePreviewForPaper(sourcePreview.paper);
+                const dataPreview = buildSourceDataPreview(sourcePreview.paper, sourcePreview.source);
                 if (chunks.length === 0 && !dataPreview) {
                   return (
                     <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
