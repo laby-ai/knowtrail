@@ -170,7 +170,10 @@ export function StudioArtifactToolPanel({ toolId }: { toolId: StudioToolItem['id
             <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">{tool.desc}</p>
           </div>
         </div>
-        <div className="mt-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-3">
+        <div
+          data-testid={`studio-tool-pipeline-${tool.id}`}
+          className="mt-4 rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-3"
+        >
           <div
             data-testid={`studio-tool-result-shape-${tool.id}`}
             className="flex flex-wrap gap-1.5"

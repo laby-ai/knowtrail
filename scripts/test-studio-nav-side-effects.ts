@@ -24,15 +24,13 @@ const virtualClassroomPanelPath = path.join(process.cwd(), 'src/components/studi
 const virtualClassroomPanelSource = fs.readFileSync(virtualClassroomPanelPath, 'utf8');
 const virtualClassroomWorkspacePath = path.join(process.cwd(), 'src/components/studio/VirtualClassroomWorkspace.tsx');
 const virtualClassroomWorkspaceSource = fs.readFileSync(virtualClassroomWorkspacePath, 'utf8');
-const audioPanelPath = path.join(process.cwd(), 'src/components/studio/AudioPanel.tsx');
-const audioPanelSource = fs.readFileSync(audioPanelPath, 'utf8');
 const evidencePanelPath = path.join(process.cwd(), 'src/components/studio/StudioEvidenceStatusPanel.tsx');
 const evidencePanelSource = fs.readFileSync(evidencePanelPath, 'utf8');
 const toolContractPath = path.join(process.cwd(), 'src/lib/studio-tools.ts');
 const toolContractSource = fs.readFileSync(toolContractPath, 'utf8');
 const realPptArtifactPath = path.join(process.cwd(), 'scripts/generate-real-ppt-v2-artifact.mjs');
 const realPptArtifactSource = fs.readFileSync(realPptArtifactPath, 'utf8');
-const combinedSource = `${source}\n${switcherSource}\n${presentationPanelSource}\n${structuredPresentationPanelSource}\n${structuredOutlineDraftSource}\n${outlineDraftContractSource}\n${presentationModeSelectorSource}\n${toolPanelSource}\n${virtualClassroomPanelSource}\n${virtualClassroomWorkspaceSource}\n${audioPanelSource}\n${evidencePanelSource}\n${toolContractSource}`;
+const combinedSource = `${source}\n${switcherSource}\n${presentationPanelSource}\n${structuredPresentationPanelSource}\n${structuredOutlineDraftSource}\n${outlineDraftContractSource}\n${presentationModeSelectorSource}\n${toolPanelSource}\n${virtualClassroomPanelSource}\n${virtualClassroomWorkspaceSource}\n${evidencePanelSource}\n${toolContractSource}`;
 
 const studioPanelStart = source.indexOf('export function StudioPanel()');
 const panelContentStart = source.indexOf('{activeTab ===', studioPanelStart);
@@ -58,7 +56,7 @@ assert.match(combinedSource, /data-testid=\{`studio-tool-result-shape-\$\{tool\.
 assert.match(combinedSource, /data-testid=\{`studio-tool-result-\$\{tool\.id\}`\}/, 'Reference-inspired tools should render a right-side artifact result');
 assert.match(combinedSource, /data-testid=\{`studio-tool-citation-audit-\$\{tool\.id\}`\}/, 'Reference-inspired artifacts should show citation audit status');
 assert.match(evidencePanelSource, /检索已降级/, 'Studio evidence panel should make degraded retrieval visible to users');
-assert.match(combinedSource, /label: '虚拟教室'/, 'Studio should expose the complete virtual classroom module');
+assert.match(combinedSource, /label: '虚拟课堂'/, 'Studio should expose the complete virtual classroom module');
 assert.match(combinedSource, /data-testid="virtual-classroom-open"/, 'Virtual classroom needs a full-page entry for real use');
 assert.match(combinedSource, /data-testid="virtual-classroom-iframe"/, 'Virtual classroom should embed the full classroom app in Studio');
 assert.match(combinedSource, /NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN/, 'Virtual classroom origin should be configurable');
@@ -68,6 +66,10 @@ assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/virtual-course
 assert.match(combinedSource, /label: '互动页面'/, 'Studio tools should include an interactive page artifact flow');
 assert.match(combinedSource, /label: '测验练习'/, 'Studio tools should include a quiz artifact flow');
 assert.match(combinedSource, /label: '项目研习'/, 'Studio tools should include a project-based artifact flow');
+assert.match(combinedSource, /label: '组会材料'/, 'Studio tools should include a journal-club material artifact flow');
+assert.match(combinedSource, /data-testid=\{`studio-nav-\$\{item\.id\}`\}/, 'Studio artifact tools need visible nav buttons generated from the registry');
+assert.match(combinedSource, /activeTab === 'seminar' && <StudioArtifactToolPanel toolId="seminar" \/>/, 'Seminar material tool should render through the grounded Studio artifact panel');
+assert.match(toolContractSource, /只生成 Markdown 草稿，不要声称已经生成 PPT、Word、LaTeX 或投稿材料/, 'Seminar prompt must not claim unavailable export or submission capabilities');
 assert.doesNotMatch(combinedSource, /label: '视频分镜'|视频分镜|试拍|不会导出 MP4|不要假装已经生成 MP4|StudioVideo|videoReadiness|mediaRequest,/, 'Studio must not expose removed video/storyboard capability as a user-facing tool');
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/video/route.ts')), 'Removed video capability must not keep a product API route');
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'scripts/smoke-real-agentplan-video.mjs')), 'Removed video capability must not keep an automation smoke as a required product path');
@@ -88,10 +90,9 @@ assert.doesNotMatch(structuredPresentationPanelSource, /ArcDeck|真实模型/, '
 assert.match(presentationModeSelectorSource, /data-testid=\{`presentation-mode-\$\{option\.id\}`\}/, 'PPT mode selector should expose stable test ids');
 assert.match(presentationModeSelectorSource, /id: 'image'[\s\S]*label: '图片页简报'/, 'PPT mode selector should keep the image PPT option');
 assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结构化 PPT'/, 'PPT mode selector should keep the structured PPT option');
-assert.match(audioPanelSource, /data-testid="podcast-generate"/, 'Podcast still needs an explicit generate button');
 
 console.log(JSON.stringify({
   ok: true,
   checked: 'studio nav has no generation side effects and reference-inspired tools are runnable chat-backed tools',
-  explicitButtons: ['image-ppt-generate', 'academic-ppt-generate', 'podcast-generate', 'studio-tool-run-*', 'virtual-classroom-open'],
+  explicitButtons: ['image-ppt-generate', 'academic-ppt-generate', 'studio-tool-run-*', 'virtual-classroom-open'],
 }, null, 2));

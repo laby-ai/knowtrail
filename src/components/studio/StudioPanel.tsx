@@ -43,6 +43,9 @@ export function StudioPanel() {
         </div>
 
         <StudioToolSwitcher activeTab={activeTab} onSelect={setActiveTab} />
+        <p data-testid="studio-nav-helper" className="mt-3 text-[10px] leading-relaxed text-[var(--text-quaternary)]">
+          切换入口只打开对应工作区，生成会在右侧产物面板内确认后执行。
+        </p>
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
@@ -53,6 +56,7 @@ export function StudioPanel() {
         {activeTab === 'interactive' && <StudioArtifactToolPanel toolId="interactive" />}
         {activeTab === 'quiz' && <StudioArtifactToolPanel toolId="quiz" />}
         {activeTab === 'project' && <StudioArtifactToolPanel toolId="project" />}
+        {activeTab === 'seminar' && <StudioArtifactToolPanel toolId="seminar" />}
       </div>
     </div>
   );
