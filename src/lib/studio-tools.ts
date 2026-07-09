@@ -1,4 +1,4 @@
-export type StudioArtifactToolId = 'interactive' | 'quiz' | 'project' | 'seminar';
+export type StudioArtifactToolId = 'interactive' | 'quiz' | 'project' | 'seminar' | 'experiment';
 
 export interface StudioArtifactToolDef {
   id: StudioArtifactToolId;
@@ -50,6 +50,16 @@ export const STUDIO_ARTIFACT_TOOL_DEFS: StudioArtifactToolDef[] = [
     resultShape: ['汇报标题', '研究问题', '证据摘要', '方法/数据/结果/局限', '讨论问题', '待补证据'],
     prompt:
       '请基于我选中的资料生成一份组会材料草稿。要求：1）给出一个谨慎的汇报标题和 3 个汇报目标；2）按“研究问题、核心证据、方法/数据、主要结果、局限与待补证据、组会讨论问题”组织；3）每个关键判断都要标出资料依据或引用片段；4）明确哪些内容只是待讨论假设，不能写成已经证实的结论；5）当前只生成 Markdown 草稿，不要声称已经生成 PPT、Word、LaTeX 或投稿材料。',
+  },
+  {
+    id: 'experiment',
+    label: '实验记录',
+    desc: '整理实验目的、参数和观察',
+    actionLabel: '生成实验记录',
+    generationPattern: '把选中资料整理成可追踪的实验记录草稿，先输出实验目的、样本/参数、观察结果、异常偏差和下一步。',
+    resultShape: ['实验目的', '样本/参数', '观察结果', '异常/偏差', '下一步', '待补证据'],
+    prompt:
+      '请基于我选中的资料生成一份实验记录草稿。要求：1）按“实验目的、材料/样本、关键参数或步骤、观察结果、异常/偏差、下一步、待补证据”组织；2）每个实验条件、观察和结论边界都要标出资料依据或引用片段；3）把推测、未验证现象和需要补实验的部分单独列出；4）当前只生成可复核的 Markdown 实验记录，不要声称已经生成统计脚本、论文图表、自动数据分析或投稿材料。',
   },
 ];
 

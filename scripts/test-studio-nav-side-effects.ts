@@ -67,9 +67,12 @@ assert.match(combinedSource, /label: '互动页面'/, 'Studio tools should inclu
 assert.match(combinedSource, /label: '测验练习'/, 'Studio tools should include a quiz artifact flow');
 assert.match(combinedSource, /label: '项目研习'/, 'Studio tools should include a project-based artifact flow');
 assert.match(combinedSource, /label: '组会材料'/, 'Studio tools should include a journal-club material artifact flow');
+assert.match(combinedSource, /label: '实验记录'/, 'Studio tools should include an experiment record artifact flow');
 assert.match(combinedSource, /data-testid=\{`studio-nav-\$\{item\.id\}`\}/, 'Studio artifact tools need visible nav buttons generated from the registry');
 assert.match(combinedSource, /activeTab === 'seminar' && <StudioArtifactToolPanel toolId="seminar" \/>/, 'Seminar material tool should render through the grounded Studio artifact panel');
+assert.match(combinedSource, /activeTab === 'experiment' && <StudioArtifactToolPanel toolId="experiment" \/>/, 'Experiment record tool should render through the grounded Studio artifact panel');
 assert.match(toolContractSource, /只生成 Markdown 草稿，不要声称已经生成 PPT、Word、LaTeX 或投稿材料/, 'Seminar prompt must not claim unavailable export or submission capabilities');
+assert.match(toolContractSource, /不要声称已经生成统计脚本、论文图表、自动数据分析或投稿材料/, 'Experiment prompt must not claim unavailable analysis, chart, or submission capabilities');
 assert.doesNotMatch(combinedSource, /label: '视频分镜'|视频分镜|试拍|不会导出 MP4|不要假装已经生成 MP4|StudioVideo|videoReadiness|mediaRequest,/, 'Studio must not expose removed video/storyboard capability as a user-facing tool');
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/video/route.ts')), 'Removed video capability must not keep a product API route');
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'scripts/smoke-real-agentplan-video.mjs')), 'Removed video capability must not keep an automation smoke as a required product path');

@@ -57,6 +57,7 @@ export function StudioPanel() {
         {activeTab === 'quiz' && <StudioArtifactToolPanel toolId="quiz" />}
         {activeTab === 'project' && <StudioArtifactToolPanel toolId="project" />}
         {activeTab === 'seminar' && <StudioArtifactToolPanel toolId="seminar" />}
+        {activeTab === 'experiment' && <StudioArtifactToolPanel toolId="experiment" />}
       </div>
     </div>
   );
