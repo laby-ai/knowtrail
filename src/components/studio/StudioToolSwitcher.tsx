@@ -11,6 +11,7 @@ import {
   TableProperties,
   TestTubes,
   BookOpenText,
+  WandSparkles,
 } from 'lucide-react';
 import {
   getVisibleStudioCategories,
@@ -33,6 +34,7 @@ const PRODUCT_VISUALS: Record<StudioTab, Pick<StudioNavItem, 'icon' | 'accent'>>
   'data-processing': { icon: TableProperties, accent: 'from-teal-500/10 to-emerald-500/5' },
   'experiment-design': { icon: TestTubes, accent: 'from-rose-500/10 to-amber-500/5' },
   'academic-writing': { icon: BookOpenText, accent: 'from-indigo-500/10 to-cyan-500/5' },
+  'text-polishing': { icon: WandSparkles, accent: 'from-fuchsia-500/10 to-rose-500/5' },
   presentation: { icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
   knowledge: { icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
   'virtual-classroom': { icon: GraduationCap, accent: 'from-emerald-500/10 to-sky-500/5' },
