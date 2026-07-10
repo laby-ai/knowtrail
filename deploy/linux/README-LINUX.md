@@ -29,6 +29,20 @@ nano .env.production
 bash ./start.sh
 ```
 
+For an atomic production release, never rely only on the environment of the currently running process. Prepare the candidate from a stable root-owned env file, start it on a standby port, and promote only after the strict health gate passes:
+
+```bash
+node scripts/prepare-release-env.mjs /opt/knowtrail/config/.env.production "$RELEASE_DIR/.env.production"
+# Start $RELEASE_DIR on 127.0.0.1:5099 with its own .env.production first.
+RELEASE_STANDBY_ORIGIN=http://127.0.0.1:5099 \
+RELEASE_STANDBY_PID_FILE=/run/lingbi-standby.pid \
+RELEASE_LIVE_ORIGIN=http://127.0.0.1:5000 \
+RELEASE_SHARED_ROOT=/opt/knowtrail/shared \
+node scripts/promote-release.mjs "$RELEASE_DIR" /opt/knowtrail/current /opt/knowtrail/previous
+```
+
+The stable env and candidate `.env.production` must be mode `0600`. The gate reports only variable group names and capability states; it never prints secret values. Failed live verification restores `current` to the previous release and restarts the service.
+
 Open:
 
 ```text
