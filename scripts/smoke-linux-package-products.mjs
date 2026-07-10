@@ -14,6 +14,7 @@ const requiredScripts = [
   'smoke:real-studio-products',
   'smoke:workbench-studio-ui',
   'smoke:studio-evidence-ui',
+  'smoke:live-virtual-classroom',
   'audit:pptx-quality',
   'validate',
   'test:openmaic-sidecar-config',
@@ -39,6 +40,8 @@ const requiredFiles = [
   'scripts/smoke-real-studio-products.mjs',
   'scripts/smoke-real-doubao-tts.ts',
   'scripts/audit-pptx-quality.mjs',
+  'scripts/smoke-live-virtual-classroom.mjs',
+  'scripts/lib/live-virtual-classroom-smoke.mjs',
   'deploy/linux/preflight.sh',
   'deploy/linux/healthcheck.sh',
   'scripts/prepare-release-env.mjs',
@@ -174,6 +177,7 @@ function main() {
     'pnpm smoke:real-openai-compatible',
     'pnpm smoke:real-app-ai',
     'pnpm smoke:real-studio-products',
+    'pnpm smoke:live-virtual-classroom',
   ].filter(command => !readme.includes(command));
   const missingTtsEnv = [
     'AGENTPLAN_TTS_ENDPOINT',

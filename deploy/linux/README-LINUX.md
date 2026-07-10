@@ -68,8 +68,24 @@ pnpm smoke:real-studio-products
 pnpm smoke:real-doubao-tts
 pnpm smoke:workbench-studio-ui
 pnpm smoke:studio-evidence-ui
+pnpm smoke:live-virtual-classroom
 pnpm audit:pptx-quality
 pnpm smoke:runtime-health
+```
+
+Run the live virtual-classroom smoke from a workstation with Playwright after promotion. It checks runtime status, recent shared history, the exported classroom JSON, desktop/mobile hydration, failed responses, console errors, and horizontal overflow:
+
+```bash
+LIVE_CLASSROOM_ORIGIN=https://airai.world pnpm smoke:live-virtual-classroom
+```
+
+The production host can run the HTTP and persistent-store portion without installing browser dependencies:
+
+```bash
+LIVE_CLASSROOM_ORIGIN=https://airai.world \
+LIVE_CLASSROOM_BROWSER=0 \
+LIVE_CLASSROOM_STORE_LINK=/opt/knowtrail/current/.references/OpenMAIC/.next/standalone/data \
+pnpm smoke:live-virtual-classroom
 ```
 
 Run `pnpm smoke:real-env-preflight` first when validating a server. It reports whether Base URL, model names, TTS speaker, and secret variables are configured, but prints secrets only as `[REDACTED]`.
