@@ -7,8 +7,10 @@ import { auditCitationMarkers, auditCitationSectionCoverage } from '@/lib/citati
 import {
   DEEP_RESEARCH_REQUIRED_SECTIONS,
   buildDeepResearchPrompt,
+  buildDeepResearchRepairPrompt,
   classifyDeepResearchAnswer,
   hasSubstantiveDeepResearchEvidence,
+  removeUncitedDeepResearchClaims,
 } from '@/lib/deep-research-contract';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
 import type { RagSourceInput } from '@/lib/rag';
@@ -165,13 +167,68 @@ export async function POST(request: NextRequest) {
             message: '正文已生成，正在检查章节与引用覆盖。',
           },
         });
-        const citationAudit = auditCitationMarkers(answerText, grounded.citations);
-        const sectionCoverage = auditCitationSectionCoverage(answerText, [...DEEP_RESEARCH_REQUIRED_SECTIONS]);
-        const answerStatus = classifyDeepResearchAnswer({
+        let citationAudit = auditCitationMarkers(answerText, grounded.citations);
+        let sectionCoverage = auditCitationSectionCoverage(answerText, [...DEEP_RESEARCH_REQUIRED_SECTIONS]);
+        let removedUncitedClaims = 0;
+        let repairAttempted = false;
+        if (sectionCoverage.status === 'missing-claim-citations') {
+          const sanitized = removeUncitedDeepResearchClaims(answerText, sectionCoverage);
+          if (sanitized.removedCount > 0) {
+            answerText = sanitized.answer;
+            removedUncitedClaims = sanitized.removedCount;
+            citationAudit = auditCitationMarkers(answerText, grounded.citations);
+            sectionCoverage = auditCitationSectionCoverage(answerText, [...DEEP_RESEARCH_REQUIRED_SECTIONS]);
+            emit({ replaceContent: answerText });
+          }
+        }
+        let answerStatus = classifyDeepResearchAnswer({
           citationCount: grounded.citations.length,
           citationAuditStatus: citationAudit.status,
           sectionCoverageStatus: sectionCoverage.status,
         });
+        if (answerStatus !== 'complete') {
+          repairAttempted = true;
+          emit({
+            progress: {
+              stage: 'repairing',
+              progress: 94,
+              message: '引用覆盖未通过，正在基于原始证据进行一次保守重写。',
+            },
+          });
+          let repairedAnswer = '';
+          const repairPrompt = buildDeepResearchRepairPrompt({
+            question,
+            evidenceContext: grounded.promptContext,
+            sourceCount: papers.length,
+          });
+          for await (const chunk of llmStream([
+            { role: 'system', content: SYSTEM_PROMPTS.reportGeneration },
+            { role: 'user', content: repairPrompt },
+          ], {
+            model: modelName,
+            temperature: 0.1,
+            maxTokens: 2400,
+            signal: taskController.signal,
+          }, undefined, runtimeConfig)) {
+            repairedAnswer += chunk;
+          }
+          citationAudit = auditCitationMarkers(repairedAnswer, grounded.citations);
+          sectionCoverage = auditCitationSectionCoverage(repairedAnswer, [...DEEP_RESEARCH_REQUIRED_SECTIONS]);
+          if (sectionCoverage.status === 'missing-claim-citations') {
+            const sanitizedRepair = removeUncitedDeepResearchClaims(repairedAnswer, sectionCoverage);
+            repairedAnswer = sanitizedRepair.answer;
+            removedUncitedClaims += sanitizedRepair.removedCount;
+            citationAudit = auditCitationMarkers(repairedAnswer, grounded.citations);
+            sectionCoverage = auditCitationSectionCoverage(repairedAnswer, [...DEEP_RESEARCH_REQUIRED_SECTIONS]);
+          }
+          answerText = repairedAnswer;
+          answerStatus = classifyDeepResearchAnswer({
+            citationCount: grounded.citations.length,
+            citationAuditStatus: citationAudit.status,
+            sectionCoverageStatus: sectionCoverage.status,
+          });
+          emit({ replaceContent: answerText });
+        }
 
         let billing: { status: 'settled' } | { status: 'settle_failed'; code: string } | undefined;
         if (usageReservation) {
@@ -190,6 +247,8 @@ export async function POST(request: NextRequest) {
           researchStatus: {
             answerStatus,
             sectionCoverage,
+            removedUncitedClaims,
+            repairAttempted,
             retrievalLimits: [
               '报告仅基于当前选定来源及其可检索片段。',
               '引用线索未替代全文核验。',

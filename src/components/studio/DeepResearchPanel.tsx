@@ -22,6 +22,8 @@ type ResearchStatusPayload = {
     uncitedClaims?: Array<{ section?: string; text?: string }>;
   };
   retrievalLimits?: string[];
+  removedUncitedClaims?: number;
+  repairAttempted?: boolean;
 };
 
 const RESEARCH_STAGES: StudioJobProgressStage[] = [
@@ -29,6 +31,7 @@ const RESEARCH_STAGES: StudioJobProgressStage[] = [
   { key: 'evidence-ready', label: '匹配证据片段' },
   { key: 'writing', label: '组织研究报告' },
   { key: 'auditing', label: '检查章节与引用' },
+  { key: 'repairing', label: '收口引用覆盖' },
 ];
 
 function toPaperRequest(paper: Paper) {
@@ -128,6 +131,7 @@ export function DeepResearchPanel() {
           if (raw === '[DONE]') continue;
           const payload = JSON.parse(raw) as {
             content?: string;
+            replaceContent?: string;
             citations?: Citation[];
             retrieval?: RetrievalMetadata;
             citationAudit?: CitationAuditResult;
@@ -144,6 +148,10 @@ export function DeepResearchPanel() {
           if (payload.retrieval) setRetrieval(payload.retrieval);
           if (payload.content) {
             streamedAnswer += payload.content;
+            setAnswer(streamedAnswer);
+          }
+          if (payload.replaceContent) {
+            streamedAnswer = payload.replaceContent;
             setAnswer(streamedAnswer);
           }
           if (payload.citationAudit) setCitationAudit(payload.citationAudit);
@@ -255,7 +263,7 @@ export function DeepResearchPanel() {
               : <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />}
             <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
               {status === 'complete'
-                ? '报告结构与引用编号检查通过；关键结论仍建议定位来源核验原文。'
+                ? `报告结构与引用编号检查通过；关键结论仍建议定位来源核验原文。${researchStatus?.removedUncitedClaims ? ` 已移除 ${researchStatus.removedUncitedClaims} 条无引用陈述。` : ''}`
                 : '当前为未完成研究草稿，不能直接作为已核验报告。请补齐缺失章节或引用后再使用。'}
             </p>
           </div>

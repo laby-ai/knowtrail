@@ -69,6 +69,7 @@ pnpm smoke:real-doubao-tts
 pnpm smoke:workbench-studio-ui
 pnpm smoke:studio-evidence-ui
 pnpm smoke:live-paper-search-provider
+pnpm smoke:live-deep-research
 pnpm smoke:live-virtual-classroom
 pnpm audit:pptx-quality
 pnpm smoke:runtime-health
@@ -89,6 +90,24 @@ pnpm smoke:live-paper-search-provider
 ```
 
 The scholar fallback returns open-source candidates rather than verified citations. Users must check the title, authors, date, source page, and claim support before citing.
+
+Run the public deep-research smoke in account-gate mode after promotion. It sends a valid bounded request and verifies that unauthenticated production access still fails with the stable login contract:
+
+```bash
+LIVE_DEEP_RESEARCH_ORIGIN=https://airai.world pnpm smoke:live-deep-research
+```
+
+Before promotion, a standby candidate may run one real-model probe with account auth disabled only for that isolated process. The probe uses a deterministic evidence source, does not print the source or generated report, and fails unless SSE progress, required sections, citations, audits, and completion all pass:
+
+```bash
+LIVE_DEEP_RESEARCH_ORIGIN=http://127.0.0.1:5099 \
+LIVE_DEEP_RESEARCH_PATH=/api/ai/deep-research \
+LIVE_DEEP_RESEARCH_MODE=full \
+LIVE_DEEP_RESEARCH_REQUIRE_BILLING=true \
+pnpm smoke:live-deep-research
+```
+
+The standby process must inherit the stable model and billing configuration. Do not disable authentication on the promoted service.
 
 Run the live virtual-classroom smoke from a workstation with Playwright after promotion. It checks runtime status, recent shared history, the exported classroom JSON, desktop/mobile hydration, failed responses, console errors, and horizontal overflow:
 
