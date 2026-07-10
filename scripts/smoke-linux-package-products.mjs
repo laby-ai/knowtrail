@@ -144,6 +144,13 @@ function main() {
   );
   const secretHits = scanSecrets(stagingDir);
   const possibleSecrets = secretHits.filter(hit => hit.kind === 'possible-secret');
+  const releaseGateTest = spawnSync(process.execPath, ['scripts/test-release-env-gate.mjs'], {
+    cwd: stagingDir,
+    encoding: 'utf8',
+  });
+  const releaseGateTestError = releaseGateTest.status === 0
+    ? null
+    : releaseGateTest.stderr || releaseGateTest.stdout || releaseGateTest.error?.message || 'unknown error';
 
   const ok = missingScripts.length === 0
     && missingFiles.length === 0
@@ -152,7 +159,8 @@ function main() {
     && missingReadmeCommands.length === 0
     && missingTtsEnv.length === 0
     && forbiddenEntries.length === 0
-    && possibleSecrets.length === 0;
+    && possibleSecrets.length === 0
+    && releaseGateTest.status === 0;
 
   console.log(JSON.stringify({
     ok,
@@ -168,6 +176,7 @@ function main() {
       'archive excludes .env.real.local, .data, and .logs',
       'packaged files include Studio product and PPTX audit scripts',
       'packaged files include API conventions docs for release/source parity',
+      'packaged release environment gate executes without source-only CI files',
       'packaged tree secret scan has no possible real keys',
     ],
     missingScripts,
@@ -177,6 +186,7 @@ function main() {
     missingReadmeCommands,
     missingTtsEnv,
     forbiddenEntries,
+    releaseGateTestError,
     secretHits,
   }, null, 2));
 

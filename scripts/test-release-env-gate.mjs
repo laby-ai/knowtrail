@@ -129,7 +129,11 @@ try {
   const healthRouteSource = await readFile(path.join(process.cwd(), 'src/app/api/health/route.ts'), 'utf8');
   const deploySource = await readFile(path.join(process.cwd(), 'deploy/linux/deploy.sh'), 'utf8');
   const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
-  const ciSource = await readFile(path.join(process.cwd(), '.github/workflows/ci.yml'), 'utf8');
+  const ciSource = await readFile(path.join(process.cwd(), '.github/workflows/ci.yml'), 'utf8')
+    .catch(error => {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    });
   const packageSmokeSource = await readFile(path.join(process.cwd(), 'scripts/smoke-linux-package-products.mjs'), 'utf8');
   const releaseGateSource = await readFile(path.join(process.cwd(), 'scripts/lib/release-env-gate.mjs'), 'utf8');
   const promoteSource = await readFile(path.join(process.cwd(), 'scripts/promote-release.mjs'), 'utf8');
@@ -146,7 +150,9 @@ try {
   );
   assert.equal(packageJson.scripts['test:release-env-gate'], 'node ./scripts/test-release-env-gate.mjs');
   assert.match(packageJson.scripts.validate, /test:release-env-gate/);
-  assert.match(ciSource, /Release environment gate[\s\S]*test:release-env-gate/);
+  if (ciSource !== null) {
+    assert.match(ciSource, /Release environment gate[\s\S]*test:release-env-gate/);
+  }
   for (const packagedGate of [
     'scripts/prepare-release-env.mjs',
     'scripts/verify-release-health.mjs',
