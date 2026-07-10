@@ -128,6 +128,7 @@ try {
 
   const healthRouteSource = await readFile(path.join(process.cwd(), 'src/app/api/health/route.ts'), 'utf8');
   const deploySource = await readFile(path.join(process.cwd(), 'deploy/linux/deploy.sh'), 'utf8');
+  const installSource = await readFile(path.join(process.cwd(), 'deploy/linux/install.sh'), 'utf8');
   const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
   const ciSource = await readFile(path.join(process.cwd(), '.github/workflows/ci.yml'), 'utf8')
     .catch(error => {
@@ -140,6 +141,9 @@ try {
   assert.match(healthRouteSource, /scientificIllustrationStore/);
   assert.match(deploySource, /prepare-release-env/);
   assert.match(deploySource, /verify-release-health/);
+  assert.match(installSource, /tar -tzf "\$CLASSROOM_RUNTIME_ARCHIVE" \| sed 's#\^\\\.\/#\#'/);
+  assert.match(installSource, /OpenMAIC runtime archive contains an unsafe path/);
+  assert.match(installSource, /OpenMAIC runtime archive did not produce a standalone server/);
   assert(
     deploySource.indexOf('command -v node') < deploySource.indexOf('prepare-release-env'),
     'The release env CLI must run only after Node bootstrap is available.',
@@ -177,6 +181,7 @@ try {
       'health and deploy scripts expose the release gate contract',
       'CI and aggregate validation enforce the release gate contract',
       'Linux package smoke requires every release gate entrypoint',
+      'Linux install normalizes and validates the nested classroom runtime archive before extraction',
       'promotion safely stops the verified standby process group before switching links',
     ],
   }, null, 2));

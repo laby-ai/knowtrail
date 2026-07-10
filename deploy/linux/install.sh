@@ -14,7 +14,7 @@ cd "$APP_DIR"
 
 CLASSROOM_RUNTIME_ARCHIVE="$APP_DIR/runtime/openmaic-runtime.tar.gz"
 if [ -f "$CLASSROOM_RUNTIME_ARCHIVE" ]; then
-  CLASSROOM_RUNTIME_ENTRIES="$(tar -tzf "$CLASSROOM_RUNTIME_ARCHIVE")"
+  CLASSROOM_RUNTIME_ENTRIES="$(tar -tzf "$CLASSROOM_RUNTIME_ARCHIVE" | sed 's#^\./##')"
   if printf '%s\n' "$CLASSROOM_RUNTIME_ENTRIES" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
     echo "OpenMAIC runtime archive contains an unsafe path." >&2
     exit 1
