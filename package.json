@@ -29,6 +29,7 @@
     "smoke:knowledge-map-ui": "node ./scripts/smoke-knowledge-map-ui.mjs",
     "smoke:paper-search-ui": "node ./scripts/smoke-paper-search-ui.mjs",
     "smoke:deep-research-ui": "node ./scripts/smoke-deep-research-ui.mjs",
+    "smoke:hypothesis-generation-ui": "node ./scripts/smoke-hypothesis-generation-ui.mjs",
     "smoke:openmaic-provider-bridge": "node ./scripts/smoke-openmaic-provider-bridge.mjs",
     "smoke:real-env-preflight": "node ./scripts/smoke-real-env-preflight.mjs",
     "smoke:real-openai-compatible": "tsx ./scripts/smoke-real-openai-compatible.ts",
@@ -63,6 +64,7 @@
     "test:data-table-preview": "tsx ./scripts/test-data-table-preview.ts",
     "test:discovered-source-upload": "tsx ./scripts/test-discovered-source-upload.ts",
     "test:deep-research-contract": "tsx ./scripts/test-deep-research-contract.ts",
+    "test:hypothesis-generation-contract": "tsx ./scripts/test-hypothesis-generation-contract.ts",
     "test:long-task-ux": "tsx ./scripts/test-long-task-ux.ts",
     "test:studio-nav-side-effects": "tsx ./scripts/test-studio-nav-side-effects.ts",
     "test:ppt-v2-outline-draft": "tsx ./scripts/test-ppt-v2-outline-draft.ts",
@@ -70,7 +72,7 @@
     "test:storage": "tsx ./scripts/test-storage.ts",
     "test:vector-store": "tsx ./scripts/test-vector-store.ts",
     "ts-check": "tsc -p tsconfig.json",
-    "validate": "pnpm test:runtime-ai-config && pnpm test:storage && pnpm test:rag && pnpm test:citation-audit && pnpm test:vector-store && pnpm test:ingestion && pnpm test:mineru-job && pnpm test:podcast-status && pnpm test:volcengine-podcast && pnpm test:doubao-tts && pnpm test:tts-route && pnpm test:studio-podcast-job && pnpm test:grounded-retrieval && pnpm test:studio-grounded-routes && pnpm test:knowledge-map-compiler && pnpm test:source-matrix && pnpm test:data-table-preview && pnpm test:discovered-source-upload && pnpm test:deep-research-contract && pnpm test:long-task-ux && pnpm test:studio-nav-side-effects && pnpm test:ppt-v2-outline-draft && pnpm run ts-check && pnpm run lint:build"
+    "validate": "pnpm test:runtime-ai-config && pnpm test:storage && pnpm test:rag && pnpm test:citation-audit && pnpm test:vector-store && pnpm test:ingestion && pnpm test:mineru-job && pnpm test:podcast-status && pnpm test:volcengine-podcast && pnpm test:doubao-tts && pnpm test:tts-route && pnpm test:studio-podcast-job && pnpm test:grounded-retrieval && pnpm test:studio-grounded-routes && pnpm test:knowledge-map-compiler && pnpm test:source-matrix && pnpm test:data-table-preview && pnpm test:discovered-source-upload && pnpm test:deep-research-contract && pnpm test:hypothesis-generation-contract && pnpm test:long-task-ux && pnpm test:studio-nav-side-effects && pnpm test:ppt-v2-outline-draft && pnpm run ts-check && pnpm run lint:build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.975.0",

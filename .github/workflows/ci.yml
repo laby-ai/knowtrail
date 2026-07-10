@@ -43,6 +43,9 @@ jobs:
       - name: Deep research contracts
         run: pnpm run test:deep-research-contract
 
+      - name: Hypothesis generation contracts
+        run: pnpm run test:hypothesis-generation-contract
+
       - name: Typecheck
         run: pnpm run ts-check
 

@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'deep-research' | 'knowledge' | 'presentation' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'knowledge' | 'presentation' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -48,6 +48,13 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     label: '研究脉络',
     categoryId: 'literature-evidence',
     desc: '核心词、关系与证据',
+    availability: 'ready',
+  },
+  {
+    id: 'hypothesis-generation',
+    label: '假设生成',
+    categoryId: 'research-ideation',
+    desc: '依据、反例与可证伪预测',
     availability: 'ready',
   },
   {

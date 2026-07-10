@@ -6,6 +6,7 @@ import { PresentationWorkspacePanel } from './PresentationPanels';
 import { VirtualClassroomPanel } from './VirtualClassroomPanel';
 import { PaperSearchPanel } from './PaperSearchPanel';
 import { DeepResearchPanel } from './DeepResearchPanel';
+import { HypothesisGenerationPanel } from './HypothesisGenerationPanel';
 import {
   STUDIO_NAV,
   StudioToolSwitcher,
@@ -40,6 +41,7 @@ export function StudioPanel() {
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
         {activeTab === 'paper-search' && <PaperSearchPanel />}
         {activeTab === 'deep-research' && <DeepResearchPanel />}
+        {activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel />}
         {activeTab === 'presentation' && <PresentationWorkspacePanel />}
         {activeTab === 'knowledge' && <KnowledgeMapPanel />}
         {activeTab === 'virtual-classroom' && <VirtualClassroomPanel />}
