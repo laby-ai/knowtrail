@@ -55,6 +55,23 @@ assert.equal(arxivResult.results[0]?.content, 'We evaluate & audit multimodal sy
 assert.match(arxivRequests[0] || '', /^https:\/\/export\.arxiv\.org\/api\/query\?/);
 assert.match(arxivRequests[0] || '', /max_results=5/);
 
+let retryCalls = 0;
+const retriedArxiv = await searchDiscoveredSources({
+  query: 'retryable scholar query',
+  scope: 'scholar',
+  size: 1,
+  withContent: false,
+}, {
+  metasoApiKey: '',
+  fetchImpl: async () => {
+    retryCalls += 1;
+    if (retryCalls === 1) throw new TypeError('temporary network reset');
+    return new Response(atom, { status: 200, headers: { 'Content-Type': 'application/atom+xml' } });
+  },
+});
+assert.equal(retryCalls, 2);
+assert.equal(retriedArxiv.results.length, 1);
+
 const metasoBodies: unknown[] = [];
 const metasoResult = await searchDiscoveredSources({
   query: 'evidence synthesis',
@@ -99,17 +116,21 @@ assert.equal(
   'node ./scripts/smoke-live-paper-search-provider.mjs',
   'The production paper-search smoke must not depend on the dev-only tsx binary.',
 );
+const liveSmokeSource = await readFile(path.join(process.cwd(), 'scripts/smoke-live-paper-search-provider.mjs'), 'utf8');
+assert.match(liveSmokeSource, /LIVE_PAPER_SEARCH_PATH/, 'The live smoke must support public and direct-candidate API paths.');
 
 console.log(JSON.stringify({
   ok: true,
   checked: [
     'arXiv Atom metadata and abstract become explicit open-source candidates',
     'scholar search falls back to arXiv when Metaso is not configured',
+    'arXiv fallback retries one transient network failure without hiding persistent errors',
     'configured Metaso remains the preferred provider',
     'webpage search fails clearly instead of pretending arXiv covers the web',
     'discover route delegates to the tested provider abstraction',
     'paper-search UI explains the arXiv fallback and verification boundary',
     'production paper-search smoke runs with Node and production dependencies only',
+    'live smoke supports both public base-path and direct candidate origins',
   ],
 }, null, 2));
 }

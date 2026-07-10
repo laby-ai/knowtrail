@@ -115,13 +115,25 @@ async function searchArxiv(input: DiscoverSearchInput, options: Required<Pick<Se
   url.searchParams.set('max_results', String(input.size));
   url.searchParams.set('sortBy', 'relevance');
   url.searchParams.set('sortOrder', 'descending');
-  const response = await options.fetchImpl(url, {
-    headers: {
-      Accept: 'application/atom+xml',
-      'User-Agent': 'KnowTrail/1.0 (https://airai.world)',
-    },
-    signal: requestSignal(input.signal, Number(process.env.DISCOVER_SEARCH_TIMEOUT_MS || 30_000)),
-  });
+  let response: Response | undefined;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      response = await options.fetchImpl(url, {
+        headers: {
+          Accept: 'application/atom+xml',
+          'User-Agent': 'KnowTrail/1.0 (https://airai.world)',
+        },
+        signal: requestSignal(input.signal, Number(process.env.DISCOVER_SEARCH_TIMEOUT_MS || 30_000)),
+      });
+      if (response.status < 500 || attempt === 1) break;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 1 || input.signal?.aborted) throw error;
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  if (!response) throw lastError;
   if (!response.ok) throw new DiscoverSearchProviderError(`开放论文检索暂不可用(HTTP ${response.status})`);
   return parseArxivAtom(await response.text());
 }
