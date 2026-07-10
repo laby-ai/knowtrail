@@ -46,6 +46,9 @@ jobs:
       - name: Hypothesis generation contracts
         run: pnpm run test:hypothesis-generation-contract
 
+      - name: Data processing contracts
+        run: pnpm run test:data-processing-plan
+
       - name: Typecheck
         run: pnpm run ts-check
 
