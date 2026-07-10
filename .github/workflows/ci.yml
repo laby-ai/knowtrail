@@ -52,6 +52,9 @@ jobs:
       - name: Experiment design contracts
         run: pnpm run test:experiment-design-contract
 
+      - name: Academic writing contracts
+        run: pnpm run test:academic-writing-contract
+
       - name: Typecheck
         run: pnpm run ts-check
 

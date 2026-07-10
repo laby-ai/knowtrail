@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'knowledge' | 'presentation' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'knowledge' | 'presentation' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -69,6 +69,13 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     label: '实验设计',
     categoryId: 'research-ideation',
     desc: '对照、随机化与预注册协议',
+    availability: 'ready',
+  },
+  {
+    id: 'academic-writing',
+    label: '学术写作',
+    categoryId: 'results-expression',
+    desc: '段落证据与主张映射',
     availability: 'ready',
   },
   {
