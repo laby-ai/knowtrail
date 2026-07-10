@@ -262,6 +262,7 @@ writeFileSync(path.join(appDir, 'BUNDLE_MANIFEST.json'), `${JSON.stringify({
     'pnpm smoke:studio-evidence-ui',
     'pnpm smoke:live-paper-search-provider',
     'pnpm smoke:live-deep-research',
+    'pnpm smoke:live-knowledge-map',
     'pnpm smoke:live-virtual-classroom',
     'pnpm audit:pptx-quality',
     'pnpm smoke:runtime-health',

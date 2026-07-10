@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { buildFastKnowledgeMap } from '../src/lib/knowledge-map-compiler';
+import { buildKnowledgeMapPayload } from '../src/lib/knowledge-map-service';
 import type { GroundedCitation, RagSourceInput } from '../src/lib/rag';
 
 const papers: RagSourceInput[] = [
@@ -53,11 +54,21 @@ assert.ok(extractedEdges.length >= 1, 'same-citation co-occurrence should produc
 assert.ok(map.analysis.suggestedQuestions.length >= 1, 'analysis should include suggested follow-up questions');
 assert.ok(map.communities.length >= 1, 'communities should group nodes');
 
-console.log(JSON.stringify({
-  ok: true,
-  nodeCount: map.nodes.length,
-  edgeCount: map.edges.length,
-  focal: focalNodes[0].label,
-  extractedEdgeCount: extractedEdges.length,
-  suggestedQuestionCount: map.analysis.suggestedQuestions.length,
-}, null, 2));
+async function main() {
+  const noEvidence = await buildKnowledgeMapPayload({
+    papers: [{ id: 'metadata-only', title: '只有题名', content: '', rawContent: '', abstract: '' }],
+  });
+  assert.equal('error' in noEvidence && noEvidence.status, 422, 'metadata-only sources must fail closed.');
+  assert.equal('error' in noEvidence && noEvidence.errorType, 'knowledge_map_no_evidence');
+
+  console.log(JSON.stringify({
+    ok: true,
+    nodeCount: map.nodes.length,
+    edgeCount: map.edges.length,
+    focal: focalNodes[0].label,
+    extractedEdgeCount: extractedEdges.length,
+    suggestedQuestionCount: map.analysis.suggestedQuestions.length,
+  }, null, 2));
+}
+
+void main();
