@@ -143,6 +143,17 @@ export async function buildKnowledgeMapPayload(input: KnowledgeMapRequestInput) 
     };
   }
 
+  const hasSubstantiveEvidence = grounded.citations.some(citation =>
+    (citation.excerpt || '').replace(/\s+/g, ' ').trim().length >= 40,
+  );
+  if (!hasSubstantiveEvidence) {
+    return {
+      error: '当前选定来源中没有可用证据片段，不能生成研究脉络。请等待资料解析完成或补充来源。',
+      errorType: 'knowledge_map_no_evidence',
+      status: 422 as const,
+    };
+  }
+
   if (!deepExtract) {
     const map = buildFastKnowledgeMap(papers, grounded.citations);
     const auditText = [

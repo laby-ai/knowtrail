@@ -16,6 +16,7 @@ const requiredScripts = [
   'smoke:studio-evidence-ui',
   'smoke:live-paper-search-provider',
   'smoke:live-deep-research',
+  'smoke:live-knowledge-map',
   'smoke:live-virtual-classroom',
   'audit:pptx-quality',
   'validate',
@@ -45,6 +46,8 @@ const requiredFiles = [
   'scripts/smoke-live-paper-search-provider.mjs',
   'scripts/smoke-live-deep-research.mjs',
   'scripts/lib/live-deep-research-smoke.mjs',
+  'scripts/smoke-live-knowledge-map.mjs',
+  'scripts/lib/live-knowledge-map-smoke.mjs',
   'scripts/smoke-live-virtual-classroom.mjs',
   'scripts/lib/live-virtual-classroom-smoke.mjs',
   'deploy/linux/preflight.sh',
@@ -184,6 +187,7 @@ function main() {
     'pnpm smoke:real-studio-products',
     'pnpm smoke:live-paper-search-provider',
     'pnpm smoke:live-deep-research',
+    'pnpm smoke:live-knowledge-map',
     'pnpm smoke:live-virtual-classroom',
   ].filter(command => !readme.includes(command));
   const missingTtsEnv = [

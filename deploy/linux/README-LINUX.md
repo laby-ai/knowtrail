@@ -70,6 +70,7 @@ pnpm smoke:workbench-studio-ui
 pnpm smoke:studio-evidence-ui
 pnpm smoke:live-paper-search-provider
 pnpm smoke:live-deep-research
+pnpm smoke:live-knowledge-map
 pnpm smoke:live-virtual-classroom
 pnpm audit:pptx-quality
 pnpm smoke:runtime-health
@@ -108,6 +109,21 @@ pnpm smoke:live-deep-research
 ```
 
 The standby process must inherit the stable model and billing configuration. Do not disable authentication on the promoted service.
+
+Run the public research-map smoke after promotion to verify the stable login contract without exposing source text:
+
+```bash
+LIVE_KNOWLEDGE_MAP_ORIGIN=https://airai.world pnpm smoke:live-knowledge-map
+```
+
+An isolated standby process with authentication disabled may run the deterministic full contract. It fails unless every node and relationship is source-backed and the citation audit passes:
+
+```bash
+LIVE_KNOWLEDGE_MAP_ORIGIN=http://127.0.0.1:5099 \
+LIVE_KNOWLEDGE_MAP_PATH=/api/ai/knowledge-map \
+LIVE_KNOWLEDGE_MAP_MODE=full \
+pnpm smoke:live-knowledge-map
+```
 
 Run the live virtual-classroom smoke from a workstation with Playwright after promotion. It checks runtime status, recent shared history, the exported classroom JSON, desktop/mobile hydration, failed responses, console errors, and horizontal overflow:
 
