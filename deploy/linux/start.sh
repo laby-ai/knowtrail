@@ -62,6 +62,23 @@ if [ -f "$CLASSROOM_SERVER" ]; then
   export NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN="${NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN:-/classroom-runtime}"
   export VIRTUAL_CLASSROOM_INTERNAL_ORIGIN="${VIRTUAL_CLASSROOM_INTERNAL_ORIGIN:-http://${OPENMAIC_SIDECAR_HOST}:${OPENMAIC_SIDECAR_PORT}}"
 
+  STUDIO_JOB_STORE_DIR="$(dirname "$STUDIO_JOB_STORE_PATH")"
+  SHARED_DATA_ROOT="${RELEASE_SHARED_ROOT:-$(dirname "$STUDIO_JOB_STORE_DIR")}"
+  export VIRTUAL_CLASSROOM_STORE_DIR="${VIRTUAL_CLASSROOM_STORE_DIR:-$SHARED_DATA_ROOT/virtual-classroom}"
+  CLASSROOM_DATA_DIR="$(dirname "$CLASSROOM_SERVER")/data"
+  case "$CLASSROOM_DATA_DIR" in
+    "$APP_DIR"/.references/OpenMAIC/*/data) ;;
+    *) echo "Refusing unsafe classroom data path: $CLASSROOM_DATA_DIR" >&2; exit 1 ;;
+  esac
+  mkdir -p "$VIRTUAL_CLASSROOM_STORE_DIR"
+  if [ -d "$CLASSROOM_DATA_DIR" ] && [ ! -L "$CLASSROOM_DATA_DIR" ]; then
+    cp -a "$CLASSROOM_DATA_DIR/." "$VIRTUAL_CLASSROOM_STORE_DIR/"
+    rm -rf "$CLASSROOM_DATA_DIR"
+  fi
+  if [ ! -L "$CLASSROOM_DATA_DIR" ]; then
+    ln -s "$VIRTUAL_CLASSROOM_STORE_DIR" "$CLASSROOM_DATA_DIR"
+  fi
+
   CLASSROOM_HEALTH_URL="${VIRTUAL_CLASSROOM_INTERNAL_ORIGIN%/}/api/health"
   if ! curl -fsS "$CLASSROOM_HEALTH_URL" >/dev/null 2>&1; then
     node scripts/start-openmaic-sidecar-real.mjs > logs/classroom-runtime.log 2>&1 &

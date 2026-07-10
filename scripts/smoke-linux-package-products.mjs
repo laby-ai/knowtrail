@@ -18,6 +18,7 @@ const requiredScripts = [
   'validate',
   'test:openmaic-sidecar-config',
   'test:virtual-classroom-proxy',
+  'test:virtual-classroom-storage',
   'test:release-env-gate',
   'smoke:runtime-health',
 ];
