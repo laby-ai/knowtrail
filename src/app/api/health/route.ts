@@ -9,6 +9,7 @@ import { getAccountCenterStatus } from '@/lib/account-center';
 import { allowRequestRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { internalClassroomOrigin, publicClassroomOrigin } from '@/lib/virtual-classroom/runtime-config';
 import { scientificIllustrationStoreStatus } from '@/lib/scientific-illustration-store';
+import { resolveExplainerVideoProviderConfig } from '@/lib/explainer-video-provider';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +61,7 @@ export async function GET() {
       sourceStore: sourceStoreStatus(),
       studioJobStore: studioJobStoreStatus(),
       scientificIllustrationStore,
+      explainerVideoProvider: resolveExplainerVideoProviderConfig().publicStatus,
       accountCenter: getAccountCenterStatus(),
       virtualClassroom: {
         publicOrigin: publicClassroomOrigin() || null,
