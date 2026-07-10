@@ -58,6 +58,9 @@ jobs:
       - name: Text polishing contracts
         run: pnpm run test:text-polishing-contract
 
+      - name: Peer review contracts
+        run: pnpm run test:peer-review-contract
+
       - name: Typecheck
         run: pnpm run ts-check
 

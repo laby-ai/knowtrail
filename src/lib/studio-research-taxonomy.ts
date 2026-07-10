@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'text-polishing' | 'knowledge' | 'presentation' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'text-polishing' | 'knowledge' | 'presentation' | 'peer-review' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -90,6 +90,13 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     label: 'PPT 制作',
     categoryId: 'results-expression',
     desc: '图片页 / 可编辑 PPT',
+    availability: 'ready',
+  },
+  {
+    id: 'peer-review',
+    label: '论文审查',
+    categoryId: 'collaboration-memory',
+    desc: '定位问题与可执行建议',
     availability: 'ready',
   },
   {
