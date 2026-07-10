@@ -52,7 +52,9 @@ function resolveImageApiBase(runtimeConfig: Partial<RuntimeAIConfig>): string {
 }
 
 function resolveImageApiKey(runtimeConfig: Partial<RuntimeAIConfig>): string {
-  return envFirst('OPENAI_COMPAT_IMAGE_API_KEY', 'ARK_IMAGE_API_KEY', 'ARK_AGENTPLAN_API_KEY') || runtimeConfig.apiKey || '';
+  return envFirst('OPENAI_COMPAT_IMAGE_API_KEY', 'ARK_IMAGE_API_KEY')
+    || runtimeConfig.apiKey
+    || envFirst('ARK_AGENTPLAN_API_KEY');
 }
 
 function resolveImageModel(runtimeConfig?: Partial<RuntimeAIConfig>): string {
