@@ -1,4 +1,7 @@
+import path from 'node:path';
+
 export const CLASSROOM_RUNTIME_PREFIX = '/classroom-runtime';
+const NEXT_STATIC_PREFIX = '/_next/static/';
 
 const classroomRootProxyPrefixes = [
   '/api/access-code/',
@@ -30,4 +33,24 @@ export function resolveClassroomProxyTarget(requestUrl: string, pathname: string
 
   const stripped = (requestUrl || pathname).slice(CLASSROOM_RUNTIME_PREFIX.length);
   return { shouldProxy: true, targetPath: stripped || '/' };
+}
+
+export function shouldProxyMissingClassroomAsset(
+  pathname: string,
+  mainStaticRoot: string,
+  exists: (absolutePath: string) => boolean,
+): boolean {
+  if (!pathname.startsWith(NEXT_STATIC_PREFIX)) return false;
+
+  let relativeAsset: string;
+  try {
+    relativeAsset = decodeURIComponent(pathname.slice(NEXT_STATIC_PREFIX.length));
+  } catch {
+    return false;
+  }
+
+  const absoluteAsset = path.resolve(mainStaticRoot, relativeAsset);
+  const relativeToRoot = path.relative(mainStaticRoot, absoluteAsset);
+  if (!relativeToRoot || relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) return false;
+  return !exists(absoluteAsset);
 }
