@@ -89,7 +89,7 @@ export function StudioToolSwitcher({
   const visibleCategories = getVisibleStudioCategories();
 
   return (
-    <div className="max-h-[36vh] space-y-3 overflow-y-auto pr-1" data-testid="studio-tool-switcher">
+    <div className="space-y-3" data-testid="studio-tool-switcher">
       {visibleCategories.map(category => (
         <section key={category.id} data-testid={`studio-category-${category.id}`}>
           <h3 className="mb-2 text-[10px] font-semibold text-[var(--text-tertiary)]">{category.label}</h3>
