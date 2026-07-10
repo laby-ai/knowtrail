@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'text-polishing' | 'knowledge' | 'presentation' | 'peer-review' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'text-polishing' | 'scientific-illustration' | 'knowledge' | 'presentation' | 'peer-review' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -83,6 +83,13 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     label: '文本润色',
     categoryId: 'results-expression',
     desc: '保护事实与可解释修订',
+    availability: 'ready',
+  },
+  {
+    id: 'scientific-illustration',
+    label: '科研绘图',
+    categoryId: 'results-expression',
+    desc: '来源约束的科研示意图',
     availability: 'ready',
   },
   {

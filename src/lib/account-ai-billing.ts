@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { AccountEntitlementClient, estimateTextUnits } from '@/lib/account-entitlement-client';
 
+export type BillingProductArea = 'ai.text' | 'ai.image' | 'ai.video' | 'ai.agent';
+
 type AIUsageReservationOptions = {
   route: string;
+  productArea?: BillingProductArea;
   modelName: string;
-  inputText: string;
+  units?: number;
+  inputText?: string;
   promptContext?: string;
   memberId?: string;
 };
@@ -12,7 +16,7 @@ type AIUsageReservationOptions = {
 export type AIUsageReservation = {
   requestId: string;
   estimatedUnits: number;
-  settle: (actualText: string) => Promise<void>;
+  settle: (actualUsage: string | number) => Promise<void>;
   release: () => Promise<void>;
 };
 
@@ -54,12 +58,14 @@ export async function reserveAIUsage(options: AIUsageReservationOptions): Promis
   if (!client || !tenantId || !memberId) return null;
 
   const requestId = `knowtrail:${options.route}:${randomUUID()}`;
-  const estimatedUnits = estimateTextUnits(`${options.inputText}\n\n${options.promptContext || ''}`);
+  const estimatedUnits = typeof options.units === 'number' && options.units > 0
+    ? Math.floor(options.units)
+    : estimateTextUnits(`${options.inputText || ''}\n\n${options.promptContext || ''}`);
   const response = await client.reserve({
     tenantId,
     memberId,
     requestId,
-    productArea: envValue('ACCOUNT_CENTER_PRODUCT_AREA') || 'ai.text',
+    productArea: options.productArea || envValue('ACCOUNT_CENTER_PRODUCT_AREA') || 'ai.text',
     modelName: options.modelName,
     units: estimatedUnits,
   });
@@ -69,8 +75,13 @@ export async function reserveAIUsage(options: AIUsageReservationOptions): Promis
   return {
     requestId,
     estimatedUnits,
-    settle: async (actualText: string) => {
-      const actualUnits = Math.min(estimateTextUnits(actualText, 1_000, estimatedUnits), estimatedUnits);
+    settle: async (actualUsage: string | number) => {
+      const actualUnits = Math.min(
+        typeof actualUsage === 'number' && actualUsage > 0
+          ? Math.floor(actualUsage)
+          : estimateTextUnits(String(actualUsage), 1_000, estimatedUnits),
+        estimatedUnits,
+      );
       await client.settle({ tenantId, reservationId, requestId, actualUnits });
     },
     release: async () => {

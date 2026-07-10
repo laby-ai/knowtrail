@@ -37,6 +37,9 @@ const academicWritingPanelSource = fs.readFileSync(academicWritingPanelPath, 'ut
 const textPolishingPanelPath = path.join(process.cwd(), 'src/components/studio/TextPolishingPanel.tsx');
 assert.ok(fs.existsSync(textPolishingPanelPath), 'Text polishing should provide a real Studio panel');
 const textPolishingPanelSource = fs.readFileSync(textPolishingPanelPath, 'utf8');
+const scientificIllustrationPanelPath = path.join(process.cwd(), 'src/components/studio/ScientificIllustrationPanel.tsx');
+assert.ok(fs.existsSync(scientificIllustrationPanelPath), 'Scientific illustration should provide a real Studio panel');
+const scientificIllustrationPanelSource = fs.readFileSync(scientificIllustrationPanelPath, 'utf8');
 const peerReviewPanelPath = path.join(process.cwd(), 'src/components/studio/PeerReviewPanel.tsx');
 assert.ok(fs.existsSync(peerReviewPanelPath), 'Peer review should provide a real Studio panel');
 const peerReviewPanelSource = fs.readFileSync(peerReviewPanelPath, 'utf8');
@@ -74,11 +77,12 @@ assert.match(taxonomySource, /id: 'data-processing'[\s\S]*label: '数据处理'[
 assert.match(taxonomySource, /id: 'experiment-design'[\s\S]*label: '实验设计'[\s\S]*categoryId: 'research-ideation'[\s\S]*availability: 'ready'/, 'Experiment design should be a real research-ideation product');
 assert.match(taxonomySource, /id: 'academic-writing'[\s\S]*label: '学术写作'[\s\S]*categoryId: 'results-expression'[\s\S]*availability: 'ready'/, 'Academic writing should be a real results-expression product');
 assert.match(taxonomySource, /id: 'text-polishing'[\s\S]*label: '文本润色'[\s\S]*categoryId: 'results-expression'[\s\S]*availability: 'ready'/, 'Text polishing should be a real results-expression product');
+assert.match(taxonomySource, /id: 'scientific-illustration'[\s\S]*label: '科研绘图'[\s\S]*categoryId: 'results-expression'[\s\S]*availability: 'ready'/, 'Scientific illustration should be a real results-expression product');
 assert.match(taxonomySource, /id: 'presentation'[\s\S]*label: 'PPT 制作'[\s\S]*categoryId: 'results-expression'/, 'Original presentation product should be mapped as PPT creation under results expression');
 assert.match(taxonomySource, /id: 'peer-review'[\s\S]*label: '论文审查'[\s\S]*categoryId: 'collaboration-memory'[\s\S]*availability: 'ready'/, 'Peer review should be a real collaboration product');
 assert.match(taxonomySource, /id: 'virtual-classroom'[\s\S]*label: '虚拟课堂'[\s\S]*categoryId: 'collaboration-memory'[\s\S]*availability: 'runtime-dependent'/, 'Virtual classroom should be mapped under collaboration without being marked ready');
 const productDefinitions = taxonomySource.slice(taxonomySource.indexOf('STUDIO_RESEARCH_PRODUCTS'));
-assert.equal((productDefinitions.match(/\n\s+id: '/g) || []).length, 11, 'Taxonomy should expose peer review and the ten existing real products');
+assert.equal((productDefinitions.match(/\n\s+id: '/g) || []).length, 12, 'Taxonomy should expose scientific illustration and the eleven existing real products');
 assert.match(switcherSource, /getVisibleStudioCategories/, 'Product center should render taxonomy categories through the empty-category filter');
 assert.match(switcherSource, /grid-cols-2/, 'Product cards should use a compact two-column layout so the mobile workspace keeps usable height');
 assert.match(switcherSource, /max-h-\[36vh\][^"']*overflow-y-auto/, 'Product navigation should be height-bounded so future products cannot squeeze out the workspace');
@@ -104,6 +108,7 @@ assert.match(studioPanelSource, /activeTab === 'data-processing' && <DataProcess
 assert.match(studioPanelSource, /activeTab === 'experiment-design' && <ExperimentDesignPanel \/>/, 'Experiment design should render its grounded protocol panel');
 assert.match(studioPanelSource, /activeTab === 'academic-writing' && <AcademicWritingPanel \/>/, 'Academic writing should render its grounded drafting panel');
 assert.match(studioPanelSource, /activeTab === 'text-polishing' && <TextPolishingPanel \/>/, 'Text polishing should render its protected revision panel');
+assert.match(studioPanelSource, /activeTab === 'scientific-illustration' && <ScientificIllustrationPanel \/>/, 'Scientific illustration should render its real image panel');
 assert.match(studioPanelSource, /activeTab === 'peer-review' && <PeerReviewPanel \/>/, 'Peer review should render its read-only review panel');
 assert.match(studioPanelSource, /activeTab === 'virtual-classroom' && <VirtualClassroomPanel \/>/, 'Virtual classroom should render its original panel');
 assert.match(paperSearchPanelSource, /<DiscoverSourcesModal[\s\S]*variant="embedded"/, 'Paper search should reuse the existing discover and ingest workspace');
@@ -131,6 +136,10 @@ assert.match(textPolishingPanelSource, /\/api\/ai\/text-polishing/, 'Text polish
 assert.match(textPolishingPanelSource, /AbortController/, 'Text polishing should expose cancellation');
 assert.match(textPolishingPanelSource, /恢复原文/, 'Text polishing should provide an explicit reversible action');
 assert.match(textPolishingPanelSource, /下载修订记录/, 'Text polishing should expose a downloadable revision artifact');
+assert.match(scientificIllustrationPanelSource, /\/api\/ai\/scientific-illustration/, 'Scientific illustration should call its dedicated server route');
+assert.match(scientificIllustrationPanelSource, /AbortController/, 'Scientific illustration should expose cancellation');
+assert.match(scientificIllustrationPanelSource, /下载图片/, 'Scientific illustration should expose a downloadable image file');
+assert.match(scientificIllustrationPanelSource, /不是数据图表/, 'Scientific illustration should expose its schematic-only boundary');
 assert.match(peerReviewPanelSource, /\/api\/ai\/peer-review/, 'Peer review should call its dedicated server route');
 assert.match(peerReviewPanelSource, /AbortController/, 'Peer review should expose cancellation');
 assert.match(peerReviewPanelSource, /StudioEvidenceStatusPanel/, 'Peer review should render reusable evidence links');
@@ -162,7 +171,7 @@ assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结
 
 console.log(JSON.stringify({
   ok: true,
-  checked: 'Studio product center exposes peer review and the existing real products without navigation side effects',
-  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '学术写作', '文本润色', 'PPT 制作', '论文审查', '虚拟课堂'],
-  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'academic-writing-start', 'text-polishing-start', 'image-ppt-generate', 'academic-ppt-generate', 'peer-review-start', 'virtual-classroom-open'],
+  checked: 'Studio product center exposes scientific illustration and the existing real products without navigation side effects',
+  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '学术写作', '文本润色', '科研绘图', 'PPT 制作', '论文审查', '虚拟课堂'],
+  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'academic-writing-start', 'text-polishing-start', 'scientific-illustration-start', 'image-ppt-generate', 'academic-ppt-generate', 'peer-review-start', 'virtual-classroom-open'],
 }, null, 2));
