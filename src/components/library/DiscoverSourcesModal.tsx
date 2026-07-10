@@ -6,7 +6,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
-  Check,
   CheckCircle2,
   Circle,
   Globe2,
@@ -32,18 +31,23 @@ export function DiscoverSourcesModal({
   notebookId,
   onClose,
   onIngestFiles,
+  variant = 'modal',
+  initialScope = 'webpage',
 }: {
   notebookId?: string;
   onClose: () => void;
-  onIngestFiles: (files: File[]) => Promise<void>;
+  onIngestFiles: (files: File[]) => Promise<void | number>;
+  variant?: 'modal' | 'embedded';
+  initialScope?: 'webpage' | 'scholar';
 }) {
   const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<'webpage' | 'scholar'>('webpage');
+  const [scope, setScope] = useState<'webpage' | 'scholar'>(initialScope);
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<DiscoverResult[]>([]);
   const [searched, setSearched] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>('idle');
   const [ingestProgress, setIngestProgress] = useState({ done: 0, total: 0 });
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
@@ -54,16 +58,18 @@ export function DiscoverSourcesModal({
   }, []);
 
   useEffect(() => {
+    if (variant !== 'modal') return;
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, [onClose, variant]);
 
   const handleSearch = useCallback(async () => {
     const q = query.trim();
     if (!q || isSearching) return;
     setIsSearching(true);
     setError(null);
+    setNotice(null);
     setItemErrors({});
     setSelected(new Set());
     try {
@@ -77,7 +83,7 @@ export function DiscoverSourcesModal({
       setResults(Array.isArray(data.results) ? data.results : []);
       setSearched(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '搜索失败,请重试');
+      setError(err instanceof Error ? err.message : '搜索失败，请重试');
       setResults([]);
       setSearched(true);
     } finally {
@@ -125,24 +131,46 @@ export function DiscoverSourcesModal({
     setItemErrors(failures);
 
     if (files.length > 0) {
-      await onIngestFiles(files);
+      let addedCount: number;
+      try {
+        const result = await onIngestFiles(files);
+        addedCount = typeof result === 'number' ? result : files.length;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '来源入库失败，请重试。');
+        setIngestPhase('idle');
+        return;
+      }
       if (Object.keys(failures).length === 0) {
-        onClose();
+        if (variant === 'modal') {
+          onClose();
+        } else {
+          setNotice(`${addedCount} 个文献线索已加入文献库，可在左侧继续查看和提问。`);
+          setSelected(new Set());
+          setIngestPhase('idle');
+        }
         return;
       }
       // Keep failed items selected so the user can retry just those.
       setSelected(new Set(Object.keys(failures)));
-      setError(`${files.length} 个文献线索已加入文献库;${Object.keys(failures).length} 个抓取失败,可重试或换一条来源。`);
+      setError(`${addedCount} 个文献线索已加入文献库；${Object.keys(failures).length} 个抓取失败，可重试或换一条来源。`);
     } else {
       setError('所选来源都未能抓取成功,请换几条结果试试。');
     }
     setIngestPhase('idle');
-  }, [results, selected, ingestPhase, notebookId, onIngestFiles, onClose]);
+  }, [results, selected, ingestPhase, notebookId, onIngestFiles, onClose, variant]);
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-fade-in" data-testid="discover-sources-modal" onClick={onClose}>
+    <div
+      className={variant === 'modal'
+        ? 'fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-fade-in'
+        : 'w-full'}
+      data-testid={variant === 'modal' ? 'discover-sources-modal' : 'paper-search-workspace'}
+      onClick={variant === 'modal' ? onClose : undefined}
+    >
       <div
-        className="flex max-h-[86vh] w-full max-w-2xl flex-col gap-3 rounded-2xl border border-white/10 bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in"
+        className={variant === 'modal'
+          ? 'flex max-h-[86vh] w-full max-w-2xl flex-col gap-3 rounded-2xl border border-white/10 bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in'
+          : 'flex w-full flex-col gap-3'}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -150,13 +178,15 @@ export function DiscoverSourcesModal({
           <div className="min-w-0">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
               <Globe2 className="h-4 w-4 text-blue-400" />
-              发现文献线索
+              {variant === 'modal' ? '发现文献线索' : '论文检索'}
             </h3>
-            <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">搜索网页或学术线索,勾选后加入文献库作为可引用来源</p>
+            <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">搜索学术与网页线索，核验来源后加入文献库</p>
           </div>
-          <button onClick={onClose} className="rounded-full p-2 text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)]" aria-label="关闭">
-            <X className="h-4 w-4" />
-          </button>
+          {variant === 'modal' && (
+            <button onClick={onClose} className="rounded-full p-2 text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)]" aria-label="关闭">
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {/* Search row */}
@@ -205,6 +235,12 @@ export function DiscoverSourcesModal({
             <p className="text-[11px] leading-relaxed text-amber-300">{error}</p>
           </div>
         )}
+        {notice && (
+          <div className="flex items-start gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2" data-testid="discover-notice">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+            <p className="text-[11px] leading-relaxed text-emerald-300">{notice}</p>
+          </div>
+        )}
 
         {/* Results */}
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1" data-testid="discover-results">
@@ -215,7 +251,7 @@ export function DiscoverSourcesModal({
             </div>
           ) : results.length === 0 ? (
             <div className="py-14 text-center text-xs text-[var(--text-tertiary)]">
-              {searched ? '没有找到相关结果,换个关键词试试。' : '输入研究主题开始发现文献线索,结果可勾选加入文献库。'}
+              {searched ? '没有找到相关结果，换个关键词试试。' : '输入研究主题开始发现文献线索，结果可勾选加入文献库。'}
             </div>
           ) : (
             results.map(item => {
@@ -224,38 +260,54 @@ export function DiscoverSourcesModal({
               let host = '';
               try { host = new URL(item.link).hostname.replace(/^www\./, ''); } catch { /* keep empty */ }
               return (
-                <button
+                <div
                   key={item.link}
-                  onClick={() => toggleSelect(item.link)}
-                  data-testid="discover-result-item"
-                  className={`w-full rounded-xl border px-3.5 py-3 text-left transition-all ${
+                  className={`w-full overflow-hidden rounded-xl border text-left transition-all ${
                     isSelected
                       ? 'border-blue-400/55 bg-blue-500/10'
                       : 'border-[var(--glass-border)] bg-[var(--glass-subtle)] hover:border-[var(--border-hover)]'
                   }`}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <span className="mt-0.5 shrink-0">
-                      {isSelected
-                        ? <CheckCircle2 className="h-4 w-4 text-blue-400" />
-                        : <Circle className="h-4 w-4 text-[var(--text-quaternary)]" />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-semibold leading-snug text-[var(--text-primary)]">{item.title}</span>
-                      <span className="mt-1 block text-[11px] leading-relaxed text-[var(--text-secondary)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
-                        {item.snippet || '(无摘要)'}
+                  <button
+                    type="button"
+                    onClick={() => toggleSelect(item.link)}
+                    data-testid="discover-result-item"
+                    className="w-full px-3.5 py-3 text-left"
+                  >
+                    <span className="flex items-start gap-2.5">
+                      <span className="mt-0.5 shrink-0">
+                        {isSelected
+                          ? <CheckCircle2 className="h-4 w-4 text-blue-400" />
+                          : <Circle className="h-4 w-4 text-[var(--text-quaternary)]" />}
                       </span>
-                      <span className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-quaternary)]">
-                        {host && <span className="rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5">{host}</span>}
-                        {item.date && <span>{item.date}</span>}
-                        {item.authors && item.authors.length > 0 && <span className="truncate">{item.authors.slice(0, 2).join('、')}</span>}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-semibold leading-snug text-[var(--text-primary)]">{item.title}</span>
+                        <span className="mt-1 block text-[11px] leading-relaxed text-[var(--text-secondary)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
+                          {item.snippet || '(无摘要)'}
+                        </span>
+                        <span className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-quaternary)]">
+                          {host && <span className="rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5">{host}</span>}
+                          {item.date && <span>{item.date}</span>}
+                          {item.authors && item.authors.length > 0 && <span className="truncate">{item.authors.slice(0, 2).join('、')}</span>}
+                          <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-1.5 py-0.5 text-amber-400">待核验</span>
+                        </span>
+                        {itemError && (
+                          <span className="mt-1 block text-[10px] text-red-400">抓取失败:{itemError}</span>
+                        )}
                       </span>
-                      {itemError && (
-                        <span className="mt-1 block text-[10px] text-red-400">抓取失败:{itemError}</span>
-                      )}
                     </span>
+                  </button>
+                  <div className="flex justify-end border-t border-[var(--border-subtle)] px-3.5 py-2">
+                    <a
+                      href={item.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] font-medium text-blue-400 hover:text-blue-300"
+                    >
+                      查看来源
+                    </a>
                   </div>
-                </button>
+                </div>
               );
             })
           )}

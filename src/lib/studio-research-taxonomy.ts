@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'knowledge' | 'presentation' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'knowledge' | 'presentation' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -29,6 +29,13 @@ export const STUDIO_RESEARCH_CATEGORIES = [
 ] as const satisfies readonly StudioResearchCategory[];
 
 export const STUDIO_RESEARCH_PRODUCTS = [
+  {
+    id: 'paper-search',
+    label: '论文检索',
+    categoryId: 'literature-evidence',
+    desc: '检索、核验并加入文献库',
+    availability: 'ready',
+  },
   {
     id: 'knowledge',
     label: '研究脉络',

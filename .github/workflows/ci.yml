@@ -37,8 +37,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Studio research taxonomy
-        run: pnpm run test:studio-nav-side-effects
+      - name: Paper search contracts
+        run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects
 
       - name: Typecheck
         run: pnpm run ts-check
