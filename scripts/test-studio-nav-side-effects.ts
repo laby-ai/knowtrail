@@ -31,6 +31,9 @@ const dataProcessingPanelSource = fs.readFileSync(dataProcessingPanelPath, 'utf8
 const experimentDesignPanelPath = path.join(process.cwd(), 'src/components/studio/ExperimentDesignPanel.tsx');
 assert.ok(fs.existsSync(experimentDesignPanelPath), 'Experiment design should provide a real Studio panel');
 const experimentDesignPanelSource = fs.readFileSync(experimentDesignPanelPath, 'utf8');
+const academicWritingPanelPath = path.join(process.cwd(), 'src/components/studio/AcademicWritingPanel.tsx');
+assert.ok(fs.existsSync(academicWritingPanelPath), 'Academic writing should provide a real Studio panel');
+const academicWritingPanelSource = fs.readFileSync(academicWritingPanelPath, 'utf8');
 const discoverSourcesModalSource = read('src/components/library/DiscoverSourcesModal.tsx');
 const virtualClassroomWorkspaceSource = read('src/components/studio/VirtualClassroomWorkspace.tsx');
 const workbenchTopBarSource = read('src/components/workbench/WorkbenchTopBar.tsx');
@@ -63,10 +66,11 @@ assert.match(taxonomySource, /id: 'deep-research'[\s\S]*label: '深度研究'[\s
 assert.match(taxonomySource, /id: 'hypothesis-generation'[\s\S]*label: '假设生成'[\s\S]*categoryId: 'research-ideation'[\s\S]*availability: 'ready'/, 'Hypothesis generation should make research ideation visible through a real product');
 assert.match(taxonomySource, /id: 'data-processing'[\s\S]*label: '数据处理'[\s\S]*categoryId: 'research-ideation'[\s\S]*availability: 'ready'/, 'Data processing should be a real research-ideation product');
 assert.match(taxonomySource, /id: 'experiment-design'[\s\S]*label: '实验设计'[\s\S]*categoryId: 'research-ideation'[\s\S]*availability: 'ready'/, 'Experiment design should be a real research-ideation product');
+assert.match(taxonomySource, /id: 'academic-writing'[\s\S]*label: '学术写作'[\s\S]*categoryId: 'results-expression'[\s\S]*availability: 'ready'/, 'Academic writing should be a real results-expression product');
 assert.match(taxonomySource, /id: 'presentation'[\s\S]*label: 'PPT 制作'[\s\S]*categoryId: 'results-expression'/, 'Original presentation product should be mapped as PPT creation under results expression');
 assert.match(taxonomySource, /id: 'virtual-classroom'[\s\S]*label: '虚拟课堂'[\s\S]*categoryId: 'collaboration-memory'[\s\S]*availability: 'runtime-dependent'/, 'Virtual classroom should be mapped under collaboration without being marked ready');
 const productDefinitions = taxonomySource.slice(taxonomySource.indexOf('STUDIO_RESEARCH_PRODUCTS'));
-assert.equal((productDefinitions.match(/\n\s+id: '/g) || []).length, 8, 'Taxonomy should expose experiment design, data processing, hypothesis generation, literature evidence, and the three original products');
+assert.equal((productDefinitions.match(/\n\s+id: '/g) || []).length, 9, 'Taxonomy should expose academic writing and the eight existing real products');
 assert.match(switcherSource, /getVisibleStudioCategories/, 'Product center should render taxonomy categories through the empty-category filter');
 assert.match(switcherSource, /grid-cols-2/, 'Product cards should use a compact two-column layout so the mobile workspace keeps usable height');
 assert.match(switcherSource, /max-h-\[36vh\][^"']*overflow-y-auto/, 'Product navigation should be height-bounded so future products cannot squeeze out the workspace');
@@ -90,6 +94,7 @@ assert.match(studioPanelSource, /activeTab === 'deep-research' && <DeepResearchP
 assert.match(studioPanelSource, /activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel \/>/, 'Hypothesis generation should render its real evidence-backed panel');
 assert.match(studioPanelSource, /activeTab === 'data-processing' && <DataProcessingPanel \/>/, 'Data processing should render its real table-plan panel');
 assert.match(studioPanelSource, /activeTab === 'experiment-design' && <ExperimentDesignPanel \/>/, 'Experiment design should render its grounded protocol panel');
+assert.match(studioPanelSource, /activeTab === 'academic-writing' && <AcademicWritingPanel \/>/, 'Academic writing should render its grounded drafting panel');
 assert.match(studioPanelSource, /activeTab === 'virtual-classroom' && <VirtualClassroomPanel \/>/, 'Virtual classroom should render its original panel');
 assert.match(paperSearchPanelSource, /<DiscoverSourcesModal[\s\S]*variant="embedded"/, 'Paper search should reuse the existing discover and ingest workspace');
 assert.match(discoverSourcesModalSource, /待核验/, 'Search results should state their verification boundary');
@@ -108,6 +113,10 @@ assert.match(experimentDesignPanelSource, /\/api\/ai\/experiment-design/, 'Exper
 assert.match(experimentDesignPanelSource, /AbortController/, 'Experiment design should expose client-side cancellation');
 assert.match(experimentDesignPanelSource, /StudioEvidenceStatusPanel/, 'Experiment design should render reusable evidence links');
 assert.match(experimentDesignPanelSource, /下载预注册协议/, 'Experiment design should expose a downloadable preregistration artifact');
+assert.match(academicWritingPanelSource, /\/api\/ai\/academic-writing/, 'Academic writing should call its grounded server route');
+assert.match(academicWritingPanelSource, /AbortController/, 'Academic writing should expose client-side cancellation');
+assert.match(academicWritingPanelSource, /StudioEvidenceStatusPanel/, 'Academic writing should render reusable evidence links');
+assert.match(academicWritingPanelSource, /下载 Markdown 草稿/, 'Academic writing should expose an editable text artifact');
 assert.match(retainedSource, /data-testid="virtual-classroom-open"/, 'Virtual classroom needs a full-page entry for real use');
 assert.match(retainedSource, /data-testid="virtual-classroom-iframe"/, 'Virtual classroom should embed the classroom runtime in Studio');
 assert.match(retainedSource, /NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN/, 'Virtual classroom origin should remain configurable');
@@ -134,7 +143,7 @@ assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结
 
 console.log(JSON.stringify({
   ok: true,
-  checked: 'Studio product center exposes experiment design, data processing, hypothesis generation, literature evidence, and the three original products without navigation side effects',
-  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', 'PPT 制作', '虚拟课堂'],
-  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'image-ppt-generate', 'academic-ppt-generate', 'virtual-classroom-open'],
+  checked: 'Studio product center exposes academic writing and the existing real products without navigation side effects',
+  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '学术写作', 'PPT 制作', '虚拟课堂'],
+  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'academic-writing-start', 'image-ppt-generate', 'academic-ppt-generate', 'virtual-classroom-open'],
 }, null, 2));
