@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import dotenv from 'dotenv';
+import { resolveOpenMaicBridgeConfig } from './lib/openmaic-sidecar-config.mjs';
 
 const root = process.cwd();
 const openmaicRoot = path.join(root, '.references', 'OpenMAIC');
@@ -29,26 +30,15 @@ fs.cpSync(path.join(openmaicRoot, 'public'), path.join(standaloneApp, 'public'),
   force: true,
 });
 
-const agentPlanKey = process.env.ARK_AGENTPLAN_API_KEY || '';
-const agentPlanBase = process.env.ARK_AGENTPLAN_API_BASE || 'https://ark.cn-beijing.volces.com/api/plan/v3';
-const agentPlanModel = process.env.ARK_AGENTPLAN_TEXT_MODEL || 'glm-5.2';
-if (!agentPlanKey) {
-  throw new Error('ARK_AGENTPLAN_API_KEY is required to start the virtual classroom sidecar with the real server provider.');
-}
+const bridge = resolveOpenMaicBridgeConfig(process.env);
 
 const port = process.env.OPENMAIC_SIDECAR_PORT || '5025';
 const host = process.env.OPENMAIC_SIDECAR_HOST || '127.0.0.1';
 const frameAncestors = process.env.ALLOWED_FRAME_ANCESTORS || 'http://127.0.0.1:5014';
-const defaultModel = process.env.OPENMAIC_DEFAULT_MODEL || `glm:${agentPlanModel}`;
+const defaultModel = process.env.OPENMAIC_DEFAULT_MODEL || bridge.defaultModel;
 const modelRoutes =
   process.env.MODEL_ROUTES ||
-  JSON.stringify({
-    'generate-classroom': `glm:${agentPlanModel}`,
-    'scene-outlines-stream': `glm:${agentPlanModel}`,
-    'scene-content': `glm:${agentPlanModel}`,
-    'scene-actions': `glm:${agentPlanModel}`,
-    'agent-profiles': `glm:${agentPlanModel}`,
-  });
+  JSON.stringify(bridge.modelRoutes);
 
 console.log(JSON.stringify({
   service: 'openmaic-sidecar',
@@ -57,7 +47,8 @@ console.log(JSON.stringify({
   frameAncestors,
   defaultModel,
   provider: 'glm',
-  model: agentPlanModel,
+  providerSource: bridge.source,
+  model: bridge.model,
   videoGeneration: false,
 }));
 
@@ -69,9 +60,9 @@ const child = spawn(process.execPath, [serverEntry], {
     HOSTNAME: host,
     ALLOWED_FRAME_ANCESTORS: frameAncestors,
     DEFAULT_MODEL: defaultModel,
-    GLM_API_KEY: process.env.GLM_API_KEY || agentPlanKey,
-    GLM_BASE_URL: process.env.GLM_BASE_URL || agentPlanBase,
-    GLM_MODELS: process.env.GLM_MODELS || agentPlanModel,
+    GLM_API_KEY: bridge.apiKey,
+    GLM_BASE_URL: bridge.baseUrl,
+    GLM_MODELS: bridge.model,
     MODEL_ROUTES: modelRoutes,
     ENABLE_VIDEO_GENERATION: 'false',
   },
