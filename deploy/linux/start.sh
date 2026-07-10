@@ -46,9 +46,10 @@ export FILE_STORAGE_ADAPTER="${FILE_STORAGE_ADAPTER:-local}"
 export ZVEC_STORE_PATH="${ZVEC_STORE_PATH:-$APP_DIR/.data/zvec}"
 export SOURCE_STORE_PATH="${SOURCE_STORE_PATH:-$APP_DIR/.data/sources/sources.json}"
 export STUDIO_JOB_STORE_PATH="${STUDIO_JOB_STORE_PATH:-$APP_DIR/.data/studio-jobs/jobs.json}"
+export SCIENTIFIC_ILLUSTRATION_STORE_DIR="${SCIENTIFIC_ILLUSTRATION_STORE_DIR:-$APP_DIR/.data/scientific-illustrations}"
 export SOURCE_STORE_ADAPTER="${SOURCE_STORE_ADAPTER:-local-json}"
 
-mkdir -p "$(dirname "$SOURCE_STORE_PATH")" "$(dirname "$STUDIO_JOB_STORE_PATH")" "$ZVEC_STORE_PATH" logs
+mkdir -p "$(dirname "$SOURCE_STORE_PATH")" "$(dirname "$STUDIO_JOB_STORE_PATH")" "$ZVEC_STORE_PATH" "$SCIENTIFIC_ILLUSTRATION_STORE_DIR" logs
 
 CLASSROOM_SERVER="$APP_DIR/.references/OpenMAIC/.next/standalone/.references/OpenMAIC/server.js"
 CLASSROOM_PID=""

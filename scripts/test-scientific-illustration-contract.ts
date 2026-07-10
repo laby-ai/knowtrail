@@ -112,6 +112,14 @@ const legacyPptRouteSource = await readFile(
   path.join(process.cwd(), 'src/app/api/ai/ppt/route.ts'),
   'utf8',
 );
+const linuxStartSource = await readFile(
+  path.join(process.cwd(), 'deploy/linux/start.sh'),
+  'utf8',
+);
+const linuxPreflightSource = await readFile(
+  path.join(process.cwd(), 'deploy/linux/preflight.sh'),
+  'utf8',
+);
 
 assert.match(routeSource, /resolveAccountNotebookScope/);
 assert.match(routeSource, /reserveAIUsage/);
@@ -135,6 +143,8 @@ for (const providerSource of [imageGenerationSource, legacyPptRouteSource]) {
     'Standard image credentials must take precedence over the AgentPlan-only key.',
   );
 }
+assert.match(linuxStartSource, /SCIENTIFIC_ILLUSTRATION_STORE_DIR/);
+assert.match(linuxPreflightSource, /SCIENTIFIC_ILLUSTRATION_STORE_DIR/);
 
 console.log(JSON.stringify({
   ok: true,
@@ -144,6 +154,7 @@ console.log(JSON.stringify({
     'stored files are isolated by account member',
     'route preserves account scope, ai.image billing, real provider, persistence, preview, and download',
     'standard image credentials take precedence over AgentPlan-only credentials',
+    'Linux release scripts provision a configurable persistent illustration store',
     'Studio exposes a real scientific illustration product without data-chart claims or simulated fallbacks',
   ],
 }, null, 2));

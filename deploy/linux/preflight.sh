@@ -98,7 +98,8 @@ fi
 SOURCE_STORE_PATH="${SOURCE_STORE_PATH:-$APP_DIR/.data/sources/sources.json}"
 ZVEC_STORE_PATH="${ZVEC_STORE_PATH:-$APP_DIR/.data/zvec}"
 STUDIO_JOB_STORE_PATH="${STUDIO_JOB_STORE_PATH:-$APP_DIR/.data/studio-jobs/jobs.json}"
-for dir in "$(dirname "$SOURCE_STORE_PATH")" "$(dirname "$STUDIO_JOB_STORE_PATH")" "$ZVEC_STORE_PATH" logs; do
+SCIENTIFIC_ILLUSTRATION_STORE_DIR="${SCIENTIFIC_ILLUSTRATION_STORE_DIR:-$APP_DIR/.data/scientific-illustrations}"
+for dir in "$(dirname "$SOURCE_STORE_PATH")" "$(dirname "$STUDIO_JOB_STORE_PATH")" "$ZVEC_STORE_PATH" "$SCIENTIFIC_ILLUSTRATION_STORE_DIR" logs; do
   if [ -d "$dir" ] && [ -w "$dir" ]; then
     check_ok "writable directory $dir"
   elif [ -d "$dir" ]; then
