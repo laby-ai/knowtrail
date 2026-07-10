@@ -16,14 +16,9 @@ import {
   X,
 } from 'lucide-react';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { createDiscoveredSourceFile, type DiscoveredSourceFileInput } from '@/lib/discovered-source-file';
 
-interface DiscoverResult {
-  title: string;
-  link: string;
-  snippet: string;
-  date?: string;
-  authors?: string[];
-}
+type DiscoverResult = DiscoveredSourceFileInput;
 
 type IngestPhase = 'idle' | 'fetching' | 'done';
 
@@ -48,6 +43,7 @@ export function DiscoverSourcesModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [searchProvider, setSearchProvider] = useState<'metaso' | 'arxiv' | null>(null);
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>('idle');
   const [ingestProgress, setIngestProgress] = useState({ done: 0, total: 0 });
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
@@ -70,6 +66,7 @@ export function DiscoverSourcesModal({
     setIsSearching(true);
     setError(null);
     setNotice(null);
+    setSearchProvider(null);
     setItemErrors({});
     setSelected(new Set());
     try {
@@ -81,10 +78,12 @@ export function DiscoverSourcesModal({
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || '搜索失败');
       setResults(Array.isArray(data.results) ? data.results : []);
+      setSearchProvider(data.provider === 'arxiv' ? 'arxiv' : 'metaso');
       setSearched(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : '搜索失败，请重试');
       setResults([]);
+      setSearchProvider(null);
       setSearched(true);
     } finally {
       setIsSearching(false);
@@ -112,16 +111,17 @@ export function DiscoverSourcesModal({
 
     for (const item of picked) {
       try {
-        const res = await fetch('/api/discover/fetch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
-          body: JSON.stringify({ url: item.link, notebookId }),
+        const file = await createDiscoveredSourceFile(item, async url => {
+          const res = await fetch('/api/discover/fetch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+            body: JSON.stringify({ url, notebookId }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.error || '抓取失败');
+          return { title: data.title, text: data.text };
         });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || '抓取失败');
-        const safeTitle = (item.title || data.title || '网络文献线索').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
-        const header = `来源链接:${item.link}\n${item.date ? `发布时间:${item.date}\n` : ''}${item.authors?.length ? `作者:${item.authors.join('、')}\n` : ''}\n`;
-        files.push(new globalThis.File([header + data.text], `${safeTitle}.txt`, { type: 'text/plain' }));
+        files.push(file);
       } catch (err) {
         failures[item.link] = err instanceof Error ? err.message : '抓取失败';
       }
@@ -241,6 +241,14 @@ export function DiscoverSourcesModal({
             <p className="text-[11px] leading-relaxed text-emerald-300">{notice}</p>
           </div>
         )}
+        {searchProvider === 'arxiv' && (
+          <div className="flex items-start gap-2 rounded-xl border border-blue-400/20 bg-blue-500/8 px-3 py-2" data-testid="discover-provider-boundary">
+            <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
+            <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+              当前使用 arXiv 开放源，英文题名或关键词通常更准确。结果是候选线索，引用前仍需核对题名、作者、日期、来源页和主张依据。
+            </p>
+          </div>
+        )}
 
         {/* Results */}
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1" data-testid="discover-results">
@@ -289,7 +297,9 @@ export function DiscoverSourcesModal({
                           {host && <span className="rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5">{host}</span>}
                           {item.date && <span>{item.date}</span>}
                           {item.authors && item.authors.length > 0 && <span className="truncate">{item.authors.slice(0, 2).join('、')}</span>}
-                          <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-1.5 py-0.5 text-amber-400">待核验</span>
+                          <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-1.5 py-0.5 text-amber-400">
+                            {item.verificationStatus === 'open-source-candidate' ? '开放源候选 · 待核验' : '待核验'}
+                          </span>
                         </span>
                         {itemError && (
                           <span className="mt-1 block text-[10px] text-red-400">抓取失败:{itemError}</span>

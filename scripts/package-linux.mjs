@@ -260,6 +260,7 @@ writeFileSync(path.join(appDir, 'BUNDLE_MANIFEST.json'), `${JSON.stringify({
     'pnpm smoke:real-studio-products',
     'pnpm smoke:workbench-studio-ui',
     'pnpm smoke:studio-evidence-ui',
+    'pnpm smoke:live-paper-search-provider',
     'pnpm smoke:live-virtual-classroom',
     'pnpm audit:pptx-quality',
     'pnpm smoke:runtime-health',

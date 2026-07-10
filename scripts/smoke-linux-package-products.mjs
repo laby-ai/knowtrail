@@ -14,6 +14,7 @@ const requiredScripts = [
   'smoke:real-studio-products',
   'smoke:workbench-studio-ui',
   'smoke:studio-evidence-ui',
+  'smoke:live-paper-search-provider',
   'smoke:live-virtual-classroom',
   'audit:pptx-quality',
   'validate',
@@ -40,6 +41,7 @@ const requiredFiles = [
   'scripts/smoke-real-studio-products.mjs',
   'scripts/smoke-real-doubao-tts.ts',
   'scripts/audit-pptx-quality.mjs',
+  'scripts/smoke-live-paper-search-provider.ts',
   'scripts/smoke-live-virtual-classroom.mjs',
   'scripts/lib/live-virtual-classroom-smoke.mjs',
   'deploy/linux/preflight.sh',
@@ -177,6 +179,7 @@ function main() {
     'pnpm smoke:real-openai-compatible',
     'pnpm smoke:real-app-ai',
     'pnpm smoke:real-studio-products',
+    'pnpm smoke:live-paper-search-provider',
     'pnpm smoke:live-virtual-classroom',
   ].filter(command => !readme.includes(command));
   const missingTtsEnv = [

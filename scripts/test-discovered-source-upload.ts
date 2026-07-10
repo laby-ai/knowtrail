@@ -8,6 +8,7 @@ type UploadRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<R
 async function main() {
   assert.ok(fs.existsSync(modulePath), 'Paper search should upload selected sources through a focused adapter');
   const { uploadDiscoveredSourceFiles } = await import('../src/lib/discovered-source-upload');
+  const { createDiscoveredSourceFile } = await import('../src/lib/discovered-source-file');
   const requests: Array<{ url: string; method?: string }> = [];
   const request: UploadRequest = async (input, init) => {
     requests.push({ url: String(input), method: init?.method });
@@ -59,9 +60,42 @@ async function main() {
     /上传失败\(HTTP 502\)/,
   );
 
+  let fetchCount = 0;
+  const openSourceFile = await createDiscoveredSourceFile({
+    title: 'Open Candidate',
+    link: 'https://arxiv.org/abs/2501.01234',
+    snippet: 'summary',
+    content: 'A traceable open-source abstract with enough content to enter the literature library without scraping a publisher page. It still requires verification before citation.',
+    date: '2025-01-10',
+    authors: ['Ada Researcher'],
+    provider: 'arxiv',
+    verificationStatus: 'open-source-candidate',
+  }, async () => {
+    fetchCount += 1;
+    throw new Error('embedded abstract must bypass page fetch');
+  });
+  assert.equal(fetchCount, 0);
+  assert.match(await openSourceFile.text(), /来源类型:arXiv 开放元数据候选/);
+  assert.match(await openSourceFile.text(), /requires verification before citation/);
+
+  const fetchedFile = await createDiscoveredSourceFile({
+    title: 'Fetched Candidate',
+    link: 'https://example.org/paper',
+    snippet: 'short',
+  }, async () => {
+    fetchCount += 1;
+    return { title: 'Fetched Source Title', text: 'Fetched source content is long enough to be stored as a real source for later grounded retrieval and citation checks.' };
+  });
+  assert.equal(fetchCount, 1);
+  assert.equal(fetchedFile.name, 'Fetched Source Title.txt');
+
   console.log(JSON.stringify({
     ok: true,
-    checked: 'discovered source upload reuses /api/upload and preserves partial failures',
+    checked: [
+      'discovered source upload reuses /api/upload and preserves partial failures',
+      'open-source abstracts bypass fragile publisher-page scraping',
+      'candidates without usable content still use the existing fetch path',
+    ],
   }, null, 2));
 }
 
