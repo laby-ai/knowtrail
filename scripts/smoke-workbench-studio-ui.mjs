@@ -148,7 +148,7 @@ async function main() {
   const uploadPath = path.join(tempDir, 'studio-ui-smoke-source.txt');
   await writeFile(uploadPath, [
     'Lingbi Studio UI smoke source.',
-    '第 1 页：右侧产品中心的演示文稿和资料脉络应该复用 grounded context。',
+    '第 1 页：右侧产品中心的 PPT 制作和研究脉络应该复用 grounded context。',
     '第 2 页：PPT 生成是长任务，必须显示等待进度、取消入口和可恢复文案。',
     '第 3 页：没有资料时按钮必须清晰禁用，不能让用户以为系统卡死。',
   ].join('\n'), 'utf8');
@@ -164,6 +164,7 @@ async function main() {
     await page.goto(`${appOrigin}/#workbench`, { waitUntil: 'networkidle' });
     await expectVisible(page.getByText('产物中心', { exact: true }), 'Product center did not render');
 
+    await page.getByTestId('studio-nav-presentation').click();
     const noSourceButton = page.getByRole('button', { name: /先选择(资料|文献)/ }).first();
     await expectVisible(noSourceButton, 'No-source PPT guard did not render');
     await expectDisabled(noSourceButton, 'No-source PPT guard should be disabled');
@@ -185,7 +186,7 @@ async function main() {
         .filter({ hasText: /已选 1 个文献来源|已选 1 篇/ }),
       'Uploaded source was not auto-selected',
     );
-    await page.getByRole('button', { name: '演示文稿' }).click();
+    await page.getByTestId('studio-nav-presentation').click();
     await expectVisible(page.getByTestId('image-ppt-generate'), 'PPT generate button did not become available after source selection');
 
     const pptHits = await interceptLongTask(page, '/api/ai/ppt', '/api/ai/ppt');

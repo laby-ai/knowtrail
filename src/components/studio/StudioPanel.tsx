@@ -12,7 +12,7 @@ import {
 } from './StudioToolSwitcher';
 
 export function StudioPanel() {
-  const [activeTab, setActiveTab] = useState<StudioTab>('presentation');
+  const [activeTab, setActiveTab] = useState<StudioTab>(STUDIO_NAV[0].id);
   const navItem: StudioNavItem = STUDIO_NAV.find(n => n.id === activeTab) ?? STUDIO_NAV[0];
   const NavIcon = navItem.icon;
 

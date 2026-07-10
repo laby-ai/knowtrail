@@ -45,7 +45,7 @@ export function PresentationModeSelector({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
           <Presentation className="h-4 w-4 text-[var(--text-secondary)]" />
-          <span>演示文稿</span>
+          <span>PPT 制作</span>
         </div>
         <span className="shrink-0 rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-2 py-1 text-[10px] font-medium text-[var(--text-tertiary)]">
           选择产物

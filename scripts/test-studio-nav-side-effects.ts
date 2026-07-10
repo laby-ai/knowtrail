@@ -14,10 +14,15 @@ const structuredOutlineDraftSource = read('src/components/studio/StructuredPrese
 const outlineDraftContractSource = read('src/lib/ppt/outline-draft.ts');
 const pptV2RouteSource = read('src/app/api/ai/ppt-v2/route.ts');
 const presentationModeSelectorSource = read('src/components/studio/PresentationModeSelector.tsx');
+const knowledgeMapPanelSource = read('src/components/studio/KnowledgeMapPanel.tsx');
+const knowledgeMapWorkspaceSource = read('src/components/studio/KnowledgeMapWorkspace.tsx');
 const virtualClassroomPanelSource = read('src/components/studio/VirtualClassroomPanel.tsx');
 const virtualClassroomWorkspaceSource = read('src/components/studio/VirtualClassroomWorkspace.tsx');
 const workbenchTopBarSource = read('src/components/workbench/WorkbenchTopBar.tsx');
 const realPptArtifactSource = read('scripts/generate-real-ppt-v2-artifact.mjs');
+const taxonomyPath = path.join(process.cwd(), 'src/lib/studio-research-taxonomy.ts');
+assert.ok(fs.existsSync(taxonomyPath), 'Studio research taxonomy should define the four user-approved research categories');
+const taxonomySource = fs.readFileSync(taxonomyPath, 'utf8');
 const productCenterSource = `${studioPanelSource}\n${switcherSource}`;
 const retainedSource = `${productCenterSource}\n${presentationPanelSource}\n${virtualClassroomPanelSource}\n${virtualClassroomWorkspaceSource}`;
 
@@ -33,10 +38,15 @@ assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|genera
 assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');
 assert.match(navSection, /data-testid="studio-nav-helper"/, 'Studio nav should explain that generation happens in the detail panel');
 
-assert.match(switcherSource, /id: 'presentation', label: '演示文稿'/, 'Original PPT product must remain');
-assert.match(switcherSource, /id: 'knowledge', label: '资料脉络'/, 'Original knowledge map product must remain');
-assert.match(switcherSource, /id: 'virtual-classroom', label: '虚拟课堂'/, 'Original virtual classroom product must remain');
-assert.equal((switcherSource.match(/\{ id: '[^']+', label:/g) || []).length, 3, 'Product center should expose exactly the three original products');
+assert.match(taxonomySource, /id: 'literature-evidence', label: '文献证据'/, 'Taxonomy should define literature evidence');
+assert.match(taxonomySource, /id: 'research-ideation', label: '研究构思'/, 'Taxonomy should define research ideation even while it has no ready product');
+assert.match(taxonomySource, /id: 'results-expression', label: '成果表达'/, 'Taxonomy should define results expression');
+assert.match(taxonomySource, /id: 'collaboration-memory', label: '协作沉淀'/, 'Taxonomy should define collaboration and memory');
+assert.match(taxonomySource, /id: 'knowledge'[\s\S]*label: '研究脉络'[\s\S]*categoryId: 'literature-evidence'/, 'Original knowledge map should be mapped as research context under literature evidence');
+assert.match(taxonomySource, /id: 'presentation'[\s\S]*label: 'PPT 制作'[\s\S]*categoryId: 'results-expression'/, 'Original presentation product should be mapped as PPT creation under results expression');
+assert.match(taxonomySource, /id: 'virtual-classroom'[\s\S]*label: '虚拟课堂'[\s\S]*categoryId: 'collaboration-memory'[\s\S]*availability: 'runtime-dependent'/, 'Virtual classroom should be mapped under collaboration without being marked ready');
+assert.match(switcherSource, /getVisibleStudioCategories/, 'Product center should render taxonomy categories through the empty-category filter');
+assert.doesNotMatch(switcherSource, /即将上线|敬请期待|coming soon/i, 'Product center must not render placeholder products');
 assert.doesNotMatch(productCenterSource, /presentation2/, 'Structured PPT should remain a mode inside the original presentation product, not a hidden fourth product');
 assert.doesNotMatch(productCenterSource, /核心产物|科研产物|更多工具|练习工具/, 'Product center should not keep the later grouping labels');
 assert.doesNotMatch(workbenchTopBarSource, /科研产物/, 'Workbench copy should not reintroduce the removed research-artifact concept');
@@ -70,12 +80,15 @@ assert.match(pptV2RouteSource, /formatPptOutlineDraftForPrompt\(outlineDraft\)/,
 assert.match(pptV2RouteSource, /outlineDraftApplied/, 'PPT-v2 observability should report whether a confirmed outline was applied');
 assert.doesNotMatch(structuredPresentationPanelSource, /ArcDeck|真实模型/, 'Structured PPT panel should not expose implementation jargon');
 assert.match(presentationModeSelectorSource, /data-testid=\{`presentation-mode-\$\{option\.id\}`\}/, 'PPT mode selector should expose stable test ids');
+assert.match(presentationModeSelectorSource, /<span>PPT 制作<\/span>/, 'PPT detail panel should use the approved product name');
+assert.doesNotMatch(`${knowledgeMapPanelSource}\n${knowledgeMapWorkspaceSource}`, /['">]资料脉络[<'"]/, 'Knowledge-map UI should consistently use the approved research-context name');
+assert.match(virtualClassroomPanelSource, /课堂服务未连接/, 'Virtual classroom should expose its unavailable runtime state');
 assert.match(presentationModeSelectorSource, /id: 'image'[\s\S]*label: '图片页简报'/, 'PPT mode selector should keep the image PPT option');
 assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结构化 PPT'/, 'PPT mode selector should keep the structured PPT option');
 
 console.log(JSON.stringify({
   ok: true,
   checked: 'Studio product center exposes only the three original products without generation side effects',
-  products: ['演示文稿', '资料脉络', '虚拟课堂'],
+  products: ['研究脉络', 'PPT 制作', '虚拟课堂'],
   explicitButtons: ['image-ppt-generate', 'academic-ppt-generate', 'virtual-classroom-open'],
 }, null, 2));
