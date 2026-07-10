@@ -142,6 +142,8 @@ try {
   assert.match(deploySource, /prepare-release-env/);
   assert.match(deploySource, /verify-release-health/);
   assert.match(installSource, /tar -tzf "\$CLASSROOM_RUNTIME_ARCHIVE" \| sed 's#\^\\\.\/#\#'/);
+  assert.doesNotMatch(installSource, /printf '%s\\n'.*\| grep -[EF]q/);
+  assert.match(installSource, /grep -Fq "\$required" <<< "\$CLASSROOM_RUNTIME_ENTRIES"/);
   assert.match(installSource, /OpenMAIC runtime archive contains an unsafe path/);
   assert.match(installSource, /OpenMAIC runtime archive did not produce a standalone server/);
   assert(
