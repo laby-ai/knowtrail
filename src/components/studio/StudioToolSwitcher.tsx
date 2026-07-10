@@ -6,26 +6,30 @@ import {
   Presentation,
   GitBranch,
 } from 'lucide-react';
+import {
+  getVisibleStudioCategories,
+  STUDIO_RESEARCH_PRODUCTS,
+  type StudioProductId,
+  type StudioResearchProduct,
+} from '@/lib/studio-research-taxonomy';
 
-export type StudioTab =
-  | 'presentation'
-  | 'knowledge'
-  | 'virtual-classroom';
+export type StudioTab = StudioProductId;
 
-export interface StudioNavItem {
-  id: StudioTab;
-  label: string;
-  desc: string;
+export interface StudioNavItem extends StudioResearchProduct {
   icon: ElementType;
   accent: string;
-  status?: 'ready';
 }
 
-export const STUDIO_NAV: StudioNavItem[] = [
-  { id: 'presentation', label: '演示文稿', desc: '图片页 / 可编辑 PPT', icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
-  { id: 'knowledge', label: '资料脉络', desc: '核心词和关系', icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
-  { id: 'virtual-classroom', label: '虚拟课堂', desc: '课堂系统', icon: GraduationCap, accent: 'from-emerald-500/10 to-sky-500/5' },
-];
+const PRODUCT_VISUALS: Record<StudioTab, Pick<StudioNavItem, 'icon' | 'accent'>> = {
+  presentation: { icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
+  knowledge: { icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
+  'virtual-classroom': { icon: GraduationCap, accent: 'from-emerald-500/10 to-sky-500/5' },
+};
+
+export const STUDIO_NAV: StudioNavItem[] = STUDIO_RESEARCH_PRODUCTS.map(product => ({
+  ...product,
+  ...PRODUCT_VISUALS[product.id],
+}));
 
 export function StudioToolSwitcher({
   activeTab,
@@ -64,11 +68,21 @@ export function StudioToolSwitcher({
     );
   };
 
+  const visibleCategories = getVisibleStudioCategories();
+
   return (
-    <div className="space-y-2" data-testid="studio-tool-switcher">
-      <div className="grid grid-cols-2 gap-2">
-        {STUDIO_NAV.map(item => renderNavButton(item))}
-      </div>
+    <div className="space-y-4" data-testid="studio-tool-switcher">
+      {visibleCategories.map(category => (
+        <section key={category.id} data-testid={`studio-category-${category.id}`}>
+          <h3 className="mb-2 text-[10px] font-semibold text-[var(--text-tertiary)]">{category.label}</h3>
+          <div className="grid grid-cols-1 gap-2">
+            {category.products.map(product => {
+              const item = STUDIO_NAV.find(navItem => navItem.id === product.id);
+              return item ? renderNavButton(item) : null;
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

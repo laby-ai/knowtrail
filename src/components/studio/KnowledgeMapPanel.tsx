@@ -50,7 +50,7 @@ function formatCacheAge(storedAt?: string) {
 }
 
 function normalizeMapTitle(title: string | undefined) {
-  return (title || '资料脉络').replace(/资料地图/g, '资料脉络');
+  return (title || '研究脉络').replace(/资料地图|资料脉络/g, '研究脉络');
 }
 
 export function KnowledgeMapPanel() {
@@ -112,7 +112,7 @@ export function KnowledgeMapPanel() {
 
   const generateMap = useCallback(async (forceRefresh = false) => {
     if (mapCandidatePapers.length === 0) {
-      setError('先添加资料，再生成资料脉络。');
+      setError('先添加资料，再生成研究脉络。');
       return;
     }
 
@@ -146,7 +146,7 @@ export function KnowledgeMapPanel() {
       });
       const data = await response.json();
       if (!response.ok || !data.map?.nodes?.length || !data.map?.edges?.length) {
-        throw new Error(data.error || '资料脉络生成失败');
+        throw new Error(data.error || '研究脉络生成失败');
       }
 
       const nextSession: KnowledgeMapSession = {
@@ -160,7 +160,7 @@ export function KnowledgeMapPanel() {
       setSession(nextSession);
       openCurrentMap(nextSession);
     } catch (event) {
-      setError(event instanceof Error ? event.message : '资料脉络生成失败');
+      setError(event instanceof Error ? event.message : '研究脉络生成失败');
     } finally {
       setIsGenerating(false);
     }
@@ -178,7 +178,7 @@ export function KnowledgeMapPanel() {
             <GitBranch className="h-5 w-5 text-[var(--accent-blue)]" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[var(--text-primary)]">资料脉络</p>
+            <p className="text-sm font-semibold text-[var(--text-primary)]">研究脉络</p>
             <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
               核心词、关系和证据。
             </p>
@@ -190,16 +190,16 @@ export function KnowledgeMapPanel() {
           onClick={() => void generateMap(false)}
           disabled={!hasAvailablePapers || isGenerating}
           className="liquid-glass-btn mt-4 w-full px-4 py-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-45"
-          title={!hasAvailablePapers ? '请先添加资料' : '生成资料脉络并在中间工作区打开'}
+          title={!hasAvailablePapers ? '请先添加资料' : '生成研究脉络并在中间工作区打开'}
           data-testid="knowledge-map-generate"
         >
           {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
           {!hasAvailablePapers
             ? '先添加资料'
             : isGenerating
-              ? '正在生成资料脉络'
+              ? '正在生成研究脉络'
               : hasSelectedPapers
-                ? '生成资料脉络'
+                ? '生成研究脉络'
                 : `用 ${mapCandidatePapers.length} 个资料生成`}
         </button>
 
@@ -241,7 +241,7 @@ export function KnowledgeMapPanel() {
         <div className="liquid-glass-card p-4 space-y-3" data-testid="knowledge-map-summary">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-secondary)]">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-            <span>{activeMapOpened ? '已在中间打开' : '已有资料脉络'}</span>
+            <span>{activeMapOpened ? '已在中间打开' : '已有研究脉络'}</span>
           </div>
           <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">
             {session.map.nodes.length} 个节点 · {session.map.edges.length} 条关系 · {session.citations.length} 个引用来源。
