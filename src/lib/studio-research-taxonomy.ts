@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'knowledge' | 'presentation' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'knowledge' | 'presentation' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -62,6 +62,13 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     label: '数据处理',
     categoryId: 'research-ideation',
     desc: '真实表格诊断与基线方案',
+    availability: 'ready',
+  },
+  {
+    id: 'experiment-design',
+    label: '实验设计',
+    categoryId: 'research-ideation',
+    desc: '对照、随机化与预注册协议',
     availability: 'ready',
   },
   {
