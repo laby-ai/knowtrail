@@ -64,6 +64,8 @@ assert.match(switcherSource, /onClick=\{\(\) => onSelect\(item\.id\)\}/, 'Studio
 assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger generation side effects');
 assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');
 assert.match(navSection, /data-testid="studio-nav-helper"/, 'Studio nav should explain that generation happens in the detail panel');
+assert.match(studioPanelSource, /className="h-full overflow-y-auto"/, 'Studio should use one right-column scroll container for taxonomy and workspace');
+assert.doesNotMatch(studioPanelSource, /flex-1 min-h-0 overflow-y-auto px-5 py-4/, 'Studio workspace must not create a second nested scroll region');
 
 assert.match(taxonomySource, /id: 'literature-evidence', label: '文献证据'/, 'Taxonomy should define literature evidence');
 assert.match(taxonomySource, /id: 'research-ideation', label: '研究构思'/, 'Taxonomy should define research ideation even while it has no ready product');
@@ -85,7 +87,7 @@ const productDefinitions = taxonomySource.slice(taxonomySource.indexOf('STUDIO_R
 assert.equal((productDefinitions.match(/\n\s+id: '/g) || []).length, 12, 'Taxonomy should expose scientific illustration and the eleven existing real products');
 assert.match(switcherSource, /getVisibleStudioCategories/, 'Product center should render taxonomy categories through the empty-category filter');
 assert.match(switcherSource, /grid-cols-2/, 'Product cards should use a compact two-column layout so the mobile workspace keeps usable height');
-assert.match(switcherSource, /max-h-\[36vh\][^"']*overflow-y-auto/, 'Product navigation should be height-bounded so future products cannot squeeze out the workspace');
+assert.doesNotMatch(switcherSource, /max-h-\[36vh\]|overflow-y-auto/, 'Product navigation should remain fully visible before the active workspace');
 assert.doesNotMatch(switcherSource, /即将上线|敬请期待|coming soon/i, 'Product center must not render placeholder products');
 assert.doesNotMatch(productCenterSource, /presentation2/, 'Structured PPT should remain a mode inside the original presentation product, not a hidden fourth product');
 assert.doesNotMatch(productCenterSource, /核心产物|科研产物|更多工具|练习工具/, 'Product center should not keep the later grouping labels');

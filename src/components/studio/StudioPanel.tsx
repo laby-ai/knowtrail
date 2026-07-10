@@ -26,7 +26,7 @@ export function StudioPanel() {
   const NavIcon = navItem.icon;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full overflow-y-auto">
       <div className="px-5 pt-5 pb-4 border-b border-[var(--glass-border)]">
         <div className="flex items-center gap-3 mb-4">
           <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${navItem.accent} flex items-center justify-center border border-[var(--glass-border)]`}>
@@ -44,7 +44,7 @@ export function StudioPanel() {
         </p>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+      <div className="px-5 py-4">
         {activeTab === 'paper-search' && <PaperSearchPanel />}
         {activeTab === 'deep-research' && <DeepResearchPanel />}
         {activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel />}
