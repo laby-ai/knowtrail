@@ -1,12 +1,15 @@
 import { createServer } from 'http';
 import { request as httpRequest } from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { createReadStream } from 'fs';
+import { createReadStream, existsSync } from 'fs';
 import { stat } from 'fs/promises';
 import path from 'path';
 import { parse } from 'url';
 import next from 'next';
-import { resolveClassroomProxyTarget } from './lib/virtual-classroom/proxy-target';
+import {
+  resolveClassroomProxyTarget,
+  shouldProxyMissingClassroomAsset,
+} from './lib/virtual-classroom/proxy-target';
 
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const dev = runtimeEnv !== 'production';
@@ -18,6 +21,7 @@ const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
 const publicDir = path.resolve(process.cwd(), 'public');
+const mainNextStaticDir = path.resolve(process.cwd(), '.next', 'static');
 const runtimePublicPrefixes = ['/uploads/', '/mineru-figures/'];
 const classroomRuntimeOrigin = (process.env.VIRTUAL_CLASSROOM_INTERNAL_ORIGIN || '').trim().replace(/\/$/, '');
 const mimeTypes: Record<string, string> = {
@@ -57,9 +61,11 @@ function proxyClassroomRuntime(req: IncomingMessage, res: ServerResponse, pathna
   if (!classroomRuntimeOrigin) return false;
 
   const proxyTarget = resolveClassroomProxyTarget(req.url || pathname, pathname);
-  if (!proxyTarget.shouldProxy) return false;
+  const missingClassroomAsset = shouldProxyMissingClassroomAsset(pathname, mainNextStaticDir, existsSync);
+  if (!proxyTarget.shouldProxy && !missingClassroomAsset) return false;
 
-  const target = new URL(proxyTarget.targetPath, `${classroomRuntimeOrigin}/`);
+  const targetPath = proxyTarget.shouldProxy ? proxyTarget.targetPath : req.url || pathname;
+  const target = new URL(targetPath, `${classroomRuntimeOrigin}/`);
   const headers = { ...req.headers };
   delete headers.host;
   delete headers.connection;
