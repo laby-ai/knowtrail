@@ -2,6 +2,7 @@ import path from 'node:path';
 
 export const CLASSROOM_RUNTIME_PREFIX = '/classroom-runtime';
 const NEXT_STATIC_PREFIX = '/_next/static/';
+const classroomRootProxyExactPaths = ['/logo-horizontal.png'];
 
 const classroomRootProxyPrefixes = [
   '/api/access-code/',
@@ -26,7 +27,8 @@ const classroomRootProxyPrefixes = [
 export function resolveClassroomProxyTarget(requestUrl: string, pathname: string) {
   const runtimePath = pathname === CLASSROOM_RUNTIME_PREFIX
     || pathname.startsWith(`${CLASSROOM_RUNTIME_PREFIX}/`);
-  const rootPath = classroomRootProxyPrefixes.some(prefix => pathname.startsWith(prefix));
+  const rootPath = classroomRootProxyExactPaths.includes(pathname)
+    || classroomRootProxyPrefixes.some(prefix => pathname.startsWith(prefix));
 
   if (!runtimePath && !rootPath) return { shouldProxy: false, targetPath: '' };
   if (!runtimePath) return { shouldProxy: true, targetPath: requestUrl || pathname };

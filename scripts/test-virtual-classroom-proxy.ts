@@ -42,6 +42,14 @@ assert.deepEqual(
   resolveClassroomProxyTarget('/classroom-runtime-evil', '/classroom-runtime-evil'),
   { shouldProxy: false, targetPath: '' },
 );
+assert.deepEqual(
+  resolveClassroomProxyTarget('/logo-horizontal.png', '/logo-horizontal.png'),
+  { shouldProxy: true, targetPath: '/logo-horizontal.png' },
+);
+assert.deepEqual(
+  resolveClassroomProxyTarget('/logo-horizontal.png.bak', '/logo-horizontal.png.bak'),
+  { shouldProxy: false, targetPath: '' },
+);
 
 console.log(JSON.stringify({
   ok: true,
@@ -52,5 +60,6 @@ console.log(JSON.stringify({
     'lookalike prefixes are not proxied',
     'main application assets keep priority over sidecar assets',
     'missing sidecar asset hashes are proxied without allowing path traversal',
+    'known sidecar public assets use exact-path forwarding',
   ],
 }, null, 2));
