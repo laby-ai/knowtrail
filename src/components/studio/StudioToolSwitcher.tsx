@@ -2,6 +2,7 @@
 
 import type { ElementType } from 'react';
 import {
+  FileSearch,
   GraduationCap,
   Presentation,
   GitBranch,
@@ -23,6 +24,7 @@ export interface StudioNavItem extends StudioResearchProduct {
 
 const PRODUCT_VISUALS: Record<StudioTab, Pick<StudioNavItem, 'icon' | 'accent'>> = {
   'paper-search': { icon: Search, accent: 'from-violet-500/10 to-blue-500/5' },
+  'deep-research': { icon: FileSearch, accent: 'from-cyan-500/10 to-blue-500/5' },
   presentation: { icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
   knowledge: { icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
   'virtual-classroom': { icon: GraduationCap, accent: 'from-emerald-500/10 to-sky-500/5' },
