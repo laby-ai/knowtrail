@@ -68,10 +68,19 @@ pnpm smoke:real-studio-products
 pnpm smoke:real-doubao-tts
 pnpm smoke:workbench-studio-ui
 pnpm smoke:studio-evidence-ui
+pnpm smoke:live-paper-search-provider
 pnpm smoke:live-virtual-classroom
 pnpm audit:pptx-quality
 pnpm smoke:runtime-health
 ```
+
+Run the live paper-search provider smoke before and after promotion. It uses configured Metaso when available, otherwise the bounded arXiv scholar fallback, and verifies the public route still enforces account login without printing provider credentials or paper abstracts:
+
+```bash
+LIVE_PAPER_SEARCH_ORIGIN=https://airai.world pnpm smoke:live-paper-search-provider
+```
+
+The scholar fallback returns open-source candidates rather than verified citations. Users must check the title, authors, date, source page, and claim support before citing.
 
 Run the live virtual-classroom smoke from a workstation with Playwright after promotion. It checks runtime status, recent shared history, the exported classroom JSON, desktop/mobile hydration, failed responses, console errors, and horizontal overflow:
 

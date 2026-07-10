@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import { DiscoverSearchProviderError, searchDiscoveredSources } from '@/lib/discover-search-provider';
 
 export const maxDuration = 60;
-
-// ============================================================
-// Discover sources (NotebookLM-style): web search via Metaso
-// (metaso.cn) so users can find and ingest online sources
-// without leaving the workbench.
-// ============================================================
-
-const METASO_API_BASE = process.env.METASO_API_BASE?.trim() || 'https://metaso.cn/api/v1';
-const METASO_API_KEY = process.env.METASO_API_KEY?.trim() || '';
 
 interface DiscoverSearchRequest {
   query: string;
@@ -18,28 +10,6 @@ interface DiscoverSearchRequest {
   size?: number;
   withContent?: boolean;
   notebookId?: string;
-}
-
-interface MetasoWebpage {
-  title?: string;
-  link?: string;
-  snippet?: string;
-  content?: string;
-  date?: string;
-  authors?: string[];
-  position?: number;
-  score?: string;
-}
-
-interface MetasoResponse {
-  webpages?: MetasoWebpage[];
-  documents?: MetasoWebpage[];
-  scholars?: MetasoWebpage[];
-  papers?: MetasoWebpage[];
-  total?: number;
-  credits?: number;
-  code?: number;
-  message?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -50,10 +20,6 @@ export async function POST(request: NextRequest) {
   });
   if (!scope.ok) return scope.response;
 
-  if (!METASO_API_KEY) {
-    return NextResponse.json({ error: '服务器未配置搜索服务(METASO_API_KEY)。' }, { status: 503 });
-  }
-
   const query = (body.query || '').trim();
   if (!query) {
     return NextResponse.json({ error: '请输入搜索关键词' }, { status: 400 });
@@ -63,58 +29,17 @@ export async function POST(request: NextRequest) {
   const withContent = Boolean(body.withContent);
 
   try {
-    const response = await fetch(`${METASO_API_BASE}/search`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${METASO_API_KEY}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        q: query,
-        scope: searchScope,
-        includeSummary: false,
-        size: String(size),
-        includeRawContent: withContent,
-        conciseSnippet: !withContent,
-      }),
-      signal: AbortSignal.timeout(Number(process.env.DISCOVER_SEARCH_TIMEOUT_MS || 30_000)),
-    });
-
-    const raw = await response.text();
-    if (!response.ok) {
-      console.error(`[Discover] Metaso HTTP ${response.status}: ${raw.slice(0, 200)}`);
-      return NextResponse.json({ error: `搜索服务暂不可用(HTTP ${response.status})` }, { status: 502 });
-    }
-
-    let parsed: MetasoResponse;
-    try {
-      parsed = JSON.parse(raw) as MetasoResponse;
-    } catch {
-      return NextResponse.json({ error: '搜索服务返回异常' }, { status: 502 });
-    }
-    if (parsed.code && parsed.code !== 0 && parsed.message) {
-      console.error(`[Discover] Metaso error ${parsed.code}: ${parsed.message}`);
-      return NextResponse.json({ error: `搜索失败:${parsed.message}` }, { status: 502 });
-    }
-
-    const items = (parsed.webpages || parsed.scholars || parsed.documents || parsed.papers || [])
-      .filter(item => item.link && item.title)
-      .map(item => ({
-        title: String(item.title).trim(),
-        link: String(item.link).trim(),
-        snippet: (item.snippet || '').trim(),
-        content: withContent ? (item.content || '').trim() : undefined,
-        date: item.date || '',
-        authors: Array.isArray(item.authors) ? item.authors : [],
-        score: item.score || '',
-      }));
-
-    console.log(`[Discover] "${query.slice(0, 40)}" scope=${searchScope} withContent=${withContent} -> ${items.length} 条`);
-    return NextResponse.json({ success: true, query, scope: searchScope, results: items, total: parsed.total ?? items.length });
+    const result = await searchDiscoveredSources({ query, scope: searchScope, size, withContent, signal: request.signal });
+    console.log(`[Discover] "${query.slice(0, 40)}" provider=${result.provider} scope=${searchScope} -> ${result.results.length} 条`);
+    return NextResponse.json({ success: true, query, scope: searchScope, ...result });
   } catch (err) {
-    const message = err instanceof Error && err.name === 'TimeoutError' ? '搜索超时,请重试' : '搜索服务暂不可用';
+    const status = err instanceof DiscoverSearchProviderError ? err.status : 502;
+    const message = err instanceof DiscoverSearchProviderError
+      ? err.message
+      : err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
+        ? '搜索超时,请重试'
+        : '搜索服务暂不可用';
     console.error('[Discover] error:', err);
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: message }, { status });
   }
 }

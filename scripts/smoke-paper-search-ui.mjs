@@ -73,7 +73,19 @@ async function startFakeMetaso() {
       await new Promise(resolve => setTimeout(resolve, 350));
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({
-        scholars: body.q === 'no-results' ? [] : [{
+        scholars: body.q === 'no-results' ? [] : body.q === 'partial-ingest' ? [{
+          title: 'Partial Success Methods',
+          link: `${origin}/paper/partial-success`,
+          snippet: 'This candidate has a readable source and should be ingested.',
+          date: '2025-06-01',
+          authors: ['Good Source'],
+        }, {
+          title: 'Unavailable Paper',
+          link: `${origin}/paper/unavailable`,
+          snippet: 'This candidate deliberately fails during source fetching.',
+          date: '2025-06-02',
+          authors: ['Unavailable Source'],
+        }] : [{
           title: 'Evidence Synthesis Methods',
           link: `${origin}/paper/evidence-synthesis`,
           snippet: 'A reproducible method for evidence synthesis with explicit source verification.',
@@ -88,6 +100,16 @@ async function startFakeMetaso() {
     if (request.method === 'GET' && request.url === '/paper/evidence-synthesis') {
       response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       response.end('<html><head><title>Evidence Synthesis Methods</title></head><body><main><h1>Evidence Synthesis Methods</h1><p>This source describes a reproducible evidence synthesis method. It records search terms, source metadata, verification status, limitations, and the reasoning used to include or exclude each candidate paper.</p></main></body></html>');
+      return;
+    }
+    if (request.method === 'GET' && request.url === '/paper/partial-success') {
+      response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      response.end('<html><head><title>Partial Success Methods</title></head><body><main><h1>Partial Success Methods</h1><p>This readable source verifies that one selected candidate can still enter the literature library when another selected source fails. The workflow keeps the failed candidate selected so the user can retry it without repeating successful work.</p></main></body></html>');
+      return;
+    }
+    if (request.method === 'GET' && request.url === '/paper/unavailable') {
+      response.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+      response.end('temporarily unavailable');
       return;
     }
     response.writeHead(404).end();
@@ -143,7 +165,11 @@ async function main() {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const consoleErrors = [];
+    const failedResponses = [];
     page.on('pageerror', error => consoleErrors.push(error.message));
+    page.on('response', response => {
+      if (response.status() >= 400) failedResponses.push({ status: response.status(), url: response.url() });
+    });
     await page.goto(`${appOrigin}/#workbench`, { waitUntil: 'networkidle' });
     await page.getByTestId('paper-search-panel').waitFor({ state: 'visible' });
     assert(await page.getByTestId('discover-scope-scholar').getAttribute('class').then(value => value?.includes('glass-active')), 'Paper search did not default to scholar scope.');
@@ -172,6 +198,19 @@ async function main() {
     await page.getByTestId('discover-search').click();
     await page.getByText(/搜索服务暂不可用\(HTTP 429\)/).waitFor({ state: 'visible' });
 
+    await page.getByTestId('discover-query').fill('partial-ingest');
+    await page.getByTestId('discover-search').click();
+    await page.getByText('Partial Success Methods', { exact: true }).waitFor({ state: 'visible' });
+    await page.getByText('Unavailable Paper', { exact: true }).waitFor({ state: 'visible' });
+    const partialItems = page.getByTestId('discover-result-item');
+    assert(await partialItems.count() === 2, 'Partial-ingest search did not return two candidates.');
+    await partialItems.nth(0).click();
+    await partialItems.nth(1).click();
+    await page.getByTestId('discover-ingest').click();
+    await page.getByText(/1 个文献线索已加入文献库；1 个抓取失败/).waitFor({ state: 'visible', timeout: 30_000 });
+    await page.getByText('抓取失败:网页返回 HTTP 503', { exact: true }).waitFor({ state: 'visible' });
+    await page.locator('[data-testid^="library-paper-"]').filter({ hasText: 'Partial Success Methods' }).waitFor({ state: 'visible' });
+
     await page.getByTestId('library-discover').click();
     const libraryModal = page.getByTestId('discover-sources-modal');
     await libraryModal.waitFor({ state: 'visible' });
@@ -193,11 +232,13 @@ async function main() {
     await mobile.screenshot({ path: mobileScreenshot, fullPage: true });
     await mobile.close();
 
-    assert(fakeMetaso.requests.length === 4, `Expected 4 search requests, got ${fakeMetaso.requests.length}.`);
+    assert(fakeMetaso.requests.length === 5, `Expected 5 search requests, got ${fakeMetaso.requests.length}.`);
     assert(fakeMetaso.requests.every(request => request.scope === 'scholar'), 'Search route did not preserve scholar scope.');
     assert(consoleErrors.length === 0, `Browser errors: ${consoleErrors.join(' | ')}`);
     assert(mobileErrors.length === 0, `Mobile browser errors: ${mobileErrors.join(' | ')}`);
     assert(!mobileOverflow, 'Paper search caused horizontal overflow on mobile.');
+    assert(failedResponses.length === 2, `Expected the two deliberate provider/fetch failures, got ${JSON.stringify(failedResponses)}.`);
+    assert(failedResponses.every(item => item.status === 502 && /\/api\/discover\/(search|fetch)$/.test(item.url)), `Unexpected failed response: ${JSON.stringify(failedResponses)}`);
     const evidence = {
       ok: true,
       appOrigin,
@@ -209,6 +250,7 @@ async function main() {
         'loading, result metadata, verification status, and source link render',
         'selected source follows discover/fetch/upload and appears selected in the library',
         'empty and provider-error states render without simulated product success',
+        'partial source fetch keeps the failed candidate retryable while preserving successful ingestion',
         'the existing Library discover modal still opens and closes after component reuse',
       ],
     };
