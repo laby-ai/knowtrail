@@ -7,6 +7,7 @@ import { VirtualClassroomPanel } from './VirtualClassroomPanel';
 import { PaperSearchPanel } from './PaperSearchPanel';
 import { DeepResearchPanel } from './DeepResearchPanel';
 import { HypothesisGenerationPanel } from './HypothesisGenerationPanel';
+import { DataProcessingPanel } from './DataProcessingPanel';
 import {
   STUDIO_NAV,
   StudioToolSwitcher,
@@ -42,6 +43,7 @@ export function StudioPanel() {
         {activeTab === 'paper-search' && <PaperSearchPanel />}
         {activeTab === 'deep-research' && <DeepResearchPanel />}
         {activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel />}
+        {activeTab === 'data-processing' && <DataProcessingPanel />}
         {activeTab === 'presentation' && <PresentationWorkspacePanel />}
         {activeTab === 'knowledge' && <KnowledgeMapPanel />}
         {activeTab === 'virtual-classroom' && <VirtualClassroomPanel />}

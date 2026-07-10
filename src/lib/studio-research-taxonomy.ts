@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'knowledge' | 'presentation' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'knowledge' | 'presentation' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -55,6 +55,13 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     label: '假设生成',
     categoryId: 'research-ideation',
     desc: '依据、反例与可证伪预测',
+    availability: 'ready',
+  },
+  {
+    id: 'data-processing',
+    label: '数据处理',
+    categoryId: 'research-ideation',
+    desc: '真实表格诊断与基线方案',
     availability: 'ready',
   },
   {
