@@ -10,6 +10,7 @@ import { HypothesisGenerationPanel } from './HypothesisGenerationPanel';
 import { DataProcessingPanel } from './DataProcessingPanel';
 import { ExperimentDesignPanel } from './ExperimentDesignPanel';
 import { AcademicWritingPanel } from './AcademicWritingPanel';
+import { TextPolishingPanel } from './TextPolishingPanel';
 import {
   STUDIO_NAV,
   StudioToolSwitcher,
@@ -48,6 +49,7 @@ export function StudioPanel() {
         {activeTab === 'data-processing' && <DataProcessingPanel />}
         {activeTab === 'experiment-design' && <ExperimentDesignPanel />}
         {activeTab === 'academic-writing' && <AcademicWritingPanel />}
+        {activeTab === 'text-polishing' && <TextPolishingPanel />}
         {activeTab === 'presentation' && <PresentationWorkspacePanel />}
         {activeTab === 'knowledge' && <KnowledgeMapPanel />}
         {activeTab === 'virtual-classroom' && <VirtualClassroomPanel />}

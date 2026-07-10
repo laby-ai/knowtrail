@@ -55,6 +55,9 @@ jobs:
       - name: Academic writing contracts
         run: pnpm run test:academic-writing-contract
 
+      - name: Text polishing contracts
+        run: pnpm run test:text-polishing-contract
+
       - name: Typecheck
         run: pnpm run ts-check
 
