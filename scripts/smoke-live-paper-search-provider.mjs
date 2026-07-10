@@ -2,6 +2,7 @@ import process from 'node:process';
 import { XMLParser } from 'fast-xml-parser';
 
 const liveOrigin = (process.env.LIVE_PAPER_SEARCH_ORIGIN || 'https://airai.world').replace(/\/$/, '');
+const accountGatePath = process.env.LIVE_PAPER_SEARCH_PATH || '/lingbi/api/discover/search';
 const query = (process.env.LIVE_PAPER_SEARCH_QUERY || 'multimodal large language model evaluation').trim();
 const size = Math.min(5, Math.max(1, Number(process.env.LIVE_PAPER_SEARCH_SIZE) || 3));
 
@@ -53,10 +54,22 @@ async function probeProvider() {
   url.searchParams.set('max_results', String(size));
   url.searchParams.set('sortBy', 'relevance');
   url.searchParams.set('sortOrder', 'descending');
-  const response = await fetch(url, {
-    headers: { Accept: 'application/atom+xml', 'User-Agent': 'KnowTrail/1.0 (https://airai.world)' },
-    signal: AbortSignal.timeout(30_000),
-  });
+  let response;
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      response = await fetch(url, {
+        headers: { Accept: 'application/atom+xml', 'User-Agent': 'KnowTrail/1.0 (https://airai.world)' },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (response.status < 500 || attempt === 1) break;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 1) throw error;
+    }
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  if (!response) throw lastError;
   if (!response.ok) throw new Error(`arXiv live probe returned HTTP ${response.status}.`);
   const payload = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '', trimValues: true }).parse(await response.text());
   const entries = array(payload?.feed?.entry);
@@ -85,7 +98,8 @@ async function main() {
     throw new Error('Live scholar provider returned an incomplete candidate.');
   }
 
-  const accountGate = await fetch(`${liveOrigin}/lingbi/api/discover/search`, {
+  const accountGateUrl = new URL(accountGatePath, `${liveOrigin}/`).toString();
+  const accountGate = await fetch(accountGateUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, scope: 'scholar', size: 1, withContent: false }),
@@ -99,6 +113,7 @@ async function main() {
   console.log(JSON.stringify({
     ok: true,
     liveOrigin,
+    accountGateUrl,
     provider: result.provider,
     query,
     candidateCount: result.candidates.length,

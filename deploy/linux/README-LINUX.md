@@ -80,6 +80,14 @@ Run the live paper-search provider smoke before and after promotion. It uses con
 LIVE_PAPER_SEARCH_ORIGIN=https://airai.world pnpm smoke:live-paper-search-provider
 ```
 
+For a direct standby candidate that does not use the public `/lingbi` prefix:
+
+```bash
+LIVE_PAPER_SEARCH_ORIGIN=http://127.0.0.1:5099 \
+LIVE_PAPER_SEARCH_PATH=/api/discover/search \
+pnpm smoke:live-paper-search-provider
+```
+
 The scholar fallback returns open-source candidates rather than verified citations. Users must check the title, authors, date, source page, and claim support before citing.
 
 Run the live virtual-classroom smoke from a workstation with Playwright after promotion. It checks runtime status, recent shared history, the exported classroom JSON, desktop/mobile hydration, failed responses, console errors, and horizontal overflow:
