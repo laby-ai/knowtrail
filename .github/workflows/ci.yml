@@ -49,6 +49,9 @@ jobs:
       - name: Data processing contracts
         run: pnpm run test:data-processing-plan
 
+      - name: Experiment design contracts
+        run: pnpm run test:experiment-design-contract
+
       - name: Typecheck
         run: pnpm run ts-check
 

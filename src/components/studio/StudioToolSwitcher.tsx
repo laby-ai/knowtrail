@@ -9,6 +9,7 @@ import {
   Lightbulb,
   Search,
   TableProperties,
+  TestTubes,
 } from 'lucide-react';
 import {
   getVisibleStudioCategories,
@@ -29,6 +30,7 @@ const PRODUCT_VISUALS: Record<StudioTab, Pick<StudioNavItem, 'icon' | 'accent'>>
   'deep-research': { icon: FileSearch, accent: 'from-cyan-500/10 to-blue-500/5' },
   'hypothesis-generation': { icon: Lightbulb, accent: 'from-amber-500/10 to-rose-500/5' },
   'data-processing': { icon: TableProperties, accent: 'from-teal-500/10 to-emerald-500/5' },
+  'experiment-design': { icon: TestTubes, accent: 'from-rose-500/10 to-amber-500/5' },
   presentation: { icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
   knowledge: { icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
   'virtual-classroom': { icon: GraduationCap, accent: 'from-emerald-500/10 to-sky-500/5' },
@@ -79,11 +81,11 @@ export function StudioToolSwitcher({
   const visibleCategories = getVisibleStudioCategories();
 
   return (
-    <div className="space-y-4" data-testid="studio-tool-switcher">
+    <div className="max-h-[36vh] space-y-3 overflow-y-auto pr-1" data-testid="studio-tool-switcher">
       {visibleCategories.map(category => (
         <section key={category.id} data-testid={`studio-category-${category.id}`}>
           <h3 className="mb-2 text-[10px] font-semibold text-[var(--text-tertiary)]">{category.label}</h3>
-          <div className="grid grid-cols-1 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {category.products.map(product => {
               const item = STUDIO_NAV.find(navItem => navItem.id === product.id);
               return item ? renderNavButton(item) : null;
