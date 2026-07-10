@@ -20,13 +20,7 @@ export const metadata: Metadata = {
   authors: [{ name: 'KnowTrail' }],
   generator: 'KnowTrail',
   icons: {
-    icon: [
-      { url: '/assets/brand/favicon.png', sizes: '32x32', type: 'image/png' },
-      { url: '/assets/brand/lingbi-icon-64.png', sizes: '64x64', type: 'image/png' },
-    ],
-    apple: [
-      { url: '/assets/brand/apple-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
+    icon: [{ url: '/assets/brand/lingbi-mark.svg', type: 'image/svg+xml' }],
   },
   openGraph: {
     title: 'KnowTrail',

@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, rmSync, mkdirSync, cpSync, copyFileSync, writeFileSync, chmodSync, statSync, readdirSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, rmSync, mkdirSync, cpSync, copyFileSync, writeFileSync, chmodSync, statSync, readdirSync, realpathSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -71,8 +72,6 @@ function copyClassroomRuntimeModule(packageName) {
     'OpenMAIC',
     '.next',
     'standalone',
-    '.references',
-    'OpenMAIC',
     'node_modules',
     ...packageName.split('/'),
   );
@@ -103,6 +102,43 @@ function directorySizeBytes(dir) {
     }
   }
   return total;
+}
+
+function inspectClassroomRuntimeArchive(archivePath) {
+  const listed = spawnSync('tar', ['-tzf', archivePath], { encoding: 'utf8', shell: false });
+  if (listed.error || listed.status !== 0) {
+    throw new Error(`Unable to list OpenMAIC runtime archive: ${listed.error?.message || listed.stderr}`);
+  }
+
+  const entries = listed.stdout.split(/\r?\n/).filter(Boolean);
+  const unsafe = entries.filter(entry =>
+    entry.startsWith('/')
+    || entry.startsWith('\\')
+    || /(^|[\\/])\.\.([\\/]|$)/.test(entry),
+  );
+  if (unsafe.length > 0) {
+    throw new Error(`OpenMAIC runtime archive contains unsafe paths: ${unsafe.slice(0, 5).join(', ')}`);
+  }
+
+  const normalized = entries.map(entry => entry.replaceAll('\\', '/').replace(/^\.\//, ''));
+  const required = [
+    '.next/standalone/server.js',
+    '.next/static/',
+    'public/',
+  ];
+  const missing = required.filter(requiredEntry =>
+    requiredEntry.endsWith('/')
+      ? !normalized.some(entry => entry.startsWith(requiredEntry))
+      : !normalized.includes(requiredEntry),
+  );
+  if (missing.length > 0) {
+    throw new Error(`OpenMAIC runtime archive is incomplete: ${missing.join(', ')}`);
+  }
+
+  return {
+    entries: normalized.length,
+    sha256: createHash('sha256').update(Buffer.from(readFileSync(archivePath))).digest('hex'),
+  };
 }
 
 assertExists('dist/server.js');
@@ -136,14 +172,36 @@ mkdirSync(appDir, { recursive: true });
   'deploy',
 ].forEach(entry => copyEntry(entry));
 
-const classroomRuntimeIncluded = [
-  copyRuntimeEntry('.references/OpenMAIC/.next/standalone/.references/OpenMAIC'),
-  copyRuntimeEntry('.references/OpenMAIC/.next/static'),
-  copyRuntimeEntry('.references/OpenMAIC/public'),
-  copyClassroomRuntimeModule('styled-jsx'),
-  copyClassroomRuntimeModule('@next/env'),
-  copyClassroomRuntimeModule('@swc/helpers'),
-].every(Boolean);
+const externalClassroomRuntimeArchive = process.env.OPENMAIC_RUNTIME_ARCHIVE
+  ? path.resolve(process.env.OPENMAIC_RUNTIME_ARCHIVE)
+  : null;
+let classroomRuntimeIncluded = false;
+let classroomRuntimeArchive = null;
+
+if (externalClassroomRuntimeArchive) {
+  if (!existsSync(externalClassroomRuntimeArchive)) {
+    throw new Error(`OPENMAIC_RUNTIME_ARCHIVE does not exist: ${externalClassroomRuntimeArchive}`);
+  }
+  const inspection = inspectClassroomRuntimeArchive(externalClassroomRuntimeArchive);
+  const target = path.join(appDir, 'runtime', 'openmaic-runtime.tar.gz');
+  mkdirSync(path.dirname(target), { recursive: true });
+  copyFileSync(externalClassroomRuntimeArchive, target);
+  classroomRuntimeIncluded = true;
+  classroomRuntimeArchive = {
+    path: 'runtime/openmaic-runtime.tar.gz',
+    sha256: inspection.sha256,
+    entries: inspection.entries,
+  };
+} else {
+  classroomRuntimeIncluded = [
+    copyRuntimeEntry('.references/OpenMAIC/.next/standalone'),
+    copyRuntimeEntry('.references/OpenMAIC/.next/static'),
+    copyRuntimeEntry('.references/OpenMAIC/public'),
+    copyClassroomRuntimeModule('styled-jsx'),
+    copyClassroomRuntimeModule('@next/env'),
+    copyClassroomRuntimeModule('@swc/helpers'),
+  ].every(Boolean);
+}
 
 copyFileSync(path.join(workspace, 'deploy/linux/install.sh'), path.join(appDir, 'install.sh'));
 copyFileSync(path.join(workspace, 'deploy/linux/start.sh'), path.join(appDir, 'start.sh'));
@@ -182,6 +240,7 @@ writeFileSync(path.join(appDir, 'BUNDLE_MANIFEST.json'), `${JSON.stringify({
   requiredRuntimeArtifacts: ['dist/server.js', '.next/BUILD_ID', 'public'],
   documentationArtifacts: ['docs/api-conventions.md'],
   optionalRuntimeArtifacts: classroomRuntimeIncluded ? ['virtual classroom standalone runtime'] : [],
+  classroomRuntimeArchive,
   persistentPaths: ['.data/zvec', '.data/sources', 'logs'],
   notes: [
     'Run ./install.sh after extracting on Linux.',

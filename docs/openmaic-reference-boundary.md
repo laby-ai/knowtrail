@@ -7,7 +7,7 @@
 - 根目录 `LICENSE` 与 `package.json` 标注为 MIT，商业使用通常允许。
 - 仓库内存在不完全由根 MIT 覆盖的子包和资产：
   - `packages/mathml2omml` 为 `LGPL-3.0-or-later`。
-  - `packages/@maic/renderer` 下有字体许可与归属要求。
+  - `packages/@openmaic/renderer` 下有字体许可与归属要求。
   - `packages/pptxgenjs` 为第三方 MIT。
 - 因此，安全策略是参考流程和数据结构，避免直接复制原 UI、品牌资源、字体资源、完整页面壳或子包实现。
 
