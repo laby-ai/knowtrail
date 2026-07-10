@@ -93,6 +93,12 @@ const routeSource = await readFile(path.join(process.cwd(), 'src/app/api/discove
 assert.match(routeSource, /searchDiscoveredSources/, 'Discover route must use the provider abstraction.');
 const panelSource = await readFile(path.join(process.cwd(), 'src/components/library/DiscoverSourcesModal.tsx'), 'utf8');
 assert.match(panelSource, /当前使用 arXiv 开放源/, 'The UI must explain the bounded open-source fallback.');
+const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8')) as { scripts?: Record<string, string> };
+assert.equal(
+  packageJson.scripts?.['smoke:live-paper-search-provider'],
+  'node ./scripts/smoke-live-paper-search-provider.mjs',
+  'The production paper-search smoke must not depend on the dev-only tsx binary.',
+);
 
 console.log(JSON.stringify({
   ok: true,
@@ -103,6 +109,7 @@ console.log(JSON.stringify({
     'webpage search fails clearly instead of pretending arXiv covers the web',
     'discover route delegates to the tested provider abstraction',
     'paper-search UI explains the arXiv fallback and verification boundary',
+    'production paper-search smoke runs with Node and production dependencies only',
   ],
 }, null, 2));
 }
