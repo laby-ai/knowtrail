@@ -263,15 +263,15 @@ async function runBrowserPptExport(tempDir: string) {
     const pptHits = await interceptPptSse(page);
 
     await page.goto(`${smokeApp.appOrigin}/#workbench`, { waitUntil: 'networkidle' });
-    await expectVisible(page.getByText('Studio', { exact: true }), 'Workbench Studio panel did not render.');
+    await expectVisible(page.getByText('产物中心', { exact: true }), 'Workbench product center did not render.');
     await page.locator('input[type="file"]').setInputFiles(path.join(tempDir, 'ppt-file-output.txt'));
-    await expectVisible(page.getByText('已选 1 篇'), 'Uploaded source was not selected.');
-    await page.getByRole('button', { name: '演示文稿' }).click();
-    await page.getByRole('button', { name: /一键生成 PPT/ }).click();
+    await expectVisible(page.getByTestId('library-selection-count').filter({ hasText: /已选 1 个文献来源|已选 1 篇/ }), 'Uploaded source was not selected.');
+    await page.getByTestId('studio-nav-presentation').click();
+    await page.getByTestId('image-ppt-generate').click();
     await expectVisible(page.getByText('File-Level PPT Slide 1').first(), 'Generated PPT slide preview did not render.');
-    await expectVisible(page.getByText('证据状态', { exact: true }), 'PPT evidence status did not render.');
-    await expectVisible(page.getByTestId('studio-retrieval-badge').getByText(/持久片段检索 · 引用 1/), 'PPT retrieval badge did not render citation count.');
-    await expectVisible(page.getByText('降级原因：embedding index not configured in PPT file smoke'), 'PPT degradation reason did not render.');
+    await expectVisible(page.getByTestId('studio-evidence-status'), 'PPT evidence status did not render.');
+    await expectVisible(page.getByTestId('studio-retrieval-badge').getByText(/文献片段检索.*引用线索 1/), 'PPT retrieval badge did not render citation count.');
+    await expectVisible(page.getByText('当前溯源说明：embedding index not configured in PPT file smoke'), 'PPT degradation reason did not render.');
     await expectVisible(page.getByText('PPT File-Level Source').first(), 'PPT citation source title did not render.');
     await expectVisible(page.getByRole('button', { name: '导出 PPTX' }), 'PPT export button did not render.');
 

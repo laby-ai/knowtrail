@@ -75,7 +75,7 @@ packageLicenseCheck(
   '.references/OpenMAIC/packages/mathml2omml/package.json',
   'LGPL-3.0-or-later',
 );
-packageLicenseCheck('openmaic-renderer-package-license', '.references/OpenMAIC/packages/@maic/renderer/package.json', 'MIT');
+packageLicenseCheck('openmaic-renderer-package-license', '.references/OpenMAIC/packages/@openmaic/renderer/package.json', 'MIT');
 
 includesCheck('openmaic-readme-third-party-disclosure', '.references/OpenMAIC/README.md', [
   /Third-Party Components/i,

@@ -12,6 +12,23 @@ else
 fi
 cd "$APP_DIR"
 
+CLASSROOM_RUNTIME_ARCHIVE="$APP_DIR/runtime/openmaic-runtime.tar.gz"
+if [ -f "$CLASSROOM_RUNTIME_ARCHIVE" ]; then
+  CLASSROOM_RUNTIME_ENTRIES="$(tar -tzf "$CLASSROOM_RUNTIME_ARCHIVE")"
+  if printf '%s\n' "$CLASSROOM_RUNTIME_ENTRIES" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+    echo "OpenMAIC runtime archive contains an unsafe path." >&2
+    exit 1
+  fi
+  for required in '.next/standalone/server.js' '.next/static/' 'public/'; do
+    if ! printf '%s\n' "$CLASSROOM_RUNTIME_ENTRIES" | grep -Fq "$required"; then
+      echo "OpenMAIC runtime archive is missing $required." >&2
+      exit 1
+    fi
+  done
+  mkdir -p "$APP_DIR/.references/OpenMAIC"
+  tar -xzf "$CLASSROOM_RUNTIME_ARCHIVE" -C "$APP_DIR/.references/OpenMAIC"
+fi
+
 if ! command -v node >/dev/null 2>&1; then
   echo "Node.js 20+ is required. Install Node.js before running install.sh." >&2
   exit 1
@@ -43,6 +60,6 @@ fi
 pnpm install --prod --frozen-lockfile
 node scripts/ensure-next-external-aliases.mjs
 
-node -e "const fs=require('fs'); for (const p of ['dist/server.js','.next/BUILD_ID','public']) { if (!fs.existsSync(p)) { console.error('Missing runtime artifact:', p); process.exit(1); } }"
+node -e "const fs=require('fs'); for (const p of ['dist/server.js','.next/BUILD_ID','public']) { if (!fs.existsSync(p)) { console.error('Missing runtime artifact:', p); process.exit(1); } } const archive='runtime/openmaic-runtime.tar.gz'; if (fs.existsSync(archive) && !['.references/OpenMAIC/.next/standalone/server.js','.references/OpenMAIC/.next/standalone/.references/OpenMAIC/server.js'].some(p=>fs.existsSync(p))) { console.error('OpenMAIC runtime archive did not produce a standalone server.'); process.exit(1); }"
 
 echo "Install complete. Start with: ./start.sh"

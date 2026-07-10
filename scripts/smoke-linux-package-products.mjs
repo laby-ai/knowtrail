@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -28,6 +29,10 @@ const requiredFiles = [
   'docs/api-conventions.md',
   'dist/server.js',
   '.next/BUILD_ID',
+  'public/assets/brand/lingbi-mark.svg',
+  'public/assets/home/lingbi-hero-poster.jpg',
+  'public/assets/home/lingbi-hero-loop.webm',
+  'public/assets/home/lingbi-hero-loop.mp4',
   'scripts/smoke-real-studio-products.mjs',
   'scripts/smoke-real-doubao-tts.ts',
   'scripts/audit-pptx-quality.mjs',
@@ -63,6 +68,44 @@ function listArchive(archive) {
   const tar = spawnSync('tar', ['-tzf', archive], { cwd: deployDir, encoding: 'utf8' });
   assert(tar.status === 0, `tar -tzf failed: ${tar.stderr || tar.error?.message || 'unknown error'}`);
   return tar.stdout.split(/\r?\n/).filter(Boolean);
+}
+
+function inspectClassroomRuntime(stagingDir, manifest) {
+  if (!(manifest.optionalRuntimeArtifacts || []).includes('virtual classroom standalone runtime')) {
+    return { ok: true, mode: 'not-included' };
+  }
+
+  const metadata = manifest.classroomRuntimeArchive;
+  if (!metadata) return { ok: true, mode: 'expanded-runtime' };
+
+  const archive = path.join(stagingDir, metadata.path || '');
+  if (!fs.existsSync(archive)) {
+    return { ok: false, error: `Missing nested classroom runtime archive: ${metadata.path}` };
+  }
+
+  const listed = spawnSync('tar', ['-tzf', archive], { encoding: 'utf8' });
+  if (listed.status !== 0) {
+    return { ok: false, error: listed.stderr || listed.error?.message || 'Unable to list classroom runtime archive' };
+  }
+  const entries = listed.stdout.split(/\r?\n/).filter(Boolean);
+  const normalized = entries.map(entry => entry.replaceAll('\\', '/').replace(/^\.\//, ''));
+  const unsafe = normalized.filter(entry => entry.startsWith('/') || /(^|\/)\.\.(\/|$)/.test(entry));
+  const missing = ['.next/standalone/server.js', '.next/static/', 'public/'].filter(required =>
+    required.endsWith('/')
+      ? !normalized.some(entry => entry.startsWith(required))
+      : !normalized.includes(required),
+  );
+  const sha256 = createHash('sha256').update(fs.readFileSync(archive)).digest('hex');
+  const hashMatches = typeof metadata.sha256 === 'string' && metadata.sha256 === sha256;
+
+  return {
+    ok: unsafe.length === 0 && missing.length === 0 && hashMatches,
+    mode: 'nested-runtime-archive',
+    entries: normalized.length,
+    unsafe,
+    missing,
+    hashMatches,
+  };
 }
 
 function collectFiles(dir) {
@@ -144,6 +187,7 @@ function main() {
   );
   const secretHits = scanSecrets(stagingDir);
   const possibleSecrets = secretHits.filter(hit => hit.kind === 'possible-secret');
+  const classroomRuntime = inspectClassroomRuntime(stagingDir, manifest);
   const releaseGateTest = spawnSync(process.execPath, ['scripts/test-release-env-gate.mjs'], {
     cwd: stagingDir,
     encoding: 'utf8',
@@ -160,6 +204,7 @@ function main() {
     && missingTtsEnv.length === 0
     && forbiddenEntries.length === 0
     && possibleSecrets.length === 0
+    && classroomRuntime.ok
     && releaseGateTest.status === 0;
 
   console.log(JSON.stringify({
@@ -177,6 +222,7 @@ function main() {
       'packaged files include Studio product and PPTX audit scripts',
       'packaged files include API conventions docs for release/source parity',
       'packaged release environment gate executes without source-only CI files',
+      'optional virtual classroom runtime is path-safe, complete, and hash-verified',
       'packaged tree secret scan has no possible real keys',
     ],
     missingScripts,
@@ -187,6 +233,7 @@ function main() {
     missingTtsEnv,
     forbiddenEntries,
     releaseGateTestError,
+    classroomRuntime,
     secretHits,
   }, null, 2));
 

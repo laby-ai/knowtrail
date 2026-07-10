@@ -51,7 +51,10 @@ export SOURCE_STORE_ADAPTER="${SOURCE_STORE_ADAPTER:-local-json}"
 
 mkdir -p "$(dirname "$SOURCE_STORE_PATH")" "$(dirname "$STUDIO_JOB_STORE_PATH")" "$ZVEC_STORE_PATH" "$SCIENTIFIC_ILLUSTRATION_STORE_DIR" logs
 
-CLASSROOM_SERVER="$APP_DIR/.references/OpenMAIC/.next/standalone/.references/OpenMAIC/server.js"
+CLASSROOM_SERVER="$APP_DIR/.references/OpenMAIC/.next/standalone/server.js"
+if [ ! -f "$CLASSROOM_SERVER" ]; then
+  CLASSROOM_SERVER="$APP_DIR/.references/OpenMAIC/.next/standalone/.references/OpenMAIC/server.js"
+fi
 CLASSROOM_PID=""
 if [ -f "$CLASSROOM_SERVER" ]; then
   export OPENMAIC_SIDECAR_PORT="${OPENMAIC_SIDECAR_PORT:-5025}"

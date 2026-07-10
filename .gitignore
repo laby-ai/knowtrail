@@ -113,6 +113,13 @@ Desktop.ini
 # Local reference repos and vendored experiments
 .references/
 assets/
+!public/assets/
+!public/assets/brand/
+!public/assets/brand/lingbi-mark.svg
+!public/assets/home/
+!public/assets/home/lingbi-hero-poster.jpg
+!public/assets/home/lingbi-hero-loop.webm
+!public/assets/home/lingbi-hero-loop.mp4
 ArcDeck-main/
 banana-slides-main/
 public/vendor/

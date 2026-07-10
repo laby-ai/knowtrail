@@ -9,7 +9,11 @@ const openmaicRoot = path.join(root, '.references', 'OpenMAIC');
 const envPath = path.join(root, '.env.real.local');
 if (fs.existsSync(envPath)) dotenv.config({ path: envPath, override: true });
 
-const standaloneApp = path.join(openmaicRoot, '.next', 'standalone', '.references', 'OpenMAIC');
+const standaloneRoot = path.join(openmaicRoot, '.next', 'standalone');
+const nestedStandaloneApp = path.join(standaloneRoot, '.references', 'OpenMAIC');
+const standaloneApp = fs.existsSync(path.join(nestedStandaloneApp, 'server.js'))
+  ? nestedStandaloneApp
+  : standaloneRoot;
 const serverEntry = path.join(standaloneApp, 'server.js');
 if (!fs.existsSync(serverEntry)) {
   throw new Error(`OpenMAIC standalone server is missing: ${serverEntry}`);
