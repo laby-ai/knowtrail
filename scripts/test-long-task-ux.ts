@@ -6,13 +6,11 @@ async function main() {
   const studioJobProgress = await readFile('src/components/studio/StudioJobProgress.tsx', 'utf-8');
   const presentationPanels = await readFile('src/components/studio/PresentationPanels.tsx', 'utf-8');
   const structuredPresentationPanel = await readFile('src/components/studio/StructuredPresentationPanel.tsx', 'utf-8');
-  const audioPanel = await readFile('src/components/studio/AudioPanel.tsx', 'utf-8');
   const studioUi = [
     studioPanel,
     studioJobProgress,
     presentationPanels,
     structuredPresentationPanel,
-    audioPanel,
   ].join('\n');
   const pptRoute = await readFile('src/app/api/ai/ppt/route.ts', 'utf-8');
   const pptV2Route = await readFile('src/app/api/ai/ppt-v2/route.ts', 'utf-8');
@@ -23,13 +21,10 @@ async function main() {
   assert.match(studioUi, /已取消生成，可以调整/, 'Cancelled tasks should leave a recoverable user-facing message.');
   assert.match(studioUi, /正在生成演示文稿，可随时取消/, 'PPT generation should explain that the user can cancel while waiting.');
   assert.match(studioUi, /正在准备结构化简报生成/, 'Academic PPT generation should expose a staged long-task status without implementation jargon.');
-  assert.match(studioUi, /播客生成可能需要较长时间/, 'Podcast generation should explain long-running progress and waiting expectations.');
-  assert.match(studioUi, /正在取消播客生成/, 'Podcast cancel action should show immediate user feedback.');
-  assert.match(studioUi, /已取消生成，可以调整资料后重新开始/, 'Podcast cancel should leave a recoverable user-facing message.');
   assert.match(studioUi, /请先在左侧选择资料/, 'Studio generation buttons should expose a clear no-source title.');
 
   const cancelButtons = studioUi.match(/取消生成/g) || [];
-  assert.ok(cancelButtons.length >= 3, 'Normal PPT, academic PPT, and podcast flows should expose cancel controls.');
+  assert.ok(cancelButtons.length >= 2, 'Image PPT and structured PPT flows should expose cancel controls.');
 
   assert.match(pptRoute, /text\/event-stream/, 'Image-style PPT route should stream progress events.');
   assert.match(pptRoute, /stage: 'outline'|stage": "outline"|stage:'outline'/, 'PPT route should expose an outline stage.');
@@ -46,7 +41,6 @@ async function main() {
       'Cancel action has immediate and recoverable user feedback',
       'Image-style PPT API streams outline/image/narration stages',
       'Academic PPT API exposes LLM observability for fallback warnings',
-      'Podcast long-running flow exposes waiting copy, cancel control, and recovery copy',
       'Studio no-source guards are visible and specific',
     ],
     cancelButtonOccurrences: cancelButtons.length,

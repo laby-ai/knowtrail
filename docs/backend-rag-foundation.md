@@ -85,7 +85,7 @@
   - `/api/ai/podcast` 已复用 `buildGroundedRetrievalContext`，修正前端传 `content`、后端只读 `text` 导致的 400 问题；播客生成 prompt 会附加同一套检索证据，并支持 `debugRetrievalOnly` 做不调用外部音频服务的路由验证。没有资料、只传文本时会返回明确的 `request-text` 降级原因。
   - `/api/ai/ppt` 已复用 `buildGroundedRetrievalContext`，普通图像式 PPT 的 outline/description 阶段优先使用持久化检索证据；没有持久化结果时才回退请求内 content/rawContent。该路由支持 `debugRetrievalOnly`，避免验证时触发 LLM/生图，并返回统一 retrieval metadata。
   - `/api/ai/ppt-v2` 已复用 `buildGroundedRetrievalContext`，ArcDeck 学术报告管线的 discourse parse / slide plan 输入优先使用持久化 evidence outline；PPTX 封面和文件元信息仍使用原始论文，避免把标题替换成内部检索摘要。该路由支持 `debugRetrievalOnly`，避免验证时触发 LLM/PPTX 构建，并返回统一 retrieval metadata。
-  - `KnowledgeCardPanel` 和 `EditorPanel` 已向对应接口传入 `id/fileName/fileType/shortName/rawContent`，使后端可以按选中资料 scope 查询持久化 source。
+  - `EditorPanel` 和当前产物面板向对应接口传入 `id/fileName/fileType/shortName/rawContent`，使后端可以按选中资料 scope 查询持久化 source。
   - `AudioPanel` 已向播客接口传入选中文献的 `id/fileName/fileType/shortName/rawContent` 和 `aiConfig`，使播客可按同一 source scope 检索。
   - `PresentationPanel` 已向普通 PPT 接口传入选中文献的 `id/fileName/fileType/shortName/rawContent` 和 `aiConfig`，并修正生成回调依赖，避免页数/风格更新后仍使用旧闭包。
   - `PresentationPanel2` 已向学术报告 PPT 接口传入 `aiConfig`，继续使用完整论文 id/fileName/fileType/fileUrl/MinerU 图表字段。
@@ -93,12 +93,11 @@
 - 前端用户配置链路 smoke
   - `AISettingsDialog` 在测试连接时展示文本问答、视觉理解、向量检索和播客音频四类检查清单，避免用户只看到一句成功/失败而不知道哪类能力可用。
   - `pnpm smoke:model-config-ui` 已覆盖从 `#workbench-settings` 打开模型设置、填写 API Base/API Key/文本模型/视觉模型/向量模型/播客音色、四类检查清单、localStorage 持久化、清空配置后的部署默认提示，以及上游认证失败时的 Key 脱敏。
-  - 新增 `pnpm smoke:configured-workbench-flow`，真实启动浏览器工作台，预置用户填写的 API Base/API Key/文本模型/视觉模型/向量模型，上传 TXT 资料后验证 `/api/upload` multipart、中央 `/api/ai/chat` SSE、右侧 `/api/ai/knowledge-cards` 请求都携带同一份 `aiConfig`。
-  - 该 smoke 同时断言上传资料自动选中、中央对话渲染引用 UI、知识卡片显示加载文案和结果，避免只验证设置弹窗而没有证明实际工作台链路使用用户配置。
+  - `pnpm smoke:configured-workbench-flow` 真实启动浏览器工作台，预置一组仅用于检测泄漏的旧版浏览器配置，验证应用会清除该配置，且 `/api/upload` multipart 与中央 `/api/ai/chat` SSE 请求均不携带 provider 凭据。
+  - 该 smoke 同时断言上传资料自动选中、中央对话渲染引用 UI 和检索状态，避免只验证设置状态而没有覆盖实际工作台链路。
 - Studio evidence 可见性
-  - `pnpm smoke:workbench-studio-ui` 已加强为请求体契约验证：真实上传资料后，右侧演示文稿、学术报告、知识卡片和播客请求必须携带同一份用户填写的 API Base/API Key/文本模型/视觉模型/向量模型，并带上选中资料的 `id/fileName/fileType/content/rawContent`，否则 smoke 直接失败。
-  - 同一 smoke 会确认右侧 Tab prompt 在有资料时进入中央对话并触发带 citation/retrieval/citationAudit 的 chat SSE，避免右侧按钮只切 Tab、不参与 NotebookLM-like 中央对话主轴。
-  - `KnowledgeCardPanel` 已消费 `/api/ai/knowledge-cards` 返回的 `citations/retrieval/citationAudit`，在卡片结果下展示“证据状态”、检索模式、引用数量、引用编号审计、持久源/向量源数量、降级原因和前 3 条来源片段。
+  - `pnpm smoke:workbench-studio-ui` 真实上传资料后验证演示文稿、结构化 PPT 和资料脉络的无资料禁用态、有资料可用态，以及 PPT 长任务的等待、取消和恢复文案；请求必须带选中资料，同时不得带浏览器 provider 凭据。
+  - 产品中心导航只负责切换真实工作区，生成动作必须由各工作区内的明确按钮触发。
   - `EditorPanel` 的中央对话 retrieval badge 已展示 `retrieval.reason`，当向量索引缺失、未命中或回退到请求内资料时，用户能直接看到“为什么不是向量检索”。
   - 新增 `pnpm smoke:studio-evidence-ui`，真实浏览器上传资料后分别点击中心“生成综述报告”和右侧“知识卡片”，断言报告展示 `citationAudit`、`retrieval` 和可展开来源，知识卡片展示 grounded evidence 状态和引用页码。
 - 学术 PPT 长任务质量提示 smoke

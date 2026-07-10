@@ -10,7 +10,6 @@ import { POST as podcastPost } from '../src/app/api/ai/podcast/route';
 import { POST as pptPost } from '../src/app/api/ai/ppt/route';
 import { POST as pptV2Post } from '../src/app/api/ai/ppt-v2/route';
 import { POST as reportPost } from '../src/app/api/ai/report/route';
-import { POST as studioToolPost } from '../src/app/api/ai/studio-tool/route';
 import { GET as ingestionSourcesGet } from '../src/app/api/ingestion/sources/route';
 
 function jsonRequest(url: string, body: unknown, token?: string): NextRequest {
@@ -171,191 +170,10 @@ async function main() {
     assert.equal((pptV2Json.retrieval as { mode?: string }).mode, 'persisted-keyword');
     assert.equal((pptV2Json.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
 
-    const studioToolResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'interactive',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: '互动页面应复用统一检索证据并展示来源编号[1]。',
-    }));
-    assert.equal(studioToolResponse.status, 200);
-    const studioToolJson = await readJson(studioToolResponse);
-    assert.equal((studioToolJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
-    assert.equal((studioToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
-    assert.equal((studioToolJson.citationAudit as { status?: string }).status, 'pass');
-
-    const seminarToolResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'seminar',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: '组会材料草稿必须标出证据来源并展示来源编号[1]。',
-    }));
-    assert.equal(seminarToolResponse.status, 200);
-    const seminarToolJson = await readJson(seminarToolResponse);
-    assert.equal((seminarToolJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
-    assert.equal((seminarToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
-    assert.equal((seminarToolJson.citationAudit as { status?: string }).status, 'pass');
-
-    const experimentToolResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'experiment',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: '实验记录草稿必须标出实验条件、观察结果和证据来源[1]。',
-    }));
-    assert.equal(experimentToolResponse.status, 200);
-    const experimentToolJson = await readJson(experimentToolResponse);
-    assert.equal((experimentToolJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
-    assert.equal((experimentToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
-    assert.equal((experimentToolJson.citationAudit as { status?: string }).status, 'pass');
-
-    const resultsToolResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'results',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: 'Results 初稿必须区分数据观察、证据依据和局限边界[1]。',
-    }));
-    assert.equal(resultsToolResponse.status, 200);
-    const resultsToolJson = await readJson(resultsToolResponse);
-    assert.equal((resultsToolJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
-    assert.equal((resultsToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
-    assert.equal((resultsToolJson.citationAudit as { status?: string }).status, 'pass');
-
-    const resultsMissingMarkersResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'results',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: 'Results 初稿缺少来源标记。',
-    }));
-    assert.equal(resultsMissingMarkersResponse.status, 422);
-    const resultsMissingMarkersJson = await readJson(resultsMissingMarkersResponse);
-    assert.equal(resultsMissingMarkersJson.success, false);
-    assert.equal(resultsMissingMarkersJson.errorType, 'results_citation_audit_failed');
-    assert.equal((resultsMissingMarkersJson.citationAudit as { status?: string }).status, 'missing-markers');
-
-    const resultsInvalidMarkersResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'results',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: 'Results 初稿引用了不存在的来源[99]。',
-    }));
-    assert.equal(resultsInvalidMarkersResponse.status, 422);
-    const resultsInvalidMarkersJson = await readJson(resultsInvalidMarkersResponse);
-    assert.equal(resultsInvalidMarkersJson.success, false);
-    assert.equal(resultsInvalidMarkersJson.errorType, 'results_citation_audit_failed');
-    assert.equal((resultsInvalidMarkersJson.citationAudit as { status?: string }).status, 'invalid-markers');
-
-    const discussionToolResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'discussion',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: [
-        '## 核心发现',
-        '主要发现来自已选资料[1]。',
-        '## 与既有研究的关系',
-        '该结果与既有研究形成可追溯比较[1]。',
-        '## 可支持解释',
-        '当前只给出证据范围内的谨慎解释[1]。',
-      ].join('\n'),
-    }));
-    assert.equal(discussionToolResponse.status, 200);
-    const discussionToolJson = await readJson(discussionToolResponse);
-    assert.equal((discussionToolJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
-    assert.equal((discussionToolJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
-    assert.equal((discussionToolJson.citationAudit as { status?: string }).status, 'pass');
-
-    const discussionMissingMarkersResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'discussion',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: 'Discussion 初稿缺少来源标记。',
-    }));
-    assert.equal(discussionMissingMarkersResponse.status, 422);
-    const discussionMissingMarkersJson = await readJson(discussionMissingMarkersResponse);
-    assert.equal(discussionMissingMarkersJson.success, false);
-    assert.equal(discussionMissingMarkersJson.errorType, 'studio_tool_citation_audit_failed');
-    assert.equal((discussionMissingMarkersJson.citationAudit as { status?: string }).status, 'missing-markers');
-
-    const discussionInvalidMarkersResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'discussion',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: 'Discussion 初稿引用了不存在的来源[99]。',
-    }));
-    assert.equal(discussionInvalidMarkersResponse.status, 422);
-    const discussionInvalidMarkersJson = await readJson(discussionInvalidMarkersResponse);
-    assert.equal(discussionInvalidMarkersJson.success, false);
-    assert.equal(discussionInvalidMarkersJson.errorType, 'studio_tool_citation_audit_failed');
-    assert.equal((discussionInvalidMarkersJson.citationAudit as { status?: string }).status, 'invalid-markers');
-
-    const discussionPartialCitationResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'discussion',
-      papers,
-      debugRetrievalOnly: true,
-      debugAnswerText: [
-        '## 核心发现',
-        '主要发现来自已选资料[1]。',
-        '## 与既有研究的关系',
-        '该结果与既有研究一致。',
-        '## 可支持解释',
-        '这可能说明存在新的机制。',
-      ].join('\n'),
-    }));
-    assert.equal(discussionPartialCitationResponse.status, 422);
-    const discussionPartialCitationJson = await readJson(discussionPartialCitationResponse);
-    assert.equal(discussionPartialCitationJson.success, false);
-    assert.equal(discussionPartialCitationJson.errorType, 'studio_tool_citation_coverage_failed');
-    assert.equal((discussionPartialCitationJson.citationCoverage as { status?: string }).status, 'missing-claim-citations');
-
-    const discussionMissingDebugTextResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'discussion',
-      papers,
-      debugRetrievalOnly: true,
-    }));
-    assert.equal(discussionMissingDebugTextResponse.status, 400);
-    assert.equal((await readJson(discussionMissingDebugTextResponse)).errorType, 'studio_tool_debug_answer_required');
-
-    const discussionNoCitationsResponse = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-      toolId: 'discussion',
-      papers: [{ id: 'paper-without-content' }],
-      debugRetrievalOnly: true,
-      debugAnswerText: '没有可引用内容。',
-    }));
-    assert.equal(discussionNoCitationsResponse.status, 422);
-    assert.equal((await readJson(discussionNoCitationsResponse)).errorType, 'studio_tool_citations_unavailable');
-
     const accountMock = await startAccountAuthMock();
     try {
       process.env.ACCOUNT_CENTER_API_BASE = accountMock.origin;
       process.env.ACCOUNT_CENTER_REQUIRE_AUTH = 'true';
-      const unauthStudioTool = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-        toolId: 'interactive',
-        papers,
-        debugRetrievalOnly: true,
-      }));
-      assert.equal(unauthStudioTool.status, 401);
-      assert.equal((await readJson(unauthStudioTool)).errorType, 'account_login_required');
-
-      const alphaStudioTool = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-        toolId: 'interactive',
-        notebookId: 'notebook-alpha',
-        papers,
-        debugRetrievalOnly: true,
-      }, 'token-alpha'));
-      assert.equal(alphaStudioTool.status, 200);
-      const alphaStudioJson = await readJson(alphaStudioTool);
-      assert.equal((alphaStudioJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
-      assert.equal((alphaStudioJson.citations as Array<{ sourceId?: string }>)[0].sourceId, 'paper-studio-grounded');
-
-      const alphaWrongNotebookStudioTool = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-        toolId: 'interactive',
-        notebookId: 'notebook-beta',
-        papers,
-        debugRetrievalOnly: true,
-      }, 'token-alpha'));
-      assert.equal(alphaWrongNotebookStudioTool.status, 200);
-      const alphaWrongNotebookJson = await readJson(alphaWrongNotebookStudioTool);
-      assert.notEqual((alphaWrongNotebookJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
-      assert.equal((alphaWrongNotebookJson.retrieval as { persistedSourceCount?: number }).persistedSourceCount, 0);
-
       const alphaSourceList = await ingestionSourcesGet(new NextRequest('http://localhost/api/ingestion/sources?notebookId=notebook-alpha', {
         headers: { authorization: 'Bearer token-alpha' },
       }));
@@ -370,15 +188,6 @@ async function main() {
       const alphaWrongNotebookSourceListJson = await readJson(alphaWrongNotebookSourceList);
       assert.equal((alphaWrongNotebookSourceListJson.sources as Array<{ id?: string }>).length, 0);
 
-      const betaStudioTool = await studioToolPost(jsonRequest('http://localhost/api/ai/studio-tool', {
-        toolId: 'interactive',
-        papers,
-        debugRetrievalOnly: true,
-      }, 'token-beta'));
-      assert.equal(betaStudioTool.status, 200);
-      const betaStudioJson = await readJson(betaStudioTool);
-      assert.notEqual((betaStudioJson.retrieval as { mode?: string }).mode, 'persisted-keyword');
-      assert.equal((betaStudioJson.retrieval as { persistedSourceCount?: number }).persistedSourceCount, 0);
     } finally {
       await accountMock.close();
       if (originals.accountApiBase === undefined) delete process.env.ACCOUNT_CENTER_API_BASE;
@@ -409,23 +218,7 @@ async function main() {
         'podcast route accepts content and uses grounded retrieval debug path',
         'ppt route builds grounded evidence outline debug path',
         'ppt-v2 route builds academic evidence outline debug path',
-        'studio-tool route builds grounded artifact evidence debug path',
-        'seminar material Studio tool builds grounded artifact evidence debug path',
-        'experiment record Studio tool builds grounded artifact evidence debug path',
-        'Results draft Studio tool builds grounded artifact evidence debug path',
-        'Results draft rejects missing citation markers',
-        'Results draft rejects invalid citation markers',
-        'Discussion draft Studio tool builds grounded artifact evidence debug path',
-        'Discussion draft rejects missing citation markers',
-        'Discussion draft rejects invalid citation markers',
-        'Discussion draft rejects partially cited claim sections',
-        'strict Studio tools require debug answer text for citation audits',
-        'Discussion draft rejects source selections without retrievable citations',
-        'studio-tool route returns 401 when account auth is required and no token is provided',
-        'studio-tool route scopes persisted retrieval by ownerMemberId from account token',
-        'studio-tool route scopes persisted retrieval by notebookId under the same owner',
         'ingestion sources route scopes source lists by ownerMemberId and notebookId',
-        'studio routes can scope persisted sources by selected paper id',
         'ppt routes reject empty source selection with user-facing errors',
       ],
       cardsMode: (cardsJson.retrieval as { mode?: string }).mode,
@@ -433,7 +226,6 @@ async function main() {
       podcastMode: (podcastJson.retrieval as { mode?: string }).mode,
       pptMode: (pptJson.retrieval as { mode?: string }).mode,
       pptV2Mode: (pptV2Json.retrieval as { mode?: string }).mode,
-      studioToolMode: (studioToolJson.retrieval as { mode?: string }).mode,
       citationSource: (reportJson.citations as Array<{ sourceId?: string }>)[0].sourceId,
     }, null, 2));
   } finally {

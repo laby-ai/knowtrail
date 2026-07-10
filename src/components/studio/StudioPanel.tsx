@@ -5,28 +5,15 @@ import { KnowledgeMapPanel } from './KnowledgeMapPanel';
 import { PresentationWorkspacePanel } from './PresentationPanels';
 import { VirtualClassroomPanel } from './VirtualClassroomPanel';
 import {
-  STUDIO_ARTIFACT_TOOLS,
   STUDIO_NAV,
   StudioToolSwitcher,
   type StudioNavItem,
   type StudioTab,
 } from './StudioToolSwitcher';
-import { StudioArtifactToolPanel } from './StudioArtifactToolPanel';
 
 export function StudioPanel() {
   const [activeTab, setActiveTab] = useState<StudioTab>('presentation');
-  const activeToolItem = STUDIO_ARTIFACT_TOOLS.find(n => n.id === activeTab);
-  const navItem: StudioNavItem =
-    STUDIO_NAV.find(n => n.id === activeTab) ??
-    (activeToolItem
-      ? {
-          id: activeToolItem.id,
-          label: activeToolItem.label,
-          desc: activeToolItem.desc,
-          icon: activeToolItem.icon,
-          accent: 'from-blue-500/10 to-cyan-500/5',
-        }
-      : STUDIO_NAV[0]);
+  const navItem: StudioNavItem = STUDIO_NAV.find(n => n.id === activeTab) ?? STUDIO_NAV[0];
   const NavIcon = navItem.icon;
 
   return (
@@ -50,16 +37,8 @@ export function StudioPanel() {
 
       <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
         {activeTab === 'presentation' && <PresentationWorkspacePanel />}
-        {activeTab === 'presentation2' && <PresentationWorkspacePanel initialMode="structured" />}
         {activeTab === 'knowledge' && <KnowledgeMapPanel />}
         {activeTab === 'virtual-classroom' && <VirtualClassroomPanel />}
-        {activeTab === 'interactive' && <StudioArtifactToolPanel toolId="interactive" />}
-        {activeTab === 'quiz' && <StudioArtifactToolPanel toolId="quiz" />}
-        {activeTab === 'project' && <StudioArtifactToolPanel toolId="project" />}
-        {activeTab === 'seminar' && <StudioArtifactToolPanel toolId="seminar" />}
-        {activeTab === 'experiment' && <StudioArtifactToolPanel toolId="experiment" />}
-        {activeTab === 'results' && <StudioArtifactToolPanel toolId="results" />}
-        {activeTab === 'discussion' && <StudioArtifactToolPanel toolId="discussion" />}
       </div>
     </div>
   );

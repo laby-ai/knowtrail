@@ -37,7 +37,7 @@ export function WorkbenchTopBar({
             </span>
           </div>
           <p className="truncate text-[11px] leading-4 text-[var(--text-tertiary)]">
-            证据来源、问答和科研产物会保存在当前文献本。
+            证据来源、问答和生成结果会保存在当前文献本。
           </p>
         </div>
       </div>

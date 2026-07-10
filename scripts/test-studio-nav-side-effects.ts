@@ -2,92 +2,62 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const filePath = path.join(process.cwd(), 'src/components/studio/StudioPanel.tsx');
-const source = fs.readFileSync(filePath, 'utf8');
-const switcherPath = path.join(process.cwd(), 'src/components/studio/StudioToolSwitcher.tsx');
-const switcherSource = fs.readFileSync(switcherPath, 'utf8');
-const presentationPanelPath = path.join(process.cwd(), 'src/components/studio/PresentationPanels.tsx');
-const presentationPanelSource = fs.readFileSync(presentationPanelPath, 'utf8');
-const structuredPresentationPanelPath = path.join(process.cwd(), 'src/components/studio/StructuredPresentationPanel.tsx');
-const structuredPresentationPanelSource = fs.readFileSync(structuredPresentationPanelPath, 'utf8');
-const structuredOutlineDraftPath = path.join(process.cwd(), 'src/components/studio/StructuredPresentationOutlineDraft.tsx');
-const structuredOutlineDraftSource = fs.readFileSync(structuredOutlineDraftPath, 'utf8');
-const outlineDraftContractPath = path.join(process.cwd(), 'src/lib/ppt/outline-draft.ts');
-const outlineDraftContractSource = fs.readFileSync(outlineDraftContractPath, 'utf8');
-const pptV2RoutePath = path.join(process.cwd(), 'src/app/api/ai/ppt-v2/route.ts');
-const pptV2RouteSource = fs.readFileSync(pptV2RoutePath, 'utf8');
-const presentationModeSelectorPath = path.join(process.cwd(), 'src/components/studio/PresentationModeSelector.tsx');
-const presentationModeSelectorSource = fs.readFileSync(presentationModeSelectorPath, 'utf8');
-const toolPanelPath = path.join(process.cwd(), 'src/components/studio/StudioArtifactToolPanel.tsx');
-const toolPanelSource = fs.readFileSync(toolPanelPath, 'utf8');
-const virtualClassroomPanelPath = path.join(process.cwd(), 'src/components/studio/VirtualClassroomPanel.tsx');
-const virtualClassroomPanelSource = fs.readFileSync(virtualClassroomPanelPath, 'utf8');
-const virtualClassroomWorkspacePath = path.join(process.cwd(), 'src/components/studio/VirtualClassroomWorkspace.tsx');
-const virtualClassroomWorkspaceSource = fs.readFileSync(virtualClassroomWorkspacePath, 'utf8');
-const evidencePanelPath = path.join(process.cwd(), 'src/components/studio/StudioEvidenceStatusPanel.tsx');
-const evidencePanelSource = fs.readFileSync(evidencePanelPath, 'utf8');
-const toolContractPath = path.join(process.cwd(), 'src/lib/studio-tools.ts');
-const toolContractSource = fs.readFileSync(toolContractPath, 'utf8');
-const realPptArtifactPath = path.join(process.cwd(), 'scripts/generate-real-ppt-v2-artifact.mjs');
-const realPptArtifactSource = fs.readFileSync(realPptArtifactPath, 'utf8');
-const combinedSource = `${source}\n${switcherSource}\n${presentationPanelSource}\n${structuredPresentationPanelSource}\n${structuredOutlineDraftSource}\n${outlineDraftContractSource}\n${presentationModeSelectorSource}\n${toolPanelSource}\n${virtualClassroomPanelSource}\n${virtualClassroomWorkspaceSource}\n${evidencePanelSource}\n${toolContractSource}`;
+function read(relativePath: string) {
+  return fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8');
+}
 
-const studioPanelStart = source.indexOf('export function StudioPanel()');
-const panelContentStart = source.indexOf('{activeTab ===', studioPanelStart);
+const studioPanelSource = read('src/components/studio/StudioPanel.tsx');
+const switcherSource = read('src/components/studio/StudioToolSwitcher.tsx');
+const presentationPanelSource = read('src/components/studio/PresentationPanels.tsx');
+const structuredPresentationPanelSource = read('src/components/studio/StructuredPresentationPanel.tsx');
+const structuredOutlineDraftSource = read('src/components/studio/StructuredPresentationOutlineDraft.tsx');
+const outlineDraftContractSource = read('src/lib/ppt/outline-draft.ts');
+const pptV2RouteSource = read('src/app/api/ai/ppt-v2/route.ts');
+const presentationModeSelectorSource = read('src/components/studio/PresentationModeSelector.tsx');
+const virtualClassroomPanelSource = read('src/components/studio/VirtualClassroomPanel.tsx');
+const virtualClassroomWorkspaceSource = read('src/components/studio/VirtualClassroomWorkspace.tsx');
+const workbenchTopBarSource = read('src/components/workbench/WorkbenchTopBar.tsx');
+const realPptArtifactSource = read('scripts/generate-real-ppt-v2-artifact.mjs');
+const productCenterSource = `${studioPanelSource}\n${switcherSource}`;
+const retainedSource = `${productCenterSource}\n${presentationPanelSource}\n${virtualClassroomPanelSource}\n${virtualClassroomWorkspaceSource}`;
+
+const studioPanelStart = studioPanelSource.indexOf('export function StudioPanel()');
+const panelContentStart = studioPanelSource.indexOf('{activeTab ===', studioPanelStart);
 assert.ok(studioPanelStart >= 0, 'StudioPanel export not found');
 assert.ok(panelContentStart > studioPanelStart, 'StudioPanel content switch not found');
 
-const navSection = source.slice(studioPanelStart, panelContentStart);
+const navSection = studioPanelSource.slice(studioPanelStart, panelContentStart);
 assert.match(navSection, /<StudioToolSwitcher activeTab=\{activeTab\} onSelect=\{setActiveTab\} \/>/, 'StudioPanel should delegate tool switching to StudioToolSwitcher');
 assert.match(switcherSource, /onClick=\{\(\) => onSelect\(item\.id\)\}/, 'Studio tool switcher should only request active tab changes');
-assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger chat or generation side effects');
-assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger chat or generation side effects');
+assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger generation side effects');
+assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');
 assert.match(navSection, /data-testid="studio-nav-helper"/, 'Studio nav should explain that generation happens in the detail panel');
-assert.doesNotMatch(combinedSource, /label: '测验'/, 'Preview-only Studio products should not appear in the primary nav');
-assert.doesNotMatch(source, /其他模块预览|正在接入|预览，不会直接生成|status: 'preview'/, 'Reference-inspired tools must not be presented as preview placeholders');
-assert.doesNotMatch(`${toolPanelSource}\n${toolContractSource}`, /参考 OpenMAIC|OpenMAIC 对齐|grounded retrieval|grounded context|citation audit/i, 'User-facing Studio copy must not expose benchmark names or implementation jargon');
-assert.doesNotMatch(realPptArtifactSource, /OpenMAIC|openmaic|OPENMAIC/, 'Generated PPT content must not expose internal benchmark names');
-assert.match(combinedSource, /STUDIO_ARTIFACT_TOOLS/, 'Studio artifact tools should have an explicit tool registry');
-assert.match(combinedSource, /fetch\('\/api\/ai\/studio-tool'/, 'Reference-inspired tools should execute through the grounded Studio artifact API');
-assert.match(combinedSource, /data-testid=\{`studio-tool-run-\$\{tool\.id\}`\}/, 'Reference-inspired tool panels need explicit runnable buttons');
-assert.match(combinedSource, /data-testid=\{`studio-tool-submitted-\$\{tool\.id\}`\}/, 'Reference-inspired tools should show where the result appears after submission');
-assert.match(combinedSource, /data-testid=\{`studio-tool-pipeline-\$\{tool\.id\}`\}/, 'Reference-inspired tools should expose the grounded generation pipeline');
-assert.match(combinedSource, /data-testid=\{`studio-tool-result-shape-\$\{tool\.id\}`\}/, 'Reference-inspired tools should show the expected artifact shape before running');
-assert.match(combinedSource, /data-testid=\{`studio-tool-result-\$\{tool\.id\}`\}/, 'Reference-inspired tools should render a right-side artifact result');
-assert.match(combinedSource, /data-testid=\{`studio-tool-citation-audit-\$\{tool\.id\}`\}/, 'Reference-inspired artifacts should show citation audit status');
-assert.match(evidencePanelSource, /检索已降级/, 'Studio evidence panel should make degraded retrieval visible to users');
-assert.match(combinedSource, /label: '虚拟课堂'/, 'Studio should expose the complete virtual classroom module');
-assert.match(combinedSource, /data-testid="virtual-classroom-open"/, 'Virtual classroom needs a full-page entry for real use');
-assert.match(combinedSource, /data-testid="virtual-classroom-iframe"/, 'Virtual classroom should embed the full classroom app in Studio');
-assert.match(combinedSource, /NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN/, 'Virtual classroom origin should be configurable');
-assert.doesNotMatch(combinedSource, /label: '资料课程'|label: '虚拟课程'/, 'Studio must not keep old simplified course tools next to virtual classroom');
-assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/components/studio/VirtualCoursePanel.tsx')), 'Removed simplified virtual course panel must not stay in Studio');
-assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/virtual-course/route.ts')), 'Removed simplified virtual course API must not stay as a product path');
-assert.match(combinedSource, /label: '互动页面'/, 'Studio tools should include an interactive page artifact flow');
-assert.match(combinedSource, /label: '测验练习'/, 'Studio tools should include a quiz artifact flow');
-assert.match(combinedSource, /label: '项目研习'/, 'Studio tools should include a project-based artifact flow');
-assert.match(combinedSource, /label: '组会材料'/, 'Studio tools should include a journal-club material artifact flow');
-assert.match(combinedSource, /label: '实验记录'/, 'Studio tools should include an experiment record artifact flow');
-assert.match(combinedSource, /label: 'Results 初稿'/, 'Studio tools should include a grounded Results draft artifact flow');
-assert.match(combinedSource, /label: 'Discussion 初稿'/, 'Studio tools should include a grounded Discussion draft artifact flow');
-assert.match(combinedSource, /data-testid=\{`studio-nav-\$\{item\.id\}`\}/, 'Studio artifact tools need visible nav buttons generated from the registry');
-assert.match(combinedSource, /activeTab === 'seminar' && <StudioArtifactToolPanel toolId="seminar" \/>/, 'Seminar material tool should render through the grounded Studio artifact panel');
-assert.match(combinedSource, /activeTab === 'experiment' && <StudioArtifactToolPanel toolId="experiment" \/>/, 'Experiment record tool should render through the grounded Studio artifact panel');
-assert.match(combinedSource, /activeTab === 'results' && <StudioArtifactToolPanel toolId="results" \/>/, 'Results draft tool should render through the grounded Studio artifact panel');
-assert.match(combinedSource, /activeTab === 'discussion' && <StudioArtifactToolPanel toolId="discussion" \/>/, 'Discussion draft tool should render through the grounded Studio artifact panel');
-assert.match(toolContractSource, /只生成 Markdown 草稿，不要声称已经生成 PPT、Word、LaTeX 或投稿材料/, 'Seminar prompt must not claim unavailable export or submission capabilities');
-assert.match(toolContractSource, /不要声称已经生成统计脚本、论文图表、自动数据分析或投稿材料/, 'Experiment prompt must not claim unavailable analysis, chart, or submission capabilities');
-assert.match(toolContractSource, /只生成可追溯的 Results 文本草稿，不要声称已经完成统计检验、论文图表生成、Word\/LaTeX 导出或投稿/, 'Results prompt must not claim unavailable statistical, chart, export, or submission capabilities');
-assert.match(toolContractSource, /不补造样本量、效应量、显著性、图表编号或统计结论/, 'Results prompt must prohibit invented quantitative or statistical claims');
-assert.match(toolContractSource, /不补造因果关系、统计显著性或超出资料范围的机制解释/, 'Discussion prompt must prohibit unsupported causal, statistical, or mechanistic claims');
-assert.match(toolContractSource, /不要声称已经完成期刊选择、Word\/LaTeX 导出或投稿/, 'Discussion prompt must not claim unavailable journal, export, or submission capabilities');
-assert.match(toolContractSource, /不要推荐或选择具体期刊/, 'Discussion prompt must not invent journal recommendations');
-assert.doesNotMatch(combinedSource, /label: '视频分镜'|视频分镜|试拍|不会导出 MP4|不要假装已经生成 MP4|StudioVideo|videoReadiness|mediaRequest,/, 'Studio must not expose removed video/storyboard capability as a user-facing tool');
-assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/video/route.ts')), 'Removed video capability must not keep a product API route');
-assert.ok(!fs.existsSync(path.join(process.cwd(), 'scripts/smoke-real-agentplan-video.mjs')), 'Removed video capability must not keep an automation smoke as a required product path');
-assert.doesNotMatch(combinedSource, /label: '资料表格'|label: '项目拆解'|label: '自测问答'/, 'Studio tools should not expose temporary utility labels in the product nav');
-assert.match(combinedSource, /生成右侧产物|右侧 Studio 产物|右侧产物/, 'Studio artifact tools need explicit post-click feedback for new users');
-assert.ok(fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/studio-tool/route.ts')), 'Studio tool artifact API route should exist');
+
+assert.match(switcherSource, /id: 'presentation', label: '演示文稿'/, 'Original PPT product must remain');
+assert.match(switcherSource, /id: 'knowledge', label: '资料脉络'/, 'Original knowledge map product must remain');
+assert.match(switcherSource, /id: 'virtual-classroom', label: '虚拟课堂'/, 'Original virtual classroom product must remain');
+assert.equal((switcherSource.match(/\{ id: '[^']+', label:/g) || []).length, 3, 'Product center should expose exactly the three original products');
+assert.doesNotMatch(productCenterSource, /presentation2/, 'Structured PPT should remain a mode inside the original presentation product, not a hidden fourth product');
+assert.doesNotMatch(productCenterSource, /核心产物|科研产物|更多工具|练习工具/, 'Product center should not keep the later grouping labels');
+assert.doesNotMatch(workbenchTopBarSource, /科研产物/, 'Workbench copy should not reintroduce the removed research-artifact concept');
+assert.doesNotMatch(productCenterSource, /互动页面|测验练习|项目研习|组会材料|实验记录|Results 初稿|Discussion 初稿/, 'Later artifact tools should not remain in the product center');
+assert.doesNotMatch(productCenterSource, /STUDIO_ARTIFACT_TOOLS|StudioArtifactToolPanel|studio-tools/, 'Product center should not retain the later artifact registry or panel');
+
+assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/components/studio/StudioArtifactToolPanel.tsx')), 'Removed artifact panel should not remain as dead code');
+assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/components/studio/KnowledgeCardPanel.tsx')), 'Unreachable legacy knowledge-card panel should not remain beside the active knowledge-map product');
+assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/lib/studio-tools.ts')), 'Removed artifact registry should not remain as dead code');
+assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/lib/studio-tool-api-contract.ts')), 'Removed artifact API contract should not remain as dead code');
+assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/studio-tool/route.ts')), 'Removed artifact API route should not remain without a product consumer');
+
+assert.match(studioPanelSource, /activeTab === 'presentation' && <PresentationWorkspacePanel \/>/, 'PPT product should render its original workspace');
+assert.match(studioPanelSource, /activeTab === 'knowledge' && <KnowledgeMapPanel \/>/, 'Knowledge map product should render its original panel');
+assert.match(studioPanelSource, /activeTab === 'virtual-classroom' && <VirtualClassroomPanel \/>/, 'Virtual classroom should render its original panel');
+assert.match(retainedSource, /data-testid="virtual-classroom-open"/, 'Virtual classroom needs a full-page entry for real use');
+assert.match(retainedSource, /data-testid="virtual-classroom-iframe"/, 'Virtual classroom should embed the classroom runtime in Studio');
+assert.match(retainedSource, /NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN/, 'Virtual classroom origin should remain configurable');
+assert.doesNotMatch(retainedSource, /参考 OpenMAIC|OpenMAIC 对齐|grounded retrieval|grounded context|citation audit/i, 'User-facing Studio copy must not expose reference names or implementation jargon');
+assert.doesNotMatch(realPptArtifactSource, /OpenMAIC|openmaic|OPENMAIC/, 'Generated PPT content must not expose internal reference names');
+
 assert.match(presentationPanelSource, /data-testid="image-ppt-generate"/, 'Image PPT still needs an explicit generate button');
 assert.match(structuredPresentationPanelSource, /data-testid="academic-ppt-generate"/, 'Structured PPT still needs an explicit generate button');
 assert.match(structuredPresentationPanelSource, /StructuredPresentationOutlineDraft/, 'Structured PPT should use the editable outline draft before generation');
@@ -98,13 +68,14 @@ assert.match(structuredOutlineDraftSource, /buildPptOutlineDraft/, 'Structured P
 assert.match(pptV2RouteSource, /sanitizePptOutlineDraft\(body\.outlineDraft\)/, 'PPT-v2 route should sanitize the user-edited outline draft');
 assert.match(pptV2RouteSource, /formatPptOutlineDraftForPrompt\(outlineDraft\)/, 'PPT-v2 route should format the outline draft for generation prompts');
 assert.match(pptV2RouteSource, /outlineDraftApplied/, 'PPT-v2 observability should report whether a confirmed outline was applied');
-assert.doesNotMatch(structuredPresentationPanelSource, /ArcDeck|真实模型/, 'Structured PPT panel should not expose implementation jargon to users');
+assert.doesNotMatch(structuredPresentationPanelSource, /ArcDeck|真实模型/, 'Structured PPT panel should not expose implementation jargon');
 assert.match(presentationModeSelectorSource, /data-testid=\{`presentation-mode-\$\{option\.id\}`\}/, 'PPT mode selector should expose stable test ids');
 assert.match(presentationModeSelectorSource, /id: 'image'[\s\S]*label: '图片页简报'/, 'PPT mode selector should keep the image PPT option');
 assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结构化 PPT'/, 'PPT mode selector should keep the structured PPT option');
 
 console.log(JSON.stringify({
   ok: true,
-  checked: 'studio nav has no generation side effects and reference-inspired tools are runnable chat-backed tools',
-  explicitButtons: ['image-ppt-generate', 'academic-ppt-generate', 'studio-tool-run-*', 'virtual-classroom-open'],
+  checked: 'Studio product center exposes only the three original products without generation side effects',
+  products: ['演示文稿', '资料脉络', '虚拟课堂'],
+  explicitButtons: ['image-ppt-generate', 'academic-ppt-generate', 'virtual-classroom-open'],
 }, null, 2));

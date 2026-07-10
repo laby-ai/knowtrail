@@ -12,7 +12,7 @@ The Gitee reference projects use a more uniform front/back contract, including a
 | Account and session | `/api/account/*` | Account status, session, authentication, and password reset endpoints. These routes use no-store semantics and may require Bearer account tokens. |
 | Source ingestion | `/api/upload`, `/api/ingestion/sources`, `/api/mineru/extract` | Uploads, source records, extraction jobs, and document chunking state. Responses should expose source/job identifiers and clear ingestion status. |
 | Research AI | `/api/ai/chat`, `/api/ai/analyze*`, `/api/ai/knowledge-*`, `/api/ai/report` | Research Q&A, summaries, analysis, evidence views, and generated reports. Streaming routes use Server-Sent Events. |
-| Studio generation | `/api/ai/podcast`, `/api/ai/ppt*`, `/api/ai/studio-tool`, `/api/ai/tts` | Long-running or provider-backed generation. Some endpoints return accepted jobs and require polling. |
+| Studio generation | `/api/ai/podcast`, `/api/ai/ppt*`, `/api/ai/tts` | Long-running or provider-backed generation. Some endpoints return accepted jobs and require polling. |
 | Discovery | `/api/discover/*` | Server-side source discovery and search. Provider keys stay server-side and must never be returned to the browser. |
 | Virtual classroom | `/api/virtual-classroom/*` | External classroom workflow helpers, status polling, confirmation, and outline generation. |
 | File helpers | `/api/file` | File access/redirect helper. Must not leak arbitrary local paths or unsigned private object storage URLs. |
@@ -46,17 +46,6 @@ For new non-streaming JSON endpoints, prefer this target shape:
 ```
 
 For existing endpoints, keep backwards compatibility unless a migration is explicitly planned. If an existing route must keep `success`, `ok`, or direct domain objects, document that in the route-specific code or tests.
-
-### Studio tool compatibility contract
-
-`POST /api/ai/studio-tool` keeps its existing client-facing shape while it moves toward a more predictable contract:
-
-- Successful responses include `success: true` plus the existing artifact, citation, retrieval, audit, and billing fields.
-- Error responses include `success: false`, a user-safe `error`, and a stable `errorType`; account and billing errors may retain the legacy `status: "failed"` field.
-- Input errors use `400`, authentication errors use `401`, evidence/audit failures use `422`, unexpected generation failures use `500`, and timeouts use `504`.
-- Every JSON response from this route uses `Cache-Control: no-store` because artifacts, evidence, account state, and billing metadata are user-specific.
-
-This is a backwards-compatible route-level convergence step. It does not mean all KnowTrail APIs already use the target `{ code, msg, data }` shape.
 
 ## Status codes
 

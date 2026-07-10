@@ -33,8 +33,6 @@
     "smoke:real-app-ai": "tsx ./scripts/smoke-real-app-ai.mjs",
     "smoke:real-chat-ui": "node ./scripts/smoke-real-chat-ui.mjs",
     "smoke:real-ppt-ui": "node ./scripts/smoke-real-ppt-ui.mjs",
-    "smoke:real-studio-ui": "node ./scripts/smoke-real-studio-ui.mjs",
-    "smoke:real-studio-tools": "node ./scripts/smoke-real-studio-tools.mjs",
     "smoke:openmaic-classroom": "node ./scripts/smoke-openmaic-classroom.mjs",
     "smoke:real-volcengine-podcast": "tsx ./scripts/smoke-real-volcengine-podcast.ts",
     "smoke:real-doubao-tts": "tsx ./scripts/smoke-real-doubao-tts.ts",
@@ -58,7 +56,6 @@
     "test:studio-podcast-job": "tsx ./scripts/test-studio-podcast-job.ts",
     "test:grounded-retrieval": "tsx ./scripts/test-grounded-retrieval.ts",
     "test:studio-grounded-routes": "tsx ./scripts/test-studio-grounded-routes.ts",
-    "test:studio-tool-response-contract": "tsx ./scripts/test-studio-tool-response-contract.ts",
     "test:knowledge-map-compiler": "tsx ./scripts/test-knowledge-map-compiler.ts",
     "test:source-matrix": "tsx ./scripts/test-source-matrix.ts",
     "test:data-table-preview": "tsx ./scripts/test-data-table-preview.ts",
@@ -69,7 +66,7 @@
     "test:storage": "tsx ./scripts/test-storage.ts",
     "test:vector-store": "tsx ./scripts/test-vector-store.ts",
     "ts-check": "tsc -p tsconfig.json",
-    "validate": "pnpm test:runtime-ai-config && pnpm test:storage && pnpm test:rag && pnpm test:citation-audit && pnpm test:vector-store && pnpm test:ingestion && pnpm test:mineru-job && pnpm test:podcast-status && pnpm test:volcengine-podcast && pnpm test:doubao-tts && pnpm test:tts-route && pnpm test:studio-podcast-job && pnpm test:grounded-retrieval && pnpm test:studio-grounded-routes && pnpm test:studio-tool-response-contract && pnpm test:knowledge-map-compiler && pnpm test:source-matrix && pnpm test:data-table-preview && pnpm test:long-task-ux && pnpm test:studio-nav-side-effects && pnpm test:ppt-v2-outline-draft && pnpm run ts-check && pnpm run lint:build"
+    "validate": "pnpm test:runtime-ai-config && pnpm test:storage && pnpm test:rag && pnpm test:citation-audit && pnpm test:vector-store && pnpm test:ingestion && pnpm test:mineru-job && pnpm test:podcast-status && pnpm test:volcengine-podcast && pnpm test:doubao-tts && pnpm test:tts-route && pnpm test:studio-podcast-job && pnpm test:grounded-retrieval && pnpm test:studio-grounded-routes && pnpm test:knowledge-map-compiler && pnpm test:source-matrix && pnpm test:data-table-preview && pnpm test:long-task-ux && pnpm test:studio-nav-side-effects && pnpm test:ppt-v2-outline-draft && pnpm run ts-check && pnpm run lint:build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.975.0",
