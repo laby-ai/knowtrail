@@ -287,7 +287,7 @@ async function main() {
     }, aiConfig);
 
     await page.goto(`${origin}/#workbench`, { waitUntil: 'networkidle' });
-    await expectVisible(page.getByText('Studio', { exact: true }), 'Workbench Studio panel did not render.', 30_000);
+    await expectVisible(page.getByText('产物中心', { exact: true }), 'Workbench product center did not render.', 30_000);
     const uploadResponsePromise = page.waitForResponse(response => response.url().includes('/api/upload'), { timeout: 180_000 })
       .then(async response => ({ kind: 'upload-response', uploaded: await parseUploadResponse(response) }));
     const sourcePromise = waitForUploadedSource(origin, { fileName: uploadFileName })
@@ -305,10 +305,12 @@ async function main() {
     if (await page.getByTestId('library-selection-count').count() === 0 || await paperRow.getAttribute('aria-selected') !== 'true') {
       await paperRow.click();
     }
-    await expectVisible(selectedCount.filter({ hasText: '已选 1 篇' }), 'Uploaded real PPT source could not be selected.', 30_000);
+    await expectVisible(selectedCount.filter({ hasText: /已选 1 个文献来源|已选 1 篇/ }), 'Uploaded real PPT source could not be selected.', 30_000);
 
-    await page.getByTestId('studio-nav-presentation2').click();
+    await page.getByTestId('studio-nav-presentation').click();
+    await page.getByTestId('presentation-mode-structured').click();
     await expectVisible(page.getByTestId('academic-ppt-panel'), 'Academic PPT tab did not render.', 30_000);
+    await page.getByTestId('academic-ppt-outline-confirm').click();
     await expectVisible(page.getByText('演讲时长'), 'Academic PPT duration control did not render.', 30_000);
     const durationSlider = page.getByTestId('academic-ppt-duration');
     await durationSlider.evaluate(element => {
