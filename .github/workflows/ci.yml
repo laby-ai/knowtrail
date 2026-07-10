@@ -40,6 +40,9 @@ jobs:
       - name: Paper search contracts
         run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects
 
+      - name: Deep research contracts
+        run: pnpm run test:deep-research-contract
+
       - name: Typecheck
         run: pnpm run ts-check
 

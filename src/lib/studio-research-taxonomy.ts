@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'knowledge' | 'presentation' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'deep-research' | 'knowledge' | 'presentation' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -34,6 +34,13 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     label: '论文检索',
     categoryId: 'literature-evidence',
     desc: '检索、核验并加入文献库',
+    availability: 'ready',
+  },
+  {
+    id: 'deep-research',
+    label: '深度研究',
+    categoryId: 'literature-evidence',
+    desc: '基于已选来源生成可追溯报告',
     availability: 'ready',
   },
   {
