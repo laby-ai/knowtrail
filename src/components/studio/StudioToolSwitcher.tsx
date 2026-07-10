@@ -13,6 +13,7 @@ import {
   BookOpenText,
   WandSparkles,
   ClipboardCheck,
+  Images,
 } from 'lucide-react';
 import {
   getVisibleStudioCategories,
@@ -36,6 +37,7 @@ const PRODUCT_VISUALS: Record<StudioTab, Pick<StudioNavItem, 'icon' | 'accent'>>
   'experiment-design': { icon: TestTubes, accent: 'from-rose-500/10 to-amber-500/5' },
   'academic-writing': { icon: BookOpenText, accent: 'from-indigo-500/10 to-cyan-500/5' },
   'text-polishing': { icon: WandSparkles, accent: 'from-fuchsia-500/10 to-rose-500/5' },
+  'scientific-illustration': { icon: Images, accent: 'from-cyan-500/10 to-emerald-500/5' },
   'peer-review': { icon: ClipboardCheck, accent: 'from-violet-500/10 to-emerald-500/5' },
   presentation: { icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
   knowledge: { icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },

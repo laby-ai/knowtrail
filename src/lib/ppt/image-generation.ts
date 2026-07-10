@@ -52,7 +52,9 @@ function resolveImageApiBase(runtimeConfig: Partial<RuntimeAIConfig>): string {
 }
 
 function resolveImageApiKey(runtimeConfig: Partial<RuntimeAIConfig>): string {
-  return envFirst('OPENAI_COMPAT_IMAGE_API_KEY', 'ARK_IMAGE_API_KEY', 'ARK_AGENTPLAN_API_KEY') || runtimeConfig.apiKey || '';
+  return envFirst('OPENAI_COMPAT_IMAGE_API_KEY', 'ARK_IMAGE_API_KEY')
+    || runtimeConfig.apiKey
+    || envFirst('ARK_AGENTPLAN_API_KEY');
 }
 
 function resolveImageModel(runtimeConfig?: Partial<RuntimeAIConfig>): string {
@@ -69,9 +71,14 @@ function imageSizeForAspectRatio(aspectRatio?: string): string {
   return '2560x1440';
 }
 
-async function imageUrlToBase64(url: string, apiKey?: string): Promise<string> {
+function imageRequestSignal(timeoutMs: number, signal?: AbortSignal): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+}
+
+async function imageUrlToBase64(url: string, apiKey?: string, signal?: AbortSignal): Promise<string> {
   const response = await fetch(url, {
-    signal: AbortSignal.timeout(Number(process.env.PPT_IMAGE_FETCH_TIMEOUT_MS || 60_000)),
+    signal: imageRequestSignal(Number(process.env.PPT_IMAGE_FETCH_TIMEOUT_MS || 60_000), signal),
   });
   if (!response.ok) {
     const raw = await response.text().catch(() => '');
@@ -84,6 +91,7 @@ async function generateSitianImage(prompt: string, options?: {
   aspectRatio?: string;
   negativePrompt?: string;
   referenceImageBase64?: string;
+  signal?: AbortSignal;
 }): Promise<string | null> {
   try {
     const body: Record<string, unknown> = {
@@ -104,7 +112,7 @@ async function generateSitianImage(prompt: string, options?: {
 
     const resp = await fetch(`${SITIAN_API_BASE}/api/generate`, {
       method: 'POST', headers, body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120_000),
+      signal: imageRequestSignal(120_000, options?.signal),
     });
     if (!resp.ok) { console.error(`[SitianAI] HTTP ${resp.status}`); return null; }
 
@@ -112,6 +120,7 @@ async function generateSitianImage(prompt: string, options?: {
     if (!data.success) return null;
     return data.candidates?.[0]?.images?.[0]?.data || null;
   } catch (err) {
+    if (options?.signal?.aborted) throw err;
     console.error('[SitianAI] Generate error:', err);
     return null;
   }
@@ -120,7 +129,7 @@ async function generateSitianImage(prompt: string, options?: {
 async function generateOpenAICompatibleImage(
   prompt: string,
   runtimeConfig: Partial<RuntimeAIConfig>,
-  options?: { aspectRatio?: string; negativePrompt?: string; referenceImageBase64?: string },
+  options?: { aspectRatio?: string; negativePrompt?: string; referenceImageBase64?: string; signal?: AbortSignal },
 ): Promise<string> {
   if (!hasRuntimeAIProvider(runtimeConfig)) {
     throw new Error('账号绑定的图片模型服务尚未配置,请稍后再试。');
@@ -148,7 +157,7 @@ async function generateOpenAICompatibleImage(
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey.trim()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody),
-    signal: AbortSignal.timeout(Number(process.env.PPT_IMAGE_TIMEOUT_MS || 180_000)),
+    signal: imageRequestSignal(Number(process.env.PPT_IMAGE_TIMEOUT_MS || 180_000), options?.signal),
   });
 
   const rawBody = await response.text().catch(() => '');
@@ -165,7 +174,7 @@ async function generateOpenAICompatibleImage(
 
   const first = parsed.data?.[0];
   if (first?.b64_json) return first.b64_json;
-  if (first?.url) return imageUrlToBase64(first.url, apiKey);
+  if (first?.url) return imageUrlToBase64(first.url, apiKey, options?.signal);
   const message = parsed.error?.message ? redactRuntimeAISecrets(parsed.error.message, apiKey) : '';
   throw new Error(`图片模型未返回图片数据${message ? `:${message}` : ''}`);
 }
@@ -175,6 +184,7 @@ export async function generateSlideImage(prompt: string, options?: {
   negativePrompt?: string;
   referenceImageBase64?: string;
   runtimeConfig?: Partial<RuntimeAIConfig>;
+  signal?: AbortSignal;
 }): Promise<string | null> {
   if (SITIAN_API_TOKEN) {
     const result = await generateSitianImage(prompt, options);
@@ -182,4 +192,8 @@ export async function generateSlideImage(prompt: string, options?: {
     console.log('[生图] 思坦AI失败,改用 OpenAI-compatible 图片模型...');
   }
   return generateOpenAICompatibleImage(prompt, resolveImageRuntimeConfig(options?.runtimeConfig), options);
+}
+
+export function resolveImageModelName(runtimeConfig?: Partial<RuntimeAIConfig>): string {
+  return resolveImageModel(resolveImageRuntimeConfig(runtimeConfig));
 }
