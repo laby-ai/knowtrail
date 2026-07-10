@@ -8,6 +8,7 @@ import { studioJobStoreStatus } from '@/lib/studio-job';
 import { getAccountCenterStatus } from '@/lib/account-center';
 import { allowRequestRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { internalClassroomOrigin, publicClassroomOrigin } from '@/lib/virtual-classroom/runtime-config';
+import { scientificIllustrationStoreStatus } from '@/lib/scientific-illustration-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,7 @@ export async function GET() {
   const maxUploadFiles = readPositiveIntEnv('MAX_UPLOAD_FILES', 5);
   let internalAppOriginValid = true;
   let internalAppOriginError: string | undefined;
+  const scientificIllustrationStore = await scientificIllustrationStoreStatus();
 
   try {
     resolveInternalAppOrigin();
@@ -57,6 +59,7 @@ export async function GET() {
       vectorStore: vectorStoreStatus(),
       sourceStore: sourceStoreStatus(),
       studioJobStore: studioJobStoreStatus(),
+      scientificIllustrationStore,
       accountCenter: getAccountCenterStatus(),
       virtualClassroom: {
         publicOrigin: publicClassroomOrigin() || null,

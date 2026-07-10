@@ -33,6 +33,13 @@ if ! command -v node >/dev/null 2>&1 || [ "$(node -p "Number(process.versions.no
   fi
 fi
 
+if [ -n "${RELEASE_ENV_SOURCE:-}" ]; then
+  node "$APP_DIR/scripts/prepare-release-env.mjs" "$RELEASE_ENV_SOURCE" "$APP_DIR/.env.production"
+elif [ "${REQUIRE_RELEASE_ENV_SOURCE:-false}" = "true" ]; then
+  echo "RELEASE_ENV_SOURCE is required for a guarded production release." >&2
+  exit 1
+fi
+
 run_script "$APP_DIR/install.sh"
 
 if [ -f "$APP_DIR/preflight.sh" ]; then
@@ -64,6 +71,9 @@ for _ in $(seq 1 30); do
     exit 1
   fi
   if APP_ORIGIN="${APP_ORIGIN:-http://127.0.0.1:$PORT}" run_script "$APP_DIR/healthcheck.sh"; then
+    if [ "${RELEASE_HEALTH_STRICT:-false}" = "true" ]; then
+      node "$APP_DIR/scripts/verify-release-health.mjs" "${APP_ORIGIN:-http://127.0.0.1:$PORT}" "${RELEASE_SHARED_ROOT:-/opt/knowtrail/shared}"
+    fi
     echo "Deploy complete."
     exit 0
   fi

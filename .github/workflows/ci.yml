@@ -64,6 +64,9 @@ jobs:
       - name: Scientific illustration contracts
         run: pnpm run test:scientific-illustration-contract
 
+      - name: Release environment gate
+        run: pnpm run test:release-env-gate
+
       - name: Typecheck
         run: pnpm run ts-check
 

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { access, constants, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   inspectGeneratedImage,
@@ -24,8 +24,16 @@ export interface ScientificIllustrationMetadata {
 }
 
 function storeDir(): string {
-  return process.env.SCIENTIFIC_ILLUSTRATION_STORE_DIR?.trim()
-    || path.join(process.cwd(), '.data', 'scientific-illustrations');
+  return path.resolve(
+    process.env.SCIENTIFIC_ILLUSTRATION_STORE_DIR?.trim()
+      || path.join(process.cwd(), '.data', 'scientific-illustrations'),
+  );
+}
+
+export async function scientificIllustrationStoreStatus() {
+  const storePath = storeDir();
+  const writable = await access(storePath, constants.W_OK).then(() => true).catch(() => false);
+  return { path: storePath, writable };
 }
 
 function validId(id: string): boolean {

@@ -15,6 +15,7 @@ const requiredScripts = [
   'smoke:studio-evidence-ui',
   'audit:pptx-quality',
   'validate',
+  'test:release-env-gate',
   'smoke:runtime-health',
 ];
 
@@ -32,6 +33,11 @@ const requiredFiles = [
   'scripts/audit-pptx-quality.mjs',
   'deploy/linux/preflight.sh',
   'deploy/linux/healthcheck.sh',
+  'scripts/prepare-release-env.mjs',
+  'scripts/verify-release-health.mjs',
+  'scripts/promote-release.mjs',
+  'scripts/lib/release-env-gate.mjs',
+  'scripts/test-release-env-gate.mjs',
 ];
 
 function assert(condition, message) {
