@@ -15,12 +15,12 @@ cd "$APP_DIR"
 CLASSROOM_RUNTIME_ARCHIVE="$APP_DIR/runtime/openmaic-runtime.tar.gz"
 if [ -f "$CLASSROOM_RUNTIME_ARCHIVE" ]; then
   CLASSROOM_RUNTIME_ENTRIES="$(tar -tzf "$CLASSROOM_RUNTIME_ARCHIVE" | sed 's#^\./##')"
-  if printf '%s\n' "$CLASSROOM_RUNTIME_ENTRIES" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+  if grep -Eq '(^/|(^|/)\.\.(/|$))' <<< "$CLASSROOM_RUNTIME_ENTRIES"; then
     echo "OpenMAIC runtime archive contains an unsafe path." >&2
     exit 1
   fi
   for required in '.next/standalone/server.js' '.next/static/' 'public/'; do
-    if ! printf '%s\n' "$CLASSROOM_RUNTIME_ENTRIES" | grep -Fq "$required"; then
+    if ! grep -Fq "$required" <<< "$CLASSROOM_RUNTIME_ENTRIES"; then
       echo "OpenMAIC runtime archive is missing $required." >&2
       exit 1
     fi
