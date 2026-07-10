@@ -232,7 +232,7 @@ console.log(JSON.stringify({
     'systemd and nginx examples included',
     'env.production.example included without real secrets',
     'real smoke env template included without real secrets',
-    'right-side Studio real smoke and PPTX quality audit commands included in bundle manifest',
+    'product-center workbench smoke and PPTX quality audit commands included in bundle manifest',
     'API conventions and engineering docs included for release/source parity',
     'runtime public uploads and MinerU figure outputs excluded from bundle',
     classroomRuntimeIncluded
