@@ -17,6 +17,7 @@ const requiredScripts = [
   'audit:pptx-quality',
   'validate',
   'test:openmaic-sidecar-config',
+  'test:virtual-classroom-proxy',
   'test:release-env-gate',
   'smoke:runtime-health',
 ];

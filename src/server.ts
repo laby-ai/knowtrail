@@ -6,6 +6,7 @@ import { stat } from 'fs/promises';
 import path from 'path';
 import { parse } from 'url';
 import next from 'next';
+import { resolveClassroomProxyTarget } from './lib/virtual-classroom/proxy-target';
 
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const dev = runtimeEnv !== 'production';
@@ -18,27 +19,7 @@ const handle = app.getRequestHandler();
 
 const publicDir = path.resolve(process.cwd(), 'public');
 const runtimePublicPrefixes = ['/uploads/', '/mineru-figures/'];
-const classroomRuntimePrefix = '/classroom-runtime';
 const classroomRuntimeOrigin = (process.env.VIRTUAL_CLASSROOM_INTERNAL_ORIGIN || '').trim().replace(/\/$/, '');
-const classroomRootProxyPrefixes = [
-  '/api/access-code/',
-  '/api/azure-voices',
-  '/api/chat',
-  '/api/classroom',
-  '/api/classroom-media/',
-  '/api/generate/',
-  '/api/generate-classroom',
-  '/api/parse-pdf',
-  '/api/pbl/',
-  '/api/proxy-media',
-  '/api/quiz-grade',
-  '/api/server-providers',
-  '/api/transcription',
-  '/api/verify-',
-  '/api/web-search',
-  '/avatars/',
-  '/logos/',
-];
 const mimeTypes: Record<string, string> = {
   '.aac': 'audio/aac',
   '.gif': 'image/gif',
@@ -75,14 +56,10 @@ function resolveRuntimePublicPath(pathname: string): string | null {
 function proxyClassroomRuntime(req: IncomingMessage, res: ServerResponse, pathname: string): boolean {
   if (!classroomRuntimeOrigin) return false;
 
-  const shouldProxyRuntimePath = pathname.startsWith(classroomRuntimePrefix);
-  const shouldProxyRootPath = classroomRootProxyPrefixes.some(prefix => pathname.startsWith(prefix));
-  if (!shouldProxyRuntimePath && !shouldProxyRootPath) return false;
+  const proxyTarget = resolveClassroomProxyTarget(req.url || pathname, pathname);
+  if (!proxyTarget.shouldProxy) return false;
 
-  const targetPath = shouldProxyRuntimePath
-    ? req.url || classroomRuntimePrefix
-    : `${classroomRuntimePrefix}${req.url || pathname}`;
-  const target = new URL(targetPath, classroomRuntimeOrigin.replace(/\/classroom-runtime$/, ''));
+  const target = new URL(proxyTarget.targetPath, `${classroomRuntimeOrigin}/`);
   const headers = { ...req.headers };
   delete headers.host;
   delete headers.connection;

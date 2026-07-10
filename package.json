@@ -79,6 +79,7 @@
     "test:scientific-illustration-contract": "tsx ./scripts/test-scientific-illustration-contract.ts",
     "test:explainer-video-provider": "tsx ./scripts/test-explainer-video-provider.ts",
     "test:openmaic-sidecar-config": "node ./scripts/test-openmaic-sidecar-config.mjs",
+    "test:virtual-classroom-proxy": "tsx ./scripts/test-virtual-classroom-proxy.ts",
     "test:release-env-gate": "node ./scripts/test-release-env-gate.mjs",
     "test:long-task-ux": "tsx ./scripts/test-long-task-ux.ts",
     "test:studio-nav-side-effects": "tsx ./scripts/test-studio-nav-side-effects.ts",
@@ -87,7 +88,7 @@
     "test:storage": "tsx ./scripts/test-storage.ts",
     "test:vector-store": "tsx ./scripts/test-vector-store.ts",
     "ts-check": "tsc -p tsconfig.json",
-    "validate": "pnpm test:runtime-ai-config && pnpm test:storage && pnpm test:rag && pnpm test:citation-audit && pnpm test:vector-store && pnpm test:ingestion && pnpm test:mineru-job && pnpm test:podcast-status && pnpm test:volcengine-podcast && pnpm test:doubao-tts && pnpm test:tts-route && pnpm test:studio-podcast-job && pnpm test:grounded-retrieval && pnpm test:studio-grounded-routes && pnpm test:knowledge-map-compiler && pnpm test:source-matrix && pnpm test:data-table-preview && pnpm test:discovered-source-upload && pnpm test:deep-research-contract && pnpm test:hypothesis-generation-contract && pnpm test:data-processing-plan && pnpm test:experiment-design-contract && pnpm test:academic-writing-contract && pnpm test:text-polishing-contract && pnpm test:peer-review-contract && pnpm test:scientific-illustration-contract && pnpm test:explainer-video-provider && pnpm test:openmaic-sidecar-config && pnpm test:release-env-gate && pnpm test:long-task-ux && pnpm test:studio-nav-side-effects && pnpm test:ppt-v2-outline-draft && pnpm run ts-check && pnpm run lint:build"
+    "validate": "pnpm test:runtime-ai-config && pnpm test:storage && pnpm test:rag && pnpm test:citation-audit && pnpm test:vector-store && pnpm test:ingestion && pnpm test:mineru-job && pnpm test:podcast-status && pnpm test:volcengine-podcast && pnpm test:doubao-tts && pnpm test:tts-route && pnpm test:studio-podcast-job && pnpm test:grounded-retrieval && pnpm test:studio-grounded-routes && pnpm test:knowledge-map-compiler && pnpm test:source-matrix && pnpm test:data-table-preview && pnpm test:discovered-source-upload && pnpm test:deep-research-contract && pnpm test:hypothesis-generation-contract && pnpm test:data-processing-plan && pnpm test:experiment-design-contract && pnpm test:academic-writing-contract && pnpm test:text-polishing-contract && pnpm test:peer-review-contract && pnpm test:scientific-illustration-contract && pnpm test:explainer-video-provider && pnpm test:openmaic-sidecar-config && pnpm test:virtual-classroom-proxy && pnpm test:release-env-gate && pnpm test:long-task-ux && pnpm test:studio-nav-side-effects && pnpm test:ppt-v2-outline-draft && pnpm run ts-check && pnpm run lint:build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.975.0",
