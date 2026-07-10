@@ -29,7 +29,7 @@
     "smoke:live-virtual-classroom": "node ./scripts/smoke-live-virtual-classroom.mjs",
     "smoke:knowledge-map-ui": "node ./scripts/smoke-knowledge-map-ui.mjs",
     "smoke:paper-search-ui": "node ./scripts/smoke-paper-search-ui.mjs",
-    "smoke:live-paper-search-provider": "tsx ./scripts/smoke-live-paper-search-provider.ts",
+    "smoke:live-paper-search-provider": "node ./scripts/smoke-live-paper-search-provider.mjs",
     "smoke:deep-research-ui": "node ./scripts/smoke-deep-research-ui.mjs",
     "smoke:hypothesis-generation-ui": "node ./scripts/smoke-hypothesis-generation-ui.mjs",
     "smoke:data-processing-ui": "node ./scripts/smoke-data-processing-ui.mjs",

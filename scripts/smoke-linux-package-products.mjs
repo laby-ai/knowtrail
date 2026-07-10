@@ -41,7 +41,7 @@ const requiredFiles = [
   'scripts/smoke-real-studio-products.mjs',
   'scripts/smoke-real-doubao-tts.ts',
   'scripts/audit-pptx-quality.mjs',
-  'scripts/smoke-live-paper-search-provider.ts',
+  'scripts/smoke-live-paper-search-provider.mjs',
   'scripts/smoke-live-virtual-classroom.mjs',
   'scripts/lib/live-virtual-classroom-smoke.mjs',
   'deploy/linux/preflight.sh',
