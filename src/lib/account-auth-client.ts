@@ -95,6 +95,17 @@ export async function resolveAccountAuthContext(token: string): Promise<AccountA
   return readAccountResponse<AccountAuthContext>(response);
 }
 
+export async function logoutAccountUser(token: string): Promise<void> {
+  const baseUrl = getAccountApiBase();
+  if (!baseUrl) throw new Error('account_api_not_configured');
+  const response = await fetch(`${baseUrl}/v1/auth/logout`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  await readAccountResponse<{ status: string }>(response);
+}
+
 export async function requestAccountPasswordReset(input: { email: string; tenantId?: string }): Promise<AccountPasswordResetResult> {
   const baseUrl = getAccountApiBase();
   if (!baseUrl) throw new Error('account_api_not_configured');

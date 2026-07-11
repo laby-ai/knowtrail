@@ -70,6 +70,24 @@ export function clearAccountSession(): void {
   window.dispatchEvent(new CustomEvent('knowtrail-account-session-changed'));
 }
 
+export async function revokeStoredAccountSession(): Promise<void> {
+  const session = readStoredAccountSession();
+  if (!session?.token) {
+    clearAccountSession();
+    return;
+  }
+  const response = await fetch('/api/account/session', {
+    method: 'POST',
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${session.token}` },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(payload.error || 'account_logout_failed');
+  }
+  clearAccountSession();
+}
+
 export function accountAuthHeaders(): Record<string, string> {
   const session = readStoredAccountSession();
   return session?.token ? { Authorization: `Bearer ${session.token}` } : {};

@@ -11,7 +11,7 @@ import { VirtualClassroomWorkspace } from '@/components/studio/VirtualClassroomW
 import { KnowledgeMapWorkspace } from '@/components/studio/KnowledgeMapWorkspace';
 import { LiquidGlassProvider } from '@/components/ui/liquid-glass-provider';
 import { useApp } from '@/contexts/AppContext';
-import { clearAccountSession, readStoredAccountSession } from '@/lib/account-session-browser';
+import { clearAccountSession, readStoredAccountSession, revokeStoredAccountSession } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { LandingPage } from '@/components/home/LandingPage';
 import { NotebookHome } from '@/components/home/NotebookHome';
@@ -350,11 +350,15 @@ export default function HomePage() {
     }
   };
 
-  const signOut = () => {
-    clearAccountSession();
-    setAccountSession(null);
-    setAccountSessionReady(true);
-    window.location.href = `/account?next=${ACCOUNT_NOTEBOOK_NEXT}`;
+  const signOut = async () => {
+    try {
+      await revokeStoredAccountSession();
+      setAccountSession(null);
+      setAccountSessionReady(true);
+      window.location.href = `/account?next=${ACCOUNT_NOTEBOOK_NEXT}`;
+    } catch {
+      window.alert('暂时无法安全退出，请检查网络后重试。');
+    }
   };
 
   const activeNotebook = notebooks.find(notebook => notebook.id === activeNotebookId) || notebooks[0] || createDefaultNotebooks()[0];

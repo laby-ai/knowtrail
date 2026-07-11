@@ -64,6 +64,9 @@ jobs:
       - name: Scientific illustration contracts
         run: pnpm run test:scientific-illustration-contract
 
+      - name: Cross-app authentication contract
+        run: pnpm run test:cross-app-auth-contract
+
       - name: Release environment gate
         run: pnpm run test:release-env-gate
 

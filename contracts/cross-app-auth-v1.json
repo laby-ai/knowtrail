@@ -1,0 +1,29 @@
+{
+  "version": "stoneai-auth-v1",
+  "accountService": {
+    "sessionTransport": ["bearer"],
+    "endpoints": {
+      "login": "POST /v1/auth/login",
+      "me": "GET /v1/auth/me",
+      "logout": "POST /v1/auth/logout"
+    }
+  },
+  "products": {
+    "knowtrail": {
+      "sessionTransport": ["bearer"],
+      "logoutProxy": "POST /api/account/session"
+    },
+    "huiying": {
+      "sessionTransport": ["httpOnlyCookie", "bearer"],
+      "logoutProxy": "POST /api/account/logout"
+    }
+  },
+  "requiredAssertions": [
+    "missing_credentials_401",
+    "insufficient_scope_403",
+    "tenant_member_from_verified_session",
+    "logout_revokes_server_session",
+    "cross_member_fail_closed",
+    "cross_tenant_fail_closed"
+  ]
+}
