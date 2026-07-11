@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileSearch, Search } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -93,7 +95,7 @@ export function DeepResearchPanel() {
     let streamedAnswer = '';
     let finalResearchStatus: ResearchStatusPayload | null = null;
     try {
-      const response = await fetch('/api/ai/deep-research', {
+      const response = await clientApiRequest('/api/ai/deep-research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         credentials: 'same-origin',

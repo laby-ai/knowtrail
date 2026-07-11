@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileSearch, GitBranch, Loader2, Sparkles } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
@@ -139,7 +141,7 @@ export function KnowledgeMapPanel() {
         rawContent: paper.rawContent,
       }));
 
-      const response = await fetch('/api/ai/knowledge-map', {
+      const response = await clientApiRequest('/api/ai/knowledge-map', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({ papers: paperContents, aiConfig, notebookId, forceRefresh }),

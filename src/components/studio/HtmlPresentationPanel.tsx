@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
@@ -197,7 +199,7 @@ export function HtmlPresentationPanel() {
         rounds++;
         setProgressMsg(`质量检查:第 ${i + 1} 页溢出 ${Math.max(overflowX, overflowY)}px,自动重排(第 ${rounds} 次)...`);
         try {
-          const res = await fetch('/api/ai/ppt-html-repair', {
+          const res = await clientApiRequest('/api/ai/ppt-html-repair', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
             body: JSON.stringify({
@@ -260,7 +262,7 @@ export function HtmlPresentationPanel() {
     abortControllerRef.current = abortController;
 
     try {
-      const response = await fetch('/api/ai/ppt-html', {
+      const response = await clientApiRequest('/api/ai/ppt-html', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
@@ -374,7 +376,7 @@ export function HtmlPresentationPanel() {
     setRelayoutError(null);
     try {
       const slide = slides[relayoutIdx];
-      const res = await fetch('/api/ai/ppt-html-repair', {
+      const res = await clientApiRequest('/api/ai/ppt-html-repair', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

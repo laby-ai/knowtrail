@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Presentation,
@@ -117,7 +119,7 @@ export function StructuredPresentationPanel() {
     for (const p of papers) {
       if (p.fileType === 'pdf') {
         try {
-          const res = await fetch(`/api/mineru/extract?paperId=${encodeURIComponent(p.id)}`);
+          const res = await clientApiRequest(`/api/mineru/extract?paperId=${encodeURIComponent(p.id)}`);
           if (res.ok) {
             const data = await res.json();
             if (data.figures?.length > 0) {
@@ -151,7 +153,7 @@ export function StructuredPresentationPanel() {
         window.setTimeout(() => { setProgressStep('exporting'); setProgressMsg('正在导出文件...'); }, 34000),
       );
 
-      const res = await fetch('/api/ai/ppt-v2', {
+      const res = await clientApiRequest('/api/ai/ppt-v2', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

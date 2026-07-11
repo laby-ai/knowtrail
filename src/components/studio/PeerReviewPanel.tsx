@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, ClipboardCheck, Download } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
@@ -125,7 +127,7 @@ export function PeerReviewPanel() {
     setMessage('正在定位稿件中的节、段和确切片段。');
     let finalReport: PeerReviewReport | null = null;
     try {
-      const response = await fetch('/api/ai/peer-review', {
+      const response = await clientApiRequest('/api/ai/peer-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

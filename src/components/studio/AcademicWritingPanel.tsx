@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, BookOpenText, CheckCircle2, Download } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
@@ -108,7 +110,7 @@ export function AcademicWritingPanel() {
     let finalDraft: AcademicWritingDraft | null = null;
     let finalStatus: WritingStatusPayload | null = null;
     try {
-      const response = await fetch('/api/ai/academic-writing', {
+      const response = await clientApiRequest('/api/ai/academic-writing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

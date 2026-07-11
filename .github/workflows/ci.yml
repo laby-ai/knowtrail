@@ -67,6 +67,9 @@ jobs:
       - name: Cross-app authentication contract
         run: pnpm run test:cross-app-auth-contract
 
+      - name: Unified client request contract
+        run: pnpm run test:client-request-contract
+
       - name: Release environment gate
         run: pnpm run test:release-env-gate
 

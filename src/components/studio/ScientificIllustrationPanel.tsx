@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import NextImage from 'next/image';
 import { AlertTriangle, Download, Image as ImageIcon, Loader2, Square } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { clientApiDownloadBlob, clientApiRequest } from '@/lib/client-api';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type {
   ScientificIllustrationAspectRatio,
@@ -93,13 +93,10 @@ export function ScientificIllustrationPanel() {
   }, []);
 
   const fetchImageBlob = useCallback(async (url: string, signal?: AbortSignal) => {
-    const response = await fetch(url, {
-      headers: accountAuthHeaders(),
+    const blob = await clientApiDownloadBlob(url, {
       cache: 'no-store',
       signal,
     });
-    if (!response.ok) throw new Error(await readError(response));
-    const blob = await response.blob();
     if (!/^image\/(?:png|jpeg|webp)$/i.test(blob.type) || blob.size === 0) {
       throw new Error('服务未返回有效的 PNG、JPEG 或 WebP 图片。');
     }
@@ -122,9 +119,9 @@ export function ScientificIllustrationPanel() {
     replacePreviewUrl('');
 
     try {
-      const response = await fetch('/api/ai/scientific-illustration', {
+      const response = await clientApiRequest('/api/ai/scientific-illustration', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           purpose: purpose.trim(),
           figureKind,

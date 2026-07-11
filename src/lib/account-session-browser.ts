@@ -1,6 +1,7 @@
 'use client';
 
 import type { AccountAuthSession } from '@/lib/account-auth-client';
+import { clientApiRequest } from '@/lib/client-api';
 
 const ACCOUNT_SESSION_KEY = 'knowtrail-account-session';
 const ACCOUNT_CENTER_TOKEN_KEY = 'account_entitlement_token';
@@ -76,7 +77,7 @@ export async function revokeStoredAccountSession(): Promise<void> {
     clearAccountSession();
     return;
   }
-  const response = await fetch('/api/account/session', {
+  const response = await clientApiRequest('/api/account/session', {
     method: 'POST',
     cache: 'no-store',
     headers: { Authorization: `Bearer ${session.token}` },

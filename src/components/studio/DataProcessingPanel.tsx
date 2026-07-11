@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, LoaderCircle, Square, TableProperties } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
@@ -84,7 +86,7 @@ export function DataProcessingPanel() {
     setError(null);
 
     try {
-      const response = await fetch('/api/data-processing/plan', {
+      const response = await clientApiRequest('/api/data-processing/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         credentials: 'same-origin',
