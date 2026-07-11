@@ -70,6 +70,9 @@ jobs:
       - name: Unified client request contract
         run: pnpm run test:client-request-contract
 
+      - name: Loopback listener contract
+        run: pnpm run test:loopback-listener-contract
+
       - name: Release environment gate
         run: pnpm run test:release-env-gate
 
