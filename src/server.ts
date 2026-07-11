@@ -13,11 +13,11 @@ import {
 
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const dev = runtimeEnv !== 'production';
-const hostname = process.env.HOSTNAME || 'localhost';
+const bindHost = process.env.BIND_HOST || (dev ? 'localhost' : '127.0.0.1');
 const port = parseInt(process.env.PORT || '5000', 10);
 
 // Create Next.js app
-const app = next({ dev, hostname, port });
+const app = next({ dev, hostname: bindHost, port });
 const handle = app.getRequestHandler();
 
 const publicDir = path.resolve(process.cwd(), 'public');
@@ -132,9 +132,9 @@ app.prepare().then(() => {
     console.error(err);
     process.exit(1);
   });
-  server.listen(port, () => {
+  server.listen(port, bindHost, () => {
     console.log(
-      `> Server listening at http://${hostname}:${port} as ${
+      `> Server listening at http://${bindHost}:${port} as ${
         dev ? 'development' : 'production'
       }`,
     );
