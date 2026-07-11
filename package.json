@@ -35,6 +35,7 @@
     "smoke:live-deep-research": "node ./scripts/smoke-live-deep-research.mjs",
     "smoke:live-hypothesis-generation": "node ./scripts/smoke-live-hypothesis-generation.mjs",
     "smoke:hypothesis-generation-ui": "node ./scripts/smoke-hypothesis-generation-ui.mjs",
+    "smoke:live-data-processing": "node ./scripts/smoke-live-data-processing.mjs",
     "smoke:data-processing-ui": "node ./scripts/smoke-data-processing-ui.mjs",
     "smoke:experiment-design-ui": "node ./scripts/smoke-experiment-design-ui.mjs",
     "smoke:academic-writing-ui": "node ./scripts/smoke-academic-writing-ui.mjs",
@@ -81,6 +82,7 @@
     "test:live-hypothesis-generation-smoke": "node ./scripts/test-live-hypothesis-generation-smoke.mjs",
     "test:hypothesis-generation-contract": "tsx ./scripts/test-hypothesis-generation-contract.ts",
     "test:data-processing-plan": "tsx ./scripts/test-data-processing-plan.ts",
+    "test:live-data-processing-smoke": "node ./scripts/test-live-data-processing-smoke.mjs",
     "test:experiment-design-contract": "tsx ./scripts/test-experiment-design-contract.ts",
     "test:academic-writing-contract": "tsx ./scripts/test-academic-writing-contract.ts",
     "test:text-polishing-contract": "tsx ./scripts/test-text-polishing-contract.ts",
@@ -99,7 +101,7 @@
     "test:storage": "tsx ./scripts/test-storage.ts",
     "test:vector-store": "tsx ./scripts/test-vector-store.ts",
     "ts-check": "tsc -p tsconfig.json",
-    "validate": "pnpm test:runtime-ai-config && pnpm test:storage && pnpm test:rag && pnpm test:citation-audit && pnpm test:vector-store && pnpm test:ingestion && pnpm test:mineru-job && pnpm test:podcast-status && pnpm test:volcengine-podcast && pnpm test:doubao-tts && pnpm test:tts-route && pnpm test:studio-podcast-job && pnpm test:grounded-retrieval && pnpm test:studio-grounded-routes && pnpm test:knowledge-map-compiler && pnpm test:live-knowledge-map-smoke && pnpm test:source-matrix && pnpm test:data-table-preview && pnpm test:discovered-source-upload && pnpm test:discover-search-provider && pnpm test:deep-research-contract && pnpm test:live-deep-research-smoke && pnpm test:hypothesis-generation-contract && pnpm test:live-hypothesis-generation-smoke && pnpm test:data-processing-plan && pnpm test:experiment-design-contract && pnpm test:academic-writing-contract && pnpm test:text-polishing-contract && pnpm test:peer-review-contract && pnpm test:scientific-illustration-contract && pnpm test:explainer-video-provider && pnpm test:openmaic-sidecar-config && pnpm test:virtual-classroom-proxy && pnpm test:virtual-classroom-storage && pnpm test:live-virtual-classroom-smoke && pnpm test:release-env-gate && pnpm test:long-task-ux && pnpm test:studio-nav-side-effects && pnpm test:ppt-v2-outline-draft && pnpm run ts-check && pnpm run lint:build"
+    "validate": "pnpm test:runtime-ai-config && pnpm test:storage && pnpm test:rag && pnpm test:citation-audit && pnpm test:vector-store && pnpm test:ingestion && pnpm test:mineru-job && pnpm test:podcast-status && pnpm test:volcengine-podcast && pnpm test:doubao-tts && pnpm test:tts-route && pnpm test:studio-podcast-job && pnpm test:grounded-retrieval && pnpm test:studio-grounded-routes && pnpm test:knowledge-map-compiler && pnpm test:live-knowledge-map-smoke && pnpm test:source-matrix && pnpm test:data-table-preview && pnpm test:discovered-source-upload && pnpm test:discover-search-provider && pnpm test:deep-research-contract && pnpm test:live-deep-research-smoke && pnpm test:hypothesis-generation-contract && pnpm test:live-hypothesis-generation-smoke && pnpm test:data-processing-plan && pnpm test:live-data-processing-smoke && pnpm test:experiment-design-contract && pnpm test:academic-writing-contract && pnpm test:text-polishing-contract && pnpm test:peer-review-contract && pnpm test:scientific-illustration-contract && pnpm test:explainer-video-provider && pnpm test:openmaic-sidecar-config && pnpm test:virtual-classroom-proxy && pnpm test:virtual-classroom-storage && pnpm test:live-virtual-classroom-smoke && pnpm test:release-env-gate && pnpm test:long-task-ux && pnpm test:studio-nav-side-effects && pnpm test:ppt-v2-outline-draft && pnpm run ts-check && pnpm run lint:build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.975.0",
