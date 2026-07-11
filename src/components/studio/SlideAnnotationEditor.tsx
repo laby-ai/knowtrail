@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 // Cowart-style slide revision: draw annotations (strokes / arrows / text)
 // on top of the current slide image, add an instruction, and let the image
 // model regenerate a clean revised slide honoring the markup.
@@ -182,7 +184,7 @@ export function SlideAnnotationEditor({
     setError(null);
     try {
       const { base64, hasAnnotations } = await buildAnnotatedImage();
-      const res = await fetch('/api/ai/ppt-slide-revise', {
+      const res = await clientApiRequest('/api/ai/ppt-slide-revise', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

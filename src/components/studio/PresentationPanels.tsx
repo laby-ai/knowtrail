@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Presentation,
@@ -171,7 +173,7 @@ function PresentationPanel() {
     abortControllerRef.current = abortController;
 
     try {
-      const response = await fetch('/api/ai/ppt', {
+      const response = await clientApiRequest('/api/ai/ppt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

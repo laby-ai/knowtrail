@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, FlaskConical, Lightbulb } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
@@ -82,7 +84,7 @@ export function HypothesisGenerationPanel() {
     let finalHypotheses: HypothesisCard[] = [];
     let finalStatus: HypothesisStatusPayload | null = null;
     try {
-      const response = await fetch('/api/ai/hypothesis-generation', {
+      const response = await clientApiRequest('/api/ai/hypothesis-generation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         credentials: 'same-origin',

@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useCallback, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, RotateCcw, WandSparkles } from 'lucide-react';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
@@ -65,7 +67,7 @@ export function TextPolishingPanel() {
     setMessage('正在锁定数字、术语、引用和图表编号。');
     let finalResult: TextPolishingResult | null = null;
     try {
-      const response = await fetch('/api/ai/text-polishing', {
+      const response = await clientApiRequest('/api/ai/text-polishing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

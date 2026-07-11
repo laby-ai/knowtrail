@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, GraduationCap, HelpCircle, RefreshCw } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
@@ -40,7 +42,7 @@ export function VirtualClassroomPanel() {
   const loadStatus = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/virtual-classroom/status', { cache: 'no-store' });
+      const response = await clientApiRequest('/api/virtual-classroom/status', { cache: 'no-store' });
       const data = (await response.json()) as ClassroomStatus;
       setStatus(data);
     } catch {
@@ -81,7 +83,7 @@ export function VirtualClassroomPanel() {
     setConfirmError(null);
 
     try {
-      const response = await fetch('/api/virtual-classroom/outline', {
+      const response = await clientApiRequest('/api/virtual-classroom/outline', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -117,7 +119,7 @@ export function VirtualClassroomPanel() {
     setConfirmError(null);
 
     try {
-      const response = await fetch('/api/virtual-classroom/confirm', {
+      const response = await clientApiRequest('/api/virtual-classroom/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ draft: outlineDraft }),

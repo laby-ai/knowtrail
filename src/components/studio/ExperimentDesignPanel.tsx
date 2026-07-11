@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, FlaskConical } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
@@ -114,7 +116,7 @@ export function ExperimentDesignPanel() {
     let finalProtocol: ExperimentDesignProtocol | null = null;
     let finalStatus: DesignStatusPayload | null = null;
     try {
-      const response = await fetch('/api/ai/experiment-design', {
+      const response = await clientApiRequest('/api/ai/experiment-design', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

@@ -1,5 +1,7 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Play, Pause, Loader2, Volume2 } from 'lucide-react';
 
@@ -61,7 +63,7 @@ export default function NarrationPlayer({ text }: NarrationPlayerProps) {
     if (audioUri) return audioUri;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/ai/tts', {
+      const res = await clientApiRequest('/api/ai/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),

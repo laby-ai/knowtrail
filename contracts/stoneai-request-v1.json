@@ -1,0 +1,9 @@
+{
+  "version": "stoneai-request-v1",
+  "basePath": "Prefix same-origin /api paths with the product base path exactly once.",
+  "authentication": "Send same-origin cookies by default; preserve an explicit Authorization header, otherwise inject the stored Bearer token.",
+  "cancellation": "Caller cancellation and request timeout remain active together and are classified separately.",
+  "errors": ["unauthorized", "forbidden", "rate_limited", "http_error", "timeout", "cancelled", "network", "invalid_payload", "download_error"],
+  "downloads": "Reject HTTP errors and JSON error payloads before exposing binary content."
+}
+
