@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
-import { reserveAIUsage, type AIUsageReservation } from '@/lib/account-ai-billing';
+import { accountUsageErrorMessage, reserveAIUsage, type AIUsageReservation } from '@/lib/account-ai-billing';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import {
   buildScientificIllustrationPrompt,
@@ -54,11 +54,12 @@ export async function POST(request: NextRequest) {
         units: 1,
         inputText: input.purpose,
         memberId: accountScope.ownerMemberId,
+        idempotencyKey: request.headers.get('idempotency-key') || undefined,
       });
     } catch (billingError) {
       const status = billingError instanceof AccountServiceError ? billingError.status : 402;
       const code = billingError instanceof AccountServiceError ? billingError.code : 'account_billing_failed';
-      return errorResponse('科研示意图额度预占失败，请检查账号额度后重试。', code, status);
+      return errorResponse(accountUsageErrorMessage(billingError, '科研示意图额度预占失败，请检查账号额度后重试。'), code, status);
     }
 
     const prompt = buildScientificIllustrationPrompt(input);

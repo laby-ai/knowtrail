@@ -119,6 +119,7 @@ export class AccountEntitlementClient {
     productArea: string;
     modelName: string;
     units: number;
+    expiresAt?: string;
   }): Promise<AccountReservationResponse> {
     const payload = await this.post(
       `/v1/tenants/${encodeURIComponent(args.tenantId)}/members/${encodeURIComponent(args.memberId)}/usage-reservations`,
@@ -127,6 +128,7 @@ export class AccountEntitlementClient {
         model_name: args.modelName,
         units: args.units,
         request_ref: args.requestId,
+        expires_at: args.expiresAt,
       },
       `${args.requestId}:reserve`,
     ) as AccountReservationResponse;

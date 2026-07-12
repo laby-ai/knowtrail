@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import { AccountEntitlementClient, estimateTextUnits } from '@/lib/account-entitlement-client';
+import { AccountEntitlementClient, AccountServiceError, estimateTextUnits } from '@/lib/account-entitlement-client';
+import { admitLongTask, resolveLongTaskIdempotencyKey } from '@/lib/long-task-admission';
 
 export type BillingProductArea = 'ai.text' | 'ai.image' | 'ai.video' | 'ai.agent';
 
@@ -11,6 +11,7 @@ type AIUsageReservationOptions = {
   inputText?: string;
   promptContext?: string;
   memberId?: string;
+  idempotencyKey?: string;
 };
 
 export type AIUsageReservation = {
@@ -49,6 +50,16 @@ export function isAccountBillingConfigured(memberId?: string): boolean {
   );
 }
 
+export function accountUsageErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof AccountServiceError && error.status === 429) {
+    return '当前运行中的科研任务较多，请等待一个任务完成后再试。';
+  }
+  if (error instanceof AccountServiceError && error.status === 409) {
+    return '相同请求已经提交，请勿重复操作。';
+  }
+  return fallback;
+}
+
 export async function reserveAIUsage(options: AIUsageReservationOptions): Promise<AIUsageReservation | null> {
   if (!isAccountBillingConfigured(options.memberId)) return null;
 
@@ -57,20 +68,37 @@ export async function reserveAIUsage(options: AIUsageReservationOptions): Promis
   const memberId = options.memberId || envValue('ACCOUNT_CENTER_DEFAULT_MEMBER_ID');
   if (!client || !tenantId || !memberId) return null;
 
-  const requestId = `knowtrail:${options.route}:${randomUUID()}`;
+  const idempotencyKey = resolveLongTaskIdempotencyKey({
+    explicit: options.idempotencyKey,
+    memberId,
+    operation: options.route,
+    content: `${options.inputText || ''}\n${options.promptContext || ''}`,
+  });
+  const admission = admitLongTask({ memberId, operation: options.route, idempotencyKey });
+  const requestId = `knowtrail:${options.route}:${admission.taskId}`;
   const estimatedUnits = typeof options.units === 'number' && options.units > 0
     ? Math.floor(options.units)
     : estimateTextUnits(`${options.inputText || ''}\n\n${options.promptContext || ''}`);
-  const response = await client.reserve({
-    tenantId,
-    memberId,
-    requestId,
-    productArea: options.productArea || envValue('ACCOUNT_CENTER_PRODUCT_AREA') || 'ai.text',
-    modelName: options.modelName,
-    units: estimatedUnits,
-  });
+  let response;
+  try {
+    response = await client.reserve({
+      tenantId,
+      memberId,
+      requestId,
+      productArea: options.productArea || envValue('ACCOUNT_CENTER_PRODUCT_AREA') || 'ai.text',
+      modelName: options.modelName,
+      units: estimatedUnits,
+      expiresAt: new Date(Date.now() + Math.max(300, Number(process.env.ACCOUNT_RESERVATION_TTL_SECONDS || 3600)) * 1000).toISOString(),
+    });
+  } catch (error) {
+    admission.fail();
+    throw error;
+  }
   const reservationId = response.reservation?.id;
-  if (!reservationId) return null;
+  if (!reservationId) {
+    admission.fail();
+    return null;
+  }
 
   return {
     requestId,
@@ -82,10 +110,18 @@ export async function reserveAIUsage(options: AIUsageReservationOptions): Promis
           : estimateTextUnits(String(actualUsage), 1_000, estimatedUnits),
         estimatedUnits,
       );
-      await client.settle({ tenantId, reservationId, requestId, actualUnits });
+      try {
+        await client.settle({ tenantId, reservationId, requestId, actualUnits });
+        admission.succeed();
+      } catch (error) {
+        await client.release({ tenantId, reservationId, requestId }).catch(() => undefined);
+        admission.fail();
+        throw error;
+      }
     },
     release: async () => {
       await client.release({ tenantId, reservationId, requestId });
+      admission.cancel();
     },
   };
 }
