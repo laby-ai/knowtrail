@@ -105,7 +105,11 @@ function directorySizeBytes(dir) {
 }
 
 function inspectClassroomRuntimeArchive(archivePath) {
-  const listed = spawnSync('tar', ['-tzf', archivePath], { encoding: 'utf8', shell: false });
+  const listed = spawnSync('tar', ['-tzf', archivePath], {
+    encoding: 'utf8',
+    shell: false,
+    maxBuffer: 32 * 1024 * 1024,
+  });
   if (listed.error || listed.status !== 0) {
     throw new Error(`Unable to list OpenMAIC runtime archive: ${listed.error?.message || listed.stderr}`);
   }
