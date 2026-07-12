@@ -11,6 +11,7 @@ import {
   parseExperimentDesignOutput,
 } from '@/lib/experiment-design-contract';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
+import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
@@ -136,35 +137,21 @@ export async function POST(request: NextRequest) {
 
   const configuredTimeoutMs = Number(process.env.EXPERIMENT_DESIGN_LLM_TIMEOUT_MS || 120_000);
   const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(30_000, configuredTimeoutMs) : 120_000;
-  const taskController = new AbortController();
-  const abortFromRequest = () => taskController.abort(request.signal.reason);
-  if (request.signal.aborted) abortFromRequest();
-  else request.signal.addEventListener('abort', abortFromRequest, { once: true });
-
   const taskObservation = createGroundedTaskObservation({
     requestId: request.headers.get('x-request-id'),
     tenantId: scope.tenantId,
     memberId: scope.ownerMemberId,
     taskType: 'experiment-design',
   });
+  const reservationFinalizer = createUsageReservationFinalizer(usageReservation);
+  let rawOutput = '';
 
-  const encoder = new TextEncoder();
-  let streamClosed = false;
-  const stream = new ReadableStream({
-    async start(controller) {
-      const timeoutId = setTimeout(() => taskController.abort(new Error('experiment design timed out')), timeoutMs);
-      const emit = (payload: unknown) => {
-        if (streamClosed) return;
-        try {
-          controller.enqueue(encoder.encode(`data: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}\n\n`));
-        } catch {
-          streamClosed = true;
-        }
-      };
-      let rawOutput = '';
-      let reservationFinalized = false;
-
-      try {
+  return createGroundedSseResponse({
+    requestSignal: request.signal,
+    timeoutMs,
+    timeoutReason: 'experiment design timed out',
+    cancelReason: 'experiment design client cancelled',
+    async run({ emit, signal }) {
         taskObservation.running();
         emit({
           progress: {
@@ -191,7 +178,7 @@ export async function POST(request: NextRequest) {
           model: modelName,
           temperature: 0.25,
           maxTokens: 4600,
-          signal: taskController.signal,
+          signal,
         }, undefined, runtimeConfig))) {
           rawOutput += chunk;
         }
@@ -204,20 +191,7 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        let billing: { status: 'settled' } | { status: 'settle_failed'; code: string } | undefined;
-        if (usageReservation) {
-          try {
-            await usageReservation.settle(rawOutput);
-            reservationFinalized = true;
-            billing = { status: 'settled' };
-          } catch (billingError) {
-            reservationFinalized = true;
-            billing = {
-              status: 'settle_failed',
-              code: billingError instanceof AccountServiceError ? billingError.code : 'account_settle_failed',
-            };
-          }
-        }
+        const billing = await reservationFinalizer.settle(rawOutput);
 
         let protocol;
         try {
@@ -234,10 +208,6 @@ export async function POST(request: NextRequest) {
             billing,
           });
           emit('[DONE]');
-          if (!streamClosed) {
-            streamClosed = true;
-            controller.close();
-          }
           return;
         }
 
@@ -262,16 +232,10 @@ export async function POST(request: NextRequest) {
         });
         taskObservation.succeeded();
         emit('[DONE]');
-        if (!streamClosed) {
-          streamClosed = true;
-          controller.close();
-        }
-      } catch (error) {
-        if (usageReservation && !reservationFinalized) {
-          if (rawOutput) await usageReservation.settle(rawOutput).catch(() => undefined);
-          else await usageReservation.release().catch(() => undefined);
-        }
-        const aborted = taskController.signal.aborted;
+    },
+    async onError(error, { emit, signal }) {
+        await reservationFinalizer.finalizeFailure(rawOutput);
+        const aborted = signal.aborted;
         if (aborted) taskObservation.cancelled('experiment_design_interrupted');
         else taskObservation.failed('experiment_design_failed', error);
         emit({
@@ -284,26 +248,6 @@ export async function POST(request: NextRequest) {
             retrievalLimits: ['生成未完整结束，不能作为可用实验设计协议。'],
           },
         });
-        if (!streamClosed) {
-          streamClosed = true;
-          controller.close();
-        }
-      } finally {
-        clearTimeout(timeoutId);
-        request.signal.removeEventListener('abort', abortFromRequest);
-      }
-    },
-    cancel() {
-      taskController.abort(new Error('experiment design client cancelled'));
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-store',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
     },
   });
 }

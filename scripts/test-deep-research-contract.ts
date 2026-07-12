@@ -92,7 +92,7 @@ assert.match(routeSource, /buildGroundedRetrievalContext/, 'Route should use the
 assert.match(routeSource, /reserveAIUsage/, 'Route should preserve account billing reservations.');
 assert.match(routeSource, /llmStream/, 'Route should forward model output incrementally.');
 assert.match(routeSource, /request\.signal/, 'Route should propagate client cancellation.');
-assert.match(routeSource, /X-Accel-Buffering[^\n]+no/, 'Route should disable proxy buffering for SSE.');
+assert.match(routeSource, /createGroundedSseResponse/, 'Route should delegate SSE headers and cancellation to the grounded lifecycle owner.');
 assert.match(routeSource, /deep_research_no_evidence/, 'Route should reject report success when no evidence is available.');
 assert.match(routeSource, /removeUncitedDeepResearchClaims/, 'Route should conservatively remove uncited claims before final classification.');
 assert.match(routeSource, /replaceContent/, 'Route should replace streamed draft text with its final audited form.');

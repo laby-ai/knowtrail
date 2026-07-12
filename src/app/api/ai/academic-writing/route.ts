@@ -12,6 +12,7 @@ import {
   type AcademicWritingSection,
 } from '@/lib/academic-writing-contract';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
+import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
@@ -110,34 +111,21 @@ export async function POST(request: NextRequest) {
 
   const configuredTimeoutMs = Number(process.env.ACADEMIC_WRITING_LLM_TIMEOUT_MS || 120_000);
   const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(30_000, configuredTimeoutMs) : 120_000;
-  const taskController = new AbortController();
-  const abortFromRequest = () => taskController.abort(request.signal.reason);
-  if (request.signal.aborted) abortFromRequest();
-  else request.signal.addEventListener('abort', abortFromRequest, { once: true });
-
   const taskObservation = createGroundedTaskObservation({
     requestId: request.headers.get('x-request-id'),
     tenantId: scope.tenantId,
     memberId: scope.ownerMemberId,
     taskType: 'academic-writing',
   });
+  const reservationFinalizer = createUsageReservationFinalizer(reservation);
+  let rawOutput = '';
 
-  const encoder = new TextEncoder();
-  let streamClosed = false;
-  const stream = new ReadableStream({
-    async start(controller) {
-      const timeoutId = setTimeout(() => taskController.abort(new Error('academic writing timed out')), timeoutMs);
-      const emit = (payload: unknown) => {
-        if (streamClosed) return;
-        try {
-          controller.enqueue(encoder.encode(`data: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}\n\n`));
-        } catch {
-          streamClosed = true;
-        }
-      };
-      let rawOutput = '';
-      let reservationFinalized = false;
-      try {
+  return createGroundedSseResponse({
+    requestSignal: request.signal,
+    timeoutMs,
+    timeoutReason: 'academic writing timed out',
+    cancelReason: 'academic writing client cancelled',
+    async run({ emit, signal }) {
         taskObservation.running();
         emit({
           progress: { stage: 'evidence-ready', progress: 30, message: `已匹配 ${grounded.citations.length} 条证据，正在建立章节大纲与主张边界。` },
@@ -154,21 +142,11 @@ export async function POST(request: NextRequest) {
           model: modelName,
           temperature: 0.25,
           maxTokens: 4600,
-          signal: taskController.signal,
+          signal,
         }, undefined, runtimeConfig))) rawOutput += chunk;
 
         emit({ progress: { stage: 'auditing', progress: 90, message: '正在检查段落证据、未支持主张和引用边界。' } });
-        let billing: { status: 'settled' } | { status: 'settle_failed'; code: string } | undefined;
-        if (reservation) {
-          try {
-            await reservation.settle(rawOutput);
-            reservationFinalized = true;
-            billing = { status: 'settled' };
-          } catch (billingError) {
-            reservationFinalized = true;
-            billing = { status: 'settle_failed', code: billingError instanceof AccountServiceError ? billingError.code : 'account_settle_failed' };
-          }
-        }
+        const billing = await reservationFinalizer.settle(rawOutput);
 
         let draft;
         try {
@@ -182,7 +160,6 @@ export async function POST(request: NextRequest) {
             billing,
           });
           emit('[DONE]');
-          if (!streamClosed) { streamClosed = true; controller.close(); }
           return;
         }
 
@@ -208,13 +185,10 @@ export async function POST(request: NextRequest) {
         });
         taskObservation.succeeded();
         emit('[DONE]');
-        if (!streamClosed) { streamClosed = true; controller.close(); }
-      } catch (error) {
-        if (reservation && !reservationFinalized) {
-          if (rawOutput) await reservation.settle(rawOutput).catch(() => undefined);
-          else await reservation.release().catch(() => undefined);
-        }
-        const aborted = taskController.signal.aborted;
+    },
+    async onError(error, { emit, signal }) {
+        await reservationFinalizer.finalizeFailure(rawOutput);
+        const aborted = signal.aborted;
         if (aborted) taskObservation.cancelled('academic_writing_interrupted');
         else taskObservation.failed('academic_writing_failed', error);
         emit({
@@ -222,23 +196,6 @@ export async function POST(request: NextRequest) {
           errorType: aborted ? 'academic_writing_interrupted' : 'academic_writing_failed',
           writingStatus: { answerStatus: 'incomplete', retrievalLimits: ['生成未完整结束，不能作为可用学术草稿。'] },
         });
-        if (!streamClosed) { streamClosed = true; controller.close(); }
-      } finally {
-        clearTimeout(timeoutId);
-        request.signal.removeEventListener('abort', abortFromRequest);
-      }
-    },
-    cancel() {
-      taskController.abort(new Error('academic writing client cancelled'));
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-store',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
     },
   });
 }

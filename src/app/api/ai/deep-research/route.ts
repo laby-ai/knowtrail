@@ -13,6 +13,7 @@ import {
   removeUncitedDeepResearchClaims,
 } from '@/lib/deep-research-contract';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
+import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
@@ -108,34 +109,21 @@ export async function POST(request: NextRequest) {
   const timeoutMs = Number.isFinite(configuredTimeoutMs)
     ? Math.max(30_000, configuredTimeoutMs)
     : 120_000;
-  const taskController = new AbortController();
-  const abortFromRequest = () => taskController.abort(request.signal.reason);
-  if (request.signal.aborted) abortFromRequest();
-  else request.signal.addEventListener('abort', abortFromRequest, { once: true });
-
   const taskObservation = createGroundedTaskObservation({
     requestId: request.headers.get('x-request-id'),
     tenantId: scope.tenantId,
     memberId: scope.ownerMemberId,
     taskType: 'deep-research',
   });
+  const reservationFinalizer = createUsageReservationFinalizer(usageReservation);
+  let answerText = '';
 
-  const encoder = new TextEncoder();
-  let streamClosed = false;
-  const stream = new ReadableStream({
-    async start(controller) {
-      const timeoutId = setTimeout(() => taskController.abort(new Error('deep research timed out')), timeoutMs);
-      const emit = (payload: unknown) => {
-        if (streamClosed) return;
-        try {
-          controller.enqueue(encoder.encode(`data: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}\n\n`));
-        } catch {
-          streamClosed = true;
-        }
-      };
-      let answerText = '';
-
-      try {
+  return createGroundedSseResponse({
+    requestSignal: request.signal,
+    timeoutMs,
+    timeoutReason: 'deep research timed out',
+    cancelReason: 'deep research client cancelled',
+    async run({ emit, signal }) {
         taskObservation.running();
         emit({
           progress: {
@@ -164,7 +152,7 @@ export async function POST(request: NextRequest) {
           model: modelName,
           temperature: 0.35,
           maxTokens: 3200,
-          signal: taskController.signal,
+          signal,
         }, undefined, runtimeConfig))) {
           answerText += chunk;
           emit({ content: chunk });
@@ -218,7 +206,7 @@ export async function POST(request: NextRequest) {
             model: modelName,
             temperature: 0.1,
             maxTokens: 2400,
-            signal: taskController.signal,
+            signal,
           }, undefined, runtimeConfig))) {
             repairedAnswer += chunk;
           }
@@ -240,18 +228,7 @@ export async function POST(request: NextRequest) {
           emit({ replaceContent: answerText });
         }
 
-        let billing: { status: 'settled' } | { status: 'settle_failed'; code: string } | undefined;
-        if (usageReservation) {
-          try {
-            await usageReservation.settle(answerText);
-            billing = { status: 'settled' };
-          } catch (billingError) {
-            billing = {
-              status: 'settle_failed',
-              code: billingError instanceof AccountServiceError ? billingError.code : 'account_settle_failed',
-            };
-          }
-        }
+        const billing = await reservationFinalizer.settle(answerText);
         emit({
           citationAudit,
           researchStatus: {
@@ -268,15 +245,10 @@ export async function POST(request: NextRequest) {
         });
         taskObservation.succeeded();
         emit('[DONE]');
-        if (!streamClosed) {
-          streamClosed = true;
-          controller.close();
-        }
-      } catch (error) {
-        if (usageReservation) {
-          await usageReservation.release().catch(() => undefined);
-        }
-        const aborted = taskController.signal.aborted;
+    },
+    async onError(error, { emit, signal }) {
+        await reservationFinalizer.finalizeFailure(answerText);
+        const aborted = signal.aborted;
         if (aborted) taskObservation.cancelled('deep_research_interrupted');
         else taskObservation.failed('deep_research_failed', error);
         emit({
@@ -289,26 +261,6 @@ export async function POST(request: NextRequest) {
             retrievalLimits: ['生成未完整结束，不能作为完整研究报告。'],
           },
         });
-        if (!streamClosed) {
-          streamClosed = true;
-          controller.close();
-        }
-      } finally {
-        clearTimeout(timeoutId);
-        request.signal.removeEventListener('abort', abortFromRequest);
-      }
-    },
-    cancel() {
-      taskController.abort(new Error('deep research client cancelled'));
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-store',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
     },
   });
 }

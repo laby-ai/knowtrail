@@ -79,6 +79,15 @@ jobs:
       - name: Grounded operational observability contract
         run: pnpm run test:grounded-operational-observability
 
+      - name: Grounded task lifecycle contract
+        run: pnpm run test:grounded-task-lifecycle
+
+      - name: Architecture ownership guard
+        run: ARCH_GUARD_STRICT=true pnpm run check:architecture
+
+      - name: Code size report
+        run: pnpm run check:code-size
+
       - name: Service metrics contract
         run: pnpm run test:service-metrics
 

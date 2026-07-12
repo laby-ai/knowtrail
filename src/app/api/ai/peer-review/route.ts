@@ -4,6 +4,7 @@ import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billi
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
+import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import {
   auditPeerReviewReport,
@@ -104,34 +105,21 @@ export async function POST(request: NextRequest) {
 
   const configuredTimeoutMs = Number(process.env.PEER_REVIEW_LLM_TIMEOUT_MS || 120_000);
   const timeoutMs = Number.isFinite(configuredTimeoutMs) ? Math.max(30_000, configuredTimeoutMs) : 120_000;
-  const taskController = new AbortController();
-  const abortFromRequest = () => taskController.abort(request.signal.reason);
-  if (request.signal.aborted) abortFromRequest();
-  else request.signal.addEventListener('abort', abortFromRequest, { once: true });
-
   const taskObservation = createGroundedTaskObservation({
     requestId: request.headers.get('x-request-id'),
     tenantId: accountScope.tenantId,
     memberId: accountScope.ownerMemberId,
     taskType: 'peer-review',
   });
+  const reservationFinalizer = createUsageReservationFinalizer(reservation);
+  let rawOutput = '';
 
-  const encoder = new TextEncoder();
-  let streamClosed = false;
-  const stream = new ReadableStream({
-    async start(controller) {
-      const timeoutId = setTimeout(() => taskController.abort(new Error('peer review timed out')), timeoutMs);
-      const emit = (payload: unknown) => {
-        if (streamClosed) return;
-        try {
-          controller.enqueue(encoder.encode(`data: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}\n\n`));
-        } catch {
-          streamClosed = true;
-        }
-      };
-      let rawOutput = '';
-      let reservationFinalized = false;
-      try {
+  return createGroundedSseResponse({
+    requestSignal: request.signal,
+    timeoutMs,
+    timeoutReason: 'peer review timed out',
+    cancelReason: 'peer review client cancelled',
+    async run({ emit, signal }) {
         taskObservation.running();
         emit({
           progress: {
@@ -160,21 +148,11 @@ export async function POST(request: NextRequest) {
           model: modelName,
           temperature: 0.15,
           maxTokens: 5200,
-          signal: taskController.signal,
+          signal,
         }, undefined, runtimeConfig))) rawOutput += chunk;
 
         emit({ progress: { stage: 'auditing', progress: 91, message: '正在核对稿件片段、证据编号和审查边界。' } });
-        let billing: { status: 'settled' } | { status: 'settle_failed'; code: string } | undefined;
-        if (reservation) {
-          try {
-            await reservation.settle(rawOutput);
-            reservationFinalized = true;
-            billing = { status: 'settled' };
-          } catch (billingError) {
-            reservationFinalized = true;
-            billing = { status: 'settle_failed', code: billingError instanceof AccountServiceError ? billingError.code : 'account_settle_failed' };
-          }
-        }
+        const billing = await reservationFinalizer.settle(rawOutput);
 
         let report;
         try {
@@ -187,7 +165,6 @@ export async function POST(request: NextRequest) {
             billing,
           });
           emit('[DONE]');
-          if (!streamClosed) { streamClosed = true; controller.close(); }
           return;
         }
         const audit = auditPeerReviewReport(manuscript, report, citations.length);
@@ -200,7 +177,6 @@ export async function POST(request: NextRequest) {
             billing,
           });
           emit('[DONE]');
-          if (!streamClosed) { streamClosed = true; controller.close(); }
           return;
         }
         emit({
@@ -219,13 +195,10 @@ export async function POST(request: NextRequest) {
         });
         taskObservation.succeeded();
         emit('[DONE]');
-        if (!streamClosed) { streamClosed = true; controller.close(); }
-      } catch (error) {
-        if (reservation && !reservationFinalized) {
-          if (rawOutput) await reservation.settle(rawOutput).catch(() => undefined);
-          else await reservation.release().catch(() => undefined);
-        }
-        const aborted = taskController.signal.aborted;
+    },
+    async onError(error, { emit, signal }) {
+        await reservationFinalizer.finalizeFailure(rawOutput);
+        const aborted = signal.aborted;
         if (aborted) taskObservation.cancelled('peer_review_interrupted');
         else taskObservation.failed('peer_review_failed', error);
         emit({
@@ -234,21 +207,6 @@ export async function POST(request: NextRequest) {
             : error instanceof Error ? error.message : '论文审查失败。',
           errorType: aborted ? 'peer_review_interrupted' : 'peer_review_failed',
         });
-        if (!streamClosed) { streamClosed = true; controller.close(); }
-      } finally {
-        clearTimeout(timeoutId);
-        request.signal.removeEventListener('abort', abortFromRequest);
-      }
-    },
-    cancel() { taskController.abort(new Error('peer review client cancelled')); },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-store',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
     },
   });
 }
