@@ -73,6 +73,9 @@ jobs:
       - name: Loopback listener contract
         run: pnpm run test:loopback-listener-contract
 
+      - name: Request observability contract
+        run: pnpm run test:request-observability
+
       - name: Release environment gate
         run: pnpm run test:release-env-gate
 
