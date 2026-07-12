@@ -7,6 +7,7 @@ import path from 'path';
 import { parse } from 'url';
 import next from 'next';
 import { observeRequest } from './lib/request-observability';
+import { operationalObservabilityStatus } from './lib/operational-observability';
 import {
   resolveClassroomProxyTarget,
   shouldProxyMissingClassroomAsset,
@@ -14,6 +15,18 @@ import {
 
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const dev = runtimeEnv !== 'production';
+const operationalObservability = operationalObservabilityStatus();
+if (!dev && !operationalObservability.ready) {
+  console.error(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: 'error',
+    service: 'knowtrail',
+    event: 'startup_blocked',
+    blocker: operationalObservability.blockers[0],
+    exitCode: 78,
+  }));
+  process.exit(78);
+}
 const bindHost = process.env.BIND_HOST || (dev ? 'localhost' : '127.0.0.1');
 const port = parseInt(process.env.PORT || '5000', 10);
 

@@ -76,6 +76,9 @@ jobs:
       - name: Request observability contract
         run: pnpm run test:request-observability
 
+      - name: Grounded operational observability contract
+        run: pnpm run test:grounded-operational-observability
+
       - name: Release environment gate
         run: pnpm run test:release-env-gate
 
