@@ -59,7 +59,11 @@ assert.ok(studioPanelStart >= 0, 'StudioPanel export not found');
 assert.ok(panelContentStart > studioPanelStart, 'StudioPanel content switch not found');
 
 const navSection = studioPanelSource.slice(studioPanelStart, panelContentStart);
-assert.match(navSection, /<StudioToolSwitcher activeTab=\{activeTab\} onSelect=\{setActiveTab\} \/>/, 'StudioPanel should delegate tool switching to StudioToolSwitcher');
+assert.match(navSection, /<StudioToolSwitcher activeTab=\{activeTab\} onSelect=\{setActiveTab\} navItems=\{visibleNavItems\} \/>/, 'StudioPanel should delegate only visible tools to StudioToolSwitcher');
+assert.match(navSection, /getVisibleStudioNav\(hideVirtualClassroom\)/, 'StudioPanel should derive visible navigation from mounted embed state');
+assert.match(switcherSource, /params\.get\('hideVirtualClassroom'\)/, 'Studio visibility should honor the explicit hide flag');
+assert.match(switcherSource, /params\.get\('embed'\) === 'research-agent'/, 'Research-agent embed should hide the duplicate virtual classroom entry');
+assert.match(switcherSource, /STUDIO_NAV\.filter\(item => item\.id !== 'virtual-classroom'\)/, 'Only the virtual classroom product should be filtered');
 assert.match(switcherSource, /onClick=\{\(\) => onSelect\(item\.id\)\}/, 'Studio tool switcher should only request active tab changes');
 assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger generation side effects');
 assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');

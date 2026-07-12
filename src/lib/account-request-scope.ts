@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { paperHostLoginRequiredResponse, readPaperHostRequestScope } from '@/lib/paper-host-request-scope';
 
 export interface AccountNotebookScope {
   ownerMemberId?: string;
@@ -19,6 +20,21 @@ export async function resolveAccountNotebookScope(
     invalidMessage?: string;
   },
 ): Promise<AccountNotebookScopeResult> {
+  const paperHostScope = readPaperHostRequestScope(request);
+  if (paperHostScope.enabled) {
+    if (!paperHostScope.ready) {
+      return {
+        ok: false,
+        response: paperHostLoginRequiredResponse(input.loginMessage),
+      };
+    }
+    return {
+      ok: true,
+      ownerMemberId: paperHostScope.ownerMemberId,
+      notebookId: normalizeNotebookId(input.notebookId),
+    };
+  }
+
   try {
     const accountSession = await resolveAccountSessionFromRequest(request);
     if (accountAuthRequired() && !accountSession) {

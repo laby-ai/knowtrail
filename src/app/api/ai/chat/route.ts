@@ -7,8 +7,7 @@ import { auditCitationMarkers } from '@/lib/citation-audit';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
-import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
-import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,8 +21,6 @@ export async function POST(request: NextRequest) {
       debugAnswerText?: string;
       notebookId?: string;
     };
-    const notebookId = normalizeNotebookId(rawNotebookId);
-
     if (!message) {
       return new Response(JSON.stringify({ error: '缺少消息内容' }), {
         status: 400,
@@ -31,32 +28,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    let accountSession: Awaited<ReturnType<typeof resolveAccountSessionFromRequest>> = null;
-    try {
-      accountSession = await resolveAccountSessionFromRequest(request);
-    } catch {
-      return new Response(JSON.stringify({
-        error: '账号登录已过期，请重新登录。',
-        billing: { status: 'failed', code: 'invalid_account_session' },
-      }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-      });
-    }
-    if (accountAuthRequired() && !accountSession) {
-      return new Response(JSON.stringify({
-        error: '请先登录账号，再使用模型问答。',
-        billing: { status: 'failed', code: 'account_login_required' },
-      }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-      });
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: rawNotebookId,
+      loginMessage: '请先登录国科大科教平台，再使用科研智能体问答。',
+    });
+    if (!scope.ok) {
+      return scope.response;
     }
 
     const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
     const grounded = await buildGroundedRetrievalContext(message, papers || [], runtimeConfig, {
-      ownerMemberId: accountSession?.member.id,
-      notebookId,
+      ownerMemberId: scope.ownerMemberId,
+      notebookId: scope.notebookId,
     });
 
     if (debugRetrievalOnly) {
@@ -113,7 +96,7 @@ export async function POST(request: NextRequest) {
         modelName,
         inputText: message,
         promptContext: grounded.promptContext,
-        memberId: accountSession?.member.id,
+        memberId: scope.ownerMemberId,
       });
     } catch (billingError) {
       const status = billingError instanceof AccountServiceError ? billingError.status : 402;

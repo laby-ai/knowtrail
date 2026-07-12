@@ -49,12 +49,27 @@ export const STUDIO_NAV: StudioNavItem[] = STUDIO_RESEARCH_PRODUCTS.map(product 
   ...PRODUCT_VISUALS[product.id],
 }));
 
+export function shouldHideVirtualClassroom() {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  const hideFlag = params.get('hideVirtualClassroom');
+  return hideFlag === '1' || hideFlag === 'true' || params.get('embed') === 'research-agent';
+}
+
+export function getVisibleStudioNav(hideVirtualClassroom = shouldHideVirtualClassroom()) {
+  return hideVirtualClassroom
+    ? STUDIO_NAV.filter(item => item.id !== 'virtual-classroom')
+    : STUDIO_NAV;
+}
+
 export function StudioToolSwitcher({
   activeTab,
   onSelect,
+  navItems = getVisibleStudioNav(),
 }: {
   activeTab: StudioTab;
   onSelect: (tab: StudioTab) => void;
+  navItems?: StudioNavItem[];
 }) {
   const renderNavButton = (item: StudioNavItem) => {
     const Icon = item.icon;
@@ -86,7 +101,13 @@ export function StudioToolSwitcher({
     );
   };
 
-  const visibleCategories = getVisibleStudioCategories();
+  const visibleProductIds = new Set(navItems.map(item => item.id));
+  const visibleCategories = getVisibleStudioCategories()
+    .map(category => ({
+      ...category,
+      products: category.products.filter(product => visibleProductIds.has(product.id)),
+    }))
+    .filter(category => category.products.length > 0);
 
   return (
     <div className="space-y-3" data-testid="studio-tool-switcher">
@@ -95,7 +116,7 @@ export function StudioToolSwitcher({
           <h3 className="mb-2 text-[10px] font-semibold text-[var(--text-tertiary)]">{category.label}</h3>
           <div className="grid grid-cols-2 gap-2">
             {category.products.map(product => {
-              const item = STUDIO_NAV.find(navItem => navItem.id === product.id);
+              const item = navItems.find(navItem => navItem.id === product.id);
               return item ? renderNavButton(item) : null;
             })}
           </div>

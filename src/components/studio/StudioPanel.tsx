@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { KnowledgeMapPanel } from './KnowledgeMapPanel';
 import { PresentationWorkspacePanel } from './PresentationPanels';
 import { VirtualClassroomPanel } from './VirtualClassroomPanel';
@@ -16,13 +16,31 @@ import { ScientificIllustrationPanel } from './ScientificIllustrationPanel';
 import {
   STUDIO_NAV,
   StudioToolSwitcher,
+  getVisibleStudioNav,
+  shouldHideVirtualClassroom,
   type StudioNavItem,
   type StudioTab,
 } from './StudioToolSwitcher';
 
 export function StudioPanel() {
   const [activeTab, setActiveTab] = useState<StudioTab>(STUDIO_NAV[0].id);
-  const navItem: StudioNavItem = STUDIO_NAV.find(n => n.id === activeTab) ?? STUDIO_NAV[0];
+  const [hideVirtualClassroom, setHideVirtualClassroom] = useState(false);
+  const visibleNavItems = useMemo(
+    () => getVisibleStudioNav(hideVirtualClassroom),
+    [hideVirtualClassroom],
+  );
+
+  useEffect(() => {
+    setHideVirtualClassroom(shouldHideVirtualClassroom());
+  }, []);
+
+  useEffect(() => {
+    if (!visibleNavItems.some(item => item.id === activeTab)) {
+      setActiveTab(visibleNavItems[0].id);
+    }
+  }, [activeTab, visibleNavItems]);
+
+  const navItem: StudioNavItem = visibleNavItems.find(n => n.id === activeTab) ?? visibleNavItems[0];
   const NavIcon = navItem.icon;
 
   return (
@@ -38,7 +56,7 @@ export function StudioPanel() {
           </div>
         </div>
 
-        <StudioToolSwitcher activeTab={activeTab} onSelect={setActiveTab} />
+        <StudioToolSwitcher activeTab={activeTab} onSelect={setActiveTab} navItems={visibleNavItems} />
         <p data-testid="studio-nav-helper" className="mt-3 text-[10px] leading-relaxed text-[var(--text-quaternary)]">
           切换入口只打开对应工作区，检索或生成需在下方明确操作。
         </p>
