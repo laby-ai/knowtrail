@@ -116,6 +116,23 @@ for (const file of fs.readdirSync(studioDir).filter((name) => name.endsWith('.ts
   assert.doesNotMatch(source, /await fetch\(/, `${file} must use clientApiRequest`);
 }
 
+for (const file of [
+  '../src/app/page.tsx',
+  '../src/app/account/page.tsx',
+  '../src/components/account/WorkbenchAccountChip.tsx',
+  '../src/components/editor/EditorPanel.tsx',
+  '../src/components/features/BilingualGenerator.tsx',
+  '../src/components/library/DiscoverSourcesModal.tsx',
+  '../src/components/library/LibraryPanel.tsx',
+]) {
+  const source = fs.readFileSync(new URL(file, import.meta.url), 'utf8');
+  assert.doesNotMatch(
+    source,
+    /fetch\((?:'|`|\")\/api\//,
+    `${file} must route internal API requests through the base-path-aware client`,
+  );
+}
+
 console.log('stoneai-request-v1 contract passed');
 }
 

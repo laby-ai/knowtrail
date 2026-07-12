@@ -26,6 +26,7 @@ import { useApp } from '@/contexts/AppContext';
 import type { CitationReveal } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
+import { clientApiRequest } from '@/lib/client-api';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { buildDataTablePreviewForPaper, buildDataTablePreviewFromText } from '@/lib/data-table-preview';
 import { buildSourceMatrixFacets } from '@/lib/source-matrix';
@@ -432,7 +433,7 @@ export function LibraryPanel({
         setCitationContext({ paperId, status: 'loading' });
         const detailParams = new URLSearchParams({ id: paperId });
         if (notebookId) detailParams.set('notebookId', notebookId);
-        const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+        const response = await clientApiRequest(`/api/ingestion/sources?${detailParams.toString()}`, {
           cache: 'no-store',
           headers: accountHeaders,
         });
@@ -468,7 +469,7 @@ export function LibraryPanel({
     try {
       setIngestionSyncState('syncing');
       const notebookQuery = notebookId ? `?notebookId=${encodeURIComponent(notebookId)}` : '';
-      const response = await fetch(`/api/ingestion/sources${notebookQuery}`, {
+      const response = await clientApiRequest(`/api/ingestion/sources${notebookQuery}`, {
         cache: 'no-store',
         headers: accountHeaders,
       });
@@ -488,7 +489,7 @@ export function LibraryPanel({
         if (!importFolderId) continue;
         const detailParams = new URLSearchParams({ id: source.id });
         if (notebookId) detailParams.set('notebookId', notebookId);
-        const detailResponse = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+        const detailResponse = await clientApiRequest(`/api/ingestion/sources?${detailParams.toString()}`, {
           cache: 'no-store',
           headers: accountHeaders,
         });
@@ -593,7 +594,7 @@ export function LibraryPanel({
     try {
       const detailParams = new URLSearchParams({ id: paper.id });
       if (notebookId) detailParams.set('notebookId', notebookId);
-      const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+      const response = await clientApiRequest(`/api/ingestion/sources?${detailParams.toString()}`, {
         cache: 'no-store',
         headers: accountHeaders,
       });

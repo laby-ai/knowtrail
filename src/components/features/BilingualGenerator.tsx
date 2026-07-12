@@ -6,6 +6,7 @@ import {
   Send, Copy, CheckCircle2,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { clientApiRequest } from '@/lib/client-api';
 
 interface BilingualPair {
   id: string;
@@ -30,7 +31,7 @@ export function BilingualGenerator() {
     setError(null);
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await clientApiRequest('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

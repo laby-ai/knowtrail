@@ -194,7 +194,7 @@ export default function HomePage() {
     let cancelled = false;
     async function loadAccountStatus() {
       try {
-        const response = await fetch('/api/account/status', { cache: 'no-store' });
+        const response = await clientApiRequest('/api/account/status', { cache: 'no-store' });
         if (!response.ok) return;
         const status = await response.json() as AccountCenterStatus;
         if (!cancelled) setAccountStatus(status);
@@ -214,7 +214,7 @@ export default function HomePage() {
     let cancelled = false;
     async function syncDefaultSourceCount() {
       try {
-        const response = await fetch('/api/ingestion/sources?notebookId=default-workspace', {
+        const response = await clientApiRequest('/api/ingestion/sources?notebookId=default-workspace', {
           cache: 'no-store',
           headers: accountHeaders,
         });

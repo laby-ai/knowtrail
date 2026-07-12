@@ -18,6 +18,7 @@ import { MessageItem } from './MessageItem';
 import { QUICK_QUESTIONS, type QuickQuestion } from './quickQuestions';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
+import { clientApiRequest } from '@/lib/client-api';
 
 const CHAT_RESPONSE_MAX_TOKENS = 260;
 const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
@@ -82,7 +83,7 @@ export function EditorPanel() {
     const timeoutId = window.setTimeout(() => abortController.abort(), CHAT_RESPONSE_TIMEOUT_MS);
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await clientApiRequest('/api/ai/chat', {
         method: 'POST',
         signal: abortController.signal,
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
@@ -246,7 +247,7 @@ export function EditorPanel() {
         shortName: p.shortName, keywords: p.keywords, fileName: p.fileName, fileType: p.fileType,
       }));
 
-      const response = await fetch('/api/ai/report', {
+      const response = await clientApiRequest('/api/ai/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

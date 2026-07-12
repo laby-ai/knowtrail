@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { createDiscoveredSourceFile, type DiscoveredSourceFileInput } from '@/lib/discovered-source-file';
+import { clientApiRequest } from '@/lib/client-api';
 
 type DiscoverResult = DiscoveredSourceFileInput;
 
@@ -70,7 +71,7 @@ export function DiscoverSourcesModal({
     setItemErrors({});
     setSelected(new Set());
     try {
-      const res = await fetch('/api/discover/search', {
+      const res = await clientApiRequest('/api/discover/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({ query: q, scope, size: 10, withContent: false, notebookId }),
@@ -112,7 +113,7 @@ export function DiscoverSourcesModal({
     for (const item of picked) {
       try {
         const file = await createDiscoveredSourceFile(item, async url => {
-          const res = await fetch('/api/discover/fetch', {
+          const res = await clientApiRequest('/api/discover/fetch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
             body: JSON.stringify({ url, notebookId }),

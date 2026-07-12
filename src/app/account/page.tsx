@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { clearAccountSession, readStoredAccountSession, saveAccountSession } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
+import { clientApiRequest } from '@/lib/client-api';
 import type { LucideIcon } from 'lucide-react';
 
 type AuthMode = 'login' | 'register';
@@ -84,7 +85,7 @@ export default function AccountPage() {
         return;
       }
       try {
-        const response = await fetch('/api/account/session', {
+        const response = await clientApiRequest('/api/account/session', {
           cache: 'no-store',
           headers: { Authorization: `Bearer ${stored.token}` },
         });
@@ -127,7 +128,7 @@ export default function AccountPage() {
     setError('');
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/account/auth', {
+      const response = await clientApiRequest('/api/account/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode, email, password, displayName }),
@@ -151,7 +152,7 @@ export default function AccountPage() {
     setResetMessage('');
     setIsResetSubmitting(true);
     try {
-      const response = await fetch('/api/account/password-reset/request', {
+      const response = await clientApiRequest('/api/account/password-reset/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail || email }),
