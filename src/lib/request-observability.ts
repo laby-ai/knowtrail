@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
+import { metricsRoute, serviceMetrics } from './service-metrics';
+
 type LogWriter = (line: string) => void;
 
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
@@ -33,6 +35,7 @@ export function observeRequest(
 
   res.once('finish', () => {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+    serviceMetrics.observeHttp(method, metricsRoute(path), res.statusCode, durationMs / 1000);
     const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
     writeLog(JSON.stringify({
       timestamp: new Date().toISOString(),

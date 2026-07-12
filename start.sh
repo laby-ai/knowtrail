@@ -29,6 +29,12 @@ fi
 if [ -n "$ENV_PORT" ]; then PORT="$ENV_PORT"; fi
 if [ -n "$ENV_DEPLOY_RUN_PORT" ]; then DEPLOY_RUN_PORT="$ENV_DEPLOY_RUN_PORT"; fi
 
+OBSERVABILITY_HASH_KEY="${KNOWTRAIL_OBSERVABILITY_HASH_KEY:-}"
+if [ "${APP_RUNTIME_ENV:-${NODE_ENV:-production}}" = "production" ] && [ "${#OBSERVABILITY_HASH_KEY}" -lt 32 ]; then
+  printf '%s\n' '{"level":"error","service":"knowtrail","event":"startup_blocked","blocker":"observability_identity_hash_unavailable","exitCode":78}' >&2
+  exit 78
+fi
+
 if [ -z "${ARK_API_BASE:-}" ] && [ -n "${ARK_AGENTPLAN_API_BASE:-}" ]; then
   export ARK_API_BASE="$ARK_AGENTPLAN_API_BASE"
 fi

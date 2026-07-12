@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { llmStream } from '@/lib/ai-service';
-import { reserveAIUsage } from '@/lib/account-ai-billing';
+import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
@@ -74,11 +74,12 @@ export async function POST(request: NextRequest) {
       inputText: sourceText,
       promptContext: goal,
       memberId: scope.ownerMemberId,
+      idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {
     const status = billingError instanceof AccountServiceError ? billingError.status : 402;
     const code = billingError instanceof AccountServiceError ? billingError.code : 'account_billing_failed';
-    return jsonError('账号积分不足，请先充值，或联系管理员分配积分后再润色。', code, status);
+    return jsonError(accountUsageErrorMessage(billingError, '账号积分不足，请先充值，或联系管理员分配积分后再润色。'), code, status);
   }
 
   const configuredTimeoutMs = Number(process.env.TEXT_POLISHING_LLM_TIMEOUT_MS || 120_000);

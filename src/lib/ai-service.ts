@@ -189,7 +189,6 @@ export async function llmInvoke(
     } catch (error) {
       lastError = error;
       if (options?.signal?.aborted || attempt >= attempts || !shouldRetryTransientError(error)) throw error;
-      console.warn(`[AI Service] transient llmInvoke stream failure, retrying attempt ${attempt + 1}/${attempts}: ${error instanceof Error ? error.message : String(error)}`);
       await waitForTransientRetry(attempt);
     }
   }

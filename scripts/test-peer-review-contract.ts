@@ -106,7 +106,7 @@ assert.match(routeSource, /llmStream/, 'Route should use the real streaming mode
 assert.match(routeSource, /request\.signal/, 'Route should propagate cancellation.');
 assert.match(routeSource, /auditPeerReviewReport/, 'Route should reject unlocatable or unsupported comments.');
 assert.match(routeSource, /peer_review_unsafe_output/, 'Unsafe output should have a stable error type.');
-assert.match(routeSource, /X-Accel-Buffering[^\n]+no/, 'Route should disable proxy buffering.');
+assert.match(routeSource, /createGroundedSseResponse/, 'Route should delegate SSE headers and cancellation to the grounded lifecycle owner.');
 
 console.log(JSON.stringify({ ok: true, checked: [
   'read-only report schema requires exact manuscript locations and actionable comments',

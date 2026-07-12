@@ -132,7 +132,7 @@ assert.match(routeSource, /reserveAIUsage/, 'Route should preserve account billi
 assert.match(routeSource, /llmStream/, 'Route should use the real streaming model client.');
 assert.match(routeSource, /request\.signal/, 'Route should propagate cancellation.');
 assert.match(routeSource, /experiment_design_no_evidence/, 'Route should reject design generation without substantive evidence.');
-assert.match(routeSource, /X-Accel-Buffering[^\n]+no/, 'Route should disable proxy buffering for progress events.');
+assert.match(routeSource, /createGroundedSseResponse/, 'Route should delegate SSE headers and cancellation to the grounded lifecycle owner.');
 
 console.log(JSON.stringify({
   ok: true,

@@ -135,6 +135,7 @@ deploy/           Linux service and nginx examples
 - Use `pnpm`; `npm` and `yarn` are intentionally blocked.
 - Prefer existing `src/components/ui` primitives and local product patterns before adding new UI abstractions.
 - Keep source ingestion, grounded retrieval and studio job behavior covered by targeted smoke tests when changing their boundaries.
+- Use `docs/architecture-ownership.md` as the owner and dependency map before changing account, retrieval, grounded task, product contract, storage, or classroom boundaries.
 - Keep production user flows C-end friendly: no API key prompts in the normal browser experience.
 
 ## Related Docs
