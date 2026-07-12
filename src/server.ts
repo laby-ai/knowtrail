@@ -6,6 +6,7 @@ import { stat } from 'fs/promises';
 import path from 'path';
 import { parse } from 'url';
 import next from 'next';
+import { observeRequest } from './lib/request-observability';
 import {
   resolveClassroomProxyTarget,
   shouldProxyMissingClassroomAsset,
@@ -57,7 +58,12 @@ function resolveRuntimePublicPath(pathname: string): string | null {
   return absolutePath;
 }
 
-function proxyClassroomRuntime(req: IncomingMessage, res: ServerResponse, pathname: string): boolean {
+function proxyClassroomRuntime(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pathname: string,
+  onError: (error: unknown) => void,
+): boolean {
   if (!classroomRuntimeOrigin) return false;
 
   const proxyTarget = resolveClassroomProxyTarget(req.url || pathname, pathname);
@@ -82,7 +88,7 @@ function proxyClassroomRuntime(req: IncomingMessage, res: ServerResponse, pathna
   });
 
   proxyReq.on('error', error => {
-    console.error('Error proxying classroom runtime', pathname, error);
+    onError(error);
     if (!res.headersSent) res.statusCode = 502;
     res.end('Classroom runtime unavailable');
   });
@@ -93,10 +99,11 @@ function proxyClassroomRuntime(req: IncomingMessage, res: ServerResponse, pathna
 
 app.prepare().then(() => {
   const server = createServer(async (req, res) => {
+    const observation = observeRequest(req, res);
     try {
       const parsedUrl = parse(req.url!, true);
       const pathname = parsedUrl.pathname || '';
-      if (proxyClassroomRuntime(req, res, pathname)) return;
+      if (proxyClassroomRuntime(req, res, pathname, observation.logError)) return;
 
       const runtimeFilePath = resolveRuntimePublicPath(pathname);
       if (runtimeFilePath && (req.method === 'GET' || req.method === 'HEAD')) {
@@ -113,7 +120,7 @@ app.prepare().then(() => {
           }
           createReadStream(runtimeFilePath)
             .on('error', error => {
-              console.error('Error serving runtime public file', pathname, error);
+              observation.logError(error);
               if (!res.headersSent) res.statusCode = 500;
               res.end();
             })
@@ -123,7 +130,7 @@ app.prepare().then(() => {
       }
       await handle(req, res, parsedUrl);
     } catch (err) {
-      console.error('Error occurred handling', req.url, err);
+      observation.logError(err);
       res.statusCode = 500;
       res.end('Internal server error');
     }
