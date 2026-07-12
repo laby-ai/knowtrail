@@ -79,6 +79,9 @@ jobs:
       - name: Grounded operational observability contract
         run: pnpm run test:grounded-operational-observability
 
+      - name: Service metrics contract
+        run: pnpm run test:service-metrics
+
       - name: Release environment gate
         run: pnpm run test:release-env-gate
 
