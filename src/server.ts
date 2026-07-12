@@ -8,6 +8,7 @@ import { parse } from 'url';
 import next from 'next';
 import { observeRequest } from './lib/request-observability';
 import { operationalObservabilityStatus } from './lib/operational-observability';
+import { PROMETHEUS_CONTENT_TYPE, serviceMetrics, trustedMetricsRequest } from './lib/service-metrics';
 import {
   resolveClassroomProxyTarget,
   shouldProxyMissingClassroomAsset,
@@ -116,6 +117,21 @@ app.prepare().then(() => {
     try {
       const parsedUrl = parse(req.url!, true);
       const pathname = parsedUrl.pathname || '';
+      if (pathname === '/api/metrics') {
+        if (!trustedMetricsRequest(req.socket.remoteAddress, req.headers['x-forwarded-for'], req.headers['x-real-ip'])) {
+          res.statusCode = 403;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'metrics_forbidden' }));
+          return;
+        }
+        const body = serviceMetrics.render();
+        res.statusCode = 200;
+        res.setHeader('Content-Type', PROMETHEUS_CONTENT_TYPE);
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.end(body);
+        return;
+      }
       if (proxyClassroomRuntime(req, res, pathname, observation.logError)) return;
 
       const runtimeFilePath = resolveRuntimePublicPath(pathname);

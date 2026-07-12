@@ -1,5 +1,7 @@
 import { createHmac, randomUUID } from 'node:crypto';
 
+import { serviceMetrics } from './service-metrics';
+
 type LogWriter = (line: string) => void;
 
 type ObservationOptions = {
@@ -72,6 +74,10 @@ export function createGroundedTaskObservation(options: ObservationOptions) {
       taskType,
       ...payload,
     }));
+    const state = typeof payload.state === 'string' ? payload.state : 'unknown';
+    const operation = payload.event === 'provider_call' ? 'model_provider' : 'grounded_task';
+    const durationSeconds = typeof payload.durationMs === 'number' ? payload.durationMs / 1000 : undefined;
+    serviceMetrics.observeOperation(operation, state, durationSeconds);
   };
 
   return {
