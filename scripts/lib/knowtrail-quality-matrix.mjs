@@ -106,6 +106,7 @@ export const KNOWTRAIL_QUALITY_MATRIX = [
     id: 'virtual-classroom',
     name: '虚拟课堂',
     category: '协作沉淀',
+    exclusiveResource: 'next-dev-worktree',
     steps: [step('production-browser', 'scripts/smoke-live-virtual-classroom.mjs', { timeoutMs: 180_000 })],
   },
 ];
