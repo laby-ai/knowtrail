@@ -49,8 +49,8 @@ assert.deepEqual(
 assert.ok(KNOWTRAIL_QUALITY_MATRIX.every(task => task.steps.length > 0));
 assert.equal(
   KNOWTRAIL_QUALITY_MATRIX.filter(task => task.exclusiveResource === 'next-dev-worktree').length,
-  11,
-  'All local UI smokes must serialize access to the shared .next directory.',
+  12,
+  'All browser smokes must serialize shared Playwright and .next resources.',
 );
 
 const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
