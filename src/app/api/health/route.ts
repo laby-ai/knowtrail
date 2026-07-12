@@ -11,6 +11,7 @@ import { internalClassroomOrigin, publicClassroomOrigin } from '@/lib/virtual-cl
 import { scientificIllustrationStoreStatus } from '@/lib/scientific-illustration-store';
 import { resolveExplainerVideoProviderConfig } from '@/lib/explainer-video-provider';
 import { operationalObservabilityStatus } from '@/lib/operational-observability';
+import { getZhiqiModelResolverHealth } from '@/lib/zhiqi-model-resolver';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,7 @@ export async function GET() {
   let internalAppOriginValid = true;
   let internalAppOriginError: string | undefined;
   const scientificIllustrationStore = await scientificIllustrationStoreStatus();
+  const unifiedModelResolver = await getZhiqiModelResolverHealth();
 
   try {
     resolveInternalAppOrigin();
@@ -52,7 +54,8 @@ export async function GET() {
     runtime: process.env.NODE_ENV || 'development',
     capabilities: {
       userProvidedOpenAICompatibleConfig: allowRequestRuntimeAIConfig(),
-      accountBoundModelConfig: true,
+      accountBoundModelConfig: unifiedModelResolver.ready,
+      unifiedModelResolver,
       serverFallbackModelConfigured: hasServerFallbackModel(),
       fileStorageAdapter: isUsingObjectStorage() ? 's3' : 'local',
       objectStorageConfigured: isObjectStorageConfigured(),

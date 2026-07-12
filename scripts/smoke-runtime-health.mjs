@@ -74,6 +74,7 @@ async function main() {
       PORT: String(port),
       DEPLOY_RUN_PORT: String(port),
       INTERNAL_APP_ORIGIN: '',
+      KNOWTRAIL_OBSERVABILITY_HASH_KEY: 'runtime-smoke-only-observability-key',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     shell: false,
@@ -87,7 +88,8 @@ async function main() {
     const { body } = await waitForHealth(origin, child);
     assert(body.ok === true, `/api/health returned not ok: ${JSON.stringify(body)}`);
     assert(body.service === 'lingbi-studio', 'health response has unexpected service name.');
-    assert(body.capabilities?.accountBoundModelConfig === true, 'health response does not advertise account-bound model config.');
+    assert(body.capabilities?.accountBoundModelConfig === false, 'health response must not claim account-bound model config without a resolver.');
+    assert(body.capabilities?.unifiedModelResolver?.status === 'not-configured', 'health response must expose the missing unified model resolver.');
     assert(body.capabilities?.userProvidedOpenAICompatibleConfig === false, 'health response should not advertise user-provided API config by default.');
     assert(body.capabilities?.vectorStore?.provider === 'zvec', 'health response does not expose zvec vector store.');
     assert(body.capabilities?.sourceStore?.provider, 'health response does not expose source store provider.');
@@ -102,7 +104,7 @@ async function main() {
       checked: [
         'cross-platform start wrapper',
         '/api/health ok response',
-        'account-bound model config capability',
+        'truthful unified model resolver capability',
         'zvec vector store health',
         'source store health',
         'Studio job store health',
