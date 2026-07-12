@@ -149,6 +149,7 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
     timedOut = true;
     controller.abort(new DOMException('Request timed out', 'TimeoutError'));
   }, timeoutMs);
+  let responseReturned = false;
 
   try {
     const response = await fetch(clientApiPath(path), {
@@ -164,6 +165,7 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
       if (redirectOnUnauthorized && typeof window !== 'undefined') window.location.replace(accountLoginUrl());
       throw httpError(response, payload);
     }
+    responseReturned = true;
     return response;
   } catch (error) {
     if (error instanceof ClientRequestError) throw error;
@@ -177,7 +179,7 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
     );
   } finally {
     clearTimeout(timeout);
-    callerSignal?.removeEventListener('abort', abortFromCaller);
+    if (!responseReturned) callerSignal?.removeEventListener('abort', abortFromCaller);
   }
 }
 

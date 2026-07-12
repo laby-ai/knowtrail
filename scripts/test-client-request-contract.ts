@@ -64,6 +64,28 @@ await assert.rejects(
   (error: unknown) => error instanceof ClientRequestError && error.code === 'cancelled',
 );
 
+let streamAbortObserved = false;
+const streamingCaller = new AbortController();
+globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => new Response(new ReadableStream({
+  start(controller) {
+    controller.enqueue(new TextEncoder().encode('data: first\n\n'));
+    init?.signal?.addEventListener('abort', () => {
+      streamAbortObserved = true;
+      controller.error(new DOMException('aborted', 'AbortError'));
+    }, { once: true });
+  },
+}))) as typeof fetch;
+const streamingResponse = await clientApiRequest('/api/stream', { timeoutMs: 1000, signal: streamingCaller.signal });
+const streamingReader = streamingResponse.body?.getReader();
+assert.ok(streamingReader, 'streaming response reader missing');
+assert.equal((await streamingReader.read()).done, false);
+streamingCaller.abort();
+await assert.rejects(Promise.race([
+  streamingReader.read(),
+  new Promise((_, reject) => setTimeout(() => reject(new Error('stream abort was not propagated')), 50)),
+]), /aborted/);
+assert.equal(streamAbortObserved, true, 'caller cancellation must reach fetch after response headers arrive');
+
 globalThis.fetch = (async () => new Response(
   JSON.stringify({ error: 'permission_denied' }),
   { status: 403, headers: { 'content-type': 'application/json' } },
