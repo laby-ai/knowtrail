@@ -13,6 +13,7 @@ import {
   removeUncitedDeepResearchClaims,
 } from '@/lib/deep-research-contract';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
+import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
@@ -111,6 +112,13 @@ export async function POST(request: NextRequest) {
   if (request.signal.aborted) abortFromRequest();
   else request.signal.addEventListener('abort', abortFromRequest, { once: true });
 
+  const taskObservation = createGroundedTaskObservation({
+    requestId: request.headers.get('x-request-id'),
+    tenantId: scope.tenantId,
+    memberId: scope.ownerMemberId,
+    taskType: 'deep-research',
+  });
+
   const encoder = new TextEncoder();
   let streamClosed = false;
   const stream = new ReadableStream({
@@ -127,6 +135,7 @@ export async function POST(request: NextRequest) {
       let answerText = '';
 
       try {
+        taskObservation.running();
         emit({
           progress: {
             stage: 'evidence-ready',
@@ -147,7 +156,7 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        for await (const chunk of llmStream([
+        for await (const chunk of taskObservation.observeProvider(llmStream([
           { role: 'system', content: SYSTEM_PROMPTS.reportGeneration },
           { role: 'user', content: prompt },
         ], {
@@ -155,7 +164,7 @@ export async function POST(request: NextRequest) {
           temperature: 0.35,
           maxTokens: 3200,
           signal: taskController.signal,
-        }, undefined, runtimeConfig)) {
+        }, undefined, runtimeConfig))) {
           answerText += chunk;
           emit({ content: chunk });
         }
@@ -201,7 +210,7 @@ export async function POST(request: NextRequest) {
             evidenceContext: grounded.promptContext,
             sourceCount: papers.length,
           });
-          for await (const chunk of llmStream([
+          for await (const chunk of taskObservation.observeProvider(llmStream([
             { role: 'system', content: SYSTEM_PROMPTS.reportGeneration },
             { role: 'user', content: repairPrompt },
           ], {
@@ -209,7 +218,7 @@ export async function POST(request: NextRequest) {
             temperature: 0.1,
             maxTokens: 2400,
             signal: taskController.signal,
-          }, undefined, runtimeConfig)) {
+          }, undefined, runtimeConfig))) {
             repairedAnswer += chunk;
           }
           citationAudit = auditCitationMarkers(repairedAnswer, grounded.citations);
@@ -256,6 +265,7 @@ export async function POST(request: NextRequest) {
           },
           billing,
         });
+        taskObservation.succeeded();
         emit('[DONE]');
         if (!streamClosed) {
           streamClosed = true;
@@ -266,6 +276,8 @@ export async function POST(request: NextRequest) {
           await usageReservation.release().catch(() => undefined);
         }
         const aborted = taskController.signal.aborted;
+        if (aborted) taskObservation.cancelled('deep_research_interrupted');
+        else taskObservation.failed('deep_research_failed', error);
         emit({
           error: aborted
             ? '深度研究已停止或超过等待时间；已返回的证据和正文片段仍可保留核验。'

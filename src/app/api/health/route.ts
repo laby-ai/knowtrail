@@ -10,6 +10,7 @@ import { allowRequestRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { internalClassroomOrigin, publicClassroomOrigin } from '@/lib/virtual-classroom/runtime-config';
 import { scientificIllustrationStoreStatus } from '@/lib/scientific-illustration-store';
 import { resolveExplainerVideoProviderConfig } from '@/lib/explainer-video-provider';
+import { operationalObservabilityStatus } from '@/lib/operational-observability';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,7 @@ export async function GET() {
         internalOriginConfigured: Boolean(internalClassroomOrigin()),
         proxyEnabled: publicClassroomOrigin() === '/classroom-runtime',
       },
+      operationalObservability: operationalObservabilityStatus(),
     },
     deployment: {
       internalAppOriginConfigured: Boolean(process.env.INTERNAL_APP_ORIGIN?.trim()),

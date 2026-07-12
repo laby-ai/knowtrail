@@ -4,6 +4,7 @@ import { reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
+import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import {
   buildHypothesisGenerationPrompt,
   classifyHypothesisGeneration,
@@ -100,6 +101,13 @@ export async function POST(request: NextRequest) {
   if (request.signal.aborted) abortFromRequest();
   else request.signal.addEventListener('abort', abortFromRequest, { once: true });
 
+  const taskObservation = createGroundedTaskObservation({
+    requestId: request.headers.get('x-request-id'),
+    tenantId: scope.tenantId,
+    memberId: scope.ownerMemberId,
+    taskType: 'hypothesis-generation',
+  });
+
   const encoder = new TextEncoder();
   let streamClosed = false;
   const stream = new ReadableStream({
@@ -117,6 +125,7 @@ export async function POST(request: NextRequest) {
       let reservationFinalized = false;
 
       try {
+        taskObservation.running();
         emit({
           progress: {
             stage: 'evidence-ready',
@@ -135,7 +144,7 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        for await (const chunk of llmStream([
+        for await (const chunk of taskObservation.observeProvider(llmStream([
           { role: 'system', content: HYPOTHESIS_SYSTEM_PROMPT },
           { role: 'user', content: prompt },
         ], {
@@ -143,7 +152,7 @@ export async function POST(request: NextRequest) {
           temperature: 0.4,
           maxTokens: 3000,
           signal: taskController.signal,
-        }, undefined, runtimeConfig)) {
+        }, undefined, runtimeConfig))) {
           rawOutput += chunk;
         }
 
@@ -174,6 +183,7 @@ export async function POST(request: NextRequest) {
         try {
           result = parseHypothesisGenerationOutput(rawOutput);
         } catch (parseError) {
+          taskObservation.failed('hypothesis_generation_invalid_output', parseError);
           emit({
             error: parseError instanceof Error ? parseError.message : '模型返回的假设结构不完整。',
             errorType: 'hypothesis_generation_invalid_output',
@@ -213,6 +223,7 @@ export async function POST(request: NextRequest) {
           },
           billing,
         });
+        taskObservation.succeeded();
         emit('[DONE]');
         if (!streamClosed) {
           streamClosed = true;
@@ -224,6 +235,8 @@ export async function POST(request: NextRequest) {
           else await usageReservation.release().catch(() => undefined);
         }
         const aborted = taskController.signal.aborted;
+        if (aborted) taskObservation.cancelled('hypothesis_generation_interrupted');
+        else taskObservation.failed('hypothesis_generation_failed', error);
         emit({
           error: aborted
             ? '假设生成已停止或超过等待时间；未通过结构检查的内容不会展示为可用假设。'

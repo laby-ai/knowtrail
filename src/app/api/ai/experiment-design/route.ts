@@ -11,6 +11,7 @@ import {
   parseExperimentDesignOutput,
 } from '@/lib/experiment-design-contract';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
+import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
@@ -139,6 +140,13 @@ export async function POST(request: NextRequest) {
   if (request.signal.aborted) abortFromRequest();
   else request.signal.addEventListener('abort', abortFromRequest, { once: true });
 
+  const taskObservation = createGroundedTaskObservation({
+    requestId: request.headers.get('x-request-id'),
+    tenantId: scope.tenantId,
+    memberId: scope.ownerMemberId,
+    taskType: 'experiment-design',
+  });
+
   const encoder = new TextEncoder();
   let streamClosed = false;
   const stream = new ReadableStream({
@@ -156,6 +164,7 @@ export async function POST(request: NextRequest) {
       let reservationFinalized = false;
 
       try {
+        taskObservation.running();
         emit({
           progress: {
             stage: 'evidence-ready',
@@ -174,7 +183,7 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        for await (const chunk of llmStream([
+        for await (const chunk of taskObservation.observeProvider(llmStream([
           { role: 'system', content: EXPERIMENT_DESIGN_SYSTEM_PROMPT },
           { role: 'user', content: prompt },
         ], {
@@ -182,7 +191,7 @@ export async function POST(request: NextRequest) {
           temperature: 0.25,
           maxTokens: 4600,
           signal: taskController.signal,
-        }, undefined, runtimeConfig)) {
+        }, undefined, runtimeConfig))) {
           rawOutput += chunk;
         }
 
@@ -213,6 +222,7 @@ export async function POST(request: NextRequest) {
         try {
           protocol = parseExperimentDesignOutput(rawOutput);
         } catch (parseError) {
+          taskObservation.failed('experiment_design_invalid_output', parseError);
           emit({
             error: parseError instanceof Error ? parseError.message : '模型返回的实验设计结构不完整。',
             errorType: 'experiment_design_invalid_output',
@@ -249,6 +259,7 @@ export async function POST(request: NextRequest) {
           },
           billing,
         });
+        taskObservation.succeeded();
         emit('[DONE]');
         if (!streamClosed) {
           streamClosed = true;
@@ -260,6 +271,8 @@ export async function POST(request: NextRequest) {
           else await usageReservation.release().catch(() => undefined);
         }
         const aborted = taskController.signal.aborted;
+        if (aborted) taskObservation.cancelled('experiment_design_interrupted');
+        else taskObservation.failed('experiment_design_failed', error);
         emit({
           error: aborted
             ? '实验设计生成已停止或超过等待时间；未通过完整结构检查的内容不会展示为可用协议。'

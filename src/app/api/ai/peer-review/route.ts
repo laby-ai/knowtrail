@@ -4,6 +4,7 @@ import { reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
+import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import {
   auditPeerReviewReport,
   buildPeerReviewMarkdown,
@@ -107,6 +108,13 @@ export async function POST(request: NextRequest) {
   if (request.signal.aborted) abortFromRequest();
   else request.signal.addEventListener('abort', abortFromRequest, { once: true });
 
+  const taskObservation = createGroundedTaskObservation({
+    requestId: request.headers.get('x-request-id'),
+    tenantId: accountScope.tenantId,
+    memberId: accountScope.ownerMemberId,
+    taskType: 'peer-review',
+  });
+
   const encoder = new TextEncoder();
   let streamClosed = false;
   const stream = new ReadableStream({
@@ -123,6 +131,7 @@ export async function POST(request: NextRequest) {
       let rawOutput = '';
       let reservationFinalized = false;
       try {
+        taskObservation.running();
         emit({
           progress: {
             stage: 'reading',
@@ -143,7 +152,7 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        for await (const chunk of llmStream([
+        for await (const chunk of taskObservation.observeProvider(llmStream([
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: prompt },
         ], {
@@ -151,7 +160,7 @@ export async function POST(request: NextRequest) {
           temperature: 0.15,
           maxTokens: 5200,
           signal: taskController.signal,
-        }, undefined, runtimeConfig)) rawOutput += chunk;
+        }, undefined, runtimeConfig))) rawOutput += chunk;
 
         emit({ progress: { stage: 'auditing', progress: 91, message: '正在核对稿件片段、证据编号和审查边界。' } });
         let billing: { status: 'settled' } | { status: 'settle_failed'; code: string } | undefined;
@@ -170,6 +179,7 @@ export async function POST(request: NextRequest) {
         try {
           report = parsePeerReviewOutput(rawOutput);
         } catch (parseError) {
+          taskObservation.failed('peer_review_invalid_output', parseError);
           emit({
             error: parseError instanceof Error ? parseError.message : '模型返回的论文审查结构不完整。',
             errorType: 'peer_review_invalid_output',
@@ -181,6 +191,7 @@ export async function POST(request: NextRequest) {
         }
         const audit = auditPeerReviewReport(manuscript, report, citations.length);
         if (!audit.safe) {
+          taskObservation.failed('peer_review_unsafe_output', new Error('UnsafeOutput'));
           emit({
             error: '审查报告包含无法定位的意见、无效证据或编辑评分，已拒绝展示。请重试或收窄审查范围。',
             errorType: 'peer_review_unsafe_output',
@@ -205,6 +216,7 @@ export async function POST(request: NextRequest) {
           ],
           billing,
         });
+        taskObservation.succeeded();
         emit('[DONE]');
         if (!streamClosed) { streamClosed = true; controller.close(); }
       } catch (error) {
@@ -213,6 +225,8 @@ export async function POST(request: NextRequest) {
           else await reservation.release().catch(() => undefined);
         }
         const aborted = taskController.signal.aborted;
+        if (aborted) taskObservation.cancelled('peer_review_interrupted');
+        else taskObservation.failed('peer_review_failed', error);
         emit({
           error: aborted
             ? '论文审查已停止或超过等待时间；未通过完整定位检查的报告不会展示。'

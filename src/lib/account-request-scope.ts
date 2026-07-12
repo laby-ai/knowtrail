@@ -3,6 +3,7 @@ import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/acc
 import { normalizeNotebookId } from '@/lib/notebook-scope';
 
 export interface AccountNotebookScope {
+  tenantId?: string;
   ownerMemberId?: string;
   notebookId?: string;
 }
@@ -33,6 +34,7 @@ export async function resolveAccountNotebookScope(
     }
     return {
       ok: true,
+      tenantId: accountSession?.tenant_id,
       ownerMemberId: accountSession?.member.id,
       notebookId: normalizeNotebookId(input.notebookId),
     };
