@@ -79,7 +79,7 @@ assert.match(routeSource, /reserveAIUsage/, 'Route should preserve account billi
 assert.match(routeSource, /llmStream/, 'Route should stream through the real model client.');
 assert.match(routeSource, /request\.signal/, 'Route should propagate cancellation.');
 assert.match(routeSource, /academic_writing_no_evidence/, 'Route should reject drafting without substantive evidence.');
-assert.match(routeSource, /X-Accel-Buffering[^\n]+no/, 'Route should disable proxy buffering.');
+assert.match(routeSource, /createGroundedSseResponse/, 'Route should delegate SSE headers and cancellation to the grounded lifecycle owner.');
 
 console.log(JSON.stringify({ ok: true, checked: [
   'paragraph roles and claim-evidence mapping are required',
