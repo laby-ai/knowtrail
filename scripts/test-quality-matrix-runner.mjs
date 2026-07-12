@@ -54,6 +54,10 @@ assert.equal(
 );
 
 const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const matrixCli = fs.readFileSync('scripts/run-quality-matrix.mjs', 'utf8');
+assert.match(matrixCli, /BIND_HOST:\s*valueArg\('bind-host',[\s\S]*'127\.0\.0\.1'/, 'The matrix must align smoke origins with an explicit IPv4 loopback listener.');
+assert.match(matrixCli, /process\.env\.KNOWTRAIL_OBSERVABILITY_HASH_KEY \|\| randomBytes\(32\)/, 'The matrix must generate an isolated observability hash key without weakening production fail-closed behavior.');
+assert.match(matrixCli, /KNOWTRAIL_OBSERVABILITY_HASH_KEY: observabilityHashKey/, 'Every matrix smoke must receive the isolated observability key.');
 assert.equal(packageJson.scripts?.['smoke:quality-matrix'], 'node ./scripts/run-quality-matrix.mjs');
 assert.equal(packageJson.scripts?.['test:quality-matrix-runner'], 'node ./scripts/test-quality-matrix-runner.mjs');
 assert.match(packageJson.scripts?.validate || '', /test:quality-matrix-runner/);

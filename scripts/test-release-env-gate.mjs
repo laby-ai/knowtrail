@@ -142,6 +142,7 @@ try {
   assert.match(deploySource, /prepare-release-env/);
   assert.match(deploySource, /verify-release-health/);
   assert.match(installSource, /tar -tzf "\$CLASSROOM_RUNTIME_ARCHIVE" \| sed 's#\^\\\.\/#\#'/);
+  assert.match(installSource, /tar -xzf "\$CLASSROOM_RUNTIME_ARCHIVE"[\s\S]*rm -f "\$CLASSROOM_RUNTIME_ARCHIVE"/, 'Installed classroom runtime archives must not remain duplicated inside a release.');
   assert.doesNotMatch(installSource, /printf '%s\\n'.*\| grep -[EF]q/);
   assert.match(installSource, /grep -Fq "\$required" <<< "\$CLASSROOM_RUNTIME_ENTRIES"/);
   assert.match(installSource, /OpenMAIC runtime archive contains an unsafe path/);
