@@ -8,7 +8,7 @@ Type=simple
 WorkingDirectory=/opt/lingbi-studio
 EnvironmentFile=/opt/lingbi-studio/.env.production
 Environment=BIND_HOST=127.0.0.1
-ExecStart=/opt/lingbi-studio/start.sh
+ExecStart=/bin/bash /opt/lingbi-studio/start.sh
 Restart=always
 RestartSec=5
 User=lingbi

@@ -129,6 +129,7 @@ try {
   const healthRouteSource = await readFile(path.join(process.cwd(), 'src/app/api/health/route.ts'), 'utf8');
   const deploySource = await readFile(path.join(process.cwd(), 'deploy/linux/deploy.sh'), 'utf8');
   const installSource = await readFile(path.join(process.cwd(), 'deploy/linux/install.sh'), 'utf8');
+  const systemdSource = await readFile(path.join(process.cwd(), 'deploy/linux/lingbi-studio.service'), 'utf8');
   const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
   const ciSource = await readFile(path.join(process.cwd(), '.github/workflows/ci.yml'), 'utf8')
     .catch(error => {
@@ -144,6 +145,7 @@ try {
   assert.match(installSource, /tar -tzf "\$CLASSROOM_RUNTIME_ARCHIVE" \| sed 's#\^\\\.\/#\#'/);
   assert.doesNotMatch(installSource, /printf '%s\\n'.*\| grep -[EF]q/);
   assert.match(installSource, /grep -Fq "\$required" <<< "\$CLASSROOM_RUNTIME_ENTRIES"/);
+  assert.match(systemdSource, /ExecStart=\/bin\/bash \/opt\/lingbi-studio\/start\.sh/);
   assert.match(installSource, /OpenMAIC runtime archive contains an unsafe path/);
   assert.match(installSource, /OpenMAIC runtime archive did not produce a standalone server/);
   assert(
