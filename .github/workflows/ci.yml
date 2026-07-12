@@ -82,6 +82,9 @@ jobs:
       - name: Service metrics contract
         run: pnpm run test:service-metrics
 
+      - name: Long-task admission contract
+        run: pnpm run test:long-task-admission
+
       - name: Release environment gate
         run: pnpm run test:release-env-gate
 

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { llmStream } from '@/lib/ai-service';
-import { reserveAIUsage } from '@/lib/account-ai-billing';
+import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
@@ -94,11 +94,12 @@ export async function POST(request: NextRequest) {
       inputText: manuscript,
       promptContext: `${scope}\n${grounded?.promptContext || 'no external sources selected'}`,
       memberId: accountScope.ownerMemberId,
+      idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {
     const status = billingError instanceof AccountServiceError ? billingError.status : 402;
     const code = billingError instanceof AccountServiceError ? billingError.code : 'account_billing_failed';
-    return jsonError('账号积分不足，请先充值，或联系管理员分配积分后再审查论文。', code, status);
+    return jsonError(accountUsageErrorMessage(billingError, '账号积分不足，请先充值，或联系管理员分配积分后再审查论文。'), code, status);
   }
 
   const configuredTimeoutMs = Number(process.env.PEER_REVIEW_LLM_TIMEOUT_MS || 120_000);
