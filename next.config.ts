@@ -1,8 +1,15 @@
 import type { NextConfig } from 'next';
 
+function normalizePublicBasePath(value: string | undefined): string {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === '/') return '';
+  return `/${trimmed.replace(/^\/+|\/+$/g, '')}`;
+}
+
+const publicBasePath = normalizePublicBasePath(process.env.NEXT_PUBLIC_BASE_PATH);
+
 const nextConfig: NextConfig = {
-  // outputFileTracingRoot: path.resolve(__dirname, '../../'),  // Uncomment and add 'import path from "path"' if needed
-  /* config options here */
+  basePath: publicBasePath || undefined,
   serverExternalPackages: ['@zvec/zvec', 'pg'],
   images: {
     remotePatterns: [

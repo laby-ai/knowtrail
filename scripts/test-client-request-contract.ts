@@ -30,6 +30,9 @@ assert.deepEqual(contract.errors, [
 ]);
 
 process.env.NEXT_PUBLIC_BASE_PATH = '/lingbi';
+const nextConfig = fs.readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8');
+assert.match(nextConfig, /basePath:\s*publicBasePath/);
+assert.match(nextConfig, /NEXT_PUBLIC_BASE_PATH/);
 assert.equal(clientApiPath('/api/health'), '/lingbi/api/health');
 assert.equal(clientApiPath('/lingbi/api/health'), '/lingbi/api/health');
 assert.equal(clientApiPath('https://example.com/file'), 'https://example.com/file');
