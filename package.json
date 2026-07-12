@@ -103,6 +103,7 @@
     "test:vector-store": "tsx ./scripts/test-vector-store.ts",
     "test:quality-matrix-runner": "node ./scripts/test-quality-matrix-runner.mjs",
     "test:cross-app-auth-contract": "tsx ./scripts/test-cross-app-auth-contract.ts",
+    "test:zhiqi-host-context": "tsx ./scripts/test-zhiqi-host-context.ts",
     "test:client-request-contract": "tsx ./scripts/test-client-request-contract.ts",
     "test:loopback-listener-contract": "node ./scripts/test-loopback-listener-contract.mjs",
     "test:request-observability": "tsx ./scripts/test-request-observability.ts",

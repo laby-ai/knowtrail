@@ -7,26 +7,32 @@ type WorkbenchTopBarProps = {
   workspaceTitle: string;
   onBackHome: () => void;
   onSignOut: () => void;
+  embedded?: boolean;
 };
 
 export function WorkbenchTopBar({
   workspaceTitle,
   onBackHome,
   onSignOut,
+  embedded = false,
 }: WorkbenchTopBarProps) {
   return (
     <header className="z-40 flex h-16 flex-shrink-0 items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]/94 px-4 text-[var(--text-primary)] shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-xl">
       <div className="flex min-w-0 items-center gap-3">
-        <button
-          type="button"
-          onClick={onBackHome}
-          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
-          aria-label="返回文献本列表"
-          title="返回文献本列表"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <BrandMark compact className="hidden h-10 w-10 border-[var(--border-subtle)] shadow-none sm:block" />
+        {!embedded && (
+          <>
+            <button
+              type="button"
+              onClick={onBackHome}
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
+              aria-label="返回文献本列表"
+              title="返回文献本列表"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <BrandMark compact className="hidden h-10 w-10 border-[var(--border-subtle)] shadow-none sm:block" />
+          </>
+        )}
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             <p className="truncate text-sm font-semibold leading-5 sm:text-base" data-testid="workbench-topbar-title">
@@ -42,7 +48,7 @@ export function WorkbenchTopBar({
         </div>
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-2">
+      {!embedded && <div className="flex flex-shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onSignOut}
@@ -53,7 +59,7 @@ export function WorkbenchTopBar({
         >
           <LogOut className="h-4 w-4" />
         </button>
-      </div>
+      </div>}
     </header>
   );
 }

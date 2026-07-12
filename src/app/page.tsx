@@ -31,6 +31,11 @@ import {
   featuredNotebookToWorkspace,
   isFeaturedNotebookId,
 } from '@/components/home/featured-notebooks';
+import {
+  EMPTY_ZHIQI_HOST_CONTEXT,
+  parseZhiqiHostContext,
+  type ZhiqiHostContext,
+} from '@/lib/zhiqi-host-context';
 
 function WorkbenchCenterPanel() {
   const { virtualClassroomViewer, knowledgeMapViewer } = useApp();
@@ -47,6 +52,7 @@ function AcademicPresenterContent({
   onSourceGuideDismiss,
   accountSession,
   accountAuthRequired,
+  embedded,
 }: {
   workspaceTitle: string;
   onBackHome: () => void;
@@ -55,6 +61,7 @@ function AcademicPresenterContent({
   onSourceGuideDismiss: () => void;
   accountSession: AccountAuthSession | null;
   accountAuthRequired: boolean;
+  embedded: boolean;
 }) {
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -67,6 +74,7 @@ function AcademicPresenterContent({
         workspaceTitle={workspaceTitle}
         onBackHome={onBackHome}
         onSignOut={onSignOut}
+        embedded={embedded}
       />
       <div className="min-h-0 flex-1">
         <ThreeColumnLayout
@@ -101,6 +109,7 @@ export default function HomePage() {
   const [accountStatus, setAccountStatus] = useState<AccountCenterStatus | null>(null);
   const [accountSession, setAccountSession] = useState<AccountAuthSession | null>(null);
   const [accountSessionReady, setAccountSessionReady] = useState(false);
+  const [hostContext, setHostContext] = useState<ZhiqiHostContext>(EMPTY_ZHIQI_HOST_CONTEXT);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,7 +232,10 @@ export default function HomePage() {
   useEffect(() => {
     const applyRouteState = () => {
       const params = new URLSearchParams(window.location.search);
+      const nextHostContext = parseZhiqiHostContext(params);
+      setHostContext(nextHostContext);
       const isWorkbenchRoute =
+        nextHostContext.enabled ||
         window.location.hash === '#workbench' ||
         params.get('view') === 'workbench';
 
@@ -259,6 +271,30 @@ export default function HomePage() {
       window.removeEventListener('popstate', applyRouteState);
     };
   }, []);
+
+  useEffect(() => {
+    if (!hostContext.enabled || !notebooksReady) return;
+    setNotebooks(prev => {
+      const current = prev.length > 0 ? prev : createDefaultNotebooks();
+      const existing = current.find(notebook => notebook.id === hostContext.notebookId);
+      if (existing) {
+        if (existing.title === hostContext.workspaceTitle) return current;
+        return current.map(notebook => notebook.id === hostContext.notebookId
+          ? { ...notebook, title: hostContext.workspaceTitle }
+          : notebook);
+      }
+      return [{
+        id: hostContext.notebookId,
+        title: hostContext.workspaceTitle,
+        sourceCount: 0,
+        updatedAt: new Date().toISOString(),
+        accent: 'from-blue-50 via-white to-sky-50',
+      }, ...current];
+    });
+    setActiveNotebookId(hostContext.notebookId);
+    setShowLanding(false);
+    setEntered(true);
+  }, [hostContext, notebooksReady]);
 
   const accountAuthRequired = accountStatus?.authRequired === true;
   const requiresAccountSignIn = accountAuthRequired && accountSessionReady && !accountSession;
@@ -389,6 +425,7 @@ export default function HomePage() {
             onSourceGuideDismiss={() => setShowSourceGuide(false)}
             accountSession={accountSession}
             accountAuthRequired={accountStatus?.authRequired !== false}
+            embedded={hostContext.enabled}
           />
         ) : showLanding ? (
           <LandingPage
