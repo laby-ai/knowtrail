@@ -12,6 +12,7 @@ import { KnowledgeMapWorkspace } from '@/components/studio/KnowledgeMapWorkspace
 import { LiquidGlassProvider } from '@/components/ui/liquid-glass-provider';
 import { useApp } from '@/contexts/AppContext';
 import { clearAccountSession, readStoredAccountSession, revokeStoredAccountSession } from '@/lib/account-session-browser';
+import { clientApiRequest } from '@/lib/client-api';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { LandingPage } from '@/components/home/LandingPage';
 import { NotebookHome } from '@/components/home/NotebookHome';
@@ -36,6 +37,7 @@ import {
   parseZhiqiHostContext,
   type ZhiqiHostContext,
 } from '@/lib/zhiqi-host-context';
+import { installZhiqiPortalAuthBridge } from '@/lib/zhiqi-portal-auth';
 
 function WorkbenchCenterPanel() {
   const { virtualClassroomViewer, knowledgeMapViewer } = useApp();
@@ -112,6 +114,13 @@ export default function HomePage() {
   const [hostContext, setHostContext] = useState<ZhiqiHostContext>(EMPTY_ZHIQI_HOST_CONTEXT);
 
   useEffect(() => {
+    if (!hostContext.enabled) return;
+    return installZhiqiPortalAuthBridge(() => {
+      window.dispatchEvent(new CustomEvent('knowtrail-account-session-changed'));
+    });
+  }, [hostContext.enabled]);
+
+  useEffect(() => {
     let cancelled = false;
     async function loadAccountSession() {
       const stored = readStoredAccountSession();
@@ -123,9 +132,9 @@ export default function HomePage() {
         return;
       }
       try {
-        const response = await fetch('/api/account/session', {
+        const response = await clientApiRequest('/api/account/session', {
           cache: 'no-store',
-          headers: { Authorization: `Bearer ${stored.token}` },
+          redirectOnUnauthorized: false,
         });
         if (!response.ok) {
           if (!cancelled) clearAccountSession();

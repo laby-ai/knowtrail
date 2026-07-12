@@ -2,6 +2,7 @@
 
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { clientApiRequest } from '@/lib/client-api';
+import { readZhiqiPortalAuth } from '@/lib/zhiqi-portal-auth';
 
 const ACCOUNT_SESSION_KEY = 'knowtrail-account-session';
 const ACCOUNT_CENTER_TOKEN_KEY = 'account_entitlement_token';
@@ -37,6 +38,8 @@ function placeholderSessionFromToken(token: string): AccountAuthSession {
 export function readStoredAccountSession(): AccountAuthSession | null {
   if (typeof window === 'undefined') return null;
   try {
+    const portalAuth = readZhiqiPortalAuth();
+    if (portalAuth) return placeholderSessionFromToken(portalAuth.accessToken);
     const raw = window.localStorage.getItem(ACCOUNT_SESSION_KEY);
     if (!raw) {
       const accountCenterToken = readAccountCenterToken();

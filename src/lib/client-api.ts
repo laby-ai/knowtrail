@@ -1,5 +1,7 @@
 'use client';
 
+import { readZhiqiPortalAuthHeaders } from '@/lib/zhiqi-portal-auth';
+
 const ACCOUNT_TOKEN_KEYS = ["knowtrail-account-session","account_entitlement_token"];
 const DEFAULT_TIMEOUT_MS = 20_000;
 const FALLBACK_LOGIN_URL = '/account-login.html?next=%2Flingbi';
@@ -75,6 +77,8 @@ export function hasStoredAccountToken(): boolean {
 }
 
 export function accountAuthHeaders(): Record<string, string> {
+  const portalHeaders = readZhiqiPortalAuthHeaders();
+  if (portalHeaders.Authorization) return portalHeaders;
   const token = getStoredAccountToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
@@ -134,6 +138,10 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
     ...init
   } = options;
   const requestHeaders = new Headers(headers);
+  const portalHeaders = skipAuth ? {} : readZhiqiPortalAuthHeaders();
+  Object.entries(portalHeaders).forEach(([name, value]) => {
+    if (!requestHeaders.has(name)) requestHeaders.set(name, value);
+  });
   const token = skipAuth ? '' : getStoredAccountToken();
   if (token && !requestHeaders.has('Authorization')) requestHeaders.set('Authorization', `Bearer ${token}`);
   if (init.body && typeof init.body === 'string' && !requestHeaders.has('Content-Type')) {

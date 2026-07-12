@@ -95,6 +95,34 @@ export async function resolveAccountAuthContext(token: string): Promise<AccountA
   return readAccountResponse<AccountAuthContext>(response);
 }
 
+export async function resolveZhiqiPortalAuthContext(token: string, tenantId: string): Promise<AccountAuthContext> {
+  const endpoint = envValue('ZHIQI_PORTAL_AUTH_INFO_URL');
+  if (!endpoint) throw new Error('zhiqi_portal_auth_not_configured');
+  const response = await fetch(endpoint, {
+    headers: { Authorization: `Bearer ${token}`, 'tenant-id': tenantId },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(8_000),
+  });
+  const payload = await response.json().catch(() => null) as {
+    code?: number;
+    data?: { user?: { id?: number | string; nickname?: string; username?: string } };
+  } | null;
+  const user = payload?.code === 0 ? payload.data?.user : undefined;
+  if (!response.ok || user?.id === undefined || user.id === null) throw new Error('invalid_zhiqi_portal_session');
+  const username = String(user.username || user.id);
+  return {
+    tenant_id: tenantId,
+    tenant_name: '北京国家会计学院',
+    member: {
+      id: `zhiqi:${tenantId}:${user.id}`,
+      display_name: String(user.nickname || username),
+      email: '',
+      role_key: 'zhiqi_portal_user',
+      status: 'active',
+    },
+  };
+}
+
 export async function logoutAccountUser(token: string): Promise<void> {
   const baseUrl = getAccountApiBase();
   if (!baseUrl) throw new Error('account_api_not_configured');
