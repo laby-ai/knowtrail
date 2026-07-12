@@ -70,6 +70,7 @@ export interface StoredSourceRecord {
 
 export interface IngestionSourceInput extends RagSourceInput {
   id: string;
+  createdAt?: string;
   ownerMemberId?: string;
   notebookId?: string;
   fileName: string;

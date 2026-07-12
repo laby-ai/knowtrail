@@ -34,6 +34,7 @@ import type { SourceMatrixFacet } from '@/lib/source-matrix';
 import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
 import { DiscoverSourcesModal } from './DiscoverSourcesModal';
+import { IngestionRetryButton } from './IngestionRetryButton';
 
 const SUPPORTED_TYPES: Record<string, FileType> = {
   'application/pdf': 'pdf',
@@ -1105,6 +1106,21 @@ export function LibraryPanel({
                             </span>
                           )}
                         </div>
+                        {(paper.ingestionStatus === 'failed' || paper.ingestionStatus === 'error') && (
+                          <IngestionRetryButton
+                            paperId={paper.id}
+                            notebookId={notebookId}
+                            onRetried={async source => {
+                              updatePaper(paper.id, {
+                                ingestionStatus: source.status,
+                                ingestionStages: source.stages,
+                                ingestionChunkCount: source.chunkCount,
+                                vectorIndex: source.vectorIndex,
+                              });
+                              await syncIngestionSources();
+                            }}
+                          />
+                        )}
                         {citationFocus?.paperId === paper.id && (
                           <div
                             data-testid="library-citation-focus"

@@ -769,7 +769,7 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
     storageKey: input.fileKey,
     fileUrl: input.fileUrl,
     status: 'pending',
-    createdAt: timestamp,
+    createdAt: input.createdAt || timestamp,
     updatedAt: timestamp,
     stages: createStages(),
     chunks: [],

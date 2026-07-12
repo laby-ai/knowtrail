@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
-import { isProduction, storeFile, retrieveFileBuffer, downloadToTemp } from '@/lib/storage';
+import { isProduction, storeFile, downloadToTemp } from '@/lib/storage';
 import { parseRuntimeAIConfigJson, resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { resolveInternalAppOrigin } from '@/lib/internal-origin';
 import { ingestExtractedSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
 import { classifyMinerUJobFailure, mineruJobErrorMessage, mineruJobOptionsFromEnv } from '@/lib/mineru-job';
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { extractDocumentContent, isImageDocumentType } from '@/lib/document-extraction';
 
 const SUPPORTED_TYPES = new Set([
   'pdf', 'doc', 'docx', 'txt', 'md',
@@ -40,12 +40,8 @@ function getFileExt(fileName: string): string {
   return fileName.split('.').pop()?.toLowerCase() || '';
 }
 
-function isImageType(ext: string): boolean {
-  return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
-}
-
 function shouldAnalyzeUploadWithAI(ext: string, extractedContent: string): boolean {
-  if (isImageType(ext) || ext === 'pdf') return true;
+  if (isImageDocumentType(ext) || ext === 'pdf') return true;
   if (['txt', 'md', 'csv'].includes(ext)) return false;
   return extractedContent.trim().length < 1200;
 }
@@ -127,178 +123,6 @@ async function triggerMinerUExtraction(paperId: string, fileKeyOrPath: string, f
   }
 
   await updateSourceMinerUStatus(paperId, 'failed', { error: lastFailureMessage });
-}
-
-async function extractPdfText(filePath: string): Promise<string> {
-  try {
-    // pdf-parse v1 会加载内部测试文件，在 Next.js 环境中找不到，设置环境变量跳过
-    process.env.PDF_PARSER_DISABLE_TEST = '1';
-    const pdfParse = (await import('pdf-parse-fixed')).default;
-    const fs = await import('fs/promises');
-    const dataBuffer = await fs.readFile(filePath);
-    const result = await pdfParse(dataBuffer);
-    return result.text || '';
-  } catch (e) {
-    console.error('[extractPdfText] Failed:', e instanceof Error ? e.message : 'unknown');
-    return '';
-  }
-}
-
-async function extractDocxText(filePath: string): Promise<string> {
-  const mammoth = await import('mammoth');
-
-  // 方式1: extractRawText 提取纯文本
-  try {
-    const result = await mammoth.extractRawText({ path: filePath });
-    if (result.value && result.value.trim().length > 0) {
-      return result.value;
-    }
-  } catch (e) {
-    console.error('[extractDocxText] extractRawText failed:', e instanceof Error ? e.message : 'unknown');
-  }
-
-  // 方式2: convertToHtml 再去标签（某些 DOCX extractRawText 为空但 HTML 有内容）
-  try {
-    const result = await mammoth.convertToHtml({ path: filePath });
-    if (result.value && result.value.trim().length > 0) {
-      // 简单去 HTML 标签
-      return result.value.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-    }
-  } catch (e) {
-    console.error('[extractDocxText] convertToHtml failed:', e instanceof Error ? e.message : 'unknown');
-  }
-
-  // 方式3: 读取 ZIP 内的 word/document.xml 直接提取 <w:t> 文本
-  try {
-    const fs = await import('fs/promises');
-    const buffer = await fs.readFile(filePath);
-    const JSZip = (await import('jszip')).default;
-    const zip = await JSZip.loadAsync(buffer);
-    const docXml = zip.file('word/document.xml');
-    if (docXml) {
-      const xmlContent = await docXml.async('string');
-      // 提取 <w:t> 标签内容
-      const textMatches = xmlContent.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
-      if (textMatches && textMatches.length > 0) {
-        return textMatches.map(m => m.replace(/<[^>]+>/g, '')).join('');
-      }
-    }
-  } catch (e) {
-    console.error('[extractDocxText] JSZip fallback failed:', e instanceof Error ? e.message : 'unknown');
-  }
-
-  return '';
-}
-
-async function extractXlsxText(filePath: string): Promise<string> {
-  const XLSX = await import('xlsx');
-  const workbook = XLSX.readFile(filePath);
-  const sheets: string[] = [];
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    const csv = XLSX.utils.sheet_to_csv(sheet);
-    if (csv.trim()) {
-      sheets.push(`=== 工作表: ${sheetName} ===\n${csv}`);
-    }
-  }
-  return sheets.join('\n\n');
-}
-
-async function extractPptxText(filePath: string): Promise<string> {
-  // PPTX is a ZIP containing XML; use xlsx library's sister approach
-  // For robustness, we use the JSZip-based approach via mammoth-like parsing
-  // Since there's no lightweight pptx parser, we'll try reading as ZIP
-  try {
-    const fs = await import('fs/promises');
-    const buffer = await fs.readFile(filePath);
-    // Use dynamic import for JSZip (already available via Next.js dependency chain)
-    const JSZip = (await import('jszip')).default;
-    const zip = await JSZip.loadAsync(buffer);
-    const slides: string[] = [];
-    let slideIndex = 1;
-
-    while (true) {
-      const slideFile = zip.file(`ppt/slides/slide${slideIndex}.xml`);
-      if (!slideFile) break;
-
-      const xmlContent = await slideFile.async('string');
-      // Extract text from <a:t> tags in the XML
-      const textMatches = xmlContent.match(/<a:t[^>]*>([^<]*)<\/a:t>/g) || [];
-      const texts = textMatches
-        .map((m: string) => m.replace(/<a:t[^>]*>/, '').replace(/<\/a:t>/, ''))
-        .filter((t: string) => t.trim());
-
-      if (texts.length > 0) {
-        slides.push(`=== 幻灯片 ${slideIndex} ===\n${texts.join('\n')}`);
-      }
-      slideIndex++;
-    }
-
-    return slides.join('\n\n') || '';
-  } catch {
-    return '';
-  }
-}
-
-async function readFileContent(filePath: string, ext: string): Promise<string> {
-  try {
-    const fs = await import('fs/promises');
-
-    // 图片：返回 base64
-    if (isImageType(ext)) {
-      const buffer = await fs.readFile(filePath);
-      return `data:image/${ext === 'jpg' ? 'jpeg' : ext};base64,${buffer.toString('base64')}`;
-    }
-
-    // 纯文本文件
-    const textTypes = ['txt', 'md', 'csv'];
-    if (textTypes.includes(ext)) {
-      return await fs.readFile(filePath, 'utf-8');
-    }
-
-    // PDF
-    if (ext === 'pdf') {
-      const text = await extractPdfText(filePath);
-      if (text.trim()) return text;
-      // pdf-parse 提取不到文本（可能是扫描件或 pdf-parse 失败）
-      // 返回空字符串，upload 路由会调用视觉模型 OCR 兜底
-      return '';
-    }
-
-    // DOCX
-    if (ext === 'docx') {
-      return await extractDocxText(filePath);
-    }
-
-    // DOC (旧格式，mammoth 不支持，尝试作为文本读取)
-    if (ext === 'doc') {
-      try {
-        return await fs.readFile(filePath, 'utf-8');
-      } catch {
-        return '[DOC旧格式文件，建议转换为DOCX后上传]';
-      }
-    }
-
-    // XLSX
-    if (ext === 'xlsx') {
-      return await extractXlsxText(filePath);
-    }
-
-    // PPTX
-    if (ext === 'pptx') {
-      return await extractPptxText(filePath);
-    }
-
-    // PPT (旧格式)
-    if (ext === 'ppt') {
-      return '[PPT旧格式文件，建议转换为PPTX后上传]';
-    }
-
-    return '';
-  } catch (err) {
-    console.error(`[ReadFile] Failed to extract ${ext}:`, err instanceof Error ? err.message : 'unknown');
-    return '';
-  }
 }
 
 // ─── 上传处理 ─────────────────────────────────────────
@@ -385,7 +209,7 @@ export async function POST(request: NextRequest) {
         const baseName = file.name.replace(/\.[^.]+$/, '');
 
         // 提取文件内容
-        let fileContent = await readFileContent(localFilePath, ext);
+        let fileContent = await extractDocumentContent(localFilePath, ext);
 
         // 所有 PDF 都走视觉模型识别（不管 pdf-parse 是否提取到文本）
         // 原因：pdf-parse 只能提取纯文本，无法理解图表/公式/图片
@@ -458,7 +282,7 @@ export async function POST(request: NextRequest) {
         if (needsAIAnalysis) try {
           // 对文本类文件，发送提取的文本内容（截断到 15000 字符以适应 LLM 上下文）
           // 对图片文件，发送 base64
-          const isImage = isImageType(ext);
+          const isImage = isImageDocumentType(ext);
           const textContent = isImage ? '' : fileContent.slice(0, 15000);
 
           const analyzeRes = await fetch(`${internalOrigin}/api/ai/analyze`, {
@@ -489,7 +313,7 @@ export async function POST(request: NextRequest) {
         const keywords = Array.isArray(analysis?.keywords) ? analysis.keywords : ['原始数据'];
         const abstract = typeof analysis?.abstract === 'string' ? analysis.abstract : `该文件包含了关于${title}的原始资料与数据记录。`;
         const content = typeof analysis?.content === 'string' ? analysis.content : abstract;
-        const rawContent = isImageType(ext) ? '' : fileContent.slice(0, 50000);
+        const rawContent = isImageDocumentType(ext) ? '' : fileContent.slice(0, 50000);
         const shortName = `${authors[0]}. ${year}`;
         const journal = typeof analysis?.journal === 'string' ? analysis.journal : '';
         const doi = typeof analysis?.doi === 'string' ? analysis.doi : '';
