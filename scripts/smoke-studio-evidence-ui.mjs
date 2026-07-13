@@ -71,6 +71,7 @@ async function resolveSmokeApp(tempDir) {
       ...process.env,
       PORT: String(port),
       DEPLOY_RUN_PORT: String(port),
+      BIND_HOST: '127.0.0.1',
       INTERNAL_APP_ORIGIN: '',
       SOURCE_STORE_PATH: path.join(tempDir, 'sources.json'),
       ZVEC_STORE_PATH: path.join(tempDir, 'zvec'),
@@ -204,6 +205,9 @@ async function interceptIngestionSources(page) {
     hitCount += 1;
     const url = new URL(route.request().url());
     const id = url.searchParams.get('id');
+    if (id === 'studio-evidence-source') {
+      await new Promise(resolve => setTimeout(resolve, 350));
+    }
     const source = {
       id: 'studio-evidence-source',
       title: 'Studio Evidence Source',
@@ -308,9 +312,9 @@ async function interceptReport(page) {
       status: 200,
       contentType: 'text/event-stream',
       body: sse([
-        '{"citations":[{"paperId":"studio-evidence-source","paperShortName":"EvidenceUI","sourceId":"studio-evidence-source","chunkId":"studio-evidence-source-c1","sourceTitle":"Studio Evidence Source","excerpt":"Studio outputs should show citations, retrieval mode, and citation audit status.","score":1,"page":4,"chunkIndex":0}],"retrieval":{"mode":"persisted-keyword","persistedSourceCount":1,"vectorIndexedSourceCount":0}}',
-        '{"content":"# 综述报告\\n\\n核心结论必须能追溯到来源[1]。"}',
-        '{"citationAudit":{"status":"pass","citedNumbers":[1],"invalidNumbers":[],"uncitedNumbers":[],"citationCount":1,"markerCount":1}}',
+        '{"citations":[{"paperId":"studio-evidence-source","paperShortName":"EvidenceUI","sourceId":"studio-evidence-source","chunkId":"studio-evidence-source-c1","sourceTitle":"Studio Evidence Source","excerpt":"Studio outputs should show citations, retrieval mode, and citation audit status.","score":1,"page":4,"chunkIndex":0},{"paperId":"studio-contrast-source","paperShortName":"ContrastUI","sourceId":"studio-contrast-source","chunkId":"studio-contrast-source-c1","sourceTitle":"Studio Contrast Source","excerpt":"Selected source matrix should compare fields, keywords, and evidence readiness.","score":0.9,"page":2,"chunkIndex":0}],"retrieval":{"mode":"persisted-keyword","persistedSourceCount":2,"vectorIndexedSourceCount":0}}',
+        '{"content":"# 综述报告\\n\\n核心结论必须能追溯到来源[1][2]。"}',
+        '{"citationAudit":{"status":"pass","citedNumbers":[1,2],"invalidNumbers":[],"uncitedNumbers":[],"citationCount":2,"markerCount":2}}',
         '[DONE]',
       ]),
     });
@@ -348,18 +352,39 @@ async function main() {
 
     await page.goto(`${appOrigin}/?view=workbench#workbench`, { waitUntil: 'domcontentloaded' });
     await expectVisible(page.getByTestId('studio-tool-switcher'), 'Workbench Studio panel did not render.');
+    await page.getByLabel('新建文献分组').click();
+    await page.getByPlaceholder('课题或分组名称...').fill('证据夹具');
+    await page.getByRole('button', { name: '创建', exact: true }).click();
     await page.locator('input[type="file"]').setInputFiles([uploadPath, contrastUploadPath, dataUploadPath]);
     await expectVisible(page.getByTestId('library-selection-count').filter({ hasText: /已选 3 个(文献)?来源|已选 3 篇/ }), 'Uploaded sources were not selected.');
 
     await page.getByTestId('chat-generate-report').click();
     await expectVisible(page.getByTestId('citation-audit-badge').filter({ hasText: '来源已校验' }), 'Report citation audit badge did not render.');
     await expectVisible(page.getByTestId('retrieval-badge').filter({ hasText: '已匹配证据片段' }), 'Report retrieval badge did not render.');
-    await expectVisible(page.getByText('1 个引用来源'), 'Report citation source toggle did not render.');
-    await page.getByText('1 个引用来源').click();
+    await expectVisible(page.getByText('2 个引用来源'), 'Report citation source toggle did not render.');
+    await page.getByText('2 个引用来源').click();
     await expectVisible(page.getByText('Studio Evidence Source').first(), 'Report citation source detail did not render.');
     await page.getByTestId('chat-citation-item').first().click();
     await expectVisible(page.getByTestId('library-citation-focus').filter({ hasText: /证据定位[\s\S]*第 4 页[\s\S]*片段 1/ }), 'Library citation focus did not render after clicking report citation.');
+    await page.getByTestId('chat-citation-item').nth(1).click();
+    await expectVisible(page.getByTestId('library-citation-context').filter({ hasText: /原文片段[\s\S]*Selected source matrix should compare fields/ }), 'Switched citation context must match the newly selected source.');
+    await page.waitForTimeout(450);
+    await expectVisible(page.getByTestId('library-citation-context').filter({ hasText: /原文片段[\s\S]*Selected source matrix should compare fields/ }), 'A stale source response must not overwrite the current citation.');
+    await page.getByTestId('chat-citation-item').first().click();
     await expectVisible(page.getByTestId('library-citation-context').filter({ hasText: /原文片段[\s\S]*第 4 页[\s\S]*片段 1[\s\S]*Studio outputs should show citations/ }), 'Library citation context did not render source chunk text.');
+    await page.getByTestId('library-citation-focus').evaluate(element => {
+      let scroller = element.parentElement;
+      while (scroller && scroller.scrollHeight <= scroller.clientHeight) scroller = scroller.parentElement;
+      if (scroller) scroller.scrollTop += 80;
+    });
+    await page.waitForTimeout(8_300);
+    await expectVisible(page.getByTestId('library-citation-focus').filter({ hasText: /证据定位[\s\S]*第 4 页/ }), 'Passive reading and scrolling must not auto-close citation focus.');
+    await page.getByTestId('chat-citation-item').nth(1).click();
+    await expectVisible(page.getByTestId('library-citation-focus').filter({ hasText: /证据定位[\s\S]*第 2 页[\s\S]*片段 1/ }), 'Switching citation must atomically focus the new source.');
+    await expectVisible(page.getByTestId('library-citation-context').filter({ hasText: /原文片段[\s\S]*Selected source matrix should compare fields/ }), 'Switched citation context must match the newly selected source.');
+    assert(await page.getByTestId('library-paper-studio-evidence-source').getByTestId('library-citation-focus').count() === 0, 'Stale citation focus must not remain on the previous source.');
+    await page.getByLabel('关闭证据定位').click();
+    assert(await page.getByTestId('library-citation-focus').count() === 0, 'Explicit close must clear citation focus.');
     await page.getByTestId('library-paper-studio-evidence-source').click({ button: 'right' });
     await page.getByTestId('library-open-source-detail').click();
     await expectVisible(page.getByTestId('library-source-detail-panel').filter({ hasText: /来源片段[\s\S]*Studio Evidence Source/ }), 'Library source detail panel did not render.');
@@ -397,6 +422,10 @@ async function main() {
         'central report citation source can expand',
         'central report citation click focuses source evidence in the library',
         'library citation focus renders the matched source chunk context',
+        'passive reading and scrolling keep citation focus open beyond the former timeout',
+        'switching citations replaces source, locator, and highlighted context atomically',
+        'a delayed stale source response cannot overwrite the current citation',
+        'explicit close clears citation focus',
         'library source detail panel lists stored source chunks',
         'library source detail panel renders source-backed citation leads',
         'library CSV source detail renders data preview, missing values, numeric summaries, and Results draft hint',
