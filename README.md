@@ -144,6 +144,7 @@ deploy/           Linux service and nginx examples
 - [OpenMAIC reference boundary](docs/openmaic-reference-boundary.md)
 - [Reference license risk register](docs/reference-license-risk-register.md)
 - [NotebookLM open-source benchmark](docs/notebooklm-open-source-benchmark.md)
+- [StoneAI platform repository map](docs/platform-repositories.md)
 
 ## Security
 
