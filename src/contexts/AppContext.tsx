@@ -344,10 +344,12 @@ export function AppProvider({
   }, []);
 
   const [revealPaperRequest, setRevealPaperRequest] = useState<RevealPaperRequest | null>(null);
+  const revealPaperTokenRef = React.useRef(0);
   const revealPaper = useCallback((paperId: string, citation?: Citation) => {
+    revealPaperTokenRef.current += 1;
     setRevealPaperRequest({
       paperId,
-      token: Date.now(),
+      token: revealPaperTokenRef.current,
       citation: citation ? {
         chunkId: citation.chunkId,
         chunkIndex: citation.chunkIndex,
