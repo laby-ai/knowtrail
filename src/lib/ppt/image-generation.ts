@@ -3,6 +3,11 @@
 // route keeps its local copy to stay untouched.
 import type { RuntimeAIConfig } from '@/types';
 import { allowRequestRuntimeAIConfig, hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
+import {
+  buildReferenceImageInput,
+  parseSlideReferenceImage,
+  SlideImageProviderError,
+} from '@/lib/ppt/slide-image-contract';
 
 const SITIAN_API_BASE = process.env.SITIAN_API_BASE || 'http://images.sitianai.com';
 const SITIAN_API_TOKEN = process.env.SITIAN_API_TOKEN || '';
@@ -151,7 +156,13 @@ async function generateOpenAICompatibleImage(
     response_format: 'b64_json',
     watermark: false,
   };
-  if (options?.referenceImageBase64) requestBody.image = options.referenceImageBase64;
+  if (options?.referenceImageBase64) {
+    requestBody.image = buildReferenceImageInput(
+      parseSlideReferenceImage(options.referenceImageBase64),
+      endpoint,
+      model,
+    );
+  }
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -162,7 +173,10 @@ async function generateOpenAICompatibleImage(
 
   const rawBody = await response.text().catch(() => '');
   if (!response.ok) {
-    throw new Error(`图片模型 API 失败:HTTP ${response.status}${rawBody ? ` - ${redactRuntimeAISecrets(rawBody, apiKey)}` : ''}`);
+    throw new SlideImageProviderError(
+      response.status,
+      `图片模型 API 失败:HTTP ${response.status}${rawBody ? ` - ${redactRuntimeAISecrets(rawBody, apiKey)}` : ''}`,
+    );
   }
 
   let parsed: OpenAIImageResponse;

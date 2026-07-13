@@ -51,6 +51,21 @@ export function SlideAnnotationEditor({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const draftRef = useRef<Shape | null>(null);
   const drawingRef = useRef(false);
+  const requestRef = useRef<{ id: number; controller: AbortController } | null>(null);
+  const requestIdRef = useRef(0);
+
+  const cancelPendingRequest = useCallback(() => {
+    requestIdRef.current += 1;
+    requestRef.current?.controller.abort();
+    requestRef.current = null;
+  }, []);
+
+  useEffect(() => () => cancelPendingRequest(), [cancelPendingRequest]);
+
+  const handleClose = useCallback(() => {
+    cancelPendingRequest();
+    onClose();
+  }, [cancelPendingRequest, onClose]);
 
   // Convert pointer event to natural-image pixel coordinates.
   const toImageCoords = useCallback((e: { clientX: number; clientY: number }) => {
@@ -182,6 +197,11 @@ export function SlideAnnotationEditor({
     }
     setIsSubmitting(true);
     setError(null);
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    const controller = new AbortController();
+    requestRef.current?.controller.abort();
+    requestRef.current = { id: requestId, controller };
     try {
       const { base64, hasAnnotations } = await buildAnnotatedImage();
       const res = await clientApiRequest('/api/ai/ppt-slide-revise', {
@@ -197,17 +217,23 @@ export function SlideAnnotationEditor({
           aiConfig,
           notebookId,
         }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok || !data.imageUrl) throw new Error(data.error || '修改失败');
+      if (requestIdRef.current !== requestId) return;
       onRevised(data.imageUrl);
-      onClose();
+      handleClose();
     } catch (err) {
+      if (requestIdRef.current !== requestId || controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : '修改失败,请重试');
     } finally {
-      setIsSubmitting(false);
+      if (requestIdRef.current === requestId) {
+        requestRef.current = null;
+        setIsSubmitting(false);
+      }
     }
-  }, [isSubmitting, instruction, shapes.length, buildAnnotatedImage, slideTitle, styleDescription, aspectRatio, aiConfig, notebookId, onRevised, onClose]);
+  }, [isSubmitting, instruction, shapes.length, buildAnnotatedImage, slideTitle, styleDescription, aspectRatio, aiConfig, notebookId, onRevised, handleClose]);
 
   const TOOLS: Array<{ id: Tool; label: string; icon: typeof Pencil }> = [
     { id: 'pen', label: '画笔', icon: Pencil },
@@ -224,7 +250,7 @@ export function SlideAnnotationEditor({
             <h3 className="truncate text-sm font-semibold text-[var(--text-primary)]">标注修改 · {slideTitle}</h3>
             <p className="text-[11px] text-[var(--text-tertiary)]">用画笔/箭头/文字在页面上圈出要改的地方,再描述修改要求,AI 将重新生成干净的成品页</p>
           </div>
-          <button onClick={onClose} className="rounded-full p-2 text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)]" aria-label="关闭">
+          <button onClick={handleClose} className="rounded-full p-2 text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)]" aria-label="关闭">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -307,7 +333,7 @@ export function SlideAnnotationEditor({
           )}
         </div>
 
-        {error && <div className="rounded-lg px-3 py-2 text-xs text-red-400 liquid-glass-static !border-red-500/20">{error}</div>}
+        {error && <div aria-live="polite" data-testid="slide-annotation-error" className="rounded-lg px-3 py-2 text-xs text-red-400 liquid-glass-static !border-red-500/20">{error}</div>}
 
         {/* Instruction + submit */}
         <div className="flex items-end gap-2">
@@ -325,7 +351,7 @@ export function SlideAnnotationEditor({
             className="flex h-[56px] shrink-0 items-center gap-2 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 px-5 text-sm font-semibold text-white transition-all hover:from-red-400 hover:to-rose-500 active:scale-[0.97] disabled:opacity-50"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {isSubmitting ? '重绘中...' : '按标注修改'}
+            {isSubmitting ? '重绘中...' : error ? '重新尝试' : '按标注修改'}
           </button>
         </div>
       </div>
