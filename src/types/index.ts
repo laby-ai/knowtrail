@@ -88,6 +88,14 @@ export interface ProjectFolder {
 }
 
 // 对话相关类型
+export type ChatGenerationStatus = 'pending' | 'completed' | 'stopped' | 'timeout' | 'failed';
+
+export interface ChatGenerationState {
+  status: ChatGenerationStatus;
+  question: string;
+  updatedAt: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -96,6 +104,7 @@ export interface ChatMessage {
   retrieval?: RetrievalMetadata;
   citationAudit?: CitationAuditResult;
   followUps?: string[];
+  generation?: ChatGenerationState;
   timestamp: string;
 }
 
