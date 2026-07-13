@@ -37,6 +37,7 @@ function samplePaper(input: {
     fileType: 'txt',
     fileSize: input.content.length,
     uploadTime: FEATURED_UPDATED_AT,
+    isSample: true,
     ingestionStatus: 'succeeded',
     ingestionChunkCount: 4,
     vectorIndex: { status: 'not_configured' },

@@ -6,6 +6,7 @@ import {
   type WorkspaceNotebook,
 } from '@/components/home/workspace-types';
 import { FEATURED_NOTEBOOKS } from '@/components/home/featured-notebooks';
+import type { NotebookHomeView } from '@/lib/notebook-home-controls';
 
 export function FeaturedNotebookStrip({
   disabled,
@@ -71,18 +72,20 @@ export function NotebookCard({
   active,
   disabled,
   onOpen,
+  view = 'comfortable',
 }: {
   notebook: WorkspaceNotebook;
   active: boolean;
   disabled: boolean;
   onOpen: () => void;
+  view?: NotebookHomeView;
 }) {
   return (
     <button
       type="button"
       onClick={onOpen}
       disabled={disabled}
-      className={`home-motion-card group flex min-h-[250px] flex-col justify-between rounded-2xl border p-6 text-left transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`home-motion-card group flex ${view === 'list' ? 'min-h-[132px] flex-row items-center gap-6' : view === 'grid' ? 'min-h-[210px] flex-col justify-between' : 'min-h-[250px] flex-col justify-between'} rounded-2xl border p-6 text-left transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:opacity-60 ${
         active
           ? 'border-blue-300 bg-[#eef2ff] shadow-[0_22px_54px_rgba(37,99,235,0.12)]'
           : 'border-transparent bg-[#eff2fc] hover:bg-[#e9eefb]'

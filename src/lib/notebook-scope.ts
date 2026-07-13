@@ -8,6 +8,6 @@ export function normalizeNotebookId(value: unknown): string | undefined {
 }
 
 export function notebookIdFromStorageScopeKey(scopeKey: string): string | undefined {
-  const separatorIndex = scopeKey.indexOf(':');
+  const separatorIndex = scopeKey.lastIndexOf(':');
   return normalizeNotebookId(separatorIndex >= 0 ? scopeKey.slice(separatorIndex + 1) : scopeKey);
 }

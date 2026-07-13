@@ -24,6 +24,12 @@ import {
   FeaturedNotebookStrip,
   NotebookCard,
 } from '@/components/home/NotebookCards';
+import {
+  projectNotebookHome,
+  type NotebookHomeFilter,
+  type NotebookHomeSort,
+  type NotebookHomeView,
+} from '@/lib/notebook-home-controls';
 
 type NotebookHomeProps = {
   notebooks: WorkspaceNotebook[];
@@ -97,8 +103,10 @@ export function NotebookHome({
   onSignOut,
 }: NotebookHomeProps) {
   const [query, setQuery] = useState('');
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredNotebooks = notebooks.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
+  const [filter, setFilter] = useState<NotebookHomeFilter>('all');
+  const [sort, setSort] = useState<NotebookHomeSort>('latest');
+  const [view, setView] = useState<NotebookHomeView>('comfortable');
+  const projection = projectNotebookHome({ notebooks, query, filter, sort, view });
 
   return (
     <div className="min-h-screen bg-white text-slate-950">
@@ -122,20 +130,24 @@ export function NotebookHome({
                 />
               </label>
               <div className="inline-flex h-12 rounded-full border border-slate-200 bg-white p-1">
-                <button className="inline-flex h-10 w-11 items-center justify-center rounded-full bg-[#eef2ff] text-slate-950" aria-label="网格视图">
+                <button type="button" onClick={() => setView('comfortable')} aria-pressed={view === 'comfortable'} data-testid="notebook-view-comfortable" className={`inline-flex h-10 w-11 items-center justify-center rounded-full ${view === 'comfortable' ? 'bg-[#eef2ff] text-slate-950' : 'text-slate-700 hover:bg-slate-50'}`} aria-label="舒适视图">
                   <Check className="h-5 w-5" />
                 </button>
-                <button className="inline-flex h-10 w-11 items-center justify-center rounded-full text-slate-700 hover:bg-slate-50" aria-label="卡片视图">
+                <button type="button" onClick={() => setView('grid')} aria-pressed={view === 'grid'} data-testid="notebook-view-grid" className={`inline-flex h-10 w-11 items-center justify-center rounded-full ${view === 'grid' ? 'bg-[#eef2ff] text-slate-950' : 'text-slate-700 hover:bg-slate-50'}`} aria-label="紧凑网格视图">
                   <Grid3X3 className="h-5 w-5" />
                 </button>
-                <button className="inline-flex h-10 w-11 items-center justify-center rounded-full text-slate-700 hover:bg-slate-50" aria-label="列表视图">
+                <button type="button" onClick={() => setView('list')} aria-pressed={view === 'list'} data-testid="notebook-view-list" className={`inline-flex h-10 w-11 items-center justify-center rounded-full ${view === 'list' ? 'bg-[#eef2ff] text-slate-950' : 'text-slate-700 hover:bg-slate-50'}`} aria-label="列表视图">
                   <List className="h-5 w-5" />
                 </button>
               </div>
-              <button className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                最新
-                <ChevronDown className="h-4 w-4" />
-              </button>
+              <label className="relative inline-flex h-12 items-center rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50">
+                <select value={sort} onChange={event => setSort(event.target.value as NotebookHomeSort)} data-testid="notebook-sort" aria-label="文献本排序" className="h-full appearance-none rounded-full bg-transparent pl-5 pr-10 outline-none">
+                  <option value="latest">最新</option>
+                  <option value="oldest">最早</option>
+                  <option value="title">标题</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-4 h-4 w-4" />
+              </label>
             </div>
           </div>
 
@@ -158,15 +170,17 @@ export function NotebookHome({
       <main className="pb-20">
         <div className="mx-auto max-w-[1440px] px-5 pt-8">
           <div className="mx-auto mb-9 flex w-fit items-center gap-2 rounded-full bg-white p-1 text-sm font-medium text-slate-600">
-            <button className="rounded-full bg-[#eef2ff] px-5 py-3 text-slate-900">全部</button>
-            <button className="rounded-full px-5 py-3 hover:bg-slate-50">我的文献本</button>
-            <button className="rounded-full px-5 py-3 hover:bg-slate-50">精选文献本</button>
+            {([['all', '全部'], ['mine', '我的文献本'], ['featured', '精选文献本']] as const).map(([value, label]) => (
+              <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} data-testid={`notebook-filter-${value}`} className={`rounded-full px-5 py-3 ${filter === value ? 'bg-[#eef2ff] text-slate-900' : 'hover:bg-slate-50'}`}>
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
-        <FeaturedNotebookStrip disabled={!notebooksReady} onOpen={onOpenFeatured} />
+        {projection.showFeatured && <FeaturedNotebookStrip disabled={!notebooksReady} onOpen={onOpenFeatured} />}
 
-        <section className="mx-auto max-w-7xl px-5 py-8">
+        {projection.showPersonal && <section className="mx-auto max-w-7xl px-5 py-8">
           <div className="mb-5 flex items-end justify-between gap-4">
             <h1 className="text-3xl font-normal tracking-tight text-slate-950">最近打开的文献本</h1>
             <label className="relative w-full max-w-sm lg:hidden">
@@ -180,9 +194,9 @@ export function NotebookHome({
             </label>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div data-testid="notebook-personal-list" data-view={projection.view} className={`grid gap-5 ${projection.view === 'list' ? 'grid-cols-1' : projection.view === 'grid' ? 'sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4'}`}>
             <CreateNotebookCard disabled={!notebooksReady} onCreate={onCreate} />
-            {filteredNotebooks.map(notebook => (
+            {projection.notebooks.map(notebook => (
               <NotebookCard
                 key={notebook.id}
                 notebook={notebook}
@@ -191,10 +205,11 @@ export function NotebookHome({
                 onOpen={() => {
                   if (notebooksReady) onOpen(notebook.id);
                 }}
+                view={projection.view}
               />
             ))}
           </div>
-        </section>
+        </section>}
 
         {accountStatus?.configured && !accountSession && (
           <div className="mx-auto mt-6 flex max-w-7xl items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">

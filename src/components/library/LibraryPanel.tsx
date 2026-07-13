@@ -27,6 +27,7 @@ import type { CitationReveal } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
+import { resolveLibraryUploadTarget } from '@/lib/library-upload-target';
 import { buildDataTablePreviewForPaper, buildDataTablePreviewFromText } from '@/lib/data-table-preview';
 import { buildSourceMatrixFacets } from '@/lib/source-matrix';
 import type { DataColumnSummary } from '@/lib/data-table-preview';
@@ -366,6 +367,8 @@ export function LibraryPanel({
   const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; paper: Paper } | null>(null);
   const [skippedFilesNotice, setSkippedFilesNotice] = useState<string | null>(null);
+  const [sourceMutationError, setSourceMutationError] = useState<string | null>(null);
+  const [uploadTargetFolderId, setUploadTargetFolderId] = useState<string | null>(null);
   const [ingestionSyncState, setIngestionSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
@@ -377,6 +380,13 @@ export function LibraryPanel({
   const ingestionSyncInFlightRef = useRef(false);
   const lastIngestionSyncAtRef = useRef(0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
+  const resolvedUploadTarget = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
+
+  useEffect(() => {
+    if (resolveLibraryUploadTarget(uploadTargetFolderId, folders)) return;
+    const nextTarget = resolveLibraryUploadTarget(activeFolderId, folders);
+    if (nextTarget !== uploadTargetFolderId) setUploadTargetFolderId(nextTarget);
+  }, [activeFolderId, folders, uploadTargetFolderId]);
 
   useEffect(() => {
     if (showSourceGuide) setIsSourceGuideOpen(true);
@@ -618,6 +628,7 @@ export function LibraryPanel({
       setActiveFolder(newFolderId);
       setNewFolderName('');
       setIsCreatingFolder(false);
+      setUploadTargetFolderId(newFolderId);
     }
   }, [newFolderName, addFolder, setActiveFolder]);
 
@@ -733,17 +744,13 @@ export function LibraryPanel({
       setShowUploadProgress(false);
       return;
     }
-    if (!activeFolderId) {
-      // Schedule folder creation + upload after current render
-      setTimeout(async () => {
-        const newFolderId = addFolder('新建项目');
-        setExpandedFolders(prev => new Set([...prev, newFolderId]));
-        await uploadFiles(validFiles, newFolderId);
-      }, 0);
+    const targetFolderId = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
+    if (!targetFolderId) {
+      setSkippedFilesNotice('请先选择目标目录，或新建目录后再上传。');
       return;
     }
-    await uploadFiles(validFiles, activeFolderId);
-  }, [activeFolderId, uploadFiles, addFolder]);
+    await uploadFiles(validFiles, targetFolderId);
+  }, [folders, uploadFiles, uploadTargetFolderId]);
 
   const dismissSourceGuide = useCallback(() => {
     setIsSourceGuideOpen(false);
@@ -751,39 +758,42 @@ export function LibraryPanel({
   }, [onSourceGuideDismiss]);
 
   const openFilePickerFromGuide = useCallback(() => {
+    if (!resolvedUploadTarget) {
+      setSkippedFilesNotice('请先选择目标目录，或新建目录后再上传。');
+      setIsCreatingFolder(true);
+      return;
+    }
     dismissSourceGuide();
     window.setTimeout(() => fileInputRef.current?.click(), 0);
-  }, [dismissSourceGuide]);
+  }, [dismissSourceGuide, resolvedUploadTarget]);
 
   const handlePasteTextAsSource = useCallback(async () => {
     const content = pastedSourceText.trim();
     if (!content) return;
     const title = (pastedSourceTitle.trim() || '粘贴文献笔记').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
     const file = new globalThis.File([content], `${title}.txt`, { type: 'text/plain' });
-    let targetFolder = activeFolderId;
+    const targetFolder = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
     if (!targetFolder) {
-      targetFolder = addFolder('文献库');
-      setExpandedFolders(prev => new Set([...prev, targetFolder!]));
-      setActiveFolder(targetFolder);
+      setSkippedFilesNotice('请先选择目标目录，或新建目录后再保存文本。');
+      return;
     }
     dismissSourceGuide();
     setPastedSourceText('');
     setPastedSourceTitle('');
     await uploadFiles([file], targetFolder);
-  }, [activeFolderId, addFolder, dismissSourceGuide, pastedSourceText, pastedSourceTitle, setActiveFolder, uploadFiles]);
+  }, [dismissSourceGuide, folders, pastedSourceText, pastedSourceTitle, uploadFiles, uploadTargetFolderId]);
 
   // Discovered web sources arrive as ready-made text files and reuse the
   // regular upload/ingestion pipeline.
   const handleIngestDiscoveredFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
-    let targetFolder = activeFolderId;
+    const targetFolder = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
     if (!targetFolder) {
-      targetFolder = addFolder('网络信源');
-      setExpandedFolders(prev => new Set([...prev, targetFolder!]));
-      setActiveFolder(targetFolder);
+      setSkippedFilesNotice('请先选择目标目录，或新建目录后再加入网络信源。');
+      return;
     }
     await uploadFiles(files, targetFolder);
-  }, [activeFolderId, addFolder, setActiveFolder, uploadFiles]);
+  }, [folders, uploadFiles, uploadTargetFolderId]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -803,23 +813,44 @@ export function LibraryPanel({
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
-    let targetFolder = activeFolderId;
+    const targetFolder = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
     if (!targetFolder) {
-      const newFolderId = addFolder('新建项目');
-      setExpandedFolders(prev => new Set([...prev, newFolderId]));
-      targetFolder = newFolderId;
+      setSkippedFilesNotice('请先选择目标目录，或新建目录后再拖入文件。');
+      return;
     }
-    if (targetFolder) await uploadFiles(files, targetFolder);
-  }, [activeFolderId, uploadFiles, addFolder]);
+    await uploadFiles(files, targetFolder);
+  }, [folders, uploadFiles, uploadTargetFolderId]);
 
   const handleFolderClick = useCallback((folderId: string) => {
     setActiveFolder(folderId);
+    setUploadTargetFolderId(folderId);
     setExpandedFolders(prev => {
       const next = new Set(prev);
       if (next.has(folderId)) next.delete(folderId); else next.add(folderId);
       return next;
     });
   }, [setActiveFolder]);
+
+  const handleRemovePaper = useCallback(async (paper: Paper) => {
+    const ownerFolder = folders.find(folder => folder.papers.some(item => item.id === paper.id));
+    if (!ownerFolder) return;
+    setSourceMutationError(null);
+    if (!paper.isSample) {
+      const params = new URLSearchParams({ id: paper.id });
+      if (notebookId) params.set('notebookId', notebookId);
+      try {
+        const response = await fetch(`/api/ingestion/sources?${params.toString()}`, {
+          method: 'DELETE',
+          headers: accountAuthHeaders(),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      } catch {
+        setSourceMutationError('来源删除失败，未改动文献库；请检查网络后重试。');
+        return;
+      }
+    }
+    removePaper(ownerFolder.id, paper.id);
+  }, [folders, notebookId, removePaper]);
 
   const copyShortName = useCallback((paper: Paper) => {
     navigator.clipboard.writeText(`[${paper.shortName}]`);
@@ -991,6 +1022,11 @@ export function LibraryPanel({
           <p className="text-[11px] leading-relaxed text-amber-300">{skippedFilesNotice}(支持 PDF/DOCX/TXT/MD 等)</p>
         </div>
       )}
+      {sourceMutationError && (
+        <div className="mx-4 mt-2 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] text-red-300" data-testid="library-source-mutation-error">
+          {sourceMutationError}
+        </div>
+      )}
 
       {/* Paper list */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
@@ -1082,6 +1118,9 @@ export function LibraryPanel({
                           <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold border ${fileTypeBadgeStyle(paper.fileType)}`}>
                             {paper.fileType.toUpperCase()}
                           </span>
+                          {paper.isSample && (
+                            <span className="rounded-md border border-violet-400/20 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-violet-300">示例</span>
+                          )}
                           {(() => {
                             const badge = ingestionBadge(paper);
                             return badge ? (
@@ -1182,9 +1221,39 @@ export function LibraryPanel({
           onChange={(e) => handleFileSelect(e.target.files)}
         />
 
+        <div className="mb-3 flex items-center gap-2">
+          <label className="min-w-0 flex-1 text-[10px] font-medium text-[var(--text-tertiary)]">
+            上传到
+            <select
+              value={resolvedUploadTarget || ''}
+              onChange={event => {
+                const value = event.target.value;
+                if (value === '__new__') {
+                  setIsCreatingFolder(true);
+                  return;
+                }
+                setUploadTargetFolderId(value || null);
+                if (value) setActiveFolder(value);
+              }}
+              data-testid="library-upload-target"
+              className="mt-1 h-9 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 text-xs text-[var(--text-secondary)] outline-none focus:border-blue-400/50"
+            >
+              <option value="">选择目标目录</option>
+              {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+              <option value="__new__">+ 新建目录…</option>
+            </select>
+          </label>
+        </div>
+
         <div
           className="border border-dashed border-[var(--border-subtle)] rounded-2xl p-5 text-center cursor-pointer hover:border-[var(--border-hover)] hover:bg-[var(--glass-subtle)] transition-all duration-500"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            if (!resolvedUploadTarget) {
+              setSkippedFilesNotice('请先选择目标目录，或新建目录后再上传。');
+              return;
+            }
+            fileInputRef.current?.click();
+          }}
         >
           <Upload className="h-6 w-6 mx-auto mb-2 text-[var(--text-quaternary)]" />
           <p className="text-xs font-medium text-[var(--text-tertiary)]">拖拽文献或资料文件到此处上传</p>
@@ -1596,10 +1665,7 @@ export function LibraryPanel({
             data-testid="library-remove-paper"
             onClick={() => {
               const paper = contextMenu.paper;
-              const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paper.id));
-              if (ownerFolder && window.confirm(`移除来源「${paper.title}」?`)) {
-                removePaper(ownerFolder.id, paper.id);
-              }
+              if (window.confirm(`移除来源「${paper.title}」?`)) void handleRemovePaper(paper);
               setContextMenu(null);
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
