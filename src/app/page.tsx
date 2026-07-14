@@ -43,11 +43,11 @@ const FEATURED_SOURCE_COUNTS = Object.fromEntries(
   FEATURED_NOTEBOOKS.map(notebook => [notebook.id, notebook.sourceCount]),
 );
 
-function WorkbenchCenterPanel() {
+function WorkbenchCenterPanel({ compact }: { compact: boolean }) {
   const { virtualClassroomViewer, knowledgeMapViewer } = useApp();
   if (virtualClassroomViewer) return <VirtualClassroomWorkspace />;
   if (knowledgeMapViewer) return <KnowledgeMapWorkspace />;
-  return <EditorPanel />;
+  return <EditorPanel compact={compact} />;
 }
 
 function AcademicPresenterContent({
@@ -97,8 +97,8 @@ function AcademicPresenterContent({
               onSourceGuideDismiss={onSourceGuideDismiss}
             />
           )}
-          centerPanel={<WorkbenchCenterPanel />}
-          rightPanel={<StudioPanel />}
+          centerPanel={<WorkbenchCenterPanel compact={quiet} />}
+          rightPanel={<StudioPanel compact={quiet} />}
           appearance={quiet ? 'quiet-research' : 'glass'}
           defaultLeftWidth={quiet ? 272 : 280}
           defaultRightWidth={quiet ? 420 : 500}

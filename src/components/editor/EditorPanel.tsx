@@ -34,7 +34,7 @@ interface SendQuestionOptions {
   assistantMessageId?: string;
 }
 
-export function EditorPanel() {
+export function EditorPanel({ compact = false }: { compact?: boolean }) {
   const {
     folders, chatMessages, addChatMessage, updateChatMessage, clearChat, getSelectedPapers, aiConfig,
     queuedStudioPrompt, consumeStudioPrompt, storageScopeKey, revealPaper,
@@ -440,6 +440,7 @@ export function EditorPanel() {
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <ChatView
+          compact={compact}
           messages={chatMessages}
           inputMessage={inputMessage}
           setInputMessage={setInputMessage}
@@ -462,6 +463,7 @@ export function EditorPanel() {
 }
 
 interface ChatViewProps {
+  compact: boolean;
   messages: ChatMessage[];
   inputMessage: string;
   setInputMessage: (value: string) => void;
@@ -479,7 +481,7 @@ interface ChatViewProps {
   onRegenerate: () => void;
 }
 
-function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, onCitationClick, onRegenerate }: ChatViewProps) {
+function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, onCitationClick, onRegenerate }: ChatViewProps) {
   // --- Liquid pull physics ---
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
@@ -495,6 +497,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
   const PULL_THRESHOLD = 80;
   const panelHeightRef = useRef<HTMLDivElement>(null);
   const hasSelectedSources = selectedSourceCount > 0;
+  const visibleQuickQuestions = compact ? quickQuestions.slice(0, 4) : quickQuestions;
 
   // Merge scrollRef with scrollAreaRef
   const scrollAreaCallbackRef = useCallback((node: HTMLDivElement | null) => {
@@ -650,8 +653,8 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
       <div ref={scrollAreaCallbackRef} className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         <div className="space-y-6 max-w-2xl mx-auto">
           {messages.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-16 h-16 rounded-2xl liquid-glass-inset flex items-center justify-center mx-auto mb-5">
+            <div className={compact ? 'py-10 text-center' : 'py-16 text-center'}>
+              <div className={`${compact ? 'h-12 w-12 rounded-xl' : 'h-16 w-16 rounded-2xl'} liquid-glass-inset mx-auto mb-5 flex items-center justify-center`}>
                 <MessageSquare className="h-7 w-7 text-[var(--text-tertiary)]" />
               </div>
               <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">开始文献问答</h3>
@@ -673,8 +676,8 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                 <FileSearch className="h-3.5 w-3.5" />
                 {hasSelectedSources ? `已选 ${selectedSourceCount} 个证据来源` : '未选择证据来源'}
               </div>
-              <div className="mt-8 grid grid-cols-4 gap-3 max-w-2xl mx-auto">
-                {quickQuestions.map((q) => {
+              <div className={`${compact ? 'mt-5 grid-cols-2 gap-2' : 'mt-8 grid-cols-4 gap-3'} mx-auto grid max-w-2xl`}>
+                {visibleQuickQuestions.map((q) => {
                   const Icon = q.icon;
                   return (
                     <button
@@ -682,7 +685,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                       onClick={() => onQuickQuestion(q.question)}
                       disabled={!hasSelectedSources}
                       title={hasSelectedSources ? q.question : '请先在左侧选择证据来源'}
-                      className="quick-question-button liquid-glass-static flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-3 text-[13px] font-semibold leading-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:!border-[var(--border-hover)] transition-all disabled:cursor-not-allowed disabled:text-[var(--text-secondary)] disabled:hover:text-[var(--text-secondary)]"
+                      className={`quick-question-button liquid-glass-static flex flex-col items-center justify-center gap-1.5 px-3 text-[13px] font-semibold leading-tight text-[var(--text-secondary)] transition-all hover:!border-[var(--border-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:text-[var(--text-secondary)] disabled:hover:text-[var(--text-secondary)] ${compact ? 'min-h-[52px] rounded-xl py-2' : 'min-h-[64px] rounded-2xl py-3'}`}
                     >
                       <Icon className="h-[19px] w-[19px]" />
                       {q.label}
@@ -778,7 +781,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
 
             {/* Quick questions grid */}
             <div className="grid grid-cols-4 gap-2.5 max-w-xl mx-auto">
-              {quickQuestions.map((q) => {
+              {visibleQuickQuestions.map((q) => {
                 const Icon = q.icon;
                 return (
                   <button

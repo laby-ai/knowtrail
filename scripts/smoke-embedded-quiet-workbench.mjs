@@ -112,6 +112,8 @@ try {
   await embedded.getByTestId('notebook-home-create').click();
   await embedded.getByTestId('workbench-topbar-title').waitFor({ state: 'visible' });
   assert(await embedded.getByText('KnowTrail', { exact: true }).count() === 0, 'Embedded workbench exposed KnowTrail branding.');
+  const sourceGuideSkip = embedded.getByTestId('source-guide-skip');
+  if (await sourceGuideSkip.count()) await sourceGuideSkip.click();
 
   const left = embedded.getByTestId('workbench-left-panel');
   const center = embedded.getByTestId('workbench-center-panel');
@@ -144,6 +146,19 @@ try {
   const duration = await center.evaluate((node) => getComputedStyle(node).transitionDuration);
   assert(duration === '0s', `Reduced-motion transition remained ${duration}.`);
 
+  const quickQuestions = embedded.locator('.quick-question-button:visible');
+  assert(
+    await quickQuestions.count() <= 4,
+    `Embedded empty state exposed ${await quickQuestions.count()} oversized quick actions.`,
+  );
+
+  const studioCards = embedded.locator('[data-testid^="studio-nav-"]:visible');
+  const firstCard = await studioCards.first().boundingBox();
+  assert(firstCard && firstCard.height <= 58, `Studio tool card is too tall: ${firstCard?.height}.`);
+
+  await studioCards.nth(1).click();
+  assert(await studioCards.nth(1).getAttribute('aria-pressed') === 'true', 'Tool selection gave no visible selected state.');
+
   console.log(JSON.stringify({
     ok: true,
     checked: [
@@ -153,6 +168,8 @@ try {
       'quiet three-column widths',
       'keyboard resize',
       'reduced motion',
+      'compact quick actions',
+      'compact selectable tools',
     ],
   }));
 } finally {
