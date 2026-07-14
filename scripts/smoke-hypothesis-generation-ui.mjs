@@ -241,7 +241,10 @@ async function main() {
     await page.getByTestId('hypothesis-generation-question').fill('预注册为什么可能降低证据合成中的选择性报告？');
     await page.getByTestId('hypothesis-generation-start').click();
     await page.getByTestId('hypothesis-generation-progress').waitFor({ state: 'visible' });
-    await page.getByText('假设结构与证据编号检查通过；仍需后续实验、数据和新颖性审查。').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.getByText('假设结构与证据编号检查通过；仍需后续实验、数据和新颖性审查。').waitFor({ state: 'visible', timeout: 30_000 }).catch(async error => {
+      const panelText = (await page.getByTestId('hypothesis-generation-panel').innerText()).slice(-2400);
+      throw new Error(`Hypothesis completion state did not render: ${error instanceof Error ? error.message : String(error)}; panel=${panelText}; server=${output.join('').slice(-3000)}`);
+    });
     assert(await page.getByTestId('hypothesis-card').count() === 3, 'Expected three rendered hypothesis cards.');
     await page.getByText('可证伪预测', { exact: true }).first().waitFor({ state: 'visible' });
     await page.getByTestId('studio-evidence-citation-link').first().waitFor({ state: 'visible' });
@@ -261,7 +264,10 @@ async function main() {
     await page.getByTestId('hypothesis-generation-start').click();
     await page.getByTestId('hypothesis-generation-progress').waitFor({ state: 'visible' });
     await page.getByRole('button', { name: '停止生成' }).click();
-    await page.getByText('已停止生成；未通过完整结构检查的内容不会展示为可用假设。').waitFor({ state: 'visible' });
+    await page.getByText('已停止生成；未通过完整结构检查的内容不会展示为可用假设。').waitFor({ state: 'visible' }).catch(async error => {
+      const panelText = (await page.getByTestId('hypothesis-generation-panel').innerText()).slice(-2400);
+      throw new Error(`Hypothesis cancellation state did not render: ${error instanceof Error ? error.message : String(error)}; panel=${panelText}; server=${output.join('').slice(-3000)}`);
+    });
     assert(await page.getByTestId('hypothesis-card').count() === 0, 'Cancelled unvalidated output must not render hypothesis cards.');
 
     console.log('[smoke] regenerating for mobile layout');

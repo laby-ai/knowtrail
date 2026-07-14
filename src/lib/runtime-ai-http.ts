@@ -37,7 +37,7 @@ export async function fetchWithTransientRetry(
     } catch (error) {
       lastError = error;
       if (init.signal?.aborted || attempt >= attempts || !isTransientNetworkError(error)) throw error;
-      console.warn(`[AI Service] transient ${options?.label || 'fetch'} failure, retrying attempt ${attempt + 1}/${attempts}: ${error instanceof Error ? error.message : String(error)}`);
+      void options?.label;
       await waitForRetry(attempt);
     }
   }

@@ -5,7 +5,7 @@ import type { RagSourceInput } from '@/lib/rag';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
 import { auditCitationMarkers } from '@/lib/citation-audit';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
-import { reserveAIUsage } from '@/lib/account-ai-billing';
+import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
@@ -97,12 +97,13 @@ export async function POST(request: NextRequest) {
         inputText: message,
         promptContext: grounded.promptContext,
         memberId: scope.ownerMemberId,
+        idempotencyKey: request.headers.get('idempotency-key') || undefined,
       });
     } catch (billingError) {
       const status = billingError instanceof AccountServiceError ? billingError.status : 402;
       const code = billingError instanceof AccountServiceError ? billingError.code : 'account_billing_failed';
       return new Response(JSON.stringify({
-        error: '账号积分不足，请先充值，或联系管理员分配积分后再使用灵笔。',
+        error: accountUsageErrorMessage(billingError, '账号积分不足，请先充值，或联系管理员分配积分后再使用灵笔。'),
         billing: { status: 'failed', code },
       }), {
         status,

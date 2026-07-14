@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import process from 'node:process';
 import { KNOWTRAIL_QUALITY_MATRIX } from './lib/knowtrail-quality-matrix.mjs';
@@ -23,10 +24,15 @@ if (unknownIds.length) {
 }
 
 const outputPath = path.resolve(valueArg('output', 'output/quality-matrix/latest.json'));
+const observabilityHashKey = process.env.KNOWTRAIL_OBSERVABILITY_HASH_KEY || randomBytes(32).toString('hex');
 const report = await runQualityMatrix(tasks, {
   concurrency: Number(valueArg('concurrency', process.env.KNOWTRAIL_MATRIX_CONCURRENCY || '2')),
   timeoutMs: Number(valueArg('timeout-ms', process.env.KNOWTRAIL_MATRIX_TIMEOUT_MS || '240000')),
   cwd: process.cwd(),
+  env: {
+    BIND_HOST: valueArg('bind-host', process.env.KNOWTRAIL_MATRIX_BIND_HOST || '127.0.0.1'),
+    KNOWTRAIL_OBSERVABILITY_HASH_KEY: observabilityHashKey,
+  },
 });
 
 await mkdir(path.dirname(outputPath), { recursive: true });

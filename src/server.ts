@@ -6,6 +6,9 @@ import { stat } from 'fs/promises';
 import path from 'path';
 import { parse } from 'url';
 import next from 'next';
+import { observeRequest } from './lib/request-observability';
+import { operationalObservabilityStatus } from './lib/operational-observability';
+import { PROMETHEUS_CONTENT_TYPE, serviceMetrics, trustedMetricsRequest } from './lib/service-metrics';
 import {
   resolveClassroomProxyTarget,
   shouldProxyMissingClassroomAsset,
@@ -13,6 +16,18 @@ import {
 
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const dev = runtimeEnv !== 'production';
+const operationalObservability = operationalObservabilityStatus();
+if (!dev && !operationalObservability.ready) {
+  console.error(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: 'error',
+    service: 'knowtrail',
+    event: 'startup_blocked',
+    blocker: operationalObservability.blockers[0],
+    exitCode: 78,
+  }));
+  process.exit(78);
+}
 const bindHost = process.env.BIND_HOST || (dev ? 'localhost' : '127.0.0.1');
 const port = parseInt(process.env.PORT || '5000', 10);
 
@@ -57,7 +72,12 @@ function resolveRuntimePublicPath(pathname: string): string | null {
   return absolutePath;
 }
 
-function proxyClassroomRuntime(req: IncomingMessage, res: ServerResponse, pathname: string): boolean {
+function proxyClassroomRuntime(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pathname: string,
+  onError: (error: unknown) => void,
+): boolean {
   if (!classroomRuntimeOrigin) return false;
 
   const proxyTarget = resolveClassroomProxyTarget(req.url || pathname, pathname);
@@ -82,7 +102,7 @@ function proxyClassroomRuntime(req: IncomingMessage, res: ServerResponse, pathna
   });
 
   proxyReq.on('error', error => {
-    console.error('Error proxying classroom runtime', pathname, error);
+    onError(error);
     if (!res.headersSent) res.statusCode = 502;
     res.end('Classroom runtime unavailable');
   });
@@ -93,10 +113,26 @@ function proxyClassroomRuntime(req: IncomingMessage, res: ServerResponse, pathna
 
 app.prepare().then(() => {
   const server = createServer(async (req, res) => {
+    const observation = observeRequest(req, res);
     try {
       const parsedUrl = parse(req.url!, true);
       const pathname = parsedUrl.pathname || '';
-      if (proxyClassroomRuntime(req, res, pathname)) return;
+      if (pathname === '/api/metrics') {
+        if (!trustedMetricsRequest(req.socket.remoteAddress, req.headers['x-forwarded-for'], req.headers['x-real-ip'])) {
+          res.statusCode = 403;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'metrics_forbidden' }));
+          return;
+        }
+        const body = serviceMetrics.render();
+        res.statusCode = 200;
+        res.setHeader('Content-Type', PROMETHEUS_CONTENT_TYPE);
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.end(body);
+        return;
+      }
+      if (proxyClassroomRuntime(req, res, pathname, observation.logError)) return;
 
       const runtimeFilePath = resolveRuntimePublicPath(pathname);
       if (runtimeFilePath && (req.method === 'GET' || req.method === 'HEAD')) {
@@ -113,7 +149,7 @@ app.prepare().then(() => {
           }
           createReadStream(runtimeFilePath)
             .on('error', error => {
-              console.error('Error serving runtime public file', pathname, error);
+              observation.logError(error);
               if (!res.headersSent) res.statusCode = 500;
               res.end();
             })
@@ -123,7 +159,7 @@ app.prepare().then(() => {
       }
       await handle(req, res, parsedUrl);
     } catch (err) {
-      console.error('Error occurred handling', req.url, err);
+      observation.logError(err);
       res.statusCode = 500;
       res.end('Internal server error');
     }

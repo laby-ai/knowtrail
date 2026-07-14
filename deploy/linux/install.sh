@@ -27,6 +27,7 @@ if [ -f "$CLASSROOM_RUNTIME_ARCHIVE" ]; then
   done
   mkdir -p "$APP_DIR/.references/OpenMAIC"
   tar -xzf "$CLASSROOM_RUNTIME_ARCHIVE" -C "$APP_DIR/.references/OpenMAIC"
+  rm -f "$CLASSROOM_RUNTIME_ARCHIVE"
 fi
 
 if ! command -v node >/dev/null 2>&1; then
