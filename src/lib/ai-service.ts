@@ -1,6 +1,13 @@
 import type { RuntimeAIConfig } from '@/types';
-import { hasRuntimeAIProvider, redactRuntimeAISecrets, resolveOpenAIChatEndpoint, resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import {
+  allowRequestRuntimeAIConfig,
+  hasRuntimeAIProvider,
+  redactRuntimeAISecrets,
+  resolveOpenAIChatEndpoint,
+  resolveServerRuntimeAIConfig,
+} from '@/lib/runtime-ai-config';
 import { buildOpenAIHeaders, fetchWithTransientRetry, shouldRetryTransientError, waitForTransientRetry } from '@/lib/runtime-ai-http';
+import { isZhiqiModelResolverConfigured, resolveZhiqiRuntimeModel } from '@/lib/zhiqi-model-resolver';
 export { embedTexts } from '@/lib/runtime-embeddings';
 import { resolveFileUrl, storeFile } from '@/lib/storage';
 import {
@@ -89,6 +96,28 @@ function resolveRuntimeModel(options?: RuntimeLLMOptions, runtimeConfig?: Partia
   return process.env.OPENAI_COMPAT_MODEL || 'gpt-4o-mini';
 }
 
+async function resolveRuntimeTextConfig(
+  runtimeConfig?: Partial<RuntimeAIConfig>,
+  options?: RuntimeLLMOptions,
+): Promise<Partial<RuntimeAIConfig>> {
+  if (allowRequestRuntimeAIConfig() && hasRuntimeAIProvider(runtimeConfig)) return runtimeConfig;
+
+  // The managed paper scene is text-only. Vision calls keep their dedicated server configuration.
+  if (options?.vision || !isZhiqiModelResolverConfigured()) {
+    return resolveServerRuntimeAIConfig(runtimeConfig);
+  }
+
+  const resolved = await resolveZhiqiRuntimeModel('paper_reading');
+  if (!resolved || resolved.modelType !== 1) {
+    throw new Error('统一模型管理中的论文精读文本模型尚未配置。');
+  }
+  return {
+    apiBase: resolved.apiBase,
+    apiKey: resolved.apiKey,
+    model: resolved.model,
+  };
+}
+
 async function* openAICompatStream(
   messages: Message[],
   options?: RuntimeLLMOptions,
@@ -172,7 +201,7 @@ export async function llmInvoke(
   runtimeConfig?: Partial<RuntimeAIConfig>,
 ): Promise<string> {
   void customHeaders;
-  const resolvedRuntimeConfig = resolveServerRuntimeAIConfig(runtimeConfig);
+  const resolvedRuntimeConfig = await resolveRuntimeTextConfig(runtimeConfig, options);
   if (!hasRuntimeAIProvider(resolvedRuntimeConfig)) {
     throw new Error('账号绑定的模型服务尚未配置，已停止使用历史平台 fallback。');
   }
@@ -202,7 +231,7 @@ export async function* llmStream(
   runtimeConfig?: Partial<RuntimeAIConfig>,
 ): AsyncGenerator<string, void, unknown> {
   void customHeaders;
-  const resolvedRuntimeConfig = resolveServerRuntimeAIConfig(runtimeConfig);
+  const resolvedRuntimeConfig = await resolveRuntimeTextConfig(runtimeConfig, options);
   if (!hasRuntimeAIProvider(resolvedRuntimeConfig)) {
     throw new Error('账号绑定的模型服务尚未配置，已停止使用历史平台 fallback。');
   }
