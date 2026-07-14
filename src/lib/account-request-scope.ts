@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { paperHostHighCostAuthRequired } from '@/lib/paper-host-high-cost-auth';
 import { paperHostLoginRequiredResponse, readPaperHostRequestScope } from '@/lib/paper-host-request-scope';
 
 export interface AccountNotebookScope {
@@ -30,7 +31,11 @@ export async function resolveAccountNotebookScope(
         response: paperHostLoginRequiredResponse(input.loginMessage),
       };
     }
-    if (input.requireAuthenticatedPaperHost && paperHostScope.accountScope === 'guest') {
+    if (
+      input.requireAuthenticatedPaperHost
+      && paperHostHighCostAuthRequired()
+      && paperHostScope.accountScope === 'guest'
+    ) {
       return {
         ok: false,
         response: paperHostLoginRequiredResponse(input.loginMessage),

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { NextRequest } from 'next/server';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import { paperHostHighCostAuthRequired } from '@/lib/paper-host-high-cost-auth';
 
 function paperHostRequest(accountScope: string) {
   const referer = new URL('https://agent.example/');
@@ -16,6 +17,12 @@ function paperHostRequest(accountScope: string) {
 }
 
 async function main() {
+  assert.equal(paperHostHighCostAuthRequired({}), true, 'The high-cost guest gate must fail safe when unset.');
+  assert.equal(paperHostHighCostAuthRequired({ PAPER_HOST_REQUIRE_HIGH_COST_AUTH: 'true' }), true);
+  assert.equal(paperHostHighCostAuthRequired({ PAPER_HOST_REQUIRE_HIGH_COST_AUTH: ' TRUE ' }), true);
+  assert.equal(paperHostHighCostAuthRequired({ PAPER_HOST_REQUIRE_HIGH_COST_AUTH: 'false' }), false);
+  assert.equal(paperHostHighCostAuthRequired({ PAPER_HOST_REQUIRE_HIGH_COST_AUTH: '0' }), true, 'Invalid values must fail safe.');
+
   const guestChat = await resolveAccountNotebookScope(paperHostRequest('guest'), {
     notebookId: 'notebook-01',
     loginMessage: '请先登录。',
@@ -35,6 +42,24 @@ async function main() {
       status: 'failed',
       errorType: 'paper_host_login_required',
     });
+  }
+
+  const originalGate = process.env.PAPER_HOST_REQUIRE_HIGH_COST_AUTH;
+  process.env.PAPER_HOST_REQUIRE_HIGH_COST_AUTH = 'false';
+  try {
+    const guestHighCostTonight = await resolveAccountNotebookScope(paperHostRequest('guest'), {
+      notebookId: 'notebook-01',
+      loginMessage: '请先登录后再使用高成本生成。',
+      requireAuthenticatedPaperHost: true,
+    });
+    assert.equal(
+      guestHighCostTonight.ok,
+      true,
+      'An explicit production override should allow a scoped guest without removing route declarations.',
+    );
+  } finally {
+    if (originalGate === undefined) delete process.env.PAPER_HOST_REQUIRE_HIGH_COST_AUTH;
+    else process.env.PAPER_HOST_REQUIRE_HIGH_COST_AUTH = originalGate;
   }
 
   const memberHighCost = await resolveAccountNotebookScope(paperHostRequest('current-user'), {
