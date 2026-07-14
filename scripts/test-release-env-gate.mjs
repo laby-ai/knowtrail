@@ -11,6 +11,7 @@ import { applyClipboardModelSecrets } from './lib/real-env-setup.mjs';
 
 const fakeSecret = 'test-only-secret-value';
 const validEnv = [
+  `KNOWTRAIL_OBSERVABILITY_HASH_KEY=${fakeSecret.repeat(2)}`,
   'ARK_API_BASE=https://ark.example.com/api/v3',
   `ARK_API_KEY=${fakeSecret}`,
   'ARK_MODEL=doubao-test',
@@ -71,6 +72,18 @@ try {
       assert(!String(error).includes(fakeSecret));
       return true;
     },
+  );
+
+  const missingObservabilityKeyPath = path.join(tempDir, 'missing-observability-key.env');
+  await writeFile(
+    missingObservabilityKeyPath,
+    validEnv.replace(/^KNOWTRAIL_OBSERVABILITY_HASH_KEY=.*\n/m, ''),
+    'utf8',
+  );
+  await chmod(missingObservabilityKeyPath, 0o600);
+  await assert.rejects(
+    () => prepareReleaseEnvironment({ sourcePath: missingObservabilityKeyPath, targetPath }),
+    /observability-identity-hash-key/,
   );
 
   const missingImageProviderPath = path.join(tempDir, 'missing-image-provider.env');
