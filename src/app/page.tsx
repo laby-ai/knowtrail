@@ -58,6 +58,7 @@ function AcademicPresenterContent({
   onSourceGuideDismiss,
   accountSession,
   accountAuthRequired,
+  paperHostContext,
 }: {
   workspaceTitle: string;
   onBackHome: () => void;
@@ -66,6 +67,7 @@ function AcademicPresenterContent({
   onSourceGuideDismiss: () => void;
   accountSession: AccountAuthSession | null;
   accountAuthRequired: boolean;
+  paperHostContext: PaperHostContext;
 }) {
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -78,6 +80,8 @@ function AcademicPresenterContent({
         workspaceTitle={workspaceTitle}
         onBackHome={onBackHome}
         onSignOut={onSignOut}
+        embedded={paperHostContext.enabled}
+        authenticated={Boolean(accountSession)}
       />
       <div className="min-h-0 flex-1">
         <ThreeColumnLayout
@@ -422,6 +426,7 @@ export default function HomePage() {
             onSourceGuideDismiss={() => setShowSourceGuide(false)}
             accountSession={accountSession}
             accountAuthRequired={accountStatus?.authRequired !== false}
+            paperHostContext={paperHostContext}
           />
         ) : showLanding ? (
           <LandingPage
@@ -431,6 +436,7 @@ export default function HomePage() {
           />
         ) : (
           <NotebookHome
+            embedded={paperHostContext.enabled}
             notebooks={notebooks.length > 0 ? notebooks : createDefaultNotebooks()}
             activeNotebookId={activeNotebookId}
             accountStatus={accountStatus}

@@ -22,6 +22,7 @@ import {
 } from '@/components/home/NotebookCards';
 
 type NotebookHomeProps = {
+  embedded: boolean;
   notebooks: WorkspaceNotebook[];
   activeNotebookId: string | null;
   accountStatus: AccountCenterStatus | null;
@@ -81,6 +82,7 @@ function AccountArea({
 }
 
 export function NotebookHome({
+  embedded,
   notebooks,
   activeNotebookId,
   accountStatus,
@@ -100,15 +102,22 @@ export function NotebookHome({
     <div className="min-h-screen bg-[#f6f7f9] text-slate-950">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 px-4 py-3 backdrop-blur-xl sm:px-5">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={onShowLanding}
-            className="flex shrink-0 items-center gap-2.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-            aria-label="返回 KnowTrail 首页"
-          >
-            <BrandMark compact />
-            <span className="whitespace-nowrap text-xl font-semibold tracking-tight">KnowTrail</span>
-          </button>
+          {embedded ? (
+            <div className="flex min-w-0 items-center gap-2" data-testid="embedded-notebook-home-title">
+              <span className="h-2 w-2 rounded-full bg-[#2866D7]" aria-hidden="true" />
+              <span className="truncate text-base font-semibold text-[#142033]">文献工作台</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onShowLanding}
+              className="flex shrink-0 items-center gap-2.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              aria-label="返回 KnowTrail 首页"
+            >
+              <BrandMark compact />
+              <span className="whitespace-nowrap text-xl font-semibold tracking-tight">KnowTrail</span>
+            </button>
+          )}
 
           <label className="relative mx-auto hidden w-full max-w-md md:block">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -122,7 +131,9 @@ export function NotebookHome({
           </label>
 
           <div className="flex items-center gap-2">
-            <AccountArea accountStatus={accountStatus} accountSession={accountSession} onSignOut={onSignOut} />
+            {!embedded && (
+              <AccountArea accountStatus={accountStatus} accountSession={accountSession} onSignOut={onSignOut} />
+            )}
             <button
               type="button"
               onClick={onCreate}
@@ -189,7 +200,7 @@ export function NotebookHome({
           )}
         </section>
 
-        {accountStatus?.configured && !accountSession && (
+        {!embedded && accountStatus?.configured && !accountSession && (
           <div className="mx-auto mt-6 flex max-w-7xl items-center justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
             <div className="flex items-center gap-2">
               <BrandMark compact className="h-7 w-7" />

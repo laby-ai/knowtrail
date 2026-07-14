@@ -98,6 +98,7 @@
     "test:real-env-setup": "node ./scripts/test-real-env-setup.mjs",
     "test:paper-platform-adapter": "tsx ./scripts/test-paper-platform-adapter.ts",
     "test:embedded-entry-state": "tsx ./scripts/test-embedded-entry-state.ts",
+    "smoke:embedded-quiet-workbench": "node ./scripts/smoke-embedded-quiet-workbench.mjs",
     "test:paper-host-guest-access": "tsx ./scripts/test-paper-host-guest-access.ts",
     "test:notebook-library-controls": "tsx ./scripts/test-notebook-library-controls.ts",
     "test:chat-generation-lifecycle": "tsx ./scripts/test-chat-generation-lifecycle.ts",
