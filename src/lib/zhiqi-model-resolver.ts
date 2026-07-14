@@ -42,6 +42,10 @@ function resolverEndpoint(): URL | undefined {
   return endpoint;
 }
 
+export function isZhiqiModelResolverConfigured(): boolean {
+  return Boolean(process.env.ZHIQI_MODEL_RESOLVE_URL?.trim());
+}
+
 function requestTimeoutMs(): number {
   const configured = Number(process.env.ZHIQI_MODEL_RESOLVE_TIMEOUT_MS);
   if (!Number.isFinite(configured) || configured < 500 || configured > 10_000) return 3_000;

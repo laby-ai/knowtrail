@@ -1,11 +1,16 @@
 import type { RuntimeAIConfig } from '@/types';
 import {
+  allowRequestRuntimeAIConfig,
   hasRuntimeAIProvider,
   redactRuntimeAISecrets,
   resolveOpenAIEmbeddingsEndpoint,
   resolveServerRuntimeAIConfig,
 } from '@/lib/runtime-ai-config';
 import { buildOpenAIHeaders, fetchWithTransientRetry } from '@/lib/runtime-ai-http';
+import {
+  isZhiqiModelResolverConfigured,
+  resolveZhiqiRuntimeModel,
+} from '@/lib/zhiqi-model-resolver';
 
 interface OpenAIEmbeddingsResponse {
   data?: Array<{ embedding?: number[] }> | { embedding?: number[] };
@@ -61,7 +66,7 @@ export async function embedTexts(
   inputs: string[],
   runtimeConfig?: Partial<RuntimeAIConfig>,
 ): Promise<number[][]> {
-  const resolvedRuntimeConfig = resolveServerRuntimeAIConfig(runtimeConfig);
+  const resolvedRuntimeConfig = await resolveRuntimeEmbeddingConfig(runtimeConfig);
   if (!hasRuntimeAIProvider(resolvedRuntimeConfig)) {
     throw new Error('账号绑定的向量模型服务尚未配置，无法生成向量。');
   }
@@ -97,4 +102,26 @@ export async function embedTexts(
     }),
   }, { label: 'openai-compatible embeddings' });
   return parseEmbeddingResponse(res, resolvedRuntimeConfig.apiKey, normalizedInputs.length);
+}
+
+async function resolveRuntimeEmbeddingConfig(
+  runtimeConfig?: Partial<RuntimeAIConfig>,
+): Promise<Partial<RuntimeAIConfig>> {
+  if (allowRequestRuntimeAIConfig() && hasRuntimeAIProvider(runtimeConfig)) {
+    return resolveServerRuntimeAIConfig(runtimeConfig);
+  }
+
+  if (!isZhiqiModelResolverConfigured()) {
+    return resolveServerRuntimeAIConfig(runtimeConfig);
+  }
+
+  const resolved = await resolveZhiqiRuntimeModel('paper_embedding');
+  if (!resolved || resolved.modelType !== 5) {
+    throw new Error('统一模型管理尚未配置论文向量模型，无法生成向量。');
+  }
+  return {
+    apiBase: resolved.apiBase,
+    apiKey: resolved.apiKey,
+    embeddingModel: resolved.model,
+  };
 }
