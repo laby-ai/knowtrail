@@ -76,10 +76,10 @@ assert.deepEqual(scholarRequests, [{
   body: { key: 'multimodal benchmark', pageNum: 1, pageSize: 10 },
 }]);
 
-const hostPlanRequests: unknown[] = [];
+const hostPlanRequests: Array<{ url: string; body: unknown }> = [];
 const hostPlan = await optimizePaperHostDiscoverQuery('多模态大模型如何评测？', 'scholar', {
   request: async request => {
-    hostPlanRequests.push(request.body);
+    hostPlanRequests.push({ url: request.url, body: request.body });
     return {
       status: 200,
       text: 'event: delta\ndata: {"content":"{\\"optimizedQuery\\":\\"multimodal large language model evaluation\\",\\"keywords\\":[\\"MLLM\\"]}"}\n\nevent: done\ndata: {"ok":true,"answer":"{\\"optimizedQuery\\":\\"multimodal large language model evaluation\\",\\"keywords\\":[\\"MLLM\\"]}"}\n\n',
@@ -87,7 +87,8 @@ const hostPlan = await optimizePaperHostDiscoverQuery('多模态大模型如何�
   },
 });
 assert.equal(hostPlan.optimizedQuery, 'multimodal large language model evaluation');
-const hostPlanBody = hostPlanRequests[0] as Record<string, unknown>;
+assert.equal(hostPlanRequests[0]?.url, '/center/agent/chat/stream');
+const hostPlanBody = hostPlanRequests[0]?.body as Record<string, unknown>;
 assert.deepEqual({
   mode: hostPlanBody.mode,
   scope: hostPlanBody.scope,
@@ -101,10 +102,10 @@ assert.deepEqual({
 });
 assert.match(String(hostPlanBody.question), /不生成题名、作者、链接、引用或事实/);
 
-const bridgeRequests: Array<{ body: unknown; timeout?: number }> = [];
+const bridgeRequests: Array<{ url: string; body: unknown; timeout?: number }> = [];
 const hostSearch = await searchPaperHostSources({ query: 'multimodal benchmark', scope: 'webpage' }, {
   request: async request => {
-    bridgeRequests.push({ body: request.body });
+    bridgeRequests.push({ url: request.url, body: request.body });
     return {
       status: 200,
       text: 'event: citation_source\ndata: {"paper":{"title":"Reliable web source","description":"Primary documentation","url":"https://example.org/docs"}}\n\n',
@@ -113,6 +114,7 @@ const hostSearch = await searchPaperHostSources({ query: 'multimodal benchmark',
 });
 assert.equal(hostSearch.provider, 'dashscope-web');
 assert.equal(hostSearch.results[0]?.link, 'https://example.org/docs');
+assert.equal(bridgeRequests[0]?.url, '/center/agent/chat/stream');
 assert.deepEqual(bridgeRequests[0]?.body, {
   question: 'multimodal benchmark',
   mode: 'quick',

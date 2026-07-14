@@ -114,7 +114,7 @@ export async function optimizePaperHostDiscoverQuery(
   ].join('\n');
   const response = await activeBridge.request({
     method: 'POST',
-    url: '/agent/chat/stream',
+    url: '/center/agent/chat/stream',
     body: {
       question: instruction,
       mode: 'quick',
@@ -151,7 +151,7 @@ export async function searchPaperHostSources(
   }
   const response = await activeBridge.request({
     method: 'POST',
-    url: '/agent/chat/stream',
+    url: '/center/agent/chat/stream',
     body: {
       question: input.query,
       mode: 'quick',
