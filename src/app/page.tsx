@@ -36,7 +36,7 @@ import {
   readPaperHostContext,
   type PaperHostContext,
 } from '@/lib/paper-host-bridge';
-import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { resolveEmbeddedEntryState } from '@/lib/embedded-entry-state';
 import { loadNotebookSourceCounts, mergeNotebookSourceCounts } from '@/lib/notebook-source-counts';
 
 const FEATURED_SOURCE_COUNTS = Object.fromEntries(
@@ -112,6 +112,7 @@ export default function HomePage() {
   const [accountStatus, setAccountStatus] = useState<AccountCenterStatus | null>(null);
   const [accountSession, setAccountSession] = useState<AccountAuthSession | null>(null);
   const [accountSessionReady, setAccountSessionReady] = useState(false);
+  const [routeReady, setRouteReady] = useState(false);
   const [paperHostContext, setPaperHostContext] = useState<PaperHostContext>(() => ({
     enabled: false,
     workspaceKey: '',
@@ -131,7 +132,6 @@ export default function HomePage() {
 
   useEffect(() => {
     const context = readPaperHostContext();
-    setPaperHostContext(context);
     if (!context.enabled) return undefined;
     return installPaperHostBridge();
   }, []);
@@ -248,35 +248,16 @@ export default function HomePage() {
 
   useEffect(() => {
     const applyRouteState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const isWorkbenchRoute =
-        window.location.hash === '#workbench' ||
-        params.get('view') === 'workbench';
-
-      if (isWorkbenchRoute) {
-        const routeNotebookId = normalizeNotebookId(params.get('notebookId'));
-        if (routeNotebookId) setActiveNotebookId(routeNotebookId);
-        setShowLanding(false);
-        setEntered(true);
-        return;
-      }
-
-      if (window.location.hash === '#notebooks' || params.get('view') === 'notebooks') {
-        setShowLanding(false);
-        setEntered(false);
-        return;
-      }
-
-      if (params.get('view') === 'landing') {
-        setShowLanding(true);
-        setEntered(false);
-        return;
-      }
-
-      if (!window.location.hash && !window.location.search) {
-        setShowLanding(true);
-        setEntered(false);
-      }
+      const context = readPaperHostContext();
+      const route = resolveEmbeddedEntryState({
+        search: window.location.search,
+        hash: window.location.hash,
+      });
+      setPaperHostContext(context);
+      if (route.notebookId) setActiveNotebookId(route.notebookId);
+      setShowLanding(route.view === 'landing');
+      setEntered(route.view === 'workbench');
+      setRouteReady(true);
     };
 
     applyRouteState();
@@ -412,6 +393,17 @@ export default function HomePage() {
     () => featuredFolders.flatMap(folder => folder.papers.map(paper => paper.id)),
     [featuredFolders],
   );
+
+  if (!routeReady) {
+    return (
+      <div
+        className="min-h-screen bg-[#F7F9FC]"
+        data-testid="embedded-entry-boot-shell"
+        aria-busy="true"
+        aria-label="正在准备科研工作区"
+      />
+    );
+  }
 
   return (
     <AppProvider

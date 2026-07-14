@@ -22,7 +22,11 @@ const page = read('src/app/page.tsx');
 assert.match(page, /installPaperHostBridge\(\)/);
 assert.match(page, /paperHostSignInRequired/);
 assert.match(page, /paper-host:login-required/);
-assert.match(page, /normalizeNotebookId\(params\.get\('notebookId'\)\)/);
+assert.match(page, /resolveEmbeddedEntryState\(/);
+
+const entryState = read('src/lib/embedded-entry-state.ts');
+assert.match(entryState, /normalizeNotebookId\(params\.get\('notebookId'\)\)/);
+assert.match(entryState, /embedded \|\| hash === '#notebooks'/);
 
 const studioSwitcher = read('src/components/studio/StudioToolSwitcher.tsx');
 for (const key of PAPER_PLATFORM_ADAPTER.visibilityParams) {

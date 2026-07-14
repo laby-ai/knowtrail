@@ -14,6 +14,7 @@ export const PAPER_PLATFORM_ADAPTER = Object.freeze({
   visibilityParams: ['embed', 'hideVirtualClassroom'],
   requiredFiles: [
     'src/lib/paper-host-bridge.ts',
+    'src/lib/embedded-entry-state.ts',
     'src/lib/paper-host-request-scope.ts',
     'src/lib/account-request-scope.ts',
     'src/app/page.tsx',
