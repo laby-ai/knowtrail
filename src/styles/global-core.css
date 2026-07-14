@@ -46,11 +46,6 @@
   --glass-blur: blur(14px) saturate(125%);
   --glass-blur-heavy: blur(20px) saturate(135%);
 
-  /* ── Ambient Blob Colors ── */
-  --blob-purple: rgba(76, 63, 180, 0.16);
-  --blob-pink: rgba(176, 42, 96, 0.12);
-  --blob-cyan: rgba(20, 130, 160, 0.12);
-
   /* ── Radius ── */
   --radius-xl: 1rem;
   --radius-2xl: 1.5rem;
@@ -125,11 +120,6 @@
   --glass-card-shadow: 0 20px 60px rgba(0,0,0,0.06), 0 0 40px rgba(139,92,246,0.04);
   --glass-blur: blur(24px) saturate(180%);
   --glass-blur-heavy: blur(40px) saturate(200%);
-
-  /* Light mode ambient blobs — vivid enough to refract through glass */
-  --blob-purple: rgba(99, 102, 241, 0.08);
-  --blob-pink: rgba(236, 72, 153, 0.06);
-  --blob-cyan: rgba(6, 182, 212, 0.06);
 
   --btn-primary-bg: #000000;
   --btn-primary-color: #ffffff;
@@ -223,35 +213,6 @@ body {
 @keyframes slideInRight {
   from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }
-}
-@keyframes floatBlob1 {
-  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  15%  { transform: translate(80px, -60px) scale(1.12) rotate(5deg); }
-  30%  { transform: translate(30px, 70px) scale(0.92) rotate(-3deg); }
-  50%  { transform: translate(-70px, 40px) scale(1.08) rotate(8deg); }
-  65%  { transform: translate(-40px, -80px) scale(0.95) rotate(-6deg); }
-  80%  { transform: translate(60px, -30px) scale(1.15) rotate(4deg); }
-  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
-}
-
-@keyframes floatBlob2 {
-  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  20%  { transform: translate(-90px, 50px) scale(1.1) rotate(-7deg); }
-  40%  { transform: translate(60px, 80px) scale(0.9) rotate(3deg); }
-  55%  { transform: translate(100px, -40px) scale(1.06) rotate(9deg); }
-  70%  { transform: translate(-30px, -70px) scale(0.94) rotate(-4deg); }
-  85%  { transform: translate(-60px, 30px) scale(1.12) rotate(6deg); }
-  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
-}
-
-@keyframes floatBlob3 {
-  0%   { transform: translate(0, 0) scale(1) rotate(0deg); }
-  12%  { transform: translate(50px, 90px) scale(1.14) rotate(6deg); }
-  28%  { transform: translate(-80px, 20px) scale(0.88) rotate(-5deg); }
-  45%  { transform: translate(40px, -60px) scale(1.1) rotate(10deg); }
-  62%  { transform: translate(90px, 50px) scale(0.93) rotate(-8deg); }
-  78%  { transform: translate(-50px, -50px) scale(1.07) rotate(3deg); }
-  100% { transform: translate(0, 0) scale(1) rotate(0deg); }
 }
 @keyframes bgShift {
   0% { background-position: 0% 0%; }

@@ -72,10 +72,6 @@ body {
   color: var(--text-primary);
 }
 
-.ambient-blob {
-  opacity: 0 !important;
-}
-
 .liquid-glass-panel,
 .liquid-glass-card,
 .liquid-glass-static,

@@ -4,8 +4,7 @@ import { useEffect, useRef, useCallback } from 'react';
 
 /**
  * LiquidGlassProvider
- * Provides ambient background blobs and mouse-tracking hover-light
- * for the entire app. Wrap your app content with this component.
+ * Provides mouse-tracking hover-light for the app glass surfaces.
  */
 export function LiquidGlassProvider({ children }: { children: React.ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -37,38 +36,6 @@ export function LiquidGlassProvider({ children }: { children: React.ReactNode })
 
   return (
     <div ref={containerRef} className="relative w-full min-h-full bg-[var(--bg-primary)]">
-      {/* Ambient background is intentionally quiet; content contrast comes first. */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-        <div
-          className="ambient-blob ambient-blob-purple"
-          style={{
-            width: '460px',
-            height: '460px',
-            top: '5%',
-            left: '10%',
-          }}
-        />
-        <div
-          className="ambient-blob ambient-blob-pink"
-          style={{
-            width: '520px',
-            height: '520px',
-            bottom: '0%',
-            right: '5%',
-          }}
-        />
-        <div
-          className="ambient-blob ambient-blob-cyan"
-          style={{
-            width: '430px',
-            height: '430px',
-            top: '45%',
-            left: '50%',
-          }}
-        />
-      </div>
-
-      {/* Content */}
       <div className="relative z-10 w-full min-h-full">
         {children}
       </div>

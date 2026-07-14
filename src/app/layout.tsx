@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { publicAssetPath } from '@/lib/public-path';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
   authors: [{ name: 'KnowTrail' }],
   generator: 'KnowTrail',
   icons: {
-    icon: [{ url: '/assets/brand/lingbi-mark.svg', type: 'image/svg+xml' }],
+    icon: [{ url: publicAssetPath('/assets/brand/lingbi-mark.svg'), type: 'image/svg+xml' }],
   },
   openGraph: {
     title: 'KnowTrail',

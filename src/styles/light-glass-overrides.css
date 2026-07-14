@@ -470,23 +470,6 @@
   background: none;
 }
 
-/* ── 环境光球 浅色（更鲜艳以便折射） ── */
-[data-theme="light"] .ambient-blob-purple {
-  background: rgba(139, 92, 246, 0.18);
-  filter: blur(100px);
-  opacity: 0.32;
-}
-[data-theme="light"] .ambient-blob-pink {
-  background: rgba(236, 72, 153, 0.16);
-  filter: blur(100px);
-  opacity: 0.28;
-}
-[data-theme="light"] .ambient-blob-cyan {
-  background: rgba(6, 182, 212, 0.16);
-  filter: blur(100px);
-  opacity: 0.28;
-}
-
 /* ── 分割线 — 浅色 ── */
 [data-theme="light"] .panel-divider::before {
   background: linear-gradient(
@@ -639,10 +622,6 @@
    Workbench contrast calibration
    NotebookLM-style readability: solid panels, quiet chrome, clear text.
    ══════════════════════════════════════════════════════════════ */
-.ambient-blob {
-  opacity: 0.24;
-}
-
 .liquid-glass-panel::after,
 .liquid-glass-card::after,
 .liquid-glass-static::after,
@@ -696,11 +675,6 @@
   --input-border: rgba(15, 23, 42, 0.16);
   --input-color: rgba(15, 23, 42, 0.96);
   --input-focus-bg: rgba(255, 255, 255, 1);
-}
-
-[data-theme="light"] .ambient-blob {
-  opacity: 0.10;
-  filter: blur(120px);
 }
 
 [data-theme="light"] .liquid-glass-panel,
@@ -831,10 +805,6 @@
   --input-border: rgba(15, 23, 42, 0.16);
   --input-color: rgba(15, 23, 42, 0.96);
   --input-focus-bg: rgba(255, 255, 255, 1);
-}
-
-:root[data-theme="light"] .ambient-blob {
-  opacity: 0.08;
 }
 
 :root[data-theme="light"] .liquid-glass-panel,

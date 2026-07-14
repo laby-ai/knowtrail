@@ -409,29 +409,6 @@
   z-index: 2;
 }
 
-/* ── Ambient Background Blobs ── */
-.ambient-blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.55;
-  pointer-events: none;
-  will-change: transform;
-}
-.ambient-blob-purple {
-  background: var(--blob-purple);
-  animation: floatBlob1 25s ease-in-out infinite;
-}
-.ambient-blob-pink {
-  background: var(--blob-pink);
-  animation: floatBlob2 30s ease-in-out infinite;
-}
-.ambient-blob-cyan {
-  background: var(--blob-cyan);
-  animation: floatBlob3 28s ease-in-out infinite;
-  animation-delay: -8s;
-}
-
 /* ═══════════════════════════════════════════════════════
    Legacy compatibility classes (used by existing components)
    ═══════════════════════════════════════════════════════ */

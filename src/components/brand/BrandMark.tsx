@@ -1,3 +1,5 @@
+import { publicAssetPath } from '@/lib/public-path';
+
 type BrandMarkProps = {
   compact?: boolean;
   className?: string;
@@ -12,7 +14,7 @@ export function BrandMark({ compact = false, className = '' }: BrandMarkProps) {
       aria-hidden="true"
     >
       <img
-        src="/assets/brand/lingbi-mark.svg"
+        src={publicAssetPath('/assets/brand/lingbi-mark.svg')}
         alt=""
         className="h-full w-full object-cover"
       />

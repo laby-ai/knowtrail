@@ -2,6 +2,7 @@
 
 import { BookOpen, FileText, Globe2, Headphones, Presentation, Sparkles } from 'lucide-react';
 import { BrandMark } from '@/components/brand/BrandMark';
+import { publicAssetPath } from '@/lib/public-path';
 
 const sourceTiles = [
   { label: '网页资料', icon: Globe2, className: 'left-[8%] top-[16%] bg-emerald-50/92 text-emerald-700' },
@@ -20,11 +21,11 @@ export function HomeHeroMedia() {
         loop
         playsInline
         preload="metadata"
-        poster="assets/home/lingbi-hero-poster.jpg"
+        poster={publicAssetPath('/assets/home/lingbi-hero-poster.jpg')}
         aria-hidden="true"
       >
-        <source src="assets/home/lingbi-hero-loop.webm" type="video/webm" />
-        <source src="assets/home/lingbi-hero-loop.mp4" type="video/mp4" />
+        <source src={publicAssetPath('/assets/home/lingbi-hero-loop.webm')} type="video/webm" />
+        <source src={publicAssetPath('/assets/home/lingbi-hero-loop.mp4')} type="video/mp4" />
       </video>
 
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(255,255,255,0.94),rgba(255,255,255,0.20)_42%,rgba(255,255,255,0)_76%)]" />
