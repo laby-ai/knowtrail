@@ -113,9 +113,47 @@ try {
   await embedded.getByTestId('workbench-topbar-title').waitFor({ state: 'visible' });
   assert(await embedded.getByText('KnowTrail', { exact: true }).count() === 0, 'Embedded workbench exposed KnowTrail branding.');
 
+  const left = embedded.getByTestId('workbench-left-panel');
+  const center = embedded.getByTestId('workbench-center-panel');
+  const right = embedded.getByTestId('workbench-right-panel');
+  const leftBox = await left.boundingBox();
+  const rightBox = await right.boundingBox();
+  assert(leftBox && Math.abs(leftBox.width - 272) <= 2, `Expected 272px left panel, got ${leftBox?.width}.`);
+  assert(rightBox && Math.abs(rightBox.width - 420) <= 2, `Expected 420px right panel, got ${rightBox?.width}.`);
+  assert(await center.isVisible(), 'Center panel is not visible.');
+  assert(
+    await embedded.evaluate(() => document.documentElement.scrollWidth === document.documentElement.clientWidth),
+    'Workbench has page-level horizontal overflow.',
+  );
+
+  const divider = embedded.getByTestId('workbench-divider-left');
+  await divider.focus();
+  const before = (await left.boundingBox()).width;
+  await divider.press('ArrowRight');
+  await embedded.waitForFunction(
+    ({ testId, width }) => {
+      const node = document.querySelector(`[data-testid="${testId}"]`);
+      return node instanceof HTMLElement && node.getBoundingClientRect().width > width;
+    },
+    { testId: 'workbench-left-panel', width: before },
+  );
+  const after = (await left.boundingBox()).width;
+  assert(after > before, 'Keyboard resize did not increase the left panel width.');
+
+  await embedded.emulateMedia({ reducedMotion: 'reduce' });
+  const duration = await center.evaluate((node) => getComputedStyle(node).transitionDuration);
+  assert(duration === '0s', `Reduced-motion transition remained ${duration}.`);
+
   console.log(JSON.stringify({
     ok: true,
-    checked: ['no embedded landing flash', 'no embedded brand', 'standalone brand retained'],
+    checked: [
+      'no embedded landing flash',
+      'no embedded brand',
+      'standalone brand retained',
+      'quiet three-column widths',
+      'keyboard resize',
+      'reduced motion',
+    ],
   }));
 } finally {
   await browser?.close().catch(() => undefined);

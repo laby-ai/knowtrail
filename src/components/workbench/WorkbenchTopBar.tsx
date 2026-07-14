@@ -18,8 +18,12 @@ export function WorkbenchTopBar({
   embedded,
   authenticated,
 }: WorkbenchTopBarProps) {
+  const shellClass = embedded
+    ? 'z-40 flex h-14 flex-shrink-0 items-center justify-between gap-3 border-b border-[#E4E9F1] bg-white px-3 text-[#142033]'
+    : 'z-40 flex h-16 flex-shrink-0 items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]/94 px-4 text-[var(--text-primary)] shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-xl';
+
   return (
-    <header className="z-40 flex h-16 flex-shrink-0 items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]/94 px-4 text-[var(--text-primary)] shadow-[0_10px_30px_rgba(15,23,42,0.06)] backdrop-blur-xl">
+    <header className={shellClass}>
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"

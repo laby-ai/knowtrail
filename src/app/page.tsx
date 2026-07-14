@@ -69,21 +69,23 @@ function AcademicPresenterContent({
   accountAuthRequired: boolean;
   paperHostContext: PaperHostContext;
 }) {
+  const quiet = paperHostContext.enabled;
+
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, []);
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[var(--bg-primary)]">
+    <div className={`flex h-screen w-screen flex-col overflow-hidden bg-[var(--bg-primary)] ${quiet ? 'quiet-research-workbench' : ''}`}>
       <WorkbenchTopBar
         workspaceTitle={workspaceTitle}
         onBackHome={onBackHome}
         onSignOut={onSignOut}
-        embedded={paperHostContext.enabled}
+        embedded={quiet}
         authenticated={Boolean(accountSession)}
       />
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 quiet-enter">
         <ThreeColumnLayout
           leftPanel={(
             <LibraryPanel
@@ -97,8 +99,9 @@ function AcademicPresenterContent({
           )}
           centerPanel={<WorkbenchCenterPanel />}
           rightPanel={<StudioPanel />}
-          defaultLeftWidth={280}
-          defaultRightWidth={500}
+          appearance={quiet ? 'quiet-research' : 'glass'}
+          defaultLeftWidth={quiet ? 272 : 280}
+          defaultRightWidth={quiet ? 420 : 500}
           initialMobilePanel={showSourceGuide ? 'left' : 'center'}
         />
       </div>
