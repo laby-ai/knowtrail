@@ -19,11 +19,18 @@ export async function resolveAccountNotebookScope(
     notebookId?: unknown;
     loginMessage: string;
     invalidMessage?: string;
+    requireAuthenticatedPaperHost?: boolean;
   },
 ): Promise<AccountNotebookScopeResult> {
   const paperHostScope = readPaperHostRequestScope(request);
   if (paperHostScope.enabled) {
     if (!paperHostScope.ready) {
+      return {
+        ok: false,
+        response: paperHostLoginRequiredResponse(input.loginMessage),
+      };
+    }
+    if (input.requireAuthenticatedPaperHost && paperHostScope.accountScope === 'guest') {
       return {
         ok: false,
         response: paperHostLoginRequiredResponse(input.loginMessage),

@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     const accountScope = await resolveAccountNotebookScope(request, {
       notebookId: input.notebookId,
       loginMessage: '请先登录后再生成科研示意图。',
+      requireAuthenticatedPaperHost: true,
     });
     if (!accountScope.ok) return accountScope.response;
 

@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
     loginMessage: '请先登录账号,再修改幻灯片。',
+    requireAuthenticatedPaperHost: true,
   });
   if (!scope.ok) return scope.response;
 
