@@ -40,6 +40,9 @@ jobs:
       - name: Paper search contracts
         run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects
 
+      - name: Notebook home usability contract
+        run: pnpm run test:notebook-home-usability
+
       - name: Deep research contracts
         run: pnpm run test:deep-research-contract
 
