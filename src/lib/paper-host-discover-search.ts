@@ -1,4 +1,5 @@
 import type { DiscoverSearchResult, DiscoverSearchScope, DiscoveredSource } from '@/lib/discover-search-provider';
+import { normalizeDiscoverQueryPlan, type DiscoverQueryPlan } from '@/lib/discover-query-plan';
 
 type HostResponse = { status: number; text: string; json?: unknown };
 type HostBridge = {
@@ -76,6 +77,54 @@ export function parsePaperHostSearchEvents(payload: string, scope: DiscoverSearc
     }
   }
   return { provider, results, total: results.length };
+}
+
+function parseAgentAnswer(payload: string): string {
+  let answer = '';
+  let streamed = '';
+  for (const block of payload.split(/\r?\n\r?\n/)) {
+    const lines = block.split(/\r?\n/);
+    const event = cleanText(lines.find(line => line.startsWith('event:'))?.slice(6));
+    const dataLine = lines.find(line => line.startsWith('data:'));
+    if (!dataLine) continue;
+    try {
+      const data = JSON.parse(dataLine.slice(5).trim()) as { answer?: unknown; content?: unknown };
+      if (event === 'delta') streamed += cleanText(data.content);
+      if (event === 'done') answer = cleanText(data.answer);
+    } catch {
+      // Ignore malformed keepalive blocks.
+    }
+  }
+  return answer || streamed;
+}
+
+export async function optimizePaperHostDiscoverQuery(
+  originalQuery: string,
+  scope: 'webpage' | 'scholar',
+  bridge?: HostBridge,
+): Promise<DiscoverQueryPlan> {
+  const activeBridge = bridge || (typeof window !== 'undefined' ? window.paperHostBridge : undefined);
+  if (!activeBridge) throw new Error('宿主检索式优化服务尚未连接');
+  const sourceLabel = scope === 'scholar' ? '学术论文数据库' : '联网网页搜索';
+  const instruction = [
+    `请把下面问题改写为适合${sourceLabel}的一条中英双语检索式。`,
+    '只做检索词拆解与润色，不回答问题，不生成题名、作者、链接、引用或事实。',
+    '只输出严格 JSON：{"optimizedQuery":"...","keywords":["..."]}。',
+    `原始问题：${originalQuery}`,
+  ].join('\n');
+  const response = await activeBridge.request({
+    method: 'POST',
+    url: '/agent/chat/stream',
+    body: {
+      question: instruction,
+      mode: 'quick',
+      scope: 'query-plan',
+      enableWebSearch: false,
+      enablePaperSearch: false,
+    },
+  }, 35_000);
+  if (response.status < 200 || response.status >= 300) throw new Error('检索式优化暂不可用');
+  return normalizeDiscoverQueryPlan(originalQuery, parseAgentAnswer(response.text));
 }
 
 export async function searchPaperHostSources(

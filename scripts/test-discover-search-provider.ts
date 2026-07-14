@@ -7,7 +7,7 @@ import {
   searchDiscoveredSources,
 } from '../src/lib/discover-search-provider';
 import { normalizeDiscoverQueryPlan, optimizeDiscoverQuery } from '../src/lib/discover-query-plan';
-import { parseGiiispPaperResponse, parsePaperHostSearchEvents, searchPaperHostSources } from '../src/lib/paper-host-discover-search';
+import { optimizePaperHostDiscoverQuery, parseGiiispPaperResponse, parsePaperHostSearchEvents, searchPaperHostSources } from '../src/lib/paper-host-discover-search';
 
 const atom = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">
@@ -75,6 +75,31 @@ assert.deepEqual(scholarRequests, [{
   url: '/first/paper/searchArxiv',
   body: { key: 'multimodal benchmark', pageNum: 1, pageSize: 10 },
 }]);
+
+const hostPlanRequests: unknown[] = [];
+const hostPlan = await optimizePaperHostDiscoverQuery('多模态大模型如何评测？', 'scholar', {
+  request: async request => {
+    hostPlanRequests.push(request.body);
+    return {
+      status: 200,
+      text: 'event: delta\ndata: {"content":"{\\"optimizedQuery\\":\\"multimodal large language model evaluation\\",\\"keywords\\":[\\"MLLM\\"]}"}\n\nevent: done\ndata: {"ok":true,"answer":"{\\"optimizedQuery\\":\\"multimodal large language model evaluation\\",\\"keywords\\":[\\"MLLM\\"]}"}\n\n',
+    };
+  },
+});
+assert.equal(hostPlan.optimizedQuery, 'multimodal large language model evaluation');
+const hostPlanBody = hostPlanRequests[0] as Record<string, unknown>;
+assert.deepEqual({
+  mode: hostPlanBody.mode,
+  scope: hostPlanBody.scope,
+  enableWebSearch: hostPlanBody.enableWebSearch,
+  enablePaperSearch: hostPlanBody.enablePaperSearch,
+}, {
+  mode: 'quick',
+  scope: 'query-plan',
+  enableWebSearch: false,
+  enablePaperSearch: false,
+});
+assert.match(String(hostPlanBody.question), /不生成题名、作者、链接、引用或事实/);
 
 const bridgeRequests: Array<{ body: unknown; timeout?: number }> = [];
 const hostSearch = await searchPaperHostSources({ query: 'multimodal benchmark', scope: 'webpage' }, {

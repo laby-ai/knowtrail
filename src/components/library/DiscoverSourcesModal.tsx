@@ -18,7 +18,7 @@ import {
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { createDiscoveredSourceFile, type DiscoveredSourceFileInput } from '@/lib/discovered-source-file';
 import { readPaperHostContext } from '@/lib/paper-host-bridge';
-import { searchPaperHostSources } from '@/lib/paper-host-discover-search';
+import { optimizePaperHostDiscoverQuery, searchPaperHostSources } from '@/lib/paper-host-discover-search';
 
 type DiscoverResult = DiscoveredSourceFileInput;
 
@@ -78,14 +78,25 @@ export function DiscoverSourcesModal({
     try {
       let effectiveQuery = optimizedQuery.trim();
       if (!effectiveQuery) {
-        const planResponse = await fetch('/api/discover/optimize-query', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
-          body: JSON.stringify({ query: original, scope, notebookId }),
-        });
-        const plan = await planResponse.json();
+        const hostContext = readPaperHostContext();
+        let plan: { success?: boolean; optimizedQuery?: string; keywords?: string[]; error?: string };
+        if (hostContext.enabled && window.paperHostBridge) {
+          try {
+            plan = { success: true, ...await optimizePaperHostDiscoverQuery(original, scope) };
+          } catch (error) {
+            plan = { error: error instanceof Error ? error.message : '检索式优化暂不可用' };
+          }
+        } else {
+          const planResponse = await fetch('/api/discover/optimize-query', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+            body: JSON.stringify({ query: original, scope, notebookId }),
+          });
+          plan = await planResponse.json();
+          if (!planResponse.ok) plan.success = false;
+        }
         if (sequence !== searchSequence.current) return;
-        if (planResponse.ok && plan.success && typeof plan.optimizedQuery === 'string') {
+        if (plan.success && typeof plan.optimizedQuery === 'string') {
           effectiveQuery = plan.optimizedQuery.trim();
           setOptimizedQuery(effectiveQuery);
           setPlanKeywords(Array.isArray(plan.keywords) ? plan.keywords : []);
