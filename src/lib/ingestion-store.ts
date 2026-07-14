@@ -1,8 +1,8 @@
 import { createRequire } from 'node:module';
 import { buildSourceChunks, type RagSourceInput, type SourceChunk } from '@/lib/rag';
-import { embedTexts } from '@/lib/ai-service';
+import { embedTexts, hasRuntimeEmbeddingProvider } from '@/lib/runtime-embeddings';
 import { upsertSourceChunks } from '@/lib/vector-store';
-import { hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
+import { redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
 import { LocalJsonSourceStoreAdapter } from '@/lib/source-store/local-json-adapter';
 import {
   POSTGRES_CHUNKS_TABLE,
@@ -809,7 +809,7 @@ export async function ingestExtractedSource(
       return saveSourceRecord(record);
     }
 
-    const canEmbed = Boolean(options.embedder) || hasRuntimeAIProvider(options.aiConfig);
+    const canEmbed = Boolean(options.embedder) || hasRuntimeEmbeddingProvider(options.aiConfig);
     if (!canEmbed) {
       record.vectorIndex = {
         status: 'not_configured',
@@ -824,9 +824,9 @@ export async function ingestExtractedSource(
       record.stages = setStage(record.stages, 'embed', 'running');
       record.vectorIndex = {
         status: 'running',
-        model: hasRuntimeAIProvider(options.aiConfig)
-          ? options.aiConfig.embeddingModel || process.env.OPENAI_COMPAT_EMBEDDING_MODEL || 'text-embedding-3-small'
-          : 'custom-test-embedder',
+        model: options.embedder
+          ? 'custom-test-embedder'
+          : options.aiConfig?.embeddingModel || process.env.OPENAI_COMPAT_EMBEDDING_MODEL || 'paper_embedding',
         updatedAt: nowIso(),
       };
       await saveSourceRecord(record);

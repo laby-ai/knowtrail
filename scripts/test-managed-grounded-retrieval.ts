@@ -54,23 +54,23 @@ async function main() {
   delete process.env.ARK_API_KEY;
 
   try {
-    await ingestExtractedSource({
+    const ingested = await ingestExtractedSource({
       id: 'managed-vector-source',
       fileName: 'managed.md',
       fileType: 'md',
       title: 'Managed Vector Source',
       shortName: 'Managed. 2026',
       content: '统一模型管理应驱动真实向量检索。',
-    }, {
-      embedder: async texts => texts.map(() => [1, 0, 0, 0]),
     });
+
+    assert.equal(ingested.vectorIndex.status, 'succeeded');
 
     const grounded = await buildGroundedRetrievalContext('如何验证统一向量检索？', []);
 
     assert.equal(grounded.retrievalMode, 'persisted-vector');
     assert.equal(grounded.degraded, false);
     assert.equal(grounded.citations[0]?.sourceId, 'managed-vector-source');
-    assert.equal(embeddingCalls, 1);
+    assert.equal(embeddingCalls, 2);
   } finally {
     delete process.env.ZHIQI_MODEL_RESOLVE_URL;
     delete process.env.ALLOW_INSECURE_API_BASE;
@@ -84,7 +84,10 @@ async function main() {
 
   console.log(JSON.stringify({
     ok: true,
-    checked: ['managed paper_embedding enables the real grounded vector retrieval path'],
+    checked: [
+      'managed paper_embedding indexes ingested sources',
+      'managed paper_embedding enables the real grounded vector retrieval path',
+    ],
   }, null, 2));
 }
 
