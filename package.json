@@ -103,6 +103,7 @@
     "check:paper-platform-adapter": "node ./scripts/paper-platform-adapter-manifest.mjs",
     "test:long-task-ux": "tsx ./scripts/test-long-task-ux.ts",
     "test:studio-nav-side-effects": "tsx ./scripts/test-studio-nav-side-effects.ts",
+    "test:notebook-home-usability": "tsx ./scripts/test-notebook-home-usability.ts",
     "test:ppt-v2-outline-draft": "tsx ./scripts/test-ppt-v2-outline-draft.ts",
     "test:ppt-slide-revise-contract": "tsx ./scripts/test-ppt-slide-revise-contract.ts",
     "test:runtime-ai-config": "tsx ./scripts/test-runtime-ai-config.ts",
