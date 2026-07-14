@@ -6,6 +6,8 @@ import {
   parseArxivAtom,
   searchDiscoveredSources,
 } from '../src/lib/discover-search-provider';
+import { normalizeDiscoverQueryPlan, optimizeDiscoverQuery } from '../src/lib/discover-query-plan';
+import { parseGiiispPaperResponse, parsePaperHostSearchEvents, searchPaperHostSources } from '../src/lib/paper-host-discover-search';
 
 const atom = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">
@@ -24,6 +26,76 @@ const atom = `<?xml version="1.0" encoding="UTF-8"?>
 </feed>`;
 
 async function main() {
+const normalizedPlan = normalizeDiscoverQueryPlan(
+  '多模态大模型',
+  '```json\n{"optimizedQuery":"multimodal large language model evaluation 多模态大模型 评测","keywords":["MLLM","benchmark"]}\n```',
+);
+assert.equal(normalizedPlan.optimizedQuery, 'multimodal large language model evaluation 多模态大模型 评测');
+assert.deepEqual(normalizedPlan.keywords, ['MLLM', 'benchmark']);
+
+let planningPrompt = '';
+const planned = await optimizeDiscoverQuery('多模态大模型如何评测？', 'scholar', async messages => {
+  planningPrompt = String(messages[0]?.content || '');
+  return '{"optimizedQuery":"multimodal large language model evaluation benchmark","keywords":["MLLM","evaluation"]}';
+});
+assert.equal(planned.optimizedQuery, 'multimodal large language model evaluation benchmark');
+assert.match(planningPrompt, /不生成论文题名、作者、链接、引用或事实/);
+
+const hostEvents = [
+  'event: citation_source\ndata: {"index":1,"paper":{"title":"Grounded multimodal benchmark","description":"Evidence-aware evaluation.","url":"https://arxiv.org/abs/2501.01234","authors":["Ada Researcher"],"year":"2025","sourceApi":"/first/paper/searchArxiv"}}',
+  'event: citation_source\ndata: {"index":2,"paper":{"title":"Grounded multimodal benchmark","url":"https://arxiv.org/abs/2501.01234"}}',
+  'event: done\ndata: {"ok":true}',
+].join('\n\n');
+const parsedHost = parsePaperHostSearchEvents(hostEvents, 'scholar');
+assert.equal(parsedHost.provider, 'giiisp-paper');
+assert.equal(parsedHost.results.length, 1, 'The host parser must deduplicate real citation URLs.');
+assert.deepEqual(parsedHost.results[0]?.authors, ['Ada Researcher']);
+
+const giiispPapers = parseGiiispPaperResponse({
+  code: 200,
+  rows: [{
+    arvixNo: '2501.01234v2',
+    title: 'Grounded multimodal benchmark',
+    author: 'Ada Researcher, Lin Scholar',
+    paperAbstract: 'Evidence-aware evaluation.',
+  }],
+});
+assert.equal(giiispPapers.provider, 'giiisp-paper');
+assert.equal(giiispPapers.results[0]?.link, 'https://arxiv.org/abs/2501.01234v2');
+
+const scholarRequests: Array<{ url: string; body: unknown }> = [];
+const scholarSearch = await searchPaperHostSources({ query: 'multimodal benchmark', scope: 'scholar' }, {
+  request: async request => {
+    scholarRequests.push({ url: request.url, body: request.body });
+    return { status: 200, text: '', json: { rows: [{ arvixNo: '2501.01234', title: 'Real paper' }] } };
+  },
+});
+assert.equal(scholarSearch.results[0]?.title, 'Real paper');
+assert.deepEqual(scholarRequests, [{
+  url: '/first/paper/searchArxiv',
+  body: { key: 'multimodal benchmark', pageNum: 1, pageSize: 10 },
+}]);
+
+const bridgeRequests: Array<{ body: unknown; timeout?: number }> = [];
+const hostSearch = await searchPaperHostSources({ query: 'multimodal benchmark', scope: 'webpage' }, {
+  request: async request => {
+    bridgeRequests.push({ body: request.body });
+    return {
+      status: 200,
+      text: 'event: citation_source\ndata: {"paper":{"title":"Reliable web source","description":"Primary documentation","url":"https://example.org/docs"}}\n\n',
+    };
+  },
+});
+assert.equal(hostSearch.provider, 'dashscope-web');
+assert.equal(hostSearch.results[0]?.link, 'https://example.org/docs');
+assert.deepEqual(bridgeRequests[0]?.body, {
+  question: 'multimodal benchmark',
+  mode: 'quick',
+  scope: 'web',
+  enableWebSearch: true,
+  enablePaperSearch: false,
+});
+
 const parsed = parseArxivAtom(atom);
 assert.equal(parsed.total, 1);
 assert.deepEqual(parsed.results[0], {
@@ -110,6 +182,8 @@ const routeSource = await readFile(path.join(process.cwd(), 'src/app/api/discove
 assert.match(routeSource, /searchDiscoveredSources/, 'Discover route must use the provider abstraction.');
 const panelSource = await readFile(path.join(process.cwd(), 'src/components/library/DiscoverSourcesModal.tsx'), 'utf8');
 assert.match(panelSource, /当前使用 arXiv 开放源/, 'The UI must explain the bounded open-source fallback.');
+assert.match(panelSource, /可编辑检索式/, 'The UI must expose the model-refined query for user editing.');
+assert.match(panelSource, /searchPaperHostSources/, 'The embedded UI must use the paper-web homepage search contract.');
 const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8')) as { scripts?: Record<string, string> };
 assert.equal(
   packageJson.scripts?.['smoke:live-paper-search-provider'],
@@ -123,6 +197,9 @@ console.log(JSON.stringify({
   ok: true,
   checked: [
     'arXiv Atom metadata and abstract become explicit open-source candidates',
+    'query planning only produces an editable search expression and cannot fabricate citations',
+    'paper-host SSE parsing only exposes real citation_source records and deduplicates URLs',
+    'embedded webpage and scholar search reuse the homepage grounded-search bridge',
     'scholar search falls back to arXiv when Metaso is not configured',
     'arXiv fallback retries one transient network failure without hiding persistent errors',
     'configured Metaso remains the preferred provider',
