@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { buildGroundedRetrievalContext } from '../src/lib/grounded-retrieval';
+import { balanceSelectedSourceCitations, buildGroundedRetrievalContext } from '../src/lib/grounded-retrieval';
+import type { GroundedCitation } from '../src/lib/rag';
 import { ingestExtractedSource } from '../src/lib/ingestion-store';
 
 function deterministicEmbedding(text: string): number[] {
@@ -12,12 +13,38 @@ function deterministicEmbedding(text: string): number[] {
   return [0, 0, 1, 0];
 }
 
+function citation(sourceId: string, chunkIndex: number, score: number): GroundedCitation {
+  return {
+    paperId: sourceId,
+    sourceId,
+    sourceTitle: sourceId,
+    paperShortName: sourceId,
+    chunkId: `${sourceId}::chunk-${chunkIndex}`,
+    chunkIndex,
+    excerpt: `${sourceId} evidence ${chunkIndex}`,
+    score,
+  };
+}
+
 async function main() {
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'lingbi-grounded-retrieval-test-'));
   process.env.SOURCE_STORE_PATH = path.join(tmpDir, 'sources.json');
   process.env.ZVEC_STORE_PATH = path.join(tmpDir, 'zvec');
 
   try {
+    const balanced = balanceSelectedSourceCitations([
+      citation('paper-a', 1, 0.99),
+      citation('paper-a', 2, 0.98),
+      citation('paper-a', 3, 0.97),
+      citation('paper-b', 1, 0.72),
+      citation('paper-c', 1, 0.71),
+    ], ['paper-a', 'paper-b'], 3);
+    assert.deepEqual(
+      balanced.map(item => item.chunkId),
+      ['paper-a::chunk-1', 'paper-a::chunk-2', 'paper-b::chunk-1'],
+      'multi-paper retrieval should reserve evidence for every selected source without losing global rank order',
+    );
+
     await ingestExtractedSource({
       id: 'paper-retention',
       fileName: 'retention.pdf',
@@ -79,6 +106,7 @@ async function main() {
         'chat retrieval falls back to request papers when selected sources are not persisted',
         'retrieval metadata exposes degraded and reason for UI/user-facing fallback copy',
         'selected source scope filters persisted retrieval',
+        'multi-paper retrieval preserves ranked evidence while covering every selected source',
       ],
       vectorMode: vectorGrounded.retrievalMode,
       keywordMode: keywordGrounded.retrievalMode,

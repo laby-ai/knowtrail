@@ -67,6 +67,41 @@ function dedupeCitations(citations: GroundedCitation[], topK: number): GroundedC
   return deduped;
 }
 
+function citationIdentity(citation: GroundedCitation): string {
+  return citation.chunkId || `${citation.sourceId}:${citation.chunkIndex}`;
+}
+
+export function balanceSelectedSourceCitations(
+  citations: GroundedCitation[],
+  selectedIds: Iterable<string>,
+  topK: number,
+): GroundedCitation[] {
+  if (topK <= 0) return [];
+
+  const uniqueCitations = dedupeCitations(citations, citations.length);
+  const selectedSourceIds = new Set(selectedIds);
+  if (selectedSourceIds.size <= 1 || topK < selectedSourceIds.size) {
+    return uniqueCitations.slice(0, topK);
+  }
+
+  const coveredSources = new Set<string>();
+  const chosenCitationIds = new Set<string>();
+  for (const citation of uniqueCitations) {
+    if (!selectedSourceIds.has(citation.sourceId) || coveredSources.has(citation.sourceId)) continue;
+    coveredSources.add(citation.sourceId);
+    chosenCitationIds.add(citationIdentity(citation));
+  }
+
+  for (const citation of uniqueCitations) {
+    if (chosenCitationIds.size >= topK) break;
+    chosenCitationIds.add(citationIdentity(citation));
+  }
+
+  return uniqueCitations
+    .filter(citation => chosenCitationIds.has(citationIdentity(citation)))
+    .slice(0, topK);
+}
+
 function makeResult(
   chunks: SourceChunk[],
   citations: GroundedCitation[],
@@ -126,8 +161,9 @@ export async function buildGroundedRetrievalContext(
       const allowedSourceIds = new Set(persistedChunks.sourceIds);
       const vectorCandidateLimit = Math.max(topK * 50, scopedChunks.length * 50, 250);
       const candidates = await querySourceChunks(queryEmbedding, { topK: vectorCandidateLimit });
-      const citations = dedupeCitations(
+      const citations = balanceSelectedSourceCitations(
         candidates.filter(candidate => allowedSourceIds.has(candidate.sourceId)),
+        identities,
         topK,
       );
 
@@ -148,7 +184,8 @@ export async function buildGroundedRetrievalContext(
   }
 
   if (scopedChunks.length > 0) {
-    const citations = retrieveRelevantChunks(question, scopedChunks, topK);
+    const rankedCitations = retrieveRelevantChunks(question, scopedChunks, Math.max(topK * 50, scopedChunks.length));
+    const citations = balanceSelectedSourceCitations(rankedCitations, identities, topK);
     if (citations.length > 0) {
       const reason = persistedChunks.vectorIndexedSourceCount > 0
         ? '向量索引未命中足够相关片段，已降级为持久化文本片段检索。'
@@ -165,10 +202,13 @@ export async function buildGroundedRetrievalContext(
     }
   }
 
-  const requestGrounded = buildGroundedContext(question, requestSources, topK);
-  const requestFallback = requestGrounded.citations.length > 0;
+  const requestGrounded = buildGroundedContext(question, requestSources, Math.max(topK * 50, topK));
+  const requestCitations = balanceSelectedSourceCitations(requestGrounded.citations, identities, topK);
+  const requestFallback = requestCitations.length > 0;
   return {
     ...requestGrounded,
+    citations: requestCitations,
+    promptContext: toPromptContext(requestCitations),
     retrievalMode: requestFallback ? 'request-keyword' : 'empty',
     persistedSourceCount: persistedChunks.persistedSourceCount,
     vectorIndexedSourceCount: persistedChunks.vectorIndexedSourceCount,
