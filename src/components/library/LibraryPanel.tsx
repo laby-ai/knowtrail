@@ -28,6 +28,7 @@ import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { resolveLibraryUploadTarget } from '@/lib/library-upload-target';
+import { uploadDiscoveredSourceFiles } from '@/lib/discovered-source-upload';
 import { buildDataTablePreviewForPaper, buildDataTablePreviewFromText } from '@/lib/data-table-preview';
 import { buildSourceMatrixFacets } from '@/lib/source-matrix';
 import type { DataColumnSummary } from '@/lib/data-table-preview';
@@ -793,8 +794,20 @@ export function LibraryPanel({
       setSkippedFilesNotice('请先选择目标目录，或新建目录后再加入网络信源。');
       return;
     }
-    await uploadFiles(files, targetFolder);
-  }, [folders, uploadFiles, uploadTargetFolderId]);
+    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId });
+    if (outcome.papers.length === 0) {
+      throw new Error(outcome.errors[0] || '来源入库失败，请重试。');
+    }
+    outcome.papers.forEach(paper => {
+      addPaper(targetFolder, paper);
+      window.setTimeout(() => togglePaperSelection(paper.id), 0);
+    });
+    if (outcome.errors.length > 0) {
+      setSkippedFilesNotice(`${outcome.papers.length} 个来源已加入；${outcome.errors.length} 个入库失败。`);
+    }
+    window.setTimeout(() => { void syncIngestionSources(); }, 0);
+    return outcome.papers.length;
+  }, [addPaper, folders, notebookId, syncIngestionSources, togglePaperSelection, uploadTargetFolderId]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();

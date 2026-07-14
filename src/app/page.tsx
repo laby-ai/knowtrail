@@ -37,6 +37,11 @@ import {
   type PaperHostContext,
 } from '@/lib/paper-host-bridge';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { loadNotebookSourceCounts, mergeNotebookSourceCounts } from '@/lib/notebook-source-counts';
+
+const FEATURED_SOURCE_COUNTS = Object.fromEntries(
+  FEATURED_NOTEBOOKS.map(notebook => [notebook.id, notebook.sourceCount]),
+);
 
 function WorkbenchCenterPanel() {
   const { virtualClassroomViewer, knowledgeMapViewer } = useApp();
@@ -122,6 +127,7 @@ export default function HomePage() {
     (base: string) => `${base}:${notebookStorageOwner}`,
     [notebookStorageOwner],
   );
+  const notebookIdsSignature = notebooks.map(notebook => notebook.id).join('|');
 
   useEffect(() => {
     const context = readPaperHostContext();
@@ -222,31 +228,23 @@ export default function HomePage() {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountStatus.authRequired && !accountHeaders.Authorization) return;
     let cancelled = false;
-    async function syncDefaultSourceCount() {
-      try {
-        const response = await fetch('/api/ingestion/sources?notebookId=default-workspace', {
-          cache: 'no-store',
-          headers: accountHeaders,
-        });
-        if (!response.ok) return;
-        const data = await response.json() as { sources?: unknown[] };
-        const sourceCount = Array.isArray(data.sources) ? data.sources.length : 0;
-        if (cancelled || sourceCount <= 0) return;
-        setNotebooks(prev => {
-          const current = prev.length > 0 ? prev : createDefaultNotebooks();
-          return current.map(notebook => (
-            notebook.id === 'default-workspace'
-              ? { ...notebook, sourceCount }
-              : notebook
-          ));
-        });
-      } catch {
-        // Keep notebook home usable even if the source store is unavailable.
-      }
+    async function syncNotebookSourceCounts() {
+      const persistedCounts = await loadNotebookSourceCounts({
+        notebookIds: notebookIdsSignature
+          ? notebookIdsSignature.split('|')
+          : createDefaultNotebooks().map(notebook => notebook.id),
+        headers: accountHeaders,
+      });
+      if (cancelled) return;
+      setNotebooks(prev => mergeNotebookSourceCounts({
+        notebooks: prev.length > 0 ? prev : createDefaultNotebooks(),
+        persistedCounts,
+        builtInCounts: FEATURED_SOURCE_COUNTS,
+      }));
     }
-    void syncDefaultSourceCount();
+    void syncNotebookSourceCounts();
     return () => { cancelled = true; };
-  }, [accountSession, accountSessionReady, accountStatus, entered, showLanding]);
+  }, [accountSession, accountSessionReady, accountStatus, entered, notebookIdsSignature, showLanding]);
 
   useEffect(() => {
     const applyRouteState = () => {
