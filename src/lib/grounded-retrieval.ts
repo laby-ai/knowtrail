@@ -1,8 +1,7 @@
-import { embedTexts } from '@/lib/ai-service';
+import { embedTexts, hasRuntimeEmbeddingProvider } from '@/lib/runtime-embeddings';
 import { listReadySourceChunks } from '@/lib/ingestion-store';
 import { buildGroundedContext, retrieveRelevantChunks, type GroundedCitation, type GroundedContext, type RagSourceInput, type SourceChunk } from '@/lib/rag';
 import { querySourceChunks } from '@/lib/vector-store';
-import { hasRuntimeAIProvider } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
 const DEFAULT_TOP_K = 6;
@@ -119,7 +118,7 @@ export async function buildGroundedRetrievalContext(
   }
   const scopedChunks = persistedChunks.chunks;
 
-  if (persistedChunks.vectorIndexedSourceCount > 0 && (options.embedder || hasRuntimeAIProvider(aiConfig))) {
+  if (persistedChunks.vectorIndexedSourceCount > 0 && (options.embedder || hasRuntimeEmbeddingProvider(aiConfig))) {
     try {
       const [queryEmbedding] = options.embedder
         ? await options.embedder([question])

@@ -16,6 +16,12 @@ interface OpenAIEmbeddingsResponse {
   data?: Array<{ embedding?: number[] }> | { embedding?: number[] };
 }
 
+export function hasRuntimeEmbeddingProvider(runtimeConfig?: Partial<RuntimeAIConfig>): boolean {
+  if (allowRequestRuntimeAIConfig() && hasRuntimeAIProvider(runtimeConfig)) return true;
+  if (isZhiqiModelResolverConfigured()) return true;
+  return hasRuntimeAIProvider(resolveServerRuntimeAIConfig(runtimeConfig));
+}
+
 function resolveRuntimeEmbeddingModel(runtimeConfig?: Partial<RuntimeAIConfig>): string {
   if (runtimeConfig?.embeddingModel?.trim()) return runtimeConfig.embeddingModel.trim();
   return process.env.OPENAI_COMPAT_EMBEDDING_MODEL || 'text-embedding-3-small';
