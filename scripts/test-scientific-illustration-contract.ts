@@ -142,6 +142,7 @@ for (const providerSource of [imageGenerationSource, legacyPptRouteSource]) {
     /ARK_IMAGE_API_KEY[\s\S]{0,160}runtimeConfig\.apiKey[\s\S]{0,80}ARK_AGENTPLAN_API_KEY/,
     'Standard image credentials must take precedence over the AgentPlan-only key.',
   );
+  assert.match(providerSource, /SITIAN_IMAGE_PROVIDER_REQUIRED/);
 }
 assert.match(linuxStartSource, /SCIENTIFIC_ILLUSTRATION_STORE_DIR/);
 assert.match(linuxPreflightSource, /SCIENTIFIC_ILLUSTRATION_STORE_DIR/);

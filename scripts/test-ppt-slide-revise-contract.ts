@@ -52,6 +52,8 @@ assert.doesNotMatch(unknown.message, /private provider response/i);
 
 const originalFetch = globalThis.fetch;
 const originalAllowRuntime = process.env.ALLOW_USER_RUNTIME_AI_CONFIG;
+const originalSitianToken = process.env.SITIAN_API_TOKEN;
+const originalSitianRequired = process.env.SITIAN_IMAGE_PROVIDER_REQUIRED;
 let capturedBody: Record<string, unknown> | null = null;
 process.env.ALLOW_USER_RUNTIME_AI_CONFIG = 'true';
 globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -76,6 +78,22 @@ try {
   globalThis.fetch = originalFetch;
   if (originalAllowRuntime === undefined) delete process.env.ALLOW_USER_RUNTIME_AI_CONFIG;
   else process.env.ALLOW_USER_RUNTIME_AI_CONFIG = originalAllowRuntime;
+}
+
+process.env.SITIAN_API_TOKEN = 'fixture.sitian.token';
+process.env.SITIAN_IMAGE_PROVIDER_REQUIRED = 'true';
+globalThis.fetch = (async () => new Response('{"error":"fixture unavailable"}', { status: 503 })) as typeof fetch;
+try {
+  await assert.rejects(
+    () => generateSlideImage('fixture only'),
+    /科研图像服务暂时不可用/,
+  );
+} finally {
+  globalThis.fetch = originalFetch;
+  if (originalSitianToken === undefined) delete process.env.SITIAN_API_TOKEN;
+  else process.env.SITIAN_API_TOKEN = originalSitianToken;
+  if (originalSitianRequired === undefined) delete process.env.SITIAN_IMAGE_PROVIDER_REQUIRED;
+  else process.env.SITIAN_IMAGE_PROVIDER_REQUIRED = originalSitianRequired;
 }
 
 console.log(JSON.stringify({

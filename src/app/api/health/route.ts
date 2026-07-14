@@ -53,6 +53,11 @@ export async function GET() {
       userProvidedOpenAICompatibleConfig: allowRequestRuntimeAIConfig(),
       accountBoundModelConfig: true,
       serverFallbackModelConfigured: hasServerFallbackModel(),
+      sitianImageProviderConfigured: hasAll([
+        process.env.SITIAN_API_BASE,
+        process.env.SITIAN_API_TOKEN,
+      ]),
+      sitianImageProviderRequired: process.env.SITIAN_IMAGE_PROVIDER_REQUIRED === 'true',
       fileStorageAdapter: isUsingObjectStorage() ? 's3' : 'local',
       objectStorageConfigured: isObjectStorageConfigured(),
       mineruConfigured: Boolean(process.env.MINERU_API_TOKEN?.trim()),

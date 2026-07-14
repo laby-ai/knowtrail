@@ -15,8 +15,9 @@ import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 // ============================================================
 
 // --- 思坦AI 配置 ---
-const SITIAN_API_BASE = process.env.SITIAN_API_BASE || 'http://images.sitianai.com';
+const SITIAN_API_BASE = process.env.SITIAN_API_BASE || 'https://images.sitianai.com';
 const SITIAN_API_TOKEN = process.env.SITIAN_API_TOKEN || '';
+const SITIAN_IMAGE_PROVIDER_REQUIRED = process.env.SITIAN_IMAGE_PROVIDER_REQUIRED === 'true';
 
 interface SitianResponse {
   success: boolean;
@@ -241,6 +242,9 @@ async function generateImage(prompt: string, options?: {
     console.log('[生图] 尝试思坦AI...');
     const result = await generateSitianImage(prompt, options);
     if (result) return result;
+    if (SITIAN_IMAGE_PROVIDER_REQUIRED) {
+      throw new Error('指定的科研图像服务暂时不可用，请稍后重试。');
+    }
     console.log('[生图] 思坦AI失败，改用真实 OpenAI-compatible 图片模型...');
   } else {
     console.log('[生图] 未配置思坦AI Token，使用真实 OpenAI-compatible 图片模型...');

@@ -95,6 +95,7 @@
     "test:virtual-classroom-storage": "tsx ./scripts/test-virtual-classroom-storage.ts",
     "test:live-virtual-classroom-smoke": "node ./scripts/test-live-virtual-classroom-smoke.mjs",
     "test:release-env-gate": "node ./scripts/test-release-env-gate.mjs",
+    "test:real-env-setup": "node ./scripts/test-real-env-setup.mjs",
     "test:paper-platform-adapter": "tsx ./scripts/test-paper-platform-adapter.ts",
     "test:notebook-library-controls": "tsx ./scripts/test-notebook-library-controls.ts",
     "test:chat-generation-lifecycle": "tsx ./scripts/test-chat-generation-lifecycle.ts",

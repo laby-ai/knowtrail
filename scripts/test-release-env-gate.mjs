@@ -7,12 +7,15 @@ import {
   promoteReleaseWithRollback,
   validateReleaseHealth,
 } from './lib/release-env-gate.mjs';
+import { applyClipboardModelSecrets } from './lib/real-env-setup.mjs';
 
 const fakeSecret = 'test-only-secret-value';
 const validEnv = [
   'ARK_API_BASE=https://ark.example.com/api/v3',
   `ARK_API_KEY=${fakeSecret}`,
   'ARK_MODEL=doubao-test',
+  `SITIAN_API_TOKEN=${fakeSecret}`,
+  'SITIAN_IMAGE_PROVIDER_REQUIRED=true',
   'ACCOUNT_CENTER_API_BASE=http://127.0.0.1:8088',
   'ACCOUNT_CENTER_TENANT_ID=tenant-test',
   'ACCOUNT_CENTER_DEFAULT_MEMBER_ID=member-test',
@@ -29,6 +32,22 @@ const validEnv = [
 
 const tempDir = await mkdtemp(path.join(os.tmpdir(), 'lingbi-release-env-gate-'));
 try {
+  const clipboardValues = new Map();
+  const fakeBailianKey = ['sk', 'testonly0123456789abcdef'].join('-');
+  const fakeSitianToken = [
+    'eyJ0ZXN0IjoidHJ1ZSJ9',
+    'eyJzdWIiOiJmaXh0dXJlIn0',
+    'fixture-signature',
+  ].join('.');
+  const clipboardSummary = applyClipboardModelSecrets(
+    clipboardValues,
+    `${fakeBailianKey} ${fakeSitianToken}`,
+  );
+  assert.equal(clipboardValues.get('OPENAI_COMPAT_MODEL'), 'qwen3.7-plus');
+  assert.equal(clipboardValues.get('SITIAN_IMAGE_PROVIDER_REQUIRED'), 'true');
+  assert(!JSON.stringify(clipboardSummary).includes(fakeBailianKey));
+  assert(!JSON.stringify(clipboardSummary).includes(fakeSitianToken));
+
   const sourcePath = path.join(tempDir, 'stable.env');
   const targetPath = path.join(tempDir, 'release', '.env.production');
   await writeFile(sourcePath, validEnv, 'utf8');
@@ -54,11 +73,25 @@ try {
     },
   );
 
+  const missingImageProviderPath = path.join(tempDir, 'missing-image-provider.env');
+  await writeFile(
+    missingImageProviderPath,
+    validEnv.replace(/^SITIAN_API_TOKEN=.*\n/m, ''),
+    'utf8',
+  );
+  await chmod(missingImageProviderPath, 0o600);
+  await assert.rejects(
+    () => prepareReleaseEnvironment({ sourcePath: missingImageProviderPath, targetPath }),
+    /image-provider-token/,
+  );
+
   const health = {
     ok: true,
     capabilities: {
       accountBoundModelConfig: true,
       serverFallbackModelConfigured: true,
+      sitianImageProviderConfigured: true,
+      sitianImageProviderRequired: true,
       vectorStore: { path: '/opt/knowtrail/shared/zvec' },
       sourceStore: { path: '/opt/knowtrail/shared/sources/sources.json' },
       studioJobStore: { path: '/opt/knowtrail/shared/studio-jobs/jobs.json' },
@@ -79,6 +112,13 @@ try {
       capabilities: { ...health.capabilities, serverFallbackModelConfigured: false },
     }, { sharedRoot: '/opt/knowtrail/shared' }),
     /serverFallbackModelConfigured/,
+  );
+  assert.throws(
+    () => validateReleaseHealth({
+      ...health,
+      capabilities: { ...health.capabilities, sitianImageProviderConfigured: false },
+    }, { sharedRoot: '/opt/knowtrail/shared' }),
+    /sitianImageProviderConfigured/,
   );
   assert.throws(
     () => validateReleaseHealth({

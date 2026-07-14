@@ -43,6 +43,8 @@ function collect() {
     ? imageModel
     : { name: 'default ARK_IMAGE_MODEL', value: 'doubao-seedream-5-0-lite-260128' };
   const embeddingModel = envFirst('OPENAI_COMPAT_EMBEDDING_MODEL', 'ARK_EMBEDDING_MODEL');
+  const sitianBase = envFirst('SITIAN_API_BASE');
+  const sitianToken = envFirst('SITIAN_API_TOKEN');
   const ttsKey = envFirst('AGENTPLAN_TTS_API_KEY', 'DOUBAO_TTS_API_KEY', 'AGENTPLAN_TTS_API_KEY', 'ARK_AGENTPLAN_API_KEY');
   const ttsSpeaker = envFirst('AGENTPLAN_TTS_SPEAKER', 'DOUBAO_TTS_SPEAKER', 'AGENTPLAN_TTS_SPEAKER', 'ARK_TTS_SPEAKER');
   const useExperimentalPodcast = process.env.PODCAST_AUDIO_PROVIDER?.trim() === 'volcengine-podcast';
@@ -63,11 +65,17 @@ function collect() {
     visible('AGENTPLAN_TTS_FORMAT', process.env.AGENTPLAN_TTS_FORMAT || process.env.DOUBAO_TTS_FORMAT || process.env.AGENTPLAN_TTS_FORMAT || 'mp3'),
     visible('AGENTPLAN_TTS_SAMPLE_RATE', process.env.AGENTPLAN_TTS_SAMPLE_RATE || process.env.DOUBAO_TTS_SAMPLE_RATE || process.env.AGENTPLAN_TTS_SAMPLE_RATE || '24000'),
   ];
-  const imageService = [
-    visible(imageBase.name || 'OPENAI_COMPAT_IMAGE_API_BASE, ARK_IMAGE_API_BASE, or ARK_API_BASE', imageBase.value),
-    secret(imageKey.name || 'OPENAI_COMPAT_IMAGE_API_KEY, ARK_IMAGE_API_KEY, ARK_AGENTPLAN_API_KEY, or ARK_API_KEY', imageKey.value),
-    visible(resolvedImageModel.name, resolvedImageModel.value),
-  ];
+  const imageService = sitianToken.value
+    ? [
+        visible(sitianBase.name || 'SITIAN_API_BASE', sitianBase.value || 'https://images.sitianai.com'),
+        secret(sitianToken.name, sitianToken.value),
+        visible('SITIAN_IMAGE_PROVIDER_REQUIRED', process.env.SITIAN_IMAGE_PROVIDER_REQUIRED),
+      ]
+    : [
+        visible(imageBase.name || 'OPENAI_COMPAT_IMAGE_API_BASE, ARK_IMAGE_API_BASE, or ARK_API_BASE', imageBase.value),
+        secret(imageKey.name || 'OPENAI_COMPAT_IMAGE_API_KEY, ARK_IMAGE_API_KEY, ARK_AGENTPLAN_API_KEY, or ARK_API_KEY', imageKey.value),
+        visible(resolvedImageModel.name, resolvedImageModel.value),
+      ];
   const experimentalProviders = {
     volcenginePodcast: useExperimentalPodcast
       ? [
@@ -103,7 +111,7 @@ function collect() {
       'Keys are never printed; configured secrets are shown only as [REDACTED].',
       'Put real values in process env or private .env.real.local; do not commit .env.real.local.',
       'Doubao AgentPlan TTS is the default podcast audio path. Use AGENTPLAN_TTS_* for new local configs.',
-      'Image PPT uses image-specific keys first: OPENAI_COMPAT_IMAGE_API_KEY, ARK_IMAGE_API_KEY, then ARK_AGENTPLAN_API_KEY.',
+      'Production image and PPT generation use SITIAN_API_TOKEN with SITIAN_IMAGE_PROVIDER_REQUIRED=true.',
       'VolcEngine Podcast WebSocket is experimental and checked only when PODCAST_AUDIO_PROVIDER=volcengine-podcast.',
     ],
   };
