@@ -634,6 +634,20 @@ export function LibraryPanel({
     }
   }, [newFolderName, addFolder, setActiveFolder]);
 
+  const ensureUploadTarget = useCallback((): string => {
+    const existingTarget = (
+      resolveLibraryUploadTarget(uploadTargetFolderId, folders)
+      || resolveLibraryUploadTarget(activeFolderId, folders)
+    );
+    if (existingTarget) return existingTarget;
+
+    const rootFolderId = addFolder('文献库');
+    setExpandedFolders(prev => new Set([...prev, rootFolderId]));
+    setActiveFolder(rootFolderId);
+    setUploadTargetFolderId(rootFolderId);
+    return rootFolderId;
+  }, [activeFolderId, addFolder, folders, setActiveFolder, uploadTargetFolderId]);
+
   const uploadFiles = useCallback(async (files: File[], targetFolderId: string | null) => {
     if (!files.length) return;
     if (!targetFolderId) return;
@@ -746,13 +760,9 @@ export function LibraryPanel({
       setShowUploadProgress(false);
       return;
     }
-    const targetFolderId = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
-    if (!targetFolderId) {
-      setSkippedFilesNotice('请先选择目标目录，或新建目录后再上传。');
-      return;
-    }
+    const targetFolderId = ensureUploadTarget();
     await uploadFiles(validFiles, targetFolderId);
-  }, [folders, uploadFiles, uploadTargetFolderId]);
+  }, [ensureUploadTarget, uploadFiles]);
 
   const dismissSourceGuide = useCallback(() => {
     setIsSourceGuideOpen(false);
@@ -760,40 +770,28 @@ export function LibraryPanel({
   }, [onSourceGuideDismiss]);
 
   const openFilePickerFromGuide = useCallback(() => {
-    if (!resolvedUploadTarget) {
-      setSkippedFilesNotice('请先选择目标目录，或新建目录后再上传。');
-      setIsCreatingFolder(true);
-      return;
-    }
+    ensureUploadTarget();
     dismissSourceGuide();
     window.setTimeout(() => fileInputRef.current?.click(), 0);
-  }, [dismissSourceGuide, resolvedUploadTarget]);
+  }, [dismissSourceGuide, ensureUploadTarget]);
 
   const handlePasteTextAsSource = useCallback(async () => {
     const content = pastedSourceText.trim();
     if (!content) return;
     const title = (pastedSourceTitle.trim() || '粘贴文献笔记').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
     const file = new globalThis.File([content], `${title}.txt`, { type: 'text/plain' });
-    const targetFolder = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
-    if (!targetFolder) {
-      setSkippedFilesNotice('请先选择目标目录，或新建目录后再保存文本。');
-      return;
-    }
+    const targetFolder = ensureUploadTarget();
     dismissSourceGuide();
     setPastedSourceText('');
     setPastedSourceTitle('');
     await uploadFiles([file], targetFolder);
-  }, [dismissSourceGuide, folders, pastedSourceText, pastedSourceTitle, uploadFiles, uploadTargetFolderId]);
+  }, [dismissSourceGuide, ensureUploadTarget, pastedSourceText, pastedSourceTitle, uploadFiles]);
 
   // Discovered web sources arrive as ready-made text files and reuse the
   // regular upload/ingestion pipeline.
   const handleIngestDiscoveredFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
-    const targetFolder = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
-    if (!targetFolder) {
-      setSkippedFilesNotice('请先选择目标目录，或新建目录后再加入网络信源。');
-      return;
-    }
+    const targetFolder = ensureUploadTarget();
     const outcome = await uploadDiscoveredSourceFiles({ files, notebookId });
     if (outcome.papers.length === 0) {
       throw new Error(outcome.errors[0] || '来源入库失败，请重试。');
@@ -807,7 +805,7 @@ export function LibraryPanel({
     }
     window.setTimeout(() => { void syncIngestionSources(); }, 0);
     return outcome.papers.length;
-  }, [addPaper, folders, notebookId, syncIngestionSources, togglePaperSelection, uploadTargetFolderId]);
+  }, [addPaper, ensureUploadTarget, notebookId, syncIngestionSources, togglePaperSelection]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -827,13 +825,9 @@ export function LibraryPanel({
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
-    const targetFolder = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
-    if (!targetFolder) {
-      setSkippedFilesNotice('请先选择目标目录，或新建目录后再拖入文件。');
-      return;
-    }
+    const targetFolder = ensureUploadTarget();
     await uploadFiles(files, targetFolder);
-  }, [folders, uploadFiles, uploadTargetFolderId]);
+  }, [ensureUploadTarget, uploadFiles]);
 
   const handleFolderClick = useCallback((folderId: string) => {
     setActiveFolder(folderId);
@@ -1267,7 +1261,7 @@ export function LibraryPanel({
               data-testid="library-upload-target"
               className="mt-1 h-9 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 text-xs text-[var(--text-secondary)] outline-none focus:border-blue-400/50"
             >
-              <option value="">选择目标目录</option>
+              <option value="">文献库（首次上传自动创建）</option>
               {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
               <option value="__new__">+ 新建目录…</option>
             </select>
@@ -1277,10 +1271,7 @@ export function LibraryPanel({
         <div
           className="border border-dashed border-[var(--border-subtle)] rounded-2xl p-5 text-center cursor-pointer hover:border-[var(--border-hover)] hover:bg-[var(--glass-subtle)] transition-all duration-500"
           onClick={() => {
-            if (!resolvedUploadTarget) {
-              setSkippedFilesNotice('请先选择目标目录，或新建目录后再上传。');
-              return;
-            }
+            ensureUploadTarget();
             fileInputRef.current?.click();
           }}
         >
