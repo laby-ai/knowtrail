@@ -73,6 +73,7 @@ async function resolveSmokeApp(tempDir) {
     cwd: workspace,
     env: {
       ...process.env,
+      BIND_HOST: '127.0.0.1',
       PORT: String(port),
       DEPLOY_RUN_PORT: String(port),
       INTERNAL_APP_ORIGIN: '',

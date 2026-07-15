@@ -27,6 +27,8 @@ import type { CitationReveal } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
+import { resolveLibraryUploadTarget } from '@/lib/library-upload-target';
+import { uploadDiscoveredSourceFiles } from '@/lib/discovered-source-upload';
 import { buildDataTablePreviewForPaper, buildDataTablePreviewFromText } from '@/lib/data-table-preview';
 import { buildSourceMatrixFacets } from '@/lib/source-matrix';
 import type { DataColumnSummary } from '@/lib/data-table-preview';
@@ -366,6 +368,7 @@ export function LibraryPanel({
   const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; paper: Paper } | null>(null);
   const [skippedFilesNotice, setSkippedFilesNotice] = useState<string | null>(null);
+  const [uploadTargetFolderId, setUploadTargetFolderId] = useState<string | null>(null);
   const [ingestionSyncState, setIngestionSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
@@ -377,6 +380,13 @@ export function LibraryPanel({
   const ingestionSyncInFlightRef = useRef(false);
   const lastIngestionSyncAtRef = useRef(0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
+  const resolvedUploadTarget = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
+
+  useEffect(() => {
+    if (resolveLibraryUploadTarget(uploadTargetFolderId, folders)) return;
+    const nextTarget = resolveLibraryUploadTarget(activeFolderId, folders);
+    if (nextTarget !== uploadTargetFolderId) setUploadTargetFolderId(nextTarget);
+  }, [activeFolderId, folders, uploadTargetFolderId]);
 
   useEffect(() => {
     if (showSourceGuide) setIsSourceGuideOpen(true);
@@ -617,10 +627,25 @@ export function LibraryPanel({
       const newFolderId = addFolder(newFolderName.trim());
       setExpandedFolders(prev => new Set([...prev, newFolderId]));
       setActiveFolder(newFolderId);
+      setUploadTargetFolderId(newFolderId);
       setNewFolderName('');
       setIsCreatingFolder(false);
     }
   }, [newFolderName, addFolder, setActiveFolder]);
+
+  const ensureUploadTarget = useCallback((): string => {
+    const existingTarget = (
+      resolveLibraryUploadTarget(uploadTargetFolderId, folders)
+      || resolveLibraryUploadTarget(activeFolderId, folders)
+    );
+    if (existingTarget) return existingTarget;
+
+    const rootFolderId = addFolder('文献库');
+    setExpandedFolders(prev => new Set([...prev, rootFolderId]));
+    setActiveFolder(rootFolderId);
+    setUploadTargetFolderId(rootFolderId);
+    return rootFolderId;
+  }, [activeFolderId, addFolder, folders, setActiveFolder, uploadTargetFolderId]);
 
   const uploadFiles = useCallback(async (files: File[], targetFolderId: string | null) => {
     if (!files.length) return;
@@ -734,17 +759,9 @@ export function LibraryPanel({
       setShowUploadProgress(false);
       return;
     }
-    if (!activeFolderId) {
-      // Schedule folder creation + upload after current render
-      setTimeout(async () => {
-        const newFolderId = addFolder('新建项目');
-        setExpandedFolders(prev => new Set([...prev, newFolderId]));
-        await uploadFiles(validFiles, newFolderId);
-      }, 0);
-      return;
-    }
-    await uploadFiles(validFiles, activeFolderId);
-  }, [activeFolderId, uploadFiles, addFolder]);
+    const targetFolderId = ensureUploadTarget();
+    await uploadFiles(validFiles, targetFolderId);
+  }, [ensureUploadTarget, uploadFiles]);
 
   const dismissSourceGuide = useCallback(() => {
     setIsSourceGuideOpen(false);
@@ -752,39 +769,42 @@ export function LibraryPanel({
   }, [onSourceGuideDismiss]);
 
   const openFilePickerFromGuide = useCallback(() => {
+    ensureUploadTarget();
     dismissSourceGuide();
     window.setTimeout(() => fileInputRef.current?.click(), 0);
-  }, [dismissSourceGuide]);
+  }, [dismissSourceGuide, ensureUploadTarget]);
 
   const handlePasteTextAsSource = useCallback(async () => {
     const content = pastedSourceText.trim();
     if (!content) return;
     const title = (pastedSourceTitle.trim() || '粘贴文献笔记').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
     const file = new globalThis.File([content], `${title}.txt`, { type: 'text/plain' });
-    let targetFolder = activeFolderId;
-    if (!targetFolder) {
-      targetFolder = addFolder('文献库');
-      setExpandedFolders(prev => new Set([...prev, targetFolder!]));
-      setActiveFolder(targetFolder);
-    }
+    const targetFolder = ensureUploadTarget();
     dismissSourceGuide();
     setPastedSourceText('');
     setPastedSourceTitle('');
     await uploadFiles([file], targetFolder);
-  }, [activeFolderId, addFolder, dismissSourceGuide, pastedSourceText, pastedSourceTitle, setActiveFolder, uploadFiles]);
+  }, [dismissSourceGuide, ensureUploadTarget, pastedSourceText, pastedSourceTitle, uploadFiles]);
 
   // Discovered web sources arrive as ready-made text files and reuse the
   // regular upload/ingestion pipeline.
   const handleIngestDiscoveredFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
-    let targetFolder = activeFolderId;
-    if (!targetFolder) {
-      targetFolder = addFolder('网络信源');
-      setExpandedFolders(prev => new Set([...prev, targetFolder!]));
-      setActiveFolder(targetFolder);
+    const targetFolder = ensureUploadTarget();
+    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId });
+    if (outcome.papers.length === 0) {
+      throw new Error(outcome.errors[0] || '来源入库失败，请重试。');
     }
-    await uploadFiles(files, targetFolder);
-  }, [activeFolderId, addFolder, setActiveFolder, uploadFiles]);
+    outcome.papers.forEach(paper => {
+      addPaper(targetFolder, paper);
+      window.setTimeout(() => togglePaperSelection(paper.id), 0);
+    });
+    if (outcome.errors.length > 0) {
+      setSkippedFilesNotice(`${outcome.papers.length} 个来源已加入；${outcome.errors.length} 个入库失败。`);
+    }
+    window.setTimeout(() => { void syncIngestionSources(); }, 0);
+    return outcome.papers.length;
+  }, [addPaper, ensureUploadTarget, notebookId, syncIngestionSources, togglePaperSelection]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -804,17 +824,13 @@ export function LibraryPanel({
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
-    let targetFolder = activeFolderId;
-    if (!targetFolder) {
-      const newFolderId = addFolder('新建项目');
-      setExpandedFolders(prev => new Set([...prev, newFolderId]));
-      targetFolder = newFolderId;
-    }
-    if (targetFolder) await uploadFiles(files, targetFolder);
-  }, [activeFolderId, uploadFiles, addFolder]);
+    const targetFolder = ensureUploadTarget();
+    await uploadFiles(files, targetFolder);
+  }, [ensureUploadTarget, uploadFiles]);
 
   const handleFolderClick = useCallback((folderId: string) => {
     setActiveFolder(folderId);
+    setUploadTargetFolderId(folderId);
     setExpandedFolders(prev => {
       const next = new Set(prev);
       if (next.has(folderId)) next.delete(folderId); else next.add(folderId);
@@ -1198,9 +1214,36 @@ export function LibraryPanel({
           onChange={(e) => handleFileSelect(e.target.files)}
         />
 
+        <div className="mb-3 flex items-center gap-2">
+          <label className="min-w-0 flex-1 text-[10px] font-medium text-[var(--text-tertiary)]">
+            上传到
+            <select
+              value={resolvedUploadTarget || ''}
+              onChange={event => {
+                const value = event.target.value;
+                if (value === '__new__') {
+                  setIsCreatingFolder(true);
+                  return;
+                }
+                setUploadTargetFolderId(value || null);
+                if (value) setActiveFolder(value);
+              }}
+              data-testid="library-upload-target"
+              className="mt-1 h-9 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 text-xs text-[var(--text-secondary)] outline-none focus:border-blue-400/50"
+            >
+              <option value="">文献库（首次上传自动创建）</option>
+              {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+              <option value="__new__">+ 新建目录…</option>
+            </select>
+          </label>
+        </div>
+
         <div
           className="border border-dashed border-[var(--border-subtle)] rounded-2xl p-5 text-center cursor-pointer hover:border-[var(--border-hover)] hover:bg-[var(--glass-subtle)] transition-all duration-500"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            ensureUploadTarget();
+            fileInputRef.current?.click();
+          }}
         >
           <Upload className="h-6 w-6 mx-auto mb-2 text-[var(--text-quaternary)]" />
           <p className="text-xs font-medium text-[var(--text-tertiary)]">拖拽文献或资料文件到此处上传</p>
