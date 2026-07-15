@@ -8,6 +8,10 @@ import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,6 +38,14 @@ export async function POST(request: NextRequest) {
     });
     if (!scope.ok) {
       return scope.response;
+    }
+
+    const readiness = resolveStudioGenerationReadiness().researchChat;
+    if (!debugRetrievalOnly && !readiness.ready) {
+      return new Response(JSON.stringify(studioGenerationUnavailablePayload(readiness)), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
     }
 
     const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);

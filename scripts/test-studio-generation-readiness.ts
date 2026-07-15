@@ -9,11 +9,13 @@ function readiness(env: StudioGenerationEnvironment = {}) {
 }
 
 const unavailable = readiness();
+assert.equal(unavailable.researchChat.ready, false);
 assert.equal(unavailable.imagePpt.ready, false);
 assert.equal(unavailable.htmlPpt.ready, false);
 assert.equal(unavailable.structuredPpt.ready, false);
 assert.equal(unavailable.scientificIllustration.ready, false);
 assert.match(unavailable.imagePpt.message, /不会提交生成任务/);
+assert.match(unavailable.researchChat.message, /不会提交问答任务/);
 assert.match(unavailable.scientificIllustration.message, /服务正在配置/);
 
 const textOnly = readiness({
@@ -21,6 +23,7 @@ const textOnly = readiness({
   OPENAI_COMPAT_API_KEY: 'test-key',
   OPENAI_COMPAT_MODEL: 'text-model',
 });
+assert.equal(textOnly.researchChat.ready, true);
 assert.equal(textOnly.htmlPpt.ready, true);
 assert.equal(textOnly.structuredPpt.ready, true);
 assert.equal(textOnly.imagePpt.ready, false);
@@ -30,6 +33,7 @@ const imageOnly = readiness({
   SITIAN_API_BASE: 'https://images.example.com',
   SITIAN_API_TOKEN: 'test-token',
 });
+assert.equal(imageOnly.researchChat.ready, false);
 assert.equal(imageOnly.scientificIllustration.ready, true);
 assert.equal(imageOnly.imagePpt.ready, false);
 assert.equal(imageOnly.structuredPpt.ready, false);
@@ -41,6 +45,7 @@ const fullyReady = readiness({
   SITIAN_API_BASE: 'https://images.example.com',
   SITIAN_API_TOKEN: 'test-token',
 });
+assert.equal(fullyReady.researchChat.ready, true);
 assert.equal(fullyReady.imagePpt.ready, true);
 assert.equal(fullyReady.htmlPpt.ready, true);
 assert.equal(fullyReady.structuredPpt.ready, true);
@@ -68,6 +73,7 @@ console.log(JSON.stringify({
   ok: true,
   checked: [
     'missing providers fail closed',
+    'ordinary research chat readiness',
     'text-only PPT readiness',
     'image-only scientific illustration readiness',
     'combined image PPT readiness',

@@ -1,4 +1,4 @@
-export type StudioGenerationProduct = 'imagePpt' | 'htmlPpt' | 'structuredPpt' | 'scientificIllustration';
+export type StudioGenerationProduct = 'researchChat' | 'imagePpt' | 'htmlPpt' | 'structuredPpt' | 'scientificIllustration';
 
 export type StudioGenerationEnvironment = Record<string, string | undefined>;
 
@@ -48,12 +48,14 @@ export function resolveStudioGenerationReadiness(
   const imageReady = sitianReady || compatibleImageReady;
 
   const textUnavailable = '演示文稿生成服务正在配置中，当前不会提交生成任务，请稍后重试。';
+  const chatUnavailable = '文献问答服务正在配置中，当前不会提交问答任务，请稍后重试。';
   const imageUnavailable = '科研图像生成服务正在配置中，当前不会提交生成任务，请稍后重试。';
   const imagePptUnavailable = textReady
     ? imageUnavailable
     : '演示文稿的文本与图像服务正在配置中，当前不会提交生成任务，请稍后重试。';
 
   return {
+    researchChat: state(textReady, chatUnavailable),
     imagePpt: state(textReady && imageReady, imagePptUnavailable),
     htmlPpt: state(textReady, textUnavailable),
     structuredPpt: state(textReady, textUnavailable),
