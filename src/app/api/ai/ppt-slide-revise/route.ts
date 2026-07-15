@@ -3,6 +3,10 @@ import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { generateSlideImage, resolveImageRuntimeConfig } from '@/lib/ppt/image-generation';
 import { parseSlideReferenceImage, publicSlideRevisionError } from '@/lib/ppt/slide-image-contract';
 import type { RuntimeAIConfig } from '@/types';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 export const maxDuration = 300;
 
@@ -45,6 +49,10 @@ export async function POST(request: NextRequest) {
   }
   if (!instruction && !body.hasAnnotations) {
     return NextResponse.json({ error: '请填写修改要求或在图上标注' }, { status: 400 });
+  }
+  const readiness = resolveStudioGenerationReadiness().scientificIllustration;
+  if (!readiness.ready) {
+    return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
   }
   const annotationGuidance = body.hasAnnotations
     ? `参考图上包含用户手绘的红色标注(圈选、箭头、文字批注),这些标注表达了修改意图:

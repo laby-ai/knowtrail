@@ -12,6 +12,10 @@ import {
   type DeckOutlinePage,
 } from '@/lib/ppt/html-deck-generation';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 export const maxDuration = 600;
 
@@ -129,6 +133,11 @@ export async function POST(request: NextRequest) {
 
   if (!papers || papers.length === 0) {
     return NextResponse.json({ error: '请先选择要生成简报的资料' }, { status: 400 });
+  }
+
+  const readiness = resolveStudioGenerationReadiness().htmlPpt;
+  if (!readiness.ready) {
+    return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
   }
 
   const style = getHtmlDeckStyle(styleId);

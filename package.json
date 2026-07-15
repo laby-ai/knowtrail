@@ -109,6 +109,8 @@
     "test:ppt-v2-outline-draft": "tsx ./scripts/test-ppt-v2-outline-draft.ts",
     "test:ppt-slide-revise-contract": "tsx ./scripts/test-ppt-slide-revise-contract.ts",
     "test:runtime-ai-config": "tsx ./scripts/test-runtime-ai-config.ts",
+    "test:studio-generation-readiness": "tsx ./scripts/test-studio-generation-readiness.ts",
+    "prevalidate": "pnpm test:studio-generation-readiness",
     "test:storage": "tsx ./scripts/test-storage.ts",
     "test:vector-store": "tsx ./scripts/test-vector-store.ts",
     "test:quality-matrix-runner": "node ./scripts/test-quality-matrix-runner.mjs",

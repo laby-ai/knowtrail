@@ -1,6 +1,7 @@
 'use client';
 
 import { clientApiRequest } from '@/lib/client-api';
+import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
@@ -110,6 +111,7 @@ const ASPECT_RATIOS = [
 
 function PresentationPanel() {
   const { slides, setSlides, getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+  const generationReadiness = useStudioGenerationReadiness('imagePpt');
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
@@ -150,6 +152,10 @@ function PresentationPanel() {
   }, [lightboxIdx, slides.length]);
 
   const handleGenerate = useCallback(async () => {
+    if (!generationReadiness.ready) {
+      setGenerationError(generationReadiness.message);
+      return;
+    }
     const papers = getSelectedPapers();
     if (papers.length === 0) {
       alert('请先在左侧选择要生成 PPT 的资料');
@@ -202,7 +208,8 @@ function PresentationPanel() {
       });
 
       if (!response.ok || !response.body) {
-        throw new Error('PPT 生成请求失败');
+        const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+        throw new Error(payload?.error || payload?.message || 'PPT 生成请求失败');
       }
 
       // Read SSE stream for progress
@@ -285,7 +292,7 @@ function PresentationPanel() {
       if (abortControllerRef.current === abortController) abortControllerRef.current = null;
       setIsGenerating(false);
     }
-  }, [getSelectedPapers, aiConfig, notebookId, pageCount, currentStyleVisualPrompt, selectedStyle, selectedDetailLevel, selectedLang, selectedAspectRatio, setSlides]);
+  }, [generationReadiness, getSelectedPapers, aiConfig, notebookId, pageCount, currentStyleVisualPrompt, selectedStyle, selectedDetailLevel, selectedLang, selectedAspectRatio, setSlides]);
 
   const handleCancelGenerate = useCallback(() => {
     if (!isGenerating) return;
@@ -495,6 +502,11 @@ function PresentationPanel() {
       </div>
 
       {/* ── Generate button ── */}
+      {!generationReadiness.ready && (
+        <div data-testid="image-ppt-readiness" className="rounded-xl border border-amber-400/25 bg-amber-500/5 p-3 text-xs leading-relaxed text-amber-200">
+          {generationReadiness.message}
+        </div>
+      )}
       {generationNotice && !isGenerating && (
         <div className="liquid-glass-card p-3 text-xs text-[var(--text-secondary)] border border-[var(--border-subtle)]">
           {generationNotice}
@@ -522,7 +534,7 @@ function PresentationPanel() {
             type="button"
             data-testid="image-ppt-retry"
             onClick={handleGenerate}
-            disabled={!hasSelectedPapers}
+            disabled={!hasSelectedPapers || !generationReadiness.ready}
             className="liquid-glass-btn px-3 py-2 text-xs text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             重试生成
@@ -533,16 +545,18 @@ function PresentationPanel() {
       <button
         data-testid="image-ppt-generate"
         onClick={handleGenerate}
-        disabled={isGenerating || !hasSelectedPapers}
+        disabled={isGenerating || !hasSelectedPapers || !generationReadiness.ready}
         className={`w-full py-4 rounded-2xl font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
-          isGenerating || !hasSelectedPapers
+          isGenerating || !hasSelectedPapers || !generationReadiness.ready
             ? 'liquid-glass-btn text-[var(--text-tertiary)] cursor-not-allowed'
             : 'liquid-glass-btn !rounded-2xl !bg-gradient-to-r !from-amber-500 !to-amber-600 hover:!from-amber-400 hover:!to-amber-500 !text-black !border-0 active:scale-[0.98]'
         }`}
-        title={hasSelectedPapers ? '一键生成图片简报' : '请先在左侧选择资料'}
+        title={!generationReadiness.ready ? generationReadiness.message : hasSelectedPapers ? '一键生成图片简报' : '请先在左侧选择资料'}
       >
         {isGenerating ? (
           <><Loader2 className="h-4 w-4 animate-spin" /> {progressMsg || 'AI 生成中...'}</>
+        ) : !generationReadiness.ready ? (
+          <><AlertTriangle className="h-4 w-4" /> 服务配置中</>
         ) : !hasSelectedPapers ? (
           <><Sparkles className="h-4 w-4" /> 先选择资料</>
         ) : (

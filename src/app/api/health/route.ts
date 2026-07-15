@@ -11,6 +11,7 @@ import { internalClassroomOrigin, publicClassroomOrigin } from '@/lib/virtual-cl
 import { scientificIllustrationStoreStatus } from '@/lib/scientific-illustration-store';
 import { resolveExplainerVideoProviderConfig } from '@/lib/explainer-video-provider';
 import { operationalObservabilityStatus } from '@/lib/operational-observability';
+import { resolveStudioGenerationReadiness } from '@/lib/studio-generation-readiness';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,6 +76,7 @@ export async function GET() {
         proxyEnabled: publicClassroomOrigin() === '/classroom-runtime',
       },
       operationalObservability: operationalObservabilityStatus(),
+      generationReadiness: resolveStudioGenerationReadiness(),
     },
     deployment: {
       internalAppOriginConfigured: Boolean(process.env.INTERNAL_APP_ORIGIN?.trim()),

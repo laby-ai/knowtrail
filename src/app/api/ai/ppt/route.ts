@@ -6,6 +6,10 @@ import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
 import { DETAIL_LEVEL_SPECS, getStyleDescription, PPT_LANG_INSTRUCTION } from '@/lib/ppt/image-ppt-style';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 // ============================================================
 // Banana Slides PPT Generation Pipeline (Strict Alignment)
@@ -746,6 +750,11 @@ export async function POST(request: NextRequest) {
 
   if (!papers || papers.length === 0) {
     return NextResponse.json({ error: '请先选择要生成 PPT 的文献' }, { status: 400 });
+  }
+
+  const readiness = resolveStudioGenerationReadiness().imagePpt;
+  if (!debugRetrievalOnly && !readiness.ready) {
+    return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
   }
 
   const grounded = await buildGroundedRetrievalContext(

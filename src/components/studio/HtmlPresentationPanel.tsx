@@ -1,6 +1,7 @@
 'use client';
 
 import { clientApiRequest } from '@/lib/client-api';
+import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -99,6 +100,7 @@ function ScaledSlideFrame({ html, className }: { html: string; className?: strin
 
 export function HtmlPresentationPanel() {
   const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+  const generationReadiness = useStudioGenerationReadiness('htmlPpt');
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
 
   const [selectedStyle, setSelectedStyle] = useState(HTML_DECK_STYLES[0].id);
@@ -240,6 +242,10 @@ export function HtmlPresentationPanel() {
   }, [notebookId, aiConfig]);
 
   const handleGenerate = useCallback(async () => {
+    if (!generationReadiness.ready) {
+      setError(generationReadiness.message);
+      return;
+    }
     const papers = getSelectedPapers();
     if (papers.length === 0) {
       setError('请先在左侧选择要生成简报的资料');
@@ -344,7 +350,7 @@ export function HtmlPresentationPanel() {
       if (abortControllerRef.current === abortController) abortControllerRef.current = null;
       setIsGenerating(false);
     }
-  }, [getSelectedPapers, aiConfig, notebookId, selectedStyle, pageCount, language, runQualityLoop, applySlides]);
+  }, [generationReadiness, getSelectedPapers, aiConfig, notebookId, selectedStyle, pageCount, language, runQualityLoop, applySlides]);
 
   const handleCancelGenerate = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -671,18 +677,25 @@ export function HtmlPresentationPanel() {
           </div>
         </div>
       ) : (
-        <button
-          onClick={handleGenerate}
-          disabled={!hasSelectedPapers}
-          data-testid="html-ppt-generate"
-          className="liquid-glass-btn w-full !rounded-xl !border-0 !bg-gradient-to-r !from-blue-500 !to-blue-600 px-8 py-3.5 text-sm !font-semibold !text-white hover:!from-blue-400 hover:!to-blue-500 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
-          title={hasSelectedPapers ? '生成 HTML 原生简报' : '请先在左侧选择资料'}
-        >
-          <span className="flex items-center justify-center gap-2">
-            <Sparkles className="h-4 w-4" />
-            {hasSelectedPapers ? '生成 HTML 简报' : '先选择资料'}
-          </span>
-        </button>
+        <div className="space-y-3">
+          {!generationReadiness.ready && (
+            <div data-testid="html-ppt-readiness" className="rounded-xl border border-amber-400/25 bg-amber-500/5 p-3 text-xs leading-relaxed text-amber-200">
+              {generationReadiness.message}
+            </div>
+          )}
+          <button
+            onClick={handleGenerate}
+            disabled={!hasSelectedPapers || !generationReadiness.ready}
+            data-testid="html-ppt-generate"
+            className="liquid-glass-btn w-full !rounded-xl !border-0 !bg-gradient-to-r !from-blue-500 !to-blue-600 px-8 py-3.5 text-sm !font-semibold !text-white hover:!from-blue-400 hover:!to-blue-500 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
+            title={!generationReadiness.ready ? generationReadiness.message : hasSelectedPapers ? '生成 HTML 原生简报' : '请先在左侧选择资料'}
+          >
+            <span className="flex items-center justify-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              {!generationReadiness.ready ? '服务配置中' : hasSelectedPapers ? '生成 HTML 简报' : '先选择资料'}
+            </span>
+          </button>
+        </div>
       )}
 
       {/* ── Re-layout dialog ── */}

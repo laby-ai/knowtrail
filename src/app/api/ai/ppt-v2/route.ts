@@ -11,6 +11,10 @@ import type { PaperInput, PptOptions, SlideSpec } from '@/lib/ppt/academic-types
 import { genAcademicOutline } from '@/lib/ppt/academic-planner';
 import { llmCallLogs, llmInvokeObserved, markFallback, markJsonParsed, resetLlmCallLogs } from '@/lib/ppt/academic-observability';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 // ── Grounded outline helpers ──
 function buildGroundedOutlinePapers(papers: PaperInput[], promptContext: string): PaperInput[] {
@@ -144,6 +148,11 @@ export async function POST(request: NextRequest) {
 
     if (!papers || papers.length === 0) {
       return NextResponse.json({ error: '请先选择文献' }, { status: 400 });
+    }
+
+    const readiness = resolveStudioGenerationReadiness().structuredPpt;
+    if (!debugRetrievalOnly && !readiness.ready) {
+      return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
     }
 
     const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
