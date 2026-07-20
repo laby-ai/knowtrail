@@ -9,12 +9,24 @@ import {
 import { saveScientificIllustration } from '@/lib/scientific-illustration-store';
 import { generateBailianWanImage } from '@/lib/bailian-wan-image';
 import { bailianProfileErrorResponse, resolveMemberBailianProfile } from '@/lib/bailian-provider-profile';
+import { accountAuthRequired } from '@/lib/account-session';
+import {
+  generateSlideImage,
+  resolveImageModelName,
+  resolveImageRuntimeConfig,
+} from '@/lib/ppt/image-generation';
 
 function errorResponse(error: string, errorType: string, status: number) {
   return Response.json(
     { code: status === 400 ? 40002 : status, msg: error, error, status: 'failed', errorType },
     { status, headers: { 'Cache-Control': 'no-store' } },
   );
+}
+
+function imageBufferFromBase64(value: string): Buffer {
+  const normalized = value.replace(/^data:image\/(?:png|jpe?g|webp);base64,/i, '').trim();
+  if (!normalized) throw new Error('图片模型未返回图片数据。');
+  return Buffer.from(normalized, 'base64');
 }
 
 export async function POST(request: NextRequest) {
@@ -35,8 +47,10 @@ export async function POST(request: NextRequest) {
     });
     if (!accountScope.ok) return accountScope.response;
 
-    const providerProfile = await resolveMemberBailianProfile(request);
-    const modelName = providerProfile.image_model;
+    const memberProfileRequired = accountAuthRequired();
+    const providerProfile = memberProfileRequired ? await resolveMemberBailianProfile(request) : null;
+    const runtimeConfig = providerProfile ? null : resolveImageRuntimeConfig();
+    const modelName = providerProfile?.image_model || resolveImageModelName(runtimeConfig || undefined);
     try {
       reservation = await reserveAIUsage({
         route: 'scientific-illustration',
@@ -54,10 +68,17 @@ export async function POST(request: NextRequest) {
     }
 
     const prompt = buildScientificIllustrationPrompt(input);
-    const generated = await generateBailianWanImage(prompt, providerProfile, {
-      aspectRatio: input.aspectRatio,
-      signal: request.signal,
-    });
+    const generated = providerProfile
+      ? await generateBailianWanImage(prompt, providerProfile, {
+        aspectRatio: input.aspectRatio,
+        signal: request.signal,
+      })
+      : imageBufferFromBase64(await generateSlideImage(prompt, {
+        aspectRatio: input.aspectRatio,
+        negativePrompt: 'statistical chart, axes, significance stars, measured values, fabricated data, watermark, advertisement, random English, dense tiny text',
+        runtimeConfig: runtimeConfig || undefined,
+        signal: request.signal,
+      }) || '');
 
     const metadata = await saveScientificIllustration({
       image: generated,

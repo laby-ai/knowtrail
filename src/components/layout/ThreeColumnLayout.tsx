@@ -100,62 +100,51 @@ export function ThreeColumnLayout({
     setMobilePanel(initialMobilePanel);
   }, [initialMobilePanel]);
 
-  if (isMobile) {
-    const activePanel = mobilePanel === 'left' ? leftPanel : mobilePanel === 'right' ? rightPanel : centerPanel;
-    const tabs: Array<{ id: 'left' | 'center' | 'right'; label: string }> = [
-      { id: 'left', label: '资料' },
-      { id: 'center', label: '对话' },
-      { id: 'right', label: '产物' },
-    ];
-
-    return (
-      <div ref={containerRef} className="h-full w-full min-w-0 overflow-hidden flex flex-col">
-        <div className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]/92 px-3 py-2 backdrop-blur-xl">
-          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-1 shadow-[var(--glass-shadow-sm)]">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setMobilePanel(tab.id)}
-                data-testid={`workbench-mobile-tab-${tab.id}`}
-                className={`rounded-xl px-3 py-2 text-sm font-medium transition-all ${
-                  mobilePanel === tab.id
-                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[0_8px_24px_rgba(15,23,42,0.14)]'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-hidden liquid-glass-panel" style={{ borderRight: 'none', borderLeft: 'none' }}>
-          {activePanel}
-        </div>
-      </div>
-    );
-  }
+  const tabs: Array<{ id: 'left' | 'center' | 'right'; label: string }> = [
+    { id: 'left', label: '资料' },
+    { id: 'center', label: '对话' },
+    { id: 'right', label: '产物' },
+  ];
 
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full flex"
+      className="relative flex h-full w-full min-w-0 flex-col overflow-hidden md:flex-row"
       style={{ cursor: dragging ? 'col-resize' : undefined }}
     >
-      {/* Left Panel — liquid glass */}
-      {!leftCollapsed && (
-        <div
-          className="h-full flex-shrink-0 overflow-hidden liquid-glass-panel"
-          style={{ width: leftWidth }}
-        >
-          {leftPanel}
+      <div className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]/92 px-3 py-2 backdrop-blur-xl md:hidden">
+        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-1 shadow-[var(--glass-shadow-sm)]">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setMobilePanel(tab.id)}
+              data-testid={`workbench-mobile-tab-${tab.id}`}
+              className={`rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+                mobilePanel === tab.id
+                  ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[0_8px_24px_rgba(15,23,42,0.14)]'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* Left Panel — liquid glass */}
+      <div
+        className={`${mobilePanel === 'left' ? 'flex' : 'hidden'} ${leftCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 w-full flex-1 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full md:flex-none`}
+        style={{ width: isMobile ? undefined : leftWidth }}
+        aria-hidden={isMobile && mobilePanel !== 'left'}
+      >
+        {leftPanel}
+      </div>
 
       {/* Left Divider */}
       {!leftCollapsed && (
         <div
-          className="panel-divider flex-shrink-0"
+          className="panel-divider hidden flex-shrink-0 md:block"
           onMouseDown={(e) => handleMouseDown('left', e)}
           onDoubleClick={() => setLeftCollapsed(true)}
           title="拖拽调宽 · 双击收起"
@@ -163,7 +152,11 @@ export function ThreeColumnLayout({
       )}
 
       {/* Center Panel — liquid glass */}
-      <div className="relative h-full flex-1 overflow-hidden liquid-glass-panel" style={{ borderRight: 'none', borderLeft: 'none' }}>
+      <div
+        className={`${mobilePanel === 'center' ? 'flex' : 'hidden'} relative min-h-0 w-full flex-1 overflow-hidden liquid-glass-panel md:flex md:h-full`}
+        style={{ borderRight: 'none', borderLeft: 'none' }}
+        aria-hidden={isMobile && mobilePanel !== 'center'}
+      >
         {centerPanel}
 
         {/* Collapse / expand toggles */}
@@ -171,7 +164,7 @@ export function ThreeColumnLayout({
           type="button"
           onClick={() => setLeftCollapsed(v => !v)}
           data-testid="workbench-toggle-left"
-          className="absolute left-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
+          className="absolute left-2 top-1/2 z-20 hidden h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)] md:flex"
           title={leftCollapsed ? '展开资料库' : '收起资料库'}
           aria-label={leftCollapsed ? '展开资料库' : '收起资料库'}
         >
@@ -181,7 +174,7 @@ export function ThreeColumnLayout({
           type="button"
           onClick={() => setRightCollapsed(v => !v)}
           data-testid="workbench-toggle-right"
-          className="absolute right-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
+          className="absolute right-2 top-1/2 z-20 hidden h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)] md:flex"
           title={rightCollapsed ? '展开产物中心' : '收起产物中心'}
           aria-label={rightCollapsed ? '展开产物中心' : '收起产物中心'}
         >
@@ -192,7 +185,7 @@ export function ThreeColumnLayout({
       {/* Right Divider */}
       {!rightCollapsed && (
         <div
-          className="panel-divider flex-shrink-0"
+          className="panel-divider hidden flex-shrink-0 md:block"
           onMouseDown={(e) => handleMouseDown('right', e)}
           onDoubleClick={() => setRightCollapsed(true)}
           title="拖拽调宽 · 双击收起"
@@ -200,14 +193,13 @@ export function ThreeColumnLayout({
       )}
 
       {/* Right Panel — liquid glass */}
-      {!rightCollapsed && (
-        <div
-          className="h-full flex-shrink-0 overflow-hidden liquid-glass-panel"
-          style={{ width: rightWidth, borderRight: 'none', borderLeft: '1px solid var(--glass-border)' }}
-        >
-          {rightPanel}
-        </div>
-      )}
+      <div
+        className={`${mobilePanel === 'right' ? 'flex' : 'hidden'} ${rightCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 w-full flex-1 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full md:flex-none`}
+        style={{ width: isMobile ? undefined : rightWidth, borderRight: 'none', borderLeft: '1px solid var(--glass-border)' }}
+        aria-hidden={isMobile && mobilePanel !== 'right'}
+      >
+        {rightPanel}
+      </div>
     </div>
   );
 }

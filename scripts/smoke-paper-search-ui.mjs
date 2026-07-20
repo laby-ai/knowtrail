@@ -146,6 +146,7 @@ async function main() {
       cwd: workspace,
       env: {
         ...process.env,
+        BIND_HOST: '127.0.0.1',
         PORT: String(appPort),
         DEPLOY_RUN_PORT: String(appPort),
         INTERNAL_APP_ORIGIN: '',
@@ -177,7 +178,7 @@ async function main() {
     await page.getByTestId('discover-query').fill('evidence synthesis');
     await page.getByTestId('discover-search').click();
     await page.getByText('正在搜索学术文献线索...').waitFor({ state: 'visible' });
-    await page.getByText('Evidence Synthesis Methods', { exact: true }).waitFor({ state: 'visible' });
+    await page.getByTestId('discover-result-item').filter({ hasText: 'Evidence Synthesis Methods' }).waitFor({ state: 'visible' });
     await page.getByText('待核验', { exact: true }).waitFor({ state: 'visible' });
     await page.getByRole('link', { name: '查看来源' }).waitFor({ state: 'visible' });
     const desktopScreenshot = path.join(evidenceDir, 'paper-search-desktop.png');
@@ -225,7 +226,7 @@ async function main() {
     await mobile.getByTestId('paper-search-panel').waitFor({ state: 'visible' });
     await mobile.getByTestId('discover-query').fill('evidence synthesis');
     await mobile.getByTestId('discover-search').click();
-    await mobile.getByText('Evidence Synthesis Methods', { exact: true }).waitFor({ state: 'visible' });
+    await mobile.getByTestId('discover-result-item').filter({ hasText: 'Evidence Synthesis Methods' }).waitFor({ state: 'visible' });
     await mobile.getByText('待核验', { exact: true }).waitFor({ state: 'visible' });
     const mobileOverflow = await mobile.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     const mobileScreenshot = path.join(evidenceDir, 'paper-search-mobile.png');
