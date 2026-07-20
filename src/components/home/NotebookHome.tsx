@@ -9,6 +9,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand/BrandMark';
+import { BailianProviderButton } from '@/components/account/BailianProviderButton';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import {
   ACCOUNT_NOTEBOOK_NEXT,
@@ -67,6 +68,7 @@ function AccountArea({
         <div className="truncate text-sm font-semibold leading-4 text-slate-900">{accountSession.member.display_name}</div>
         <div className="truncate text-xs leading-4 text-slate-500">{accountSession.member.email}</div>
       </div>
+      <BailianProviderButton session={accountSession} />
       <button
         type="button"
         onClick={onSignOut}

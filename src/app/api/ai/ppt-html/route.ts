@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
 import { getHtmlDeckStyle } from '@/lib/ppt/html-deck-style';
@@ -122,7 +122,9 @@ async function genSlidesParallel(
 export async function POST(request: NextRequest) {
   const body: HtmlPptRequest = await request.json();
   const { papers, styleId, pageCount = 10, language = 'zh', aiConfig } = body;
-  const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
+  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
+  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+  const runtimeConfig = runtimeConfigResult;
 
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,

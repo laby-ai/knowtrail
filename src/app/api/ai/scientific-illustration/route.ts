@@ -7,27 +7,14 @@ import {
   parseScientificIllustrationRequest,
 } from '@/lib/scientific-illustration-contract';
 import { saveScientificIllustration } from '@/lib/scientific-illustration-store';
-import {
-  generateSlideImage,
-  resolveImageModelName,
-  resolveImageRuntimeConfig,
-} from '@/lib/ppt/image-generation';
-import {
-  resolveStudioGenerationReadiness,
-  studioGenerationUnavailablePayload,
-} from '@/lib/studio-generation-readiness';
+import { generateBailianWanImage } from '@/lib/bailian-wan-image';
+import { bailianProfileErrorResponse, resolveMemberBailianProfile } from '@/lib/bailian-provider-profile';
 
 function errorResponse(error: string, errorType: string, status: number) {
   return Response.json(
     { code: status === 400 ? 40002 : status, msg: error, error, status: 'failed', errorType },
     { status, headers: { 'Cache-Control': 'no-store' } },
   );
-}
-
-function imageBufferFromBase64(value: string): Buffer {
-  const normalized = value.replace(/^data:image\/(?:png|jpe?g|webp);base64,/i, '').trim();
-  if (!normalized) throw new Error('图片模型未返回图片数据。');
-  return Buffer.from(normalized, 'base64');
 }
 
 export async function POST(request: NextRequest) {
@@ -42,22 +29,14 @@ export async function POST(request: NextRequest) {
       return errorResponse(error instanceof Error ? error.message : '科研示意图参数不正确。', 'scientific_illustration_invalid_request', 400);
     }
 
-    const readiness = resolveStudioGenerationReadiness().scientificIllustration;
-    if (!readiness.ready) {
-      return Response.json(studioGenerationUnavailablePayload(readiness), {
-        status: 503,
-        headers: { 'Cache-Control': 'no-store' },
-      });
-    }
-
     const accountScope = await resolveAccountNotebookScope(request, {
       notebookId: input.notebookId,
       loginMessage: '请先登录后再生成科研示意图。',
     });
     if (!accountScope.ok) return accountScope.response;
 
-    const runtimeConfig = resolveImageRuntimeConfig();
-    const modelName = resolveImageModelName(runtimeConfig);
+    const providerProfile = await resolveMemberBailianProfile(request);
+    const modelName = providerProfile.image_model;
     try {
       reservation = await reserveAIUsage({
         route: 'scientific-illustration',
@@ -75,16 +54,13 @@ export async function POST(request: NextRequest) {
     }
 
     const prompt = buildScientificIllustrationPrompt(input);
-    const generated = await generateSlideImage(prompt, {
+    const generated = await generateBailianWanImage(prompt, providerProfile, {
       aspectRatio: input.aspectRatio,
-      negativePrompt: 'statistical chart, axes, significance stars, measured values, fabricated data, watermark, advertisement, random English, dense tiny text',
-      runtimeConfig,
       signal: request.signal,
     });
-    if (!generated) throw new Error('图片模型未返回可用图片。');
 
     const metadata = await saveScientificIllustration({
-      image: imageBufferFromBase64(generated),
+      image: generated,
       ownerMemberId: accountScope.ownerMemberId,
       notebookId: accountScope.notebookId,
       purpose: input.purpose,
@@ -118,6 +94,8 @@ export async function POST(request: NextRequest) {
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     if (reservation && !finalized) await reservation.release().catch(() => undefined);
+    const profileError = bailianProfileErrorResponse(error);
+    if (profileError) return profileError;
     if (request.signal.aborted) {
       return errorResponse('已停止科研示意图生成。', 'scientific_illustration_cancelled', 499);
     }

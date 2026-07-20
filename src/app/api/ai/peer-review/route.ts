@@ -14,7 +14,7 @@ import {
   type PeerReviewPerspective,
 } from '@/lib/peer-review-contract';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import type { RuntimeAIConfig } from '@/types';
 
 type PeerReviewRequest = {
@@ -67,7 +67,9 @@ export async function POST(request: NextRequest) {
   });
   if (!accountScope.ok) return accountScope.response;
 
-  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
+  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
+  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+  const runtimeConfig = runtimeConfigResult;
   const grounded = papers.length > 0
     ? await buildGroundedRetrievalContext(
       `论文审查范围：${scope}\n审查视角：${reviewPerspective}\n请匹配与稿件方法、结果解释、证据边界和可复现性相关的来源片段。`,
