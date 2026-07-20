@@ -18,9 +18,21 @@ import { MessageItem } from './MessageItem';
 import { QUICK_QUESTIONS, type QuickQuestion } from './quickQuestions';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
+import {
+  classifyChatFailure,
+  createPendingAssistantMessage,
+  findRetryTarget,
+  generationUpdate,
+  parseChatStreamPayload,
+} from '@/lib/chat-generation-lifecycle';
 
 const CHAT_RESPONSE_MAX_TOKENS = 260;
 const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
+
+interface SendQuestionOptions {
+  appendUserMessage?: boolean;
+  assistantMessageId?: string;
+}
 
 export function EditorPanel() {
   const {
@@ -62,10 +74,13 @@ export function EditorPanel() {
   }, []);
 
   // Send a message (used by input and quick buttons)
-  const sendQuestion = useCallback(async (question: string) => {
-    if (!question.trim() || isGenerating) return;
-    const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
-    addChatMessage({ id: userMsgId, role: 'user', content: question, timestamp: new Date().toISOString() });
+  const sendQuestion = useCallback(async (question: string, options: SendQuestionOptions = {}) => {
+    const normalizedQuestion = question.trim();
+    if (!normalizedQuestion || isGenerating) return;
+    if (options.appendUserMessage !== false) {
+      const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
+      addChatMessage({ id: userMsgId, role: 'user', content: normalizedQuestion, timestamp: new Date().toISOString() });
+    }
 
     const selectedPapers = getSelectedPapers();
     if (selectedPapers.length === 0) {
@@ -74,7 +89,22 @@ export function EditorPanel() {
     }
 
     setIsGenerating(true);
-    let assistantMsgId: string | null = null;
+    const startedAt = new Date().toISOString();
+    const assistantMsgId = options.assistantMessageId || `msg-${Date.now()}-${++_msgSeq.current}`;
+    const pendingMessage = createPendingAssistantMessage(assistantMsgId, normalizedQuestion, startedAt);
+    if (options.assistantMessageId) {
+      updateChatMessage(assistantMsgId, {
+        content: '',
+        citations: undefined,
+        retrieval: undefined,
+        citationAudit: undefined,
+        followUps: undefined,
+        generation: pendingMessage.generation,
+        timestamp: startedAt,
+      });
+    } else {
+      addChatMessage(pendingMessage);
+    }
     let streamedContent = '';
     const abortController = new AbortController();
     chatAbortRef.current = abortController;
@@ -87,7 +117,7 @@ export function EditorPanel() {
         signal: abortController.signal,
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
-          message: question,
+          message: normalizedQuestion,
           notebookId,
           aiConfig,
           maxTokens: CHAT_RESPONSE_MAX_TOKENS,
@@ -108,11 +138,9 @@ export function EditorPanel() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
-      assistantMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
       let serverCitations: Citation[] = [];
       let serverRetrieval: RetrievalMetadata | undefined;
       let serverCitationAudit: CitationAuditResult | undefined;
-      addChatMessage({ id: assistantMsgId, role: 'assistant', content: '', timestamp: new Date().toISOString() });
 
       if (reader) {
         let buffer = '';
@@ -126,30 +154,27 @@ export function EditorPanel() {
             const trimmed = line.trim();
             if (trimmed.startsWith('data: ')) {
               const payload = trimmed.slice(6);
-              if (payload === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(payload);
-                if (parsed.error) {
-                  throw new Error(String(parsed.error));
-                }
-                if (parsed.content) {
+              const parsedPayload = parseChatStreamPayload(payload);
+              if (parsedPayload.kind === 'done' || parsedPayload.kind === 'ignore') continue;
+              if (parsedPayload.kind === 'error') throw new Error(parsedPayload.error);
+              const parsed = parsedPayload.event;
+              if (typeof parsed.content === 'string') {
                   accumulatedContent += parsed.content;
                   streamedContent = accumulatedContent;
                   updateChatMessage(assistantMsgId, { content: accumulatedContent });
-                }
-                if (Array.isArray(parsed.citations)) {
+              }
+              if (Array.isArray(parsed.citations)) {
                   serverCitations = parsed.citations as Citation[];
                   updateChatMessage(assistantMsgId, { citations: serverCitations });
-                }
-                if (parsed.retrieval) {
+              }
+              if (parsed.retrieval && typeof parsed.retrieval === 'object') {
                   serverRetrieval = parsed.retrieval as RetrievalMetadata;
                   updateChatMessage(assistantMsgId, { retrieval: serverRetrieval });
-                }
-                if (parsed.citationAudit) {
+              }
+              if (parsed.citationAudit && typeof parsed.citationAudit === 'object') {
                   serverCitationAudit = parsed.citationAudit as CitationAuditResult;
                   updateChatMessage(assistantMsgId, { citationAudit: serverCitationAudit });
-                }
-              } catch { /* ignore */ }
+              }
             }
           }
         }
@@ -162,35 +187,29 @@ export function EditorPanel() {
             citations,
             retrieval: serverRetrieval,
             citationAudit: serverCitationAudit,
-            followUps: generateFollowUps(question),
+            followUps: generateFollowUps(normalizedQuestion),
+            ...generationUpdate('completed', normalizedQuestion, new Date().toISOString()),
           });
         }
       }
       if (!accumulatedContent) {
-        updateChatMessage(assistantMsgId, { content: '抱歉，未能获取到 AI 回答，请重试。' });
+        updateChatMessage(assistantMsgId, {
+          content: '抱歉，未能获取到 AI 回答，请重试。',
+          ...generationUpdate('failed', normalizedQuestion, new Date().toISOString()),
+        });
       }
     } catch (error) {
       const aborted = abortController.signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
       const stoppedByUser = aborted && userStoppedRef.current;
       const errorMessage = error instanceof Error ? error.message : '';
-      const quotaBlocked = /额度|积分|充值|分配|预占|quota|billing/i.test(errorMessage);
-      const content = stoppedByUser
-        ? '已停止生成。可以换个问法继续提问。'
-        : aborted
-          ? `真实模型生成超过 ${Math.round(CHAT_RESPONSE_TIMEOUT_MS / 1000)} 秒，已停止等待。上方检索证据已返回，但回答尚未生成完成。请稍后重试，或把问题缩短为更具体的一问。`
-          : quotaBlocked
-            ? '账号积分不足，请先充值，或联系管理员分配积分后再使用灵笔。'
-            : '抱歉，AI 服务暂时不可用，请稍后重试。';
-      if (assistantMsgId) {
-        // Keep whatever streamed before the user hit stop; only replace if nothing arrived.
-        if (stoppedByUser && streamedContent) {
-          updateChatMessage(assistantMsgId, { content: `${streamedContent}\n\n*(已停止生成)*` });
-        } else {
-          updateChatMessage(assistantMsgId, { content });
-        }
-      } else {
-        addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content, timestamp: new Date().toISOString() });
-      }
+      const failure = classifyChatFailure({ aborted, stoppedByUser, errorMessage });
+      const content = stoppedByUser && streamedContent
+        ? `${streamedContent}\n\n*(已停止生成)*`
+        : failure.content;
+      updateChatMessage(assistantMsgId, {
+        content,
+        ...generationUpdate(failure.status, normalizedQuestion, new Date().toISOString()),
+      });
     } finally {
       window.clearTimeout(timeoutId);
       if (chatAbortRef.current === abortController) chatAbortRef.current = null;
@@ -207,8 +226,13 @@ export function EditorPanel() {
   // Re-ask the question that produced the last assistant answer.
   const regenerateLastAnswer = useCallback(() => {
     if (isGenerating) return;
-    const lastUserMessage = [...chatMessages].reverse().find(message => message.role === 'user');
-    if (lastUserMessage?.content) void sendQuestion(lastUserMessage.content);
+    const retryTarget = findRetryTarget(chatMessages);
+    if (retryTarget) {
+      void sendQuestion(retryTarget.question, {
+        appendUserMessage: false,
+        assistantMessageId: retryTarget.assistantMessageId,
+      });
+    }
   }, [isGenerating, chatMessages, sendQuestion]);
 
   useEffect(() => {
