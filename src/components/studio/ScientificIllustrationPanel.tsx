@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import NextImage from 'next/image';
 import { AlertTriangle, Download, Image as ImageIcon, Loader2, Square } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 import { clientApiDownloadBlob, clientApiRequest } from '@/lib/client-api';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type {
@@ -60,6 +61,7 @@ async function readError(response: Response): Promise<string> {
 
 export function ScientificIllustrationPanel() {
   const { getSelectedPapers, storageScopeKey } = useApp();
+  const generationReadiness = useStudioGenerationReadiness('scientificIllustration');
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const controllerRef = useRef<AbortController | null>(null);
@@ -80,6 +82,7 @@ export function ScientificIllustrationPanel() {
     [selectedPapers],
   );
   const formReady = selectedPapers.length > 0 && purpose.trim().length >= 8 && labels.length <= 6;
+  const canGenerate = formReady && generationReadiness.ready;
 
   const replacePreviewUrl = useCallback((next: string) => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -104,6 +107,12 @@ export function ScientificIllustrationPanel() {
   }, []);
 
   const startGeneration = useCallback(async () => {
+    if (!generationReadiness.ready) {
+      setStatus('error');
+      setError(generationReadiness.message);
+      setMessage('本次没有提交生成任务。');
+      return;
+    }
     if (!formReady || status === 'running') return;
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -155,7 +164,7 @@ export function ScientificIllustrationPanel() {
       window.clearTimeout(timeout);
       if (controllerRef.current === controller) controllerRef.current = null;
     }
-  }, [aspectRatio, fetchImageBlob, figureKind, formReady, getSelectedPapers, labels, notebookId, purpose, replacePreviewUrl, status]);
+  }, [aspectRatio, fetchImageBlob, figureKind, formReady, generationReadiness, getSelectedPapers, labels, notebookId, purpose, replacePreviewUrl, status]);
 
   const downloadImage = useCallback(async () => {
     if (!result) return;
@@ -254,6 +263,16 @@ export function ScientificIllustrationPanel() {
         {labels.length > 6 && <span className="text-[10px] text-rose-300">必须标签不能超过 6 个。</span>}
       </label>
 
+      {!generationReadiness.ready && (
+        <div
+          className="flex items-start gap-2 rounded-lg border border-amber-400/25 bg-amber-500/5 p-3 text-[11px] text-amber-100"
+          data-testid="scientific-illustration-readiness"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{generationReadiness.message}</span>
+        </div>
+      )}
+
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-rose-400/25 bg-rose-500/5 p-3 text-[11px] text-rose-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -266,10 +285,12 @@ export function ScientificIllustrationPanel() {
           type="button"
           data-testid="scientific-illustration-start"
           onClick={startGeneration}
-          disabled={!formReady || status === 'running'}
+          disabled={!canGenerate || status === 'running'}
           className="btn-primary flex-1 py-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {status === 'running' ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 生成中</> : '生成科研示意图'}
+          {status === 'running'
+            ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 生成中</>
+            : generationReadiness.ready ? '生成科研示意图' : '服务配置中'}
         </button>
         {status === 'running' && (
           <button

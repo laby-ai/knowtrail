@@ -6,6 +6,10 @@ import type { RuntimeAIConfig } from '@/types';
 import { auditCitationMarkers } from '@/lib/citation-audit';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,6 +27,11 @@ export async function POST(request: NextRequest) {
       loginMessage: '请先登录账号，再生成资料报告。',
     });
     if (!scope.ok) return scope.response;
+
+    const readiness = resolveStudioGenerationReadiness().researchChat;
+    if (!debugRetrievalOnly && !readiness.ready) {
+      return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
+    }
 
     if (!papers || (Array.isArray(papers) && papers.length === 0) || (typeof papers === 'string' && !papers.trim())) {
       return NextResponse.json({ error: '请先选择至少一篇论文' }, { status: 400 });

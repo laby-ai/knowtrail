@@ -1,6 +1,7 @@
 'use client';
 
 import { clientApiRequest } from '@/lib/client-api';
+import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -26,6 +27,7 @@ import {
 
 export function StructuredPresentationPanel() {
   const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+  const generationReadiness = useStudioGenerationReadiness('structuredPpt');
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
@@ -73,6 +75,10 @@ export function StructuredPresentationPanel() {
   ];
 
   const handleGenerate = async () => {
+    if (!generationReadiness.ready) {
+      setError(generationReadiness.message);
+      return;
+    }
     const papers = getSelectedPapers();
     if (papers.length === 0) {
       setError('请先在左侧资料区选择来源');
@@ -463,15 +469,22 @@ export function StructuredPresentationPanel() {
         </div>
       ) : (
         /* Initial state - generate button */
-        <button
-          onClick={handleGenerate}
-          disabled={!hasSelectedPapers}
-          data-testid="academic-ppt-generate"
-          className="liquid-glass-btn px-8 py-3.5 !rounded-xl !bg-gradient-to-r !from-amber-500 !to-amber-600 hover:!from-amber-400 hover:!to-amber-500 !text-black !font-semibold text-sm !border-0 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:!from-amber-500 disabled:hover:!to-amber-600"
-          title={hasSelectedPapers ? outlineConfirmed ? '生成结构化资料简报' : '请先确认简报大纲' : '请先在左侧选择资料'}
-        >
-          {hasSelectedPapers ? outlineConfirmed ? '生成结构化简报' : '先确认大纲' : '先选择资料'}
-        </button>
+        <div className="w-full max-w-[420px] space-y-3">
+          {!generationReadiness.ready && (
+            <div data-testid="academic-ppt-readiness" className="rounded-xl border border-amber-400/25 bg-amber-500/5 p-3 text-xs leading-relaxed text-amber-200">
+              {generationReadiness.message}
+            </div>
+          )}
+          <button
+            onClick={handleGenerate}
+            disabled={!hasSelectedPapers || !outlineConfirmed || !generationReadiness.ready}
+            data-testid="academic-ppt-generate"
+            className="liquid-glass-btn w-full px-8 py-3.5 !rounded-xl !bg-gradient-to-r !from-amber-500 !to-amber-600 hover:!from-amber-400 hover:!to-amber-500 !text-black !font-semibold text-sm !border-0 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:!from-amber-500 disabled:hover:!to-amber-600"
+            title={!generationReadiness.ready ? generationReadiness.message : hasSelectedPapers ? outlineConfirmed ? '生成结构化资料简报' : '请先确认简报大纲' : '请先在左侧选择资料'}
+          >
+            {!generationReadiness.ready ? '服务配置中' : hasSelectedPapers ? outlineConfirmed ? '生成结构化简报' : '先确认大纲' : '先选择资料'}
+          </button>
+        </div>
       )}
     </div>
   );

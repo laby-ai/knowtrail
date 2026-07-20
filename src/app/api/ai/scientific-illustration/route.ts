@@ -12,6 +12,10 @@ import {
   resolveImageModelName,
   resolveImageRuntimeConfig,
 } from '@/lib/ppt/image-generation';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 function errorResponse(error: string, errorType: string, status: number) {
   return Response.json(
@@ -36,6 +40,14 @@ export async function POST(request: NextRequest) {
       input = parseScientificIllustrationRequest(raw);
     } catch (error) {
       return errorResponse(error instanceof Error ? error.message : '科研示意图参数不正确。', 'scientific_illustration_invalid_request', 400);
+    }
+
+    const readiness = resolveStudioGenerationReadiness().scientificIllustration;
+    if (!readiness.ready) {
+      return Response.json(studioGenerationUnavailablePayload(readiness), {
+        status: 503,
+        headers: { 'Cache-Control': 'no-store' },
+      });
     }
 
     const accountScope = await resolveAccountNotebookScope(request, {
