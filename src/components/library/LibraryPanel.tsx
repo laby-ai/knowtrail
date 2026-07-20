@@ -168,10 +168,10 @@ interface SourceCitationLead {
 }
 
 type CitationContextState =
-  | { paperId: string; status: 'loading' }
-  | { paperId: string; status: 'ready'; snippet: CitationContextSnippet }
-  | { paperId: string; status: 'missing' }
-  | { paperId: string; status: 'error' };
+  | { token: number; paperId: string; status: 'loading' }
+  | { token: number; paperId: string; status: 'ready'; snippet: CitationContextSnippet }
+  | { token: number; paperId: string; status: 'missing' }
+  | { token: number; paperId: string; status: 'error' };
 
 type SourcePreviewState =
   | { paper: Paper; status: 'loading' }
@@ -389,13 +389,16 @@ export function LibraryPanel({
 
   // Citation click-through: expand the owning folder, scroll to the source and flash it.
   const [flashPaperId, setFlashPaperId] = useState<string | null>(null);
-  const [citationFocus, setCitationFocus] = useState<{ paperId: string; citation: CitationReveal } | null>(null);
+  const [citationFocus, setCitationFocus] = useState<{ token: number; paperId: string; citation: CitationReveal } | null>(null);
   const [citationContext, setCitationContext] = useState<CitationContextState | null>(null);
+  const handledRevealTokenRef = useRef<number | null>(null);
   useEffect(() => {
     if (!revealPaperRequest) return;
-    const { paperId, citation } = revealPaperRequest;
+    const { paperId, citation, token } = revealPaperRequest;
+    if (handledRevealTokenRef.current === token) return;
     const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paperId));
     if (!ownerFolder) return;
+    handledRevealTokenRef.current = token;
     setExpandedFolders(prev => new Set([...prev, ownerFolder.id]));
     setSearchQuery('');
     setCitationContext(null);
@@ -403,12 +406,10 @@ export function LibraryPanel({
       const el = document.querySelector(`[data-testid="library-paper-${paperId}"]`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setFlashPaperId(paperId);
-      if (citation) setCitationFocus({ paperId, citation });
+      if (citation) setCitationFocus({ token, paperId, citation });
       window.setTimeout(() => {
         setFlashPaperId(null);
-        setCitationFocus(prev => (prev?.paperId === paperId ? null : prev));
-        setCitationContext(prev => (prev?.paperId === paperId ? null : prev));
-      }, 8000);
+      }, 1400);
     }, 80);
     return () => window.clearTimeout(timer);
   }, [revealPaperRequest, folders]);
@@ -418,17 +419,17 @@ export function LibraryPanel({
       setCitationContext(null);
       return;
     }
-    const { paperId, citation } = citationFocus;
+    const { token, paperId, citation } = citationFocus;
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountAuthRequired && !accountHeaders.Authorization) {
-      setCitationContext({ paperId, status: 'missing' });
+      setCitationContext({ token, paperId, status: 'missing' });
       return;
     }
 
     let cancelled = false;
     const loadCitationContext = async () => {
       try {
-        setCitationContext({ paperId, status: 'loading' });
+        setCitationContext({ token, paperId, status: 'loading' });
         const detailParams = new URLSearchParams({ id: paperId });
         if (notebookId) detailParams.set('notebookId', notebookId);
         const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
@@ -436,15 +437,15 @@ export function LibraryPanel({
           headers: accountHeaders,
         });
         if (!response.ok) {
-          if (!cancelled) setCitationContext({ paperId, status: 'missing' });
+          if (!cancelled) setCitationContext({ token, paperId, status: 'missing' });
           return;
         }
         const data = await response.json() as { source?: IngestionSourceDetail };
         const snippet = findCitationContextSnippet(data.source?.chunks, citation);
         if (cancelled) return;
-        setCitationContext(snippet ? { paperId, status: 'ready', snippet } : { paperId, status: 'missing' });
+        setCitationContext(snippet ? { token, paperId, status: 'ready', snippet } : { token, paperId, status: 'missing' });
       } catch {
-        if (!cancelled) setCitationContext({ paperId, status: 'error' });
+        if (!cancelled) setCitationContext({ token, paperId, status: 'error' });
       }
     };
 
@@ -1110,10 +1111,25 @@ export function LibraryPanel({
                             data-testid="library-citation-focus"
                             className="mt-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-blue-100"
                           >
-                            <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-300">
-                              <span>证据定位</span>
-                              <span className="text-blue-300/50">·</span>
-                              <span>{formatCitationReveal(citationFocus.citation)}</span>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-300">
+                                <span>证据定位</span>
+                                <span className="text-blue-300/50">·</span>
+                                <span>{formatCitationReveal(citationFocus.citation)}</span>
+                              </div>
+                              <button
+                                type="button"
+                                aria-label="关闭证据定位"
+                                title="关闭证据定位"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setCitationFocus(null);
+                                  setCitationContext(null);
+                                }}
+                                className="-mr-1 -mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-blue-200/70 transition hover:bg-blue-300/15 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/70"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </div>
                             {citationFocus.citation.sourceTitle && citationFocus.citation.sourceTitle !== paper.title && (
                               <p className="mt-1 truncate text-[var(--text-tertiary)]">{citationFocus.citation.sourceTitle}</p>
@@ -1123,10 +1139,10 @@ export function LibraryPanel({
                                 &ldquo;{truncateEvidenceText(citationFocus.citation.excerpt)}&rdquo;
                               </p>
                             )}
-                            {citationContext?.paperId === paper.id && citationContext.status === 'loading' && (
+                            {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'loading' && (
                               <p className="mt-1.5 text-[var(--text-tertiary)]">正在调取来源片段...</p>
                             )}
-                            {citationContext?.paperId === paper.id && citationContext.status === 'ready' && (
+                            {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'ready' && (
                               <div
                                 data-testid="library-citation-context"
                                 className="mt-1.5 rounded-md border border-blue-300/15 bg-black/15 px-2 py-1.5"
@@ -1141,12 +1157,12 @@ export function LibraryPanel({
                                 </p>
                               </div>
                             )}
-                            {citationContext?.paperId === paper.id && citationContext.status === 'missing' && (
+                            {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'missing' && (
                               <p className="mt-1.5 text-[var(--text-tertiary)]">
                                 当前卡片已有引用摘录；完整来源片段尚未同步到文献库。
                               </p>
                             )}
-                            {citationContext?.paperId === paper.id && citationContext.status === 'error' && (
+                            {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'error' && (
                               <p className="mt-1.5 text-[var(--text-tertiary)]">
                                 来源片段读取失败，请稍后重试。
                               </p>
