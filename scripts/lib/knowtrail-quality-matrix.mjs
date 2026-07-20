@@ -8,6 +8,10 @@ const step = (id, script, options = {}) => ({
   timeoutMs: options.timeoutMs,
   env: options.env,
 });
+const tsxStep = (id, script, options = {}) => ({
+  ...step(id, script, options),
+  args: ['--import', 'tsx', script],
+});
 
 export const KNOWTRAIL_QUALITY_MATRIX = [
   {
@@ -93,7 +97,10 @@ export const KNOWTRAIL_QUALITY_MATRIX = [
     name: 'PPT 制作',
     category: '成果表达',
     exclusiveResource: 'next-dev-worktree',
-    steps: [step('ui-and-files', 'scripts/smoke-workbench-studio-ui.mjs', { timeoutMs: 300_000 })],
+    steps: [
+      step('ui-lifecycle', 'scripts/smoke-workbench-studio-ui.mjs', { timeoutMs: 300_000 }),
+      tsxStep('visible-result-and-files', 'scripts/smoke-ppt-file-output.ts', { timeoutMs: 300_000 }),
+    ],
   },
   {
     id: 'peer-review',

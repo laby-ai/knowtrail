@@ -591,7 +591,7 @@ function PresentationPanel() {
 
       {/* ── Slides preview ── */}
       {slides.length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-4" data-testid="image-ppt-result">
           {/* Main preview */}
           {currentSlide && (
             <div

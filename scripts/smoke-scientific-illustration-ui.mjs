@@ -132,6 +132,7 @@ async function main() {
       cwd: workspace,
       env: {
         ...process.env,
+        BIND_HOST: '127.0.0.1',
         PORT: String(appPort),
         DEPLOY_RUN_PORT: String(appPort),
         INTERNAL_APP_ORIGIN: '',
@@ -141,7 +142,7 @@ async function main() {
         ACCOUNT_CENTER_DEFAULT_MEMBER_ID: '',
         ARK_API_BASE: fakeProvider.origin,
         ARK_API_KEY: 'scientific-illustration-smoke',
-        ARK_VISION_MODEL: 'doubao-seedream-smoke',
+        ARK_IMAGE_MODEL: 'doubao-seedream-smoke',
         SITIAN_API_TOKEN: '',
         ALLOW_INSECURE_API_BASE: 'true',
         ALLOW_PRIVATE_API_BASE: 'true',
