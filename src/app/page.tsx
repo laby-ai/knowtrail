@@ -21,7 +21,6 @@ import {
   NOTEBOOKS_STORAGE_KEY,
   createDefaultNotebooks,
   normalizeNotebookTitle,
-  scopedStorageKey,
   type AccountCenterStatus,
   type WorkspaceNotebook,
 } from '@/components/home/workspace-types';
@@ -31,12 +30,24 @@ import {
   featuredNotebookToWorkspace,
   isFeaturedNotebookId,
 } from '@/components/home/featured-notebooks';
+import {
+  installPaperHostBridge,
+  paperHostScopePrefix,
+  readPaperHostContext,
+  type PaperHostContext,
+} from '@/lib/paper-host-bridge';
+import { resolveEmbeddedEntryState } from '@/lib/embedded-entry-state';
+import { loadNotebookSourceCounts, mergeNotebookSourceCounts } from '@/lib/notebook-source-counts';
 
-function WorkbenchCenterPanel() {
+const FEATURED_SOURCE_COUNTS = Object.fromEntries(
+  FEATURED_NOTEBOOKS.map(notebook => [notebook.id, notebook.sourceCount]),
+);
+
+function WorkbenchCenterPanel({ compact }: { compact: boolean }) {
   const { virtualClassroomViewer, knowledgeMapViewer } = useApp();
   if (virtualClassroomViewer) return <VirtualClassroomWorkspace />;
   if (knowledgeMapViewer) return <KnowledgeMapWorkspace />;
-  return <EditorPanel />;
+  return <EditorPanel compact={compact} />;
 }
 
 function AcademicPresenterContent({
@@ -47,6 +58,7 @@ function AcademicPresenterContent({
   onSourceGuideDismiss,
   accountSession,
   accountAuthRequired,
+  paperHostContext,
 }: {
   workspaceTitle: string;
   onBackHome: () => void;
@@ -55,20 +67,25 @@ function AcademicPresenterContent({
   onSourceGuideDismiss: () => void;
   accountSession: AccountAuthSession | null;
   accountAuthRequired: boolean;
+  paperHostContext: PaperHostContext;
 }) {
+  const quiet = paperHostContext.enabled;
+
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, []);
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[var(--bg-primary)]">
+    <div className={`flex h-screen w-screen flex-col overflow-hidden bg-[var(--bg-primary)] ${quiet ? 'quiet-research-workbench' : ''}`}>
       <WorkbenchTopBar
         workspaceTitle={workspaceTitle}
         onBackHome={onBackHome}
         onSignOut={onSignOut}
+        embedded={quiet}
+        authenticated={Boolean(accountSession)}
       />
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 quiet-enter">
         <ThreeColumnLayout
           leftPanel={(
             <LibraryPanel
@@ -80,10 +97,11 @@ function AcademicPresenterContent({
               onSourceGuideDismiss={onSourceGuideDismiss}
             />
           )}
-          centerPanel={<WorkbenchCenterPanel />}
-          rightPanel={<StudioPanel />}
-          defaultLeftWidth={280}
-          defaultRightWidth={500}
+          centerPanel={<WorkbenchCenterPanel compact={quiet} />}
+          rightPanel={<StudioPanel compact={quiet} />}
+          appearance={quiet ? 'quiet-research' : 'glass'}
+          defaultLeftWidth={quiet ? 272 : 280}
+          defaultRightWidth={quiet ? 420 : 500}
           initialMobilePanel={showSourceGuide ? 'left' : 'center'}
         />
       </div>
@@ -101,6 +119,29 @@ export default function HomePage() {
   const [accountStatus, setAccountStatus] = useState<AccountCenterStatus | null>(null);
   const [accountSession, setAccountSession] = useState<AccountAuthSession | null>(null);
   const [accountSessionReady, setAccountSessionReady] = useState(false);
+  const [routeReady, setRouteReady] = useState(false);
+  const [paperHostContext, setPaperHostContext] = useState<PaperHostContext>(() => ({
+    enabled: false,
+    workspaceKey: '',
+    accountScope: '',
+    embedAuthMode: '',
+    hostBridgeVersion: '',
+  }));
+  const hostScopePrefix = paperHostScopePrefix(paperHostContext);
+  const notebookStorageOwner = paperHostContext.enabled
+    ? hostScopePrefix || 'paper-host:login-required'
+    : accountSession?.member.id || 'guest';
+  const notebookStorageKey = useCallback(
+    (base: string) => `${base}:${notebookStorageOwner}`,
+    [notebookStorageOwner],
+  );
+  const notebookIdsSignature = notebooks.map(notebook => notebook.id).join('|');
+
+  useEffect(() => {
+    const context = readPaperHostContext();
+    if (!context.enabled) return undefined;
+    return installPaperHostBridge();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,11 +187,11 @@ export default function HomePage() {
     if (!accountSessionReady) return;
     setNotebooksReady(false);
     try {
-      const saved = window.localStorage.getItem(scopedStorageKey(NOTEBOOKS_STORAGE_KEY, accountSession));
+      const saved = window.localStorage.getItem(notebookStorageKey(NOTEBOOKS_STORAGE_KEY));
       const parsed = saved ? JSON.parse(saved) as WorkspaceNotebook[] : null;
       const nextNotebooks = (Array.isArray(parsed) && parsed.length > 0 ? parsed : createDefaultNotebooks())
         .map((notebook, index) => ({ ...notebook, title: normalizeNotebookTitle(notebook.title, index) }));
-      const savedActive = window.localStorage.getItem(scopedStorageKey(ACTIVE_NOTEBOOK_STORAGE_KEY, accountSession));
+      const savedActive = window.localStorage.getItem(notebookStorageKey(ACTIVE_NOTEBOOK_STORAGE_KEY));
       setNotebooks(nextNotebooks);
       setActiveNotebookId(savedActive && nextNotebooks.some(item => item.id === savedActive) ? savedActive : nextNotebooks[0]?.id || null);
       setNotebooksReady(true);
@@ -160,17 +201,17 @@ export default function HomePage() {
       setActiveNotebookId(defaults[0]?.id || null);
       setNotebooksReady(true);
     }
-  }, [accountSession, accountSessionReady]);
+  }, [accountSessionReady, notebookStorageKey]);
 
   useEffect(() => {
     if (!accountSessionReady || notebooks.length === 0) return;
     try {
-      window.localStorage.setItem(scopedStorageKey(NOTEBOOKS_STORAGE_KEY, accountSession), JSON.stringify(notebooks));
-      if (activeNotebookId) window.localStorage.setItem(scopedStorageKey(ACTIVE_NOTEBOOK_STORAGE_KEY, accountSession), activeNotebookId);
+      window.localStorage.setItem(notebookStorageKey(NOTEBOOKS_STORAGE_KEY), JSON.stringify(notebooks));
+      if (activeNotebookId) window.localStorage.setItem(notebookStorageKey(ACTIVE_NOTEBOOK_STORAGE_KEY), activeNotebookId);
     } catch {
       // Keep the interface usable in restricted browser storage modes.
     }
-  }, [accountSession, accountSessionReady, activeNotebookId, notebooks]);
+  }, [accountSessionReady, activeNotebookId, notebookStorageKey, notebooks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -194,61 +235,36 @@ export default function HomePage() {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountStatus.authRequired && !accountHeaders.Authorization) return;
     let cancelled = false;
-    async function syncDefaultSourceCount() {
-      try {
-        const response = await fetch('/api/ingestion/sources?notebookId=default-workspace', {
-          cache: 'no-store',
-          headers: accountHeaders,
-        });
-        if (!response.ok) return;
-        const data = await response.json() as { sources?: unknown[] };
-        const sourceCount = Array.isArray(data.sources) ? data.sources.length : 0;
-        if (cancelled || sourceCount <= 0) return;
-        setNotebooks(prev => {
-          const current = prev.length > 0 ? prev : createDefaultNotebooks();
-          return current.map(notebook => (
-            notebook.id === 'default-workspace'
-              ? { ...notebook, sourceCount }
-              : notebook
-          ));
-        });
-      } catch {
-        // Keep notebook home usable even if the source store is unavailable.
-      }
+    async function syncNotebookSourceCounts() {
+      const persistedCounts = await loadNotebookSourceCounts({
+        notebookIds: notebookIdsSignature
+          ? notebookIdsSignature.split('|')
+          : createDefaultNotebooks().map(notebook => notebook.id),
+        headers: accountHeaders,
+      });
+      if (cancelled) return;
+      setNotebooks(prev => mergeNotebookSourceCounts({
+        notebooks: prev.length > 0 ? prev : createDefaultNotebooks(),
+        persistedCounts,
+        builtInCounts: FEATURED_SOURCE_COUNTS,
+      }));
     }
-    void syncDefaultSourceCount();
+    void syncNotebookSourceCounts();
     return () => { cancelled = true; };
-  }, [accountSession, accountSessionReady, accountStatus, entered, showLanding]);
+  }, [accountSession, accountSessionReady, accountStatus, entered, notebookIdsSignature, showLanding]);
 
   useEffect(() => {
     const applyRouteState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const isWorkbenchRoute =
-        window.location.hash === '#workbench' ||
-        params.get('view') === 'workbench';
-
-      if (isWorkbenchRoute) {
-        setShowLanding(false);
-        setEntered(true);
-        return;
-      }
-
-      if (window.location.hash === '#notebooks' || params.get('view') === 'notebooks') {
-        setShowLanding(false);
-        setEntered(false);
-        return;
-      }
-
-      if (params.get('view') === 'landing') {
-        setShowLanding(true);
-        setEntered(false);
-        return;
-      }
-
-      if (!window.location.hash && !window.location.search) {
-        setShowLanding(true);
-        setEntered(false);
-      }
+      const context = readPaperHostContext();
+      const route = resolveEmbeddedEntryState({
+        search: window.location.search,
+        hash: window.location.hash,
+      });
+      setPaperHostContext(context);
+      if (route.notebookId) setActiveNotebookId(route.notebookId);
+      setShowLanding(route.view === 'landing');
+      setEntered(route.view === 'workbench');
+      setRouteReady(true);
     };
 
     applyRouteState();
@@ -260,8 +276,10 @@ export default function HomePage() {
     };
   }, []);
 
-  const accountAuthRequired = accountStatus?.authRequired === true;
+  const paperHostSignInRequired = paperHostContext.enabled && !paperHostContext.workspaceKey;
+  const accountAuthRequired = !paperHostContext.enabled && accountStatus?.authRequired === true;
   const requiresAccountSignIn = accountAuthRequired && accountSessionReady && !accountSession;
+  const interactionBlocked = requiresAccountSignIn || paperHostSignInRequired;
   const redirectToAccount = useCallback(() => {
     window.location.replace(`/account?next=${ACCOUNT_NOTEBOOK_NEXT}`);
   }, []);
@@ -273,6 +291,7 @@ export default function HomePage() {
 
   const enterWorkbench = (notebookId = activeNotebookId) => {
     if (!notebooksReady) return;
+    if (paperHostSignInRequired) return;
     if (requiresAccountSignIn) {
       redirectToAccount();
       return;
@@ -286,7 +305,10 @@ export default function HomePage() {
     setShowLanding(false);
     setEntered(true);
 
-    const nextUrl = `${window.location.pathname}?view=workbench#workbench`;
+    const params = new URLSearchParams(window.location.search);
+    params.set('view', 'workbench');
+    if (notebookId) params.set('notebookId', notebookId);
+    const nextUrl = `${window.location.pathname}?${params.toString()}#workbench`;
     if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== nextUrl) {
       window.history.replaceState(null, '', nextUrl);
     }
@@ -294,7 +316,8 @@ export default function HomePage() {
 
   const createNotebook = () => {
     if (!accountSessionReady || !notebooksReady) return;
-    if (requiresAccountSignIn) {
+    if (interactionBlocked) {
+      if (paperHostSignInRequired) return;
       redirectToAccount();
       return;
     }
@@ -313,7 +336,8 @@ export default function HomePage() {
 
   const openNotebook = (id: string) => {
     if (!notebooksReady) return;
-    if (requiresAccountSignIn) {
+    if (interactionBlocked) {
+      if (paperHostSignInRequired) return;
       redirectToAccount();
       return;
     }
@@ -322,7 +346,8 @@ export default function HomePage() {
 
   const openFeaturedNotebook = (id: string) => {
     if (!notebooksReady) return;
-    if (requiresAccountSignIn) {
+    if (interactionBlocked) {
+      if (paperHostSignInRequired) return;
       redirectToAccount();
       return;
     }
@@ -338,13 +363,17 @@ export default function HomePage() {
   };
 
   const openNotebookHome = () => {
-    if (requiresAccountSignIn) {
+    if (interactionBlocked) {
+      if (paperHostSignInRequired) return;
       redirectToAccount();
       return;
     }
     setEntered(false);
     setShowLanding(false);
-    const nextUrl = `${window.location.pathname}?view=notebooks`;
+    const params = new URLSearchParams(window.location.search);
+    params.set('view', 'notebooks');
+    params.delete('notebookId');
+    const nextUrl = `${window.location.pathname}?${params.toString()}`;
     if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== nextUrl) {
       window.history.replaceState(null, '', nextUrl);
     }
@@ -362,7 +391,7 @@ export default function HomePage() {
   };
 
   const activeNotebook = notebooks.find(notebook => notebook.id === activeNotebookId) || notebooks[0] || createDefaultNotebooks()[0];
-  const workbenchScopeKey = `${accountSession?.member.id || 'guest'}:${activeNotebook.id}`;
+  const workbenchScopeKey = `${notebookStorageOwner}:${activeNotebook.id}`;
   const featuredFolders = useMemo(
     () => createFeaturedNotebookFolders(activeNotebook.id),
     [activeNotebook.id],
@@ -371,6 +400,17 @@ export default function HomePage() {
     () => featuredFolders.flatMap(folder => folder.papers.map(paper => paper.id)),
     [featuredFolders],
   );
+
+  if (!routeReady) {
+    return (
+      <div
+        className="min-h-screen bg-[#F7F9FC]"
+        data-testid="embedded-entry-boot-shell"
+        aria-busy="true"
+        aria-label="正在准备科研工作区"
+      />
+    );
+  }
 
   return (
     <AppProvider
@@ -389,6 +429,7 @@ export default function HomePage() {
             onSourceGuideDismiss={() => setShowSourceGuide(false)}
             accountSession={accountSession}
             accountAuthRequired={accountStatus?.authRequired !== false}
+            paperHostContext={paperHostContext}
           />
         ) : showLanding ? (
           <LandingPage
@@ -398,6 +439,7 @@ export default function HomePage() {
           />
         ) : (
           <NotebookHome
+            embedded={paperHostContext.enabled}
             notebooks={notebooks.length > 0 ? notebooks : createDefaultNotebooks()}
             activeNotebookId={activeNotebookId}
             accountStatus={accountStatus}

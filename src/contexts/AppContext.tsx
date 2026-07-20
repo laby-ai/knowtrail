@@ -24,6 +24,11 @@ import type {
   KnowledgeMapViewer,
   Citation,
 } from '@/types';
+import {
+  chatHistoryStorageKey,
+  parseStoredChatHistory,
+  serializeChatHistory,
+} from '@/lib/chat-generation-lifecycle';
 
 export type CitationReveal = Pick<Citation, 'chunkId' | 'chunkIndex' | 'page' | 'excerpt' | 'sourceTitle' | 'paperShortName'>;
 
@@ -211,6 +216,34 @@ export function AppProvider({
     selectedPapers: initialSelectedPaperIds,
     activeFolderId: initialFolders[0]?.id || null,
   }));
+  const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+
+  React.useEffect(() => {
+    let messages: ChatMessage[] = [];
+    try {
+      messages = parseStoredChatHistory(window.localStorage.getItem(chatHistoryStorageKey(storageScopeKey)));
+    } catch {
+      // localStorage can be unavailable in privacy modes; the in-memory chat remains usable.
+    }
+    setState((previous) => ({
+      ...previous,
+      storageScopeKey,
+      chatMessages: messages,
+    }));
+    setChatHistoryLoaded(true);
+  }, [storageScopeKey]);
+
+  React.useEffect(() => {
+    if (!chatHistoryLoaded) return;
+    try {
+      window.localStorage.setItem(
+        chatHistoryStorageKey(storageScopeKey),
+        serializeChatHistory(state.chatMessages),
+      );
+    } catch {
+      // The visible in-memory history remains authoritative when browser storage is unavailable.
+    }
+  }, [chatHistoryLoaded, state.chatMessages, storageScopeKey]);
 
   React.useEffect(() => {
     try {
@@ -311,10 +344,12 @@ export function AppProvider({
   }, []);
 
   const [revealPaperRequest, setRevealPaperRequest] = useState<RevealPaperRequest | null>(null);
+  const revealPaperTokenRef = React.useRef(0);
   const revealPaper = useCallback((paperId: string, citation?: Citation) => {
+    revealPaperTokenRef.current += 1;
     setRevealPaperRequest({
       paperId,
-      token: Date.now(),
+      token: revealPaperTokenRef.current,
       citation: citation ? {
         chunkId: citation.chunkId,
         chunkIndex: citation.chunkIndex,

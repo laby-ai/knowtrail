@@ -27,6 +27,8 @@ import type { CitationReveal } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
+import { resolveLibraryUploadTarget } from '@/lib/library-upload-target';
+import { uploadDiscoveredSourceFiles } from '@/lib/discovered-source-upload';
 import { buildDataTablePreviewForPaper, buildDataTablePreviewFromText } from '@/lib/data-table-preview';
 import { buildSourceMatrixFacets } from '@/lib/source-matrix';
 import type { DataColumnSummary } from '@/lib/data-table-preview';
@@ -168,10 +170,10 @@ interface SourceCitationLead {
 }
 
 type CitationContextState =
-  | { paperId: string; status: 'loading' }
-  | { paperId: string; status: 'ready'; snippet: CitationContextSnippet }
-  | { paperId: string; status: 'missing' }
-  | { paperId: string; status: 'error' };
+  | { token: number; paperId: string; status: 'loading' }
+  | { token: number; paperId: string; status: 'ready'; snippet: CitationContextSnippet }
+  | { token: number; paperId: string; status: 'missing' }
+  | { token: number; paperId: string; status: 'error' };
 
 type SourcePreviewState =
   | { paper: Paper; status: 'loading' }
@@ -366,6 +368,8 @@ export function LibraryPanel({
   const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; paper: Paper } | null>(null);
   const [skippedFilesNotice, setSkippedFilesNotice] = useState<string | null>(null);
+  const [sourceMutationError, setSourceMutationError] = useState<string | null>(null);
+  const [uploadTargetFolderId, setUploadTargetFolderId] = useState<string | null>(null);
   const [ingestionSyncState, setIngestionSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
@@ -377,6 +381,13 @@ export function LibraryPanel({
   const ingestionSyncInFlightRef = useRef(false);
   const lastIngestionSyncAtRef = useRef(0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
+  const resolvedUploadTarget = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
+
+  useEffect(() => {
+    if (resolveLibraryUploadTarget(uploadTargetFolderId, folders)) return;
+    const nextTarget = resolveLibraryUploadTarget(activeFolderId, folders);
+    if (nextTarget !== uploadTargetFolderId) setUploadTargetFolderId(nextTarget);
+  }, [activeFolderId, folders, uploadTargetFolderId]);
 
   useEffect(() => {
     if (showSourceGuide) setIsSourceGuideOpen(true);
@@ -389,13 +400,16 @@ export function LibraryPanel({
 
   // Citation click-through: expand the owning folder, scroll to the source and flash it.
   const [flashPaperId, setFlashPaperId] = useState<string | null>(null);
-  const [citationFocus, setCitationFocus] = useState<{ paperId: string; citation: CitationReveal } | null>(null);
+  const [citationFocus, setCitationFocus] = useState<{ token: number; paperId: string; citation: CitationReveal } | null>(null);
   const [citationContext, setCitationContext] = useState<CitationContextState | null>(null);
+  const handledRevealTokenRef = useRef<number | null>(null);
   useEffect(() => {
     if (!revealPaperRequest) return;
-    const { paperId, citation } = revealPaperRequest;
+    const { paperId, citation, token } = revealPaperRequest;
+    if (handledRevealTokenRef.current === token) return;
     const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paperId));
     if (!ownerFolder) return;
+    handledRevealTokenRef.current = token;
     setExpandedFolders(prev => new Set([...prev, ownerFolder.id]));
     setSearchQuery('');
     setCitationContext(null);
@@ -403,12 +417,10 @@ export function LibraryPanel({
       const el = document.querySelector(`[data-testid="library-paper-${paperId}"]`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setFlashPaperId(paperId);
-      if (citation) setCitationFocus({ paperId, citation });
+      if (citation) setCitationFocus({ token, paperId, citation });
       window.setTimeout(() => {
         setFlashPaperId(null);
-        setCitationFocus(prev => (prev?.paperId === paperId ? null : prev));
-        setCitationContext(prev => (prev?.paperId === paperId ? null : prev));
-      }, 8000);
+      }, 1400);
     }, 80);
     return () => window.clearTimeout(timer);
   }, [revealPaperRequest, folders]);
@@ -418,17 +430,17 @@ export function LibraryPanel({
       setCitationContext(null);
       return;
     }
-    const { paperId, citation } = citationFocus;
+    const { token, paperId, citation } = citationFocus;
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountAuthRequired && !accountHeaders.Authorization) {
-      setCitationContext({ paperId, status: 'missing' });
+      setCitationContext({ token, paperId, status: 'missing' });
       return;
     }
 
     let cancelled = false;
     const loadCitationContext = async () => {
       try {
-        setCitationContext({ paperId, status: 'loading' });
+        setCitationContext({ token, paperId, status: 'loading' });
         const detailParams = new URLSearchParams({ id: paperId });
         if (notebookId) detailParams.set('notebookId', notebookId);
         const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
@@ -436,15 +448,15 @@ export function LibraryPanel({
           headers: accountHeaders,
         });
         if (!response.ok) {
-          if (!cancelled) setCitationContext({ paperId, status: 'missing' });
+          if (!cancelled) setCitationContext({ token, paperId, status: 'missing' });
           return;
         }
         const data = await response.json() as { source?: IngestionSourceDetail };
         const snippet = findCitationContextSnippet(data.source?.chunks, citation);
         if (cancelled) return;
-        setCitationContext(snippet ? { paperId, status: 'ready', snippet } : { paperId, status: 'missing' });
+        setCitationContext(snippet ? { token, paperId, status: 'ready', snippet } : { token, paperId, status: 'missing' });
       } catch {
-        if (!cancelled) setCitationContext({ paperId, status: 'error' });
+        if (!cancelled) setCitationContext({ token, paperId, status: 'error' });
       }
     };
 
@@ -618,8 +630,23 @@ export function LibraryPanel({
       setActiveFolder(newFolderId);
       setNewFolderName('');
       setIsCreatingFolder(false);
+      setUploadTargetFolderId(newFolderId);
     }
   }, [newFolderName, addFolder, setActiveFolder]);
+
+  const ensureUploadTarget = useCallback((): string => {
+    const existingTarget = (
+      resolveLibraryUploadTarget(uploadTargetFolderId, folders)
+      || resolveLibraryUploadTarget(activeFolderId, folders)
+    );
+    if (existingTarget) return existingTarget;
+
+    const rootFolderId = addFolder('文献库');
+    setExpandedFolders(prev => new Set([...prev, rootFolderId]));
+    setActiveFolder(rootFolderId);
+    setUploadTargetFolderId(rootFolderId);
+    return rootFolderId;
+  }, [activeFolderId, addFolder, folders, setActiveFolder, uploadTargetFolderId]);
 
   const uploadFiles = useCallback(async (files: File[], targetFolderId: string | null) => {
     if (!files.length) return;
@@ -733,17 +760,9 @@ export function LibraryPanel({
       setShowUploadProgress(false);
       return;
     }
-    if (!activeFolderId) {
-      // Schedule folder creation + upload after current render
-      setTimeout(async () => {
-        const newFolderId = addFolder('新建项目');
-        setExpandedFolders(prev => new Set([...prev, newFolderId]));
-        await uploadFiles(validFiles, newFolderId);
-      }, 0);
-      return;
-    }
-    await uploadFiles(validFiles, activeFolderId);
-  }, [activeFolderId, uploadFiles, addFolder]);
+    const targetFolderId = ensureUploadTarget();
+    await uploadFiles(validFiles, targetFolderId);
+  }, [ensureUploadTarget, uploadFiles]);
 
   const dismissSourceGuide = useCallback(() => {
     setIsSourceGuideOpen(false);
@@ -751,39 +770,42 @@ export function LibraryPanel({
   }, [onSourceGuideDismiss]);
 
   const openFilePickerFromGuide = useCallback(() => {
+    ensureUploadTarget();
     dismissSourceGuide();
     window.setTimeout(() => fileInputRef.current?.click(), 0);
-  }, [dismissSourceGuide]);
+  }, [dismissSourceGuide, ensureUploadTarget]);
 
   const handlePasteTextAsSource = useCallback(async () => {
     const content = pastedSourceText.trim();
     if (!content) return;
     const title = (pastedSourceTitle.trim() || '粘贴文献笔记').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
     const file = new globalThis.File([content], `${title}.txt`, { type: 'text/plain' });
-    let targetFolder = activeFolderId;
-    if (!targetFolder) {
-      targetFolder = addFolder('文献库');
-      setExpandedFolders(prev => new Set([...prev, targetFolder!]));
-      setActiveFolder(targetFolder);
-    }
+    const targetFolder = ensureUploadTarget();
     dismissSourceGuide();
     setPastedSourceText('');
     setPastedSourceTitle('');
     await uploadFiles([file], targetFolder);
-  }, [activeFolderId, addFolder, dismissSourceGuide, pastedSourceText, pastedSourceTitle, setActiveFolder, uploadFiles]);
+  }, [dismissSourceGuide, ensureUploadTarget, pastedSourceText, pastedSourceTitle, uploadFiles]);
 
   // Discovered web sources arrive as ready-made text files and reuse the
   // regular upload/ingestion pipeline.
   const handleIngestDiscoveredFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
-    let targetFolder = activeFolderId;
-    if (!targetFolder) {
-      targetFolder = addFolder('网络信源');
-      setExpandedFolders(prev => new Set([...prev, targetFolder!]));
-      setActiveFolder(targetFolder);
+    const targetFolder = ensureUploadTarget();
+    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId });
+    if (outcome.papers.length === 0) {
+      throw new Error(outcome.errors[0] || '来源入库失败，请重试。');
     }
-    await uploadFiles(files, targetFolder);
-  }, [activeFolderId, addFolder, setActiveFolder, uploadFiles]);
+    outcome.papers.forEach(paper => {
+      addPaper(targetFolder, paper);
+      window.setTimeout(() => togglePaperSelection(paper.id), 0);
+    });
+    if (outcome.errors.length > 0) {
+      setSkippedFilesNotice(`${outcome.papers.length} 个来源已加入；${outcome.errors.length} 个入库失败。`);
+    }
+    window.setTimeout(() => { void syncIngestionSources(); }, 0);
+    return outcome.papers.length;
+  }, [addPaper, ensureUploadTarget, notebookId, syncIngestionSources, togglePaperSelection]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -803,23 +825,40 @@ export function LibraryPanel({
     setIsDragOver(false);
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
-    let targetFolder = activeFolderId;
-    if (!targetFolder) {
-      const newFolderId = addFolder('新建项目');
-      setExpandedFolders(prev => new Set([...prev, newFolderId]));
-      targetFolder = newFolderId;
-    }
-    if (targetFolder) await uploadFiles(files, targetFolder);
-  }, [activeFolderId, uploadFiles, addFolder]);
+    const targetFolder = ensureUploadTarget();
+    await uploadFiles(files, targetFolder);
+  }, [ensureUploadTarget, uploadFiles]);
 
   const handleFolderClick = useCallback((folderId: string) => {
     setActiveFolder(folderId);
+    setUploadTargetFolderId(folderId);
     setExpandedFolders(prev => {
       const next = new Set(prev);
       if (next.has(folderId)) next.delete(folderId); else next.add(folderId);
       return next;
     });
   }, [setActiveFolder]);
+
+  const handleRemovePaper = useCallback(async (paper: Paper) => {
+    const ownerFolder = folders.find(folder => folder.papers.some(item => item.id === paper.id));
+    if (!ownerFolder) return;
+    setSourceMutationError(null);
+    if (!paper.isSample) {
+      const params = new URLSearchParams({ id: paper.id });
+      if (notebookId) params.set('notebookId', notebookId);
+      try {
+        const response = await fetch(`/api/ingestion/sources?${params.toString()}`, {
+          method: 'DELETE',
+          headers: accountAuthHeaders(),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      } catch {
+        setSourceMutationError('来源删除失败，未改动文献库；请检查网络后重试。');
+        return;
+      }
+    }
+    removePaper(ownerFolder.id, paper.id);
+  }, [folders, notebookId, removePaper]);
 
   const copyShortName = useCallback((paper: Paper) => {
     navigator.clipboard.writeText(`[${paper.shortName}]`);
@@ -991,6 +1030,11 @@ export function LibraryPanel({
           <p className="text-[11px] leading-relaxed text-amber-300">{skippedFilesNotice}(支持 PDF/DOCX/TXT/MD 等)</p>
         </div>
       )}
+      {sourceMutationError && (
+        <div className="mx-4 mt-2 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] text-red-300" data-testid="library-source-mutation-error">
+          {sourceMutationError}
+        </div>
+      )}
 
       {/* Paper list */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
@@ -1082,6 +1126,9 @@ export function LibraryPanel({
                           <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold border ${fileTypeBadgeStyle(paper.fileType)}`}>
                             {paper.fileType.toUpperCase()}
                           </span>
+                          {paper.isSample && (
+                            <span className="rounded-md border border-violet-400/20 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-violet-300">示例</span>
+                          )}
                           {(() => {
                             const badge = ingestionBadge(paper);
                             return badge ? (
@@ -1110,10 +1157,25 @@ export function LibraryPanel({
                             data-testid="library-citation-focus"
                             className="mt-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-blue-100"
                           >
-                            <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-300">
-                              <span>证据定位</span>
-                              <span className="text-blue-300/50">·</span>
-                              <span>{formatCitationReveal(citationFocus.citation)}</span>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-300">
+                                <span>证据定位</span>
+                                <span className="text-blue-300/50">·</span>
+                                <span>{formatCitationReveal(citationFocus.citation)}</span>
+                              </div>
+                              <button
+                                type="button"
+                                aria-label="关闭证据定位"
+                                title="关闭证据定位"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setCitationFocus(null);
+                                  setCitationContext(null);
+                                }}
+                                className="-mr-1 -mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md text-blue-200/70 transition hover:bg-blue-300/15 hover:text-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/70"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             </div>
                             {citationFocus.citation.sourceTitle && citationFocus.citation.sourceTitle !== paper.title && (
                               <p className="mt-1 truncate text-[var(--text-tertiary)]">{citationFocus.citation.sourceTitle}</p>
@@ -1123,10 +1185,10 @@ export function LibraryPanel({
                                 &ldquo;{truncateEvidenceText(citationFocus.citation.excerpt)}&rdquo;
                               </p>
                             )}
-                            {citationContext?.paperId === paper.id && citationContext.status === 'loading' && (
+                            {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'loading' && (
                               <p className="mt-1.5 text-[var(--text-tertiary)]">正在调取来源片段...</p>
                             )}
-                            {citationContext?.paperId === paper.id && citationContext.status === 'ready' && (
+                            {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'ready' && (
                               <div
                                 data-testid="library-citation-context"
                                 className="mt-1.5 rounded-md border border-blue-300/15 bg-black/15 px-2 py-1.5"
@@ -1141,12 +1203,12 @@ export function LibraryPanel({
                                 </p>
                               </div>
                             )}
-                            {citationContext?.paperId === paper.id && citationContext.status === 'missing' && (
+                            {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'missing' && (
                               <p className="mt-1.5 text-[var(--text-tertiary)]">
                                 当前卡片已有引用摘录；完整来源片段尚未同步到文献库。
                               </p>
                             )}
-                            {citationContext?.paperId === paper.id && citationContext.status === 'error' && (
+                            {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'error' && (
                               <p className="mt-1.5 text-[var(--text-tertiary)]">
                                 来源片段读取失败，请稍后重试。
                               </p>
@@ -1182,9 +1244,36 @@ export function LibraryPanel({
           onChange={(e) => handleFileSelect(e.target.files)}
         />
 
+        <div className="mb-3 flex items-center gap-2">
+          <label className="min-w-0 flex-1 text-[10px] font-medium text-[var(--text-tertiary)]">
+            上传到
+            <select
+              value={resolvedUploadTarget || ''}
+              onChange={event => {
+                const value = event.target.value;
+                if (value === '__new__') {
+                  setIsCreatingFolder(true);
+                  return;
+                }
+                setUploadTargetFolderId(value || null);
+                if (value) setActiveFolder(value);
+              }}
+              data-testid="library-upload-target"
+              className="mt-1 h-9 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 text-xs text-[var(--text-secondary)] outline-none focus:border-blue-400/50"
+            >
+              <option value="">文献库（首次上传自动创建）</option>
+              {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+              <option value="__new__">+ 新建目录…</option>
+            </select>
+          </label>
+        </div>
+
         <div
           className="border border-dashed border-[var(--border-subtle)] rounded-2xl p-5 text-center cursor-pointer hover:border-[var(--border-hover)] hover:bg-[var(--glass-subtle)] transition-all duration-500"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            ensureUploadTarget();
+            fileInputRef.current?.click();
+          }}
         >
           <Upload className="h-6 w-6 mx-auto mb-2 text-[var(--text-quaternary)]" />
           <p className="text-xs font-medium text-[var(--text-tertiary)]">拖拽文献或资料文件到此处上传</p>
@@ -1596,10 +1685,7 @@ export function LibraryPanel({
             data-testid="library-remove-paper"
             onClick={() => {
               const paper = contextMenu.paper;
-              const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paper.id));
-              if (ownerFolder && window.confirm(`移除来源「${paper.title}」?`)) {
-                removePaper(ownerFolder.id, paper.id);
-              }
+              if (window.confirm(`移除来源「${paper.title}」?`)) void handleRemovePaper(paper);
               setContextMenu(null);
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"

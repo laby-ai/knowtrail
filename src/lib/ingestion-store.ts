@@ -898,6 +898,24 @@ export async function getIngestionSource(id: string, scope: { ownerMemberId?: st
   ));
 }
 
+export async function deleteIngestionSource(
+  id: string,
+  scope: { ownerMemberId?: string; notebookId?: string } = {},
+): Promise<boolean> {
+  let deleted = false;
+  await getSourceStoreAdapter().mutate(store => {
+    const sources = store.sources.filter(source => {
+      const matches = source.id === id &&
+        sourceMatchesOwner(source, scope.ownerMemberId) &&
+        sourceMatchesNotebook(source, scope.notebookId);
+      if (matches) deleted = true;
+      return !matches;
+    });
+    return deleted ? { ...store, sources } : store;
+  });
+  return deleted;
+}
+
 export async function updateSourceMinerUStatus(
   sourceId: string,
   status: MinerUExtractionStatus,

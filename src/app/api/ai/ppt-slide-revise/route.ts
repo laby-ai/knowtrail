@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { generateSlideImage, resolveImageRuntimeConfig } from '@/lib/ppt/image-generation';
+import { parseSlideReferenceImage, publicSlideRevisionError } from '@/lib/ppt/slide-image-contract';
 import type { RuntimeAIConfig } from '@/types';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 export const maxDuration = 300;
 
@@ -30,21 +35,25 @@ export async function POST(request: NextRequest) {
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
     loginMessage: '请先登录账号,再修改幻灯片。',
+    requireAuthenticatedPaperHost: true,
   });
   if (!scope.ok) return scope.response;
 
-  const imageBase64 = (body.imageBase64 || '').replace(/^data:image\/\w+;base64,/, '');
   const instruction = (body.instruction || '').trim();
-  if (!imageBase64) {
-    return NextResponse.json({ error: '缺少幻灯片图片' }, { status: 400 });
+  let imageBase64: string;
+  try {
+    imageBase64 = parseSlideReferenceImage(body.imageBase64).base64;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '参考图片格式无效，请重新打开该页后重试。';
+    return NextResponse.json({ error: message, code: 'reference_image_invalid', retryable: true }, { status: 400 });
   }
   if (!instruction && !body.hasAnnotations) {
     return NextResponse.json({ error: '请填写修改要求或在图上标注' }, { status: 400 });
   }
-  if (imageBase64.length > 24_000_000) {
-    return NextResponse.json({ error: '图片过大,无法处理' }, { status: 413 });
+  const readiness = resolveStudioGenerationReadiness().scientificIllustration;
+  if (!readiness.ready) {
+    return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
   }
-
   const annotationGuidance = body.hasAnnotations
     ? `参考图上包含用户手绘的红色标注(圈选、箭头、文字批注),这些标注表达了修改意图:
 - 按标注位置与批注文字执行修改。
@@ -64,7 +73,7 @@ ${body.styleDescription ? `- 整体视觉风格继续遵守:${body.styleDescript
 - 禁止出现 markdown 符号、水印、多余装饰。`;
 
   try {
-    console.log(`[PPT-Revise] ▶ 修改幻灯片 | 标注:${body.hasAnnotations ? '有' : '无'} | 指令:${instruction.slice(0, 60)}`);
+    console.log(`[PPT-Revise] start annotations=${body.hasAnnotations ? 'yes' : 'no'}`);
     const revised = await generateSlideImage(prompt, {
       aspectRatio: body.aspectRatio || '16:9',
       negativePrompt: '标注痕迹、红圈、箭头、手写批注、文字模糊、低质量、变形、水印',
@@ -76,8 +85,12 @@ ${body.styleDescription ? `- 整体视觉风格继续遵守:${body.styleDescript
     }
     return NextResponse.json({ success: true, imageUrl: `data:image/png;base64,${revised}` });
   } catch (err) {
-    const message = err instanceof Error ? err.message : '幻灯片修改失败';
-    console.error('[PPT-Revise] error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    const failure = publicSlideRevisionError(err);
+    console.error(`[PPT-Revise] failed code=${failure.code} status=${failure.status}`);
+    return NextResponse.json({
+      error: failure.message,
+      code: failure.code,
+      retryable: failure.retryable,
+    }, { status: failure.status });
   }
 }

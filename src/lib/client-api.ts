@@ -124,6 +124,21 @@ function httpError(response: Response, payload: unknown, codeOverride?: ClientRe
   );
 }
 
+function delegatePaperHostLogin(payload: unknown): boolean {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+  if (!payload || typeof payload !== 'object') return false;
+  if ((payload as { errorType?: unknown }).errorType !== 'paper_host_login_required') return false;
+  if (!window.parent || window.parent === window || !document.referrer) return false;
+  try {
+    const origin = new URL(document.referrer).origin;
+    if (!/^https?:\/\//i.test(origin)) return false;
+    window.parent.postMessage({ type: 'paper-web:request-login' }, origin);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function executeFetch(path: string, options: ClientApiOptions): Promise<Response> {
   const {
     timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -162,7 +177,8 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
     if (response.status === 401) {
       const payload = await parseResponseBody(response);
       clearStoredAccountTokens();
-      if (redirectOnUnauthorized && typeof window !== 'undefined') window.location.replace(accountLoginUrl());
+      const delegatedToPaperHost = delegatePaperHostLogin(payload);
+      if (!delegatedToPaperHost && redirectOnUnauthorized && typeof window !== 'undefined') window.location.replace(accountLoginUrl());
       throw httpError(response, payload);
     }
     responseReturned = true;

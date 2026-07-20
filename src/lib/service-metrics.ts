@@ -104,4 +104,3 @@ export class ServiceMetrics {
 
 export const serviceMetrics = new ServiceMetrics('knowtrail');
 export const PROMETHEUS_CONTENT_TYPE = 'text/plain; version=0.0.4; charset=utf-8';
-

@@ -3,9 +3,23 @@
 // route keeps its local copy to stay untouched.
 import type { RuntimeAIConfig } from '@/types';
 import { allowRequestRuntimeAIConfig, hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
+import {
+  buildReferenceImageInput,
+  parseSlideReferenceImage,
+  SlideImageProviderError,
+} from '@/lib/ppt/slide-image-contract';
 
-const SITIAN_API_BASE = process.env.SITIAN_API_BASE || 'http://images.sitianai.com';
-const SITIAN_API_TOKEN = process.env.SITIAN_API_TOKEN || '';
+function sitianApiBase(): string {
+  return process.env.SITIAN_API_BASE?.trim() || 'https://images.sitianai.com';
+}
+
+function sitianApiToken(): string {
+  return process.env.SITIAN_API_TOKEN?.trim() || '';
+}
+
+function sitianImageProviderRequired(): boolean {
+  return process.env.SITIAN_IMAGE_PROVIDER_REQUIRED === 'true';
+}
 
 interface SitianResponse {
   success: boolean;
@@ -108,9 +122,10 @@ async function generateSitianImage(prompt: string, options?: {
     }
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (SITIAN_API_TOKEN) headers['Authorization'] = `Bearer ${SITIAN_API_TOKEN}`;
+    const token = sitianApiToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
 
-    const resp = await fetch(`${SITIAN_API_BASE}/api/generate`, {
+    const resp = await fetch(`${sitianApiBase()}/api/generate`, {
       method: 'POST', headers, body: JSON.stringify(body),
       signal: imageRequestSignal(120_000, options?.signal),
     });
@@ -151,7 +166,13 @@ async function generateOpenAICompatibleImage(
     response_format: 'b64_json',
     watermark: false,
   };
-  if (options?.referenceImageBase64) requestBody.image = options.referenceImageBase64;
+  if (options?.referenceImageBase64) {
+    requestBody.image = buildReferenceImageInput(
+      parseSlideReferenceImage(options.referenceImageBase64),
+      endpoint,
+      model,
+    );
+  }
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -162,7 +183,10 @@ async function generateOpenAICompatibleImage(
 
   const rawBody = await response.text().catch(() => '');
   if (!response.ok) {
-    throw new Error(`图片模型 API 失败:HTTP ${response.status}${rawBody ? ` - ${redactRuntimeAISecrets(rawBody, apiKey)}` : ''}`);
+    throw new SlideImageProviderError(
+      response.status,
+      `图片模型 API 失败:HTTP ${response.status}${rawBody ? ` - ${redactRuntimeAISecrets(rawBody, apiKey)}` : ''}`,
+    );
   }
 
   let parsed: OpenAIImageResponse;
@@ -186,9 +210,12 @@ export async function generateSlideImage(prompt: string, options?: {
   runtimeConfig?: Partial<RuntimeAIConfig>;
   signal?: AbortSignal;
 }): Promise<string | null> {
-  if (SITIAN_API_TOKEN) {
+  if (sitianApiToken()) {
     const result = await generateSitianImage(prompt, options);
     if (result) return result;
+    if (sitianImageProviderRequired()) {
+      throw new SlideImageProviderError(502, '指定的科研图像服务暂时不可用，请稍后重试。');
+    }
     console.log('[生图] 思坦AI失败,改用 OpenAI-compatible 图片模型...');
   }
   return generateOpenAICompatibleImage(prompt, resolveImageRuntimeConfig(options?.runtimeConfig), options);

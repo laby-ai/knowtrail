@@ -5,12 +5,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { NextRequest } from 'next/server';
 import { ingestExtractedSource } from '../src/lib/ingestion-store';
+import { notebookIdFromStorageScopeKey } from '../src/lib/notebook-scope';
 import { POST as knowledgeCardsPost } from '../src/app/api/ai/knowledge-cards/route';
 import { POST as podcastPost } from '../src/app/api/ai/podcast/route';
 import { POST as pptPost } from '../src/app/api/ai/ppt/route';
 import { POST as pptV2Post } from '../src/app/api/ai/ppt-v2/route';
 import { POST as reportPost } from '../src/app/api/ai/report/route';
-import { GET as ingestionSourcesGet } from '../src/app/api/ingestion/sources/route';
+import { DELETE as ingestionSourcesDelete, GET as ingestionSourcesGet } from '../src/app/api/ingestion/sources/route';
 
 function jsonRequest(url: string, body: unknown, token?: string): NextRequest {
   return new NextRequest(url, {
@@ -90,6 +91,12 @@ function startAccountAuthMock() {
 }
 
 async function main() {
+  assert.equal(
+    notebookIdFromStorageScopeKey('paper-host:workspace-alpha:notebook-alpha'),
+    'notebook-alpha',
+    'embedded paper-host scope must resolve the final notebook segment',
+  );
+
   const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'lingbi-studio-grounded-test-'));
   const originals = {
     sourceStorePath: process.env.SOURCE_STORE_PATH,
@@ -188,6 +195,24 @@ async function main() {
       const alphaWrongNotebookSourceListJson = await readJson(alphaWrongNotebookSourceList);
       assert.equal((alphaWrongNotebookSourceListJson.sources as Array<{ id?: string }>).length, 0);
 
+      const wrongNotebookDelete = await ingestionSourcesDelete(new NextRequest('http://localhost/api/ingestion/sources?id=paper-studio-grounded&notebookId=notebook-beta', {
+        method: 'DELETE',
+        headers: { authorization: 'Bearer token-alpha' },
+      }));
+      assert.equal(wrongNotebookDelete.status, 404, 'a source cannot be deleted through another notebook scope');
+
+      const scopedDelete = await ingestionSourcesDelete(new NextRequest('http://localhost/api/ingestion/sources?id=paper-studio-grounded&notebookId=notebook-alpha', {
+        method: 'DELETE',
+        headers: { authorization: 'Bearer token-alpha' },
+      }));
+      assert.equal(scopedDelete.status, 200, 'the owning notebook can delete its persisted source');
+
+      const alphaSourceListAfterDelete = await ingestionSourcesGet(new NextRequest('http://localhost/api/ingestion/sources?notebookId=notebook-alpha', {
+        headers: { authorization: 'Bearer token-alpha' },
+      }));
+      const alphaSourceListAfterDeleteJson = await readJson(alphaSourceListAfterDelete);
+      assert.equal((alphaSourceListAfterDeleteJson.sources as Array<{ id?: string }>).length, 0, 'deleted sources must stay deleted after refresh');
+
     } finally {
       await accountMock.close();
       if (originals.accountApiBase === undefined) delete process.env.ACCOUNT_CENTER_API_BASE;
@@ -219,6 +244,8 @@ async function main() {
         'ppt route builds grounded evidence outline debug path',
         'ppt-v2 route builds academic evidence outline debug path',
         'ingestion sources route scopes source lists by ownerMemberId and notebookId',
+        'embedded paper-host scope resolves the active notebook id',
+        'ingestion sources route deletes only within the owning account and notebook scope',
         'ppt routes reject empty source selection with user-facing errors',
       ],
       cardsMode: (cardsJson.retrieval as { mode?: string }).mode,

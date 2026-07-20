@@ -49,13 +49,34 @@ export const STUDIO_NAV: StudioNavItem[] = STUDIO_RESEARCH_PRODUCTS.map(product 
   ...PRODUCT_VISUALS[product.id],
 }));
 
+export function shouldHideVirtualClassroom() {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  const hideFlag = params.get('hideVirtualClassroom');
+  return hideFlag === '1' || hideFlag === 'true' || params.get('embed') === 'research-agent';
+}
+
+export function getVisibleStudioNav(hideVirtualClassroom = shouldHideVirtualClassroom()) {
+  return hideVirtualClassroom
+    ? STUDIO_NAV.filter(item => item.id !== 'virtual-classroom')
+    : STUDIO_NAV;
+}
+
 export function StudioToolSwitcher({
   activeTab,
   onSelect,
+  navItems = getVisibleStudioNav(),
+  compact = false,
 }: {
   activeTab: StudioTab;
   onSelect: (tab: StudioTab) => void;
+  navItems?: StudioNavItem[];
+  compact?: boolean;
 }) {
+  const cardClass = compact
+    ? 'rounded-xl border px-2.5 py-2 text-left transition-colors duration-200'
+    : 'spotlight-glass-card rounded-xl border px-3 py-2.5 text-left transition-all';
+
   const renderNavButton = (item: StudioNavItem) => {
     const Icon = item.icon;
     const isActive = activeTab === item.id;
@@ -66,7 +87,7 @@ export function StudioToolSwitcher({
         data-testid={`studio-nav-${item.id}`}
         aria-pressed={isActive}
         onClick={() => onSelect(item.id)}
-        className={`spotlight-glass-card rounded-xl border px-3 py-2.5 text-left transition-all ${
+        className={`${cardClass} ${
           isActive
             ? 'border-blue-400/50 bg-blue-500/10'
             : 'border-[var(--glass-border)] bg-[var(--glass-subtle)] hover:border-[var(--border-hover)]'
@@ -74,7 +95,7 @@ export function StudioToolSwitcher({
         title={`${item.label}：${item.desc}`}
       >
         <span className="flex items-center gap-2">
-          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${item.accent}`}>
+          <span className={`flex ${compact ? 'h-7 w-7 rounded-lg' : 'h-8 w-8 rounded-xl'} shrink-0 items-center justify-center bg-gradient-to-br ${item.accent}`}>
             <Icon className="h-4 w-4 text-[var(--text-secondary)]" />
           </span>
           <span className="min-w-0">
@@ -86,7 +107,13 @@ export function StudioToolSwitcher({
     );
   };
 
-  const visibleCategories = getVisibleStudioCategories();
+  const visibleProductIds = new Set(navItems.map(item => item.id));
+  const visibleCategories = getVisibleStudioCategories()
+    .map(category => ({
+      ...category,
+      products: category.products.filter(product => visibleProductIds.has(product.id)),
+    }))
+    .filter(category => category.products.length > 0);
 
   return (
     <div className="space-y-3" data-testid="studio-tool-switcher">
@@ -95,7 +122,7 @@ export function StudioToolSwitcher({
           <h3 className="mb-2 text-[10px] font-semibold text-[var(--text-tertiary)]">{category.label}</h3>
           <div className="grid grid-cols-2 gap-2">
             {category.products.map(product => {
-              const item = STUDIO_NAV.find(navItem => navItem.id === product.id);
+              const item = navItems.find(navItem => navItem.id === product.id);
               return item ? renderNavButton(item) : null;
             })}
           </div>

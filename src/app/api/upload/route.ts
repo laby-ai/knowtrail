@@ -6,8 +6,7 @@ import { parseRuntimeAIConfigJson, resolveServerRuntimeAIConfig } from '@/lib/ru
 import { resolveInternalAppOrigin } from '@/lib/internal-origin';
 import { ingestExtractedSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
 import { classifyMinerUJobFailure, mineruJobErrorMessage, mineruJobOptionsFromEnv } from '@/lib/mineru-job';
-import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
-import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
 const SUPPORTED_TYPES = new Set([
   'pdf', 'doc', 'docx', 'txt', 'md',
@@ -305,20 +304,17 @@ async function readFileContent(filePath: string, ext: string): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    let ownerMemberId: string | undefined;
-    try {
-      const accountSession = await resolveAccountSessionFromRequest(request);
-      if (accountAuthRequired() && !accountSession) {
-        return NextResponse.json({ error: '请先登录账号，再上传资料。' }, { status: 401 });
-      }
-      ownerMemberId = accountSession?.member.id;
-    } catch {
-      return NextResponse.json({ error: '账号登录已过期，请重新登录。' }, { status: 401 });
-    }
-
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
-    const notebookId = normalizeNotebookId(formData.get('notebookId'));
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: formData.get('notebookId'),
+      loginMessage: '请先登录国科大科教平台，再上传资料。',
+    });
+    if (!scope.ok) {
+      return scope.response;
+    }
+    const ownerMemberId = scope.ownerMemberId;
+    const notebookId = scope.notebookId;
     const rawAIConfig = formData.get('aiConfig');
     const requestAIConfig = typeof rawAIConfig === 'string' ? parseRuntimeAIConfigJson(rawAIConfig) : undefined;
     const aiConfig = resolveServerRuntimeAIConfig(requestAIConfig);

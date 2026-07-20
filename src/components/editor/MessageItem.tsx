@@ -17,6 +17,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
+import { copyTextWithFallback } from '@/lib/clipboard';
 
 export function MessageItem({
   message,
@@ -36,20 +37,21 @@ export function MessageItem({
   const isUser = message.role === 'user';
   const hasContent = message.content.trim().length > 0;
   const showPending = !isUser && isPending && !hasContent;
-  const [copied, setCopied] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const isCopyable = !isUser && hasContent
+    && (!message.generation || message.generation.status === 'completed');
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(message.content);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard access is optional in browser sandboxes.
-    }
+    const copied = await copyTextWithFallback(message.content);
+    setCopyStatus(copied ? 'copied' : 'failed');
+    setTimeout(() => setCopyStatus('idle'), 2500);
   };
 
   return (
-    <div className={`flex items-start gap-4 ${isUser ? 'flex-row-reverse' : ''} animate-fade-in-up`}>
+    <div
+      data-testid={`chat-message-${message.id}`}
+      className={`flex items-start gap-4 ${isUser ? 'flex-row-reverse' : ''} animate-fade-in-up`}
+    >
       <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
         isUser ? 'liquid-glass-inset' : 'bg-blue-500/10'
       }`}>
@@ -71,16 +73,30 @@ export function MessageItem({
           )}
         </div>
 
-        {!isUser && hasContent && (
+        {!isUser && message.generation && message.generation.status !== 'completed' && (
+          <div
+            data-testid="chat-generation-status"
+            className="mt-1.5 ml-1 text-[11px] text-[var(--text-tertiary)]"
+          >
+            {generationStatusLabel(message.generation.status)}
+          </div>
+        )}
+
+        {!isUser && hasContent && message.generation?.status !== 'pending' && (
           <div className="flex items-center gap-1 mt-1.5 ml-1">
-            <button
-              onClick={handleCopy}
-              className="p-1.5 rounded-lg text-zinc-600 hover:text-[var(--text-secondary)] hover:bg-[var(--bg-card)] transition-all flex items-center gap-1"
-              title="复制"
-            >
-              {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied && <span className="text-[10px] text-green-400">已复制</span>}
-            </button>
+            {isCopyable && (
+              <button
+                onClick={handleCopy}
+                data-testid="chat-copy"
+                className="p-1.5 rounded-lg text-zinc-600 hover:text-[var(--text-secondary)] hover:bg-[var(--bg-card)] transition-all flex items-center gap-1"
+                title={copyStatus === 'failed' ? '复制失败，请手动选择回答文本' : '复制回答'}
+                aria-label="复制回答"
+              >
+                {copyStatus === 'copied' ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+                {copyStatus === 'copied' && <span className="text-[10px] text-green-400">已复制</span>}
+                {copyStatus === 'failed' && <span className="text-[10px] text-red-400">复制失败，请手动选择</span>}
+              </button>
+            )}
             {onRegenerate && (
               <button
                 onClick={onRegenerate}
@@ -170,6 +186,16 @@ export function MessageItem({
       </div>
     </div>
   );
+}
+
+function generationStatusLabel(status: NonNullable<ChatMessage['generation']>['status']): string {
+  switch (status) {
+    case 'pending': return '正在生成，可随时停止';
+    case 'stopped': return '已停止，可重新生成';
+    case 'timeout': return '生成超时，可重新生成';
+    case 'failed': return '生成失败，可重新生成';
+    default: return '';
+  }
 }
 
 function SourceStatusLine({

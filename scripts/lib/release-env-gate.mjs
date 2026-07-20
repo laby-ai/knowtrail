@@ -3,9 +3,16 @@ import { chmod, copyFile, mkdir, readFile, rename, stat, unlink } from 'node:fs/
 import path from 'node:path';
 
 export const REQUIRED_ENV_GROUPS = [
+  {
+    name: 'observability-identity-hash-key',
+    keys: ['KNOWTRAIL_OBSERVABILITY_HASH_KEY'],
+    minLength: 32,
+  },
   { name: 'model-api-base', keys: ['OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE'] },
   { name: 'model-api-key', keys: ['OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY'] },
   { name: 'model-name', keys: ['OPENAI_COMPAT_MODEL', 'ARK_MODEL'] },
+  { name: 'image-provider-token', keys: ['SITIAN_API_TOKEN'] },
+  { name: 'image-provider-required', keys: ['SITIAN_IMAGE_PROVIDER_REQUIRED'], expectedValue: 'true' },
   { name: 'account-api-base', keys: ['ACCOUNT_CENTER_API_BASE'] },
   { name: 'account-tenant', keys: ['ACCOUNT_CENTER_TENANT_ID'] },
   { name: 'account-member', keys: ['ACCOUNT_CENTER_DEFAULT_MEMBER_ID'] },
@@ -35,7 +42,9 @@ function missingRequiredGroups(values, groups = REQUIRED_ENV_GROUPS) {
   return groups.filter(group => {
     const present = group.keys.some(key => {
       const value = values.get(key);
-      return value && (!group.expectedValue || value === group.expectedValue);
+      return value
+        && (!group.expectedValue || value === group.expectedValue)
+        && (!group.minLength || value.length >= group.minLength);
     });
     return !present;
   }).map(group => group.name);
@@ -98,6 +107,8 @@ export function validateReleaseHealth(body, { sharedRoot }) {
   if (body?.ok !== true) failures.push('health.ok must be true');
   if (capabilities.accountBoundModelConfig !== true) failures.push('accountBoundModelConfig must be true');
   if (capabilities.serverFallbackModelConfigured !== true) failures.push('serverFallbackModelConfigured must be true');
+  if (capabilities.sitianImageProviderConfigured !== true) failures.push('sitianImageProviderConfigured must be true');
+  if (capabilities.sitianImageProviderRequired !== true) failures.push('sitianImageProviderRequired must be true');
   if (capabilities.accountCenter?.billingReservationReady !== true) failures.push('billingReservationReady must be true');
 
   for (const [name, value] of [

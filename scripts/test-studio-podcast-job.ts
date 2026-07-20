@@ -110,6 +110,7 @@ async function main() {
     provider: mutableEnv.PODCAST_AUDIO_PROVIDER,
     maxTextChars: mutableEnv.AGENTPLAN_TTS_MAX_TEXT_CHARS,
     retryMaxTextChars: mutableEnv.AGENTPLAN_TTS_RETRY_MAX_TEXT_CHARS,
+    maxSegments: mutableEnv.AGENTPLAN_TTS_MAX_SEGMENTS,
     studioJobStorePath: mutableEnv.STUDIO_JOB_STORE_PATH,
     accountRequireAuth: mutableEnv.ACCOUNT_CENTER_REQUIRE_AUTH,
   };
@@ -126,6 +127,10 @@ async function main() {
     mutableEnv.PODCAST_AUDIO_PROVIDER = 'doubao-tts';
     mutableEnv.AGENTPLAN_TTS_MAX_TEXT_CHARS = '1200';
     mutableEnv.AGENTPLAN_TTS_RETRY_MAX_TEXT_CHARS = '1200';
+    // Keep this contract test on the local TTS mock. Multiple successful
+    // segments are merged by fetching their audio URLs, which would turn the
+    // example CDN URL below into an unintended external network dependency.
+    mutableEnv.AGENTPLAN_TTS_MAX_SEGMENTS = '1';
 
     const { getPodcastStudioJobResponse, submitPodcastJob } = await import('../src/lib/studio-podcast-job');
     const { getStudioJob, reloadStudioJobsFromDiskForTest, studioJobStoreStatus, toStudioJobResponse } = await import('../src/lib/studio-job');
@@ -287,6 +292,8 @@ async function main() {
     else mutableEnv.AGENTPLAN_TTS_MAX_TEXT_CHARS = originals.maxTextChars;
     if (originals.retryMaxTextChars === undefined) delete mutableEnv.AGENTPLAN_TTS_RETRY_MAX_TEXT_CHARS;
     else mutableEnv.AGENTPLAN_TTS_RETRY_MAX_TEXT_CHARS = originals.retryMaxTextChars;
+    if (originals.maxSegments === undefined) delete mutableEnv.AGENTPLAN_TTS_MAX_SEGMENTS;
+    else mutableEnv.AGENTPLAN_TTS_MAX_SEGMENTS = originals.maxSegments;
     if (originals.studioJobStorePath === undefined) delete mutableEnv.STUDIO_JOB_STORE_PATH;
     else mutableEnv.STUDIO_JOB_STORE_PATH = originals.studioJobStorePath;
     if (originals.accountRequireAuth === undefined) delete mutableEnv.ACCOUNT_CENTER_REQUIRE_AUTH;

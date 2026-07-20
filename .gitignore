@@ -126,3 +126,6 @@ public/vendor/
 
 # Preview files
 .preview
+
+# Local Superpowers visual companion state
+.superpowers/

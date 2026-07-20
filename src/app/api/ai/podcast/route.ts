@@ -5,8 +5,7 @@ import { toStudioJobResponse } from '@/lib/studio-job';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
-import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
-import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +19,6 @@ export async function POST(request: NextRequest) {
       notebookId?: string;
     };
     const { text, content, title, papers = [], aiConfig, debugRetrievalOnly } = body;
-    const notebookId = normalizeNotebookId(body.notebookId);
     const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
 
     const requestedText = text || content || '';
@@ -28,27 +26,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少文本内容' }, { status: 400 });
     }
 
-    let ownerMemberId: string | undefined;
-    try {
-      const accountSession = await resolveAccountSessionFromRequest(request);
-      if (accountAuthRequired() && !accountSession) {
-        return NextResponse.json({
-          error: '请先登录账号，再生成语音摘要。',
-          status: 'failed',
-          errorType: 'account_login_required',
-        }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
-      }
-      ownerMemberId = accountSession?.member.id;
-    } catch {
-      return NextResponse.json({
-        error: '账号登录已过期，请重新登录。',
-        status: 'failed',
-        errorType: 'invalid_account_session',
-      }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: body.notebookId,
+      loginMessage: '请先登录国科大科教平台，再生成语音摘要。',
+    });
+    if (!scope.ok) {
+      return scope.response;
     }
 
     if (debugRetrievalOnly) {
-      const preview = await buildPodcastRetrievalPreview({ requestedText, title, papers, aiConfig: runtimeConfig, ownerMemberId, notebookId });
+      const preview = await buildPodcastRetrievalPreview({
+        requestedText,
+        title,
+        papers,
+        aiConfig: runtimeConfig,
+        ownerMemberId: scope.ownerMemberId,
+        notebookId: scope.notebookId,
+      });
       return NextResponse.json({
         success: true,
         citations: preview.citations,
@@ -57,7 +51,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const job = await submitPodcastJob({ requestedText, title, papers, aiConfig: runtimeConfig, ownerMemberId, notebookId });
+    const job = await submitPodcastJob({
+      requestedText,
+      title,
+      papers,
+      aiConfig: runtimeConfig,
+      ownerMemberId: scope.ownerMemberId,
+      notebookId: scope.notebookId,
+    });
     return NextResponse.json(toStudioJobResponse(job), { status: 202 });
   } catch (error) {
     const failure = classifyPodcastGenerationError(error);
@@ -91,27 +92,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '缺少 taskId 参数' }, { status: 400 });
     }
 
-    let ownerMemberId: string | undefined;
-    try {
-      const accountSession = await resolveAccountSessionFromRequest(request);
-      if (accountAuthRequired() && !accountSession) {
-        return NextResponse.json({
-          error: '请先登录账号，再查看语音摘要任务。',
-          status: 'failed',
-          errorType: 'account_login_required',
-        }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
-      }
-      ownerMemberId = accountSession?.member.id;
-    } catch {
-      return NextResponse.json({
-        error: '账号登录已过期，请重新登录。',
-        status: 'failed',
-        errorType: 'invalid_account_session',
-      }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: request.nextUrl.searchParams.get('notebookId'),
+      loginMessage: '请先登录国科大科教平台，再查看语音摘要任务。',
+    });
+    if (!scope.ok) {
+      return scope.response;
     }
 
-    const notebookId = normalizeNotebookId(request.nextUrl.searchParams.get('notebookId'));
-    const studioJob = getPodcastStudioJobResponse(taskId, { ownerMemberId, notebookId });
+    const studioJob = getPodcastStudioJobResponse(taskId, {
+      ownerMemberId: scope.ownerMemberId,
+      notebookId: scope.notebookId,
+    });
     if (studioJob) {
       return NextResponse.json(studioJob);
     }

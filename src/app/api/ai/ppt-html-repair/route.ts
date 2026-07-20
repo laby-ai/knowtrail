@@ -4,6 +4,10 @@ import type { RuntimeAIConfig } from '@/types';
 import { getHtmlDeckStyle } from '@/lib/ppt/html-deck-style';
 import { generateSlideHtml, type DeckOutlinePage } from '@/lib/ppt/html-deck-generation';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 export const maxDuration = 300;
 
@@ -34,6 +38,7 @@ export async function POST(request: NextRequest) {
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
     loginMessage: '请先登录账号,再修改幻灯片。',
+    requireAuthenticatedPaperHost: true,
   });
   if (!scope.ok) return scope.response;
 
@@ -43,6 +48,11 @@ export async function POST(request: NextRequest) {
   }
   if (!body.problem?.trim() && !body.instruction?.trim()) {
     return NextResponse.json({ error: '缺少修复问题描述或修改要求' }, { status: 400 });
+  }
+
+  const readiness = resolveStudioGenerationReadiness().htmlPpt;
+  if (!readiness.ready) {
+    return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
   }
 
   const style = getHtmlDeckStyle(body.styleId);

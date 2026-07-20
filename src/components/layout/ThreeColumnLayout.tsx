@@ -10,14 +10,15 @@ interface ThreeColumnLayoutProps {
   defaultLeftWidth?: number;
   defaultRightWidth?: number;
   initialMobilePanel?: 'left' | 'center' | 'right';
+  appearance?: 'glass' | 'quiet-research';
 }
 
 const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths';
 
-function readStoredWidths(): { left?: number; right?: number } {
+function readStoredWidths(storageKey: string): { left?: number; right?: number } {
   if (typeof window === 'undefined') return {};
   try {
-    return JSON.parse(window.localStorage.getItem(WIDTHS_STORAGE_KEY) || '{}');
+    return JSON.parse(window.localStorage.getItem(storageKey) || '{}');
   } catch {
     return {};
   }
@@ -30,14 +31,18 @@ export function ThreeColumnLayout({
   defaultLeftWidth = 280,
   defaultRightWidth = 440,
   initialMobilePanel = 'center',
+  appearance = 'glass',
 }: ThreeColumnLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const widthsStorageKey = appearance === 'quiet-research'
+    ? `${WIDTHS_STORAGE_KEY}:quiet-research`
+    : WIDTHS_STORAGE_KEY;
   const [leftWidth, setLeftWidth] = useState(() => {
-    const stored = readStoredWidths().left;
+    const stored = readStoredWidths(widthsStorageKey).left;
     return stored && stored >= 220 && stored <= 450 ? stored : defaultLeftWidth;
   });
   const [rightWidth, setRightWidth] = useState(() => {
-    const stored = readStoredWidths().right;
+    const stored = readStoredWidths(widthsStorageKey).right;
     return stored && stored >= 360 && stored <= 680 ? stored : defaultRightWidth;
   });
   const [dragging, setDragging] = useState<'left' | 'right' | null>(null);
@@ -70,9 +75,21 @@ export function ThreeColumnLayout({
   const handleMouseUp = useCallback(() => {
     setDragging(null);
     try {
-      window.localStorage.setItem(WIDTHS_STORAGE_KEY, JSON.stringify({ left: leftWidth, right: rightWidth }));
+      window.localStorage.setItem(widthsStorageKey, JSON.stringify({ left: leftWidth, right: rightWidth }));
     } catch { /* quota — persistence is best-effort */ }
-  }, [leftWidth, rightWidth]);
+  }, [leftWidth, rightWidth, widthsStorageKey]);
+
+  const resizeFromKeyboard = useCallback((side: 'left' | 'right', delta: number) => {
+    if (side === 'left') setLeftWidth(width => Math.max(220, Math.min(450, width + delta)));
+    else setRightWidth(width => Math.max(360, Math.min(680, width + delta)));
+  }, []);
+
+  const handleDividerKeyDown = (side: 'left' | 'right', event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    resizeFromKeyboard(side, side === 'left' ? direction * 16 : direction * -16);
+  };
 
   useEffect(() => {
     if (dragging) {
@@ -136,6 +153,8 @@ export function ThreeColumnLayout({
     );
   }
 
+  const panelClass = appearance === 'quiet-research' ? 'quiet-workbench-panel' : 'liquid-glass-panel';
+
   return (
     <div
       ref={containerRef}
@@ -145,8 +164,9 @@ export function ThreeColumnLayout({
       {/* Left Panel — liquid glass */}
       {!leftCollapsed && (
         <div
-          className="h-full flex-shrink-0 overflow-hidden liquid-glass-panel"
+          className={`h-full flex-shrink-0 overflow-hidden ${panelClass}`}
           style={{ width: leftWidth }}
+          data-testid="workbench-left-panel"
         >
           {leftPanel}
         </div>
@@ -155,15 +175,26 @@ export function ThreeColumnLayout({
       {/* Left Divider */}
       {!leftCollapsed && (
         <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整资料栏宽度"
+          aria-valuenow={leftWidth}
+          tabIndex={0}
+          data-testid="workbench-divider-left"
           className="panel-divider flex-shrink-0"
           onMouseDown={(e) => handleMouseDown('left', e)}
+          onKeyDown={(event) => handleDividerKeyDown('left', event)}
           onDoubleClick={() => setLeftCollapsed(true)}
           title="拖拽调宽 · 双击收起"
         />
       )}
 
       {/* Center Panel — liquid glass */}
-      <div className="relative h-full flex-1 overflow-hidden liquid-glass-panel" style={{ borderRight: 'none', borderLeft: 'none' }}>
+      <div
+        className={`relative h-full flex-1 overflow-hidden ${panelClass}`}
+        style={{ borderRight: 'none', borderLeft: 'none' }}
+        data-testid="workbench-center-panel"
+      >
         {centerPanel}
 
         {/* Collapse / expand toggles */}
@@ -192,8 +223,15 @@ export function ThreeColumnLayout({
       {/* Right Divider */}
       {!rightCollapsed && (
         <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整产物栏宽度"
+          aria-valuenow={rightWidth}
+          tabIndex={0}
+          data-testid="workbench-divider-right"
           className="panel-divider flex-shrink-0"
           onMouseDown={(e) => handleMouseDown('right', e)}
+          onKeyDown={(event) => handleDividerKeyDown('right', event)}
           onDoubleClick={() => setRightCollapsed(true)}
           title="拖拽调宽 · 双击收起"
         />
@@ -202,8 +240,13 @@ export function ThreeColumnLayout({
       {/* Right Panel — liquid glass */}
       {!rightCollapsed && (
         <div
-          className="h-full flex-shrink-0 overflow-hidden liquid-glass-panel"
-          style={{ width: rightWidth, borderRight: 'none', borderLeft: '1px solid var(--glass-border)' }}
+          className={`h-full flex-shrink-0 overflow-hidden ${panelClass}`}
+          style={{
+            width: rightWidth,
+            borderRight: 'none',
+            borderLeft: appearance === 'quiet-research' ? 'none' : '1px solid var(--glass-border)',
+          }}
+          data-testid="workbench-right-panel"
         >
           {rightPanel}
         </div>
