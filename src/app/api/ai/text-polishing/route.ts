@@ -3,7 +3,7 @@ import { llmStream } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import {
   auditTextPolishing,
   buildPolishingMarkdown,
@@ -63,7 +63,9 @@ export async function POST(request: NextRequest) {
   if (!scope.ok) return scope.response;
 
   const protection = buildTextProtection(sourceText, cleanTerms(input.protectedTerms));
-  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
+  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
+  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+  const runtimeConfig = runtimeConfigResult;
   const modelName = runtimeConfig.model?.trim() || 'doubao-seed-2-0-pro-260215';
   const prompt = buildTextPolishingPrompt({ sourceText, goal, scene: input.scene, protection });
   let reservation = null;

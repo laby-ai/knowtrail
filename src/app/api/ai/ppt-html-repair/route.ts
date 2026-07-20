@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import type { RuntimeAIConfig } from '@/types';
 import { getHtmlDeckStyle } from '@/lib/ppt/html-deck-style';
 import { generateSlideHtml, type DeckOutlinePage } from '@/lib/ppt/html-deck-generation';
@@ -55,7 +55,9 @@ export async function POST(request: NextRequest) {
   }
 
   const style = getHtmlDeckStyle(body.styleId);
-  const runtimeConfig = resolveServerRuntimeAIConfig(body.aiConfig);
+  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, body.aiConfig);
+  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+  const runtimeConfig = runtimeConfigResult;
   const page: DeckOutlinePage = body.outline || { title: '幻灯片', points: [] };
 
   try {

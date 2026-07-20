@@ -4,6 +4,8 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import { allowRequestRuntimeAIConfig, hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
+import { bailianProfileFromRuntimeConfig, resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { generateBailianWanImage } from '@/lib/bailian-wan-image';
 import { DETAIL_LEVEL_SPECS, getStyleDescription, PPT_LANG_INSTRUCTION } from '@/lib/ppt/image-ppt-style';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import {
@@ -240,6 +242,11 @@ async function generateImage(prompt: string, options?: {
   referenceImageBase64?: string;
   runtimeConfig?: Partial<RuntimeAIConfig>;
 }): Promise<string | null> {
+  const memberProfile = bailianProfileFromRuntimeConfig(options?.runtimeConfig || {});
+  if (memberProfile) {
+    const image = await generateBailianWanImage(prompt, memberProfile, { aspectRatio: options?.aspectRatio });
+    return image.toString('base64');
+  }
   // 1. 优先尝试思坦AI
   if (SITIAN_API_TOKEN) {
     console.log('[生图] 尝试思坦AI...');
@@ -736,7 +743,9 @@ export async function POST(request: NextRequest) {
     aiConfig,
     debugRetrievalOnly,
   } = body;
-  const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
+  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
+  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+  const runtimeConfig = runtimeConfigResult;
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
     loginMessage: '请先登录账号，再生成演示文稿。',

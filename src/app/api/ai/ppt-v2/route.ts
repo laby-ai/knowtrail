@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
 import { formatPptOutlineDraftForPrompt, sanitizePptOutlineDraft } from '@/lib/ppt/outline-draft';
 import { readMinerUFiguresFromDisk, runMinerUExtraction, type MinerUFigureInput } from '@/lib/ppt/mineru-figures';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import { downloadToTemp, isUsingObjectStorage } from '@/lib/storage';
 import type { RuntimeAIConfig } from '@/types';
 import path from 'path';
@@ -154,7 +154,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
     }
 
-    const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
+    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
+    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+    const runtimeConfig = runtimeConfigResult;
     const grounded = await buildGroundedRetrievalContext(
       '为学术报告 PPT 解析论证结构、研究背景、科学问题、方法、结果、讨论、结论和可引用证据',
       papers,

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { LogOut, UserRound } from 'lucide-react';
 import { readStoredAccountSession } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
+import { BailianProviderButton } from '@/components/account/BailianProviderButton';
 
 export function WorkbenchAccountChip({
   accountSession,
@@ -71,6 +72,7 @@ export function WorkbenchAccountChip({
           {session.member.email}
         </p>
       </div>
+      <BailianProviderButton session={session} compact />
       <button
         type="button"
         onClick={onSignOut}

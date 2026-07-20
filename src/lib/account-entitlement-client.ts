@@ -11,6 +11,18 @@ export type AccountReservationResponse = {
   reservation?: AccountReservation;
 };
 
+export type MemberProviderProfile = {
+  tenant_id: string;
+  member_id: string;
+  provider_id: 'aliyun-bailian';
+  workspace_id: string;
+  region: 'cn-beijing';
+  text_model: 'qwen3.7-plus';
+  image_model: 'wan2.7-image-pro';
+  tts_model: 'qwen-audio-3.0-tts-plus';
+  api_key: string;
+};
+
 export type AccountEntitlementClientOptions = {
   baseUrl: string;
   bearerToken?: string;
@@ -161,6 +173,18 @@ export class AccountEntitlementClient {
       {},
       `${args.requestId}:release`,
     );
+  }
+
+  async resolveMemberProviderProfile(args: {
+    tenantId: string;
+    memberId: string;
+    requestId: string;
+  }): Promise<MemberProviderProfile> {
+    return this.post(
+      '/v1/internal/provider-key-profile/resolve',
+      { tenant_id: args.tenantId, member_id: args.memberId },
+      `${args.requestId}:provider-profile`,
+    ) as Promise<MemberProviderProfile>;
   }
 }
 

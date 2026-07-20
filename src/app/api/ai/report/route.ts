@@ -4,7 +4,7 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
 import { auditCitationMarkers } from '@/lib/citation-audit';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import {
   resolveStudioGenerationReadiness,
@@ -60,7 +60,9 @@ export async function POST(request: NextRequest) {
     }
 
     const reportOutline = customOutline || outline || '研究背景与目的、核心论点对比分析、实验方法汇总、研究成果总结、研究局限与展望';
-    const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
+    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
+    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+    const runtimeConfig = runtimeConfigResult;
     const grounded = await buildGroundedRetrievalContext(`围绕以下大纲生成综述报告：${reportOutline}`, requestSources, runtimeConfig, {
       topK: 10,
       ownerMemberId: scope.ownerMemberId,

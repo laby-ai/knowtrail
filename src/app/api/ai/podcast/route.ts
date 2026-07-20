@@ -4,7 +4,7 @@ import { buildPodcastRetrievalPreview, getPodcastStudioJobResponse, submitPodcas
 import { toStudioJobResponse } from '@/lib/studio-job';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
 
@@ -21,8 +21,6 @@ export async function POST(request: NextRequest) {
     };
     const { text, content, title, papers = [], aiConfig, debugRetrievalOnly } = body;
     const notebookId = normalizeNotebookId(body.notebookId);
-    const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
-
     const requestedText = text || content || '';
     if (!requestedText && papers.length === 0) {
       return NextResponse.json({ error: '缺少文本内容' }, { status: 400 });
@@ -46,6 +44,10 @@ export async function POST(request: NextRequest) {
         errorType: 'invalid_account_session',
       }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
     }
+
+    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
+    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+    const runtimeConfig = runtimeConfigResult;
 
     if (debugRetrievalOnly) {
       const preview = await buildPodcastRetrievalPreview({ requestedText, title, papers, aiConfig: runtimeConfig, ownerMemberId, notebookId });

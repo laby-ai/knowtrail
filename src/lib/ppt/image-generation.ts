@@ -8,6 +8,8 @@ import {
   parseSlideReferenceImage,
   SlideImageProviderError,
 } from '@/lib/ppt/slide-image-contract';
+import { bailianProfileFromRuntimeConfig } from '@/lib/bailian-provider-profile';
+import { generateBailianWanImage } from '@/lib/bailian-wan-image';
 
 const SITIAN_API_BASE = process.env.SITIAN_API_BASE || 'http://images.sitianai.com';
 const SITIAN_API_TOKEN = process.env.SITIAN_API_TOKEN || '';
@@ -200,6 +202,14 @@ export async function generateSlideImage(prompt: string, options?: {
   runtimeConfig?: Partial<RuntimeAIConfig>;
   signal?: AbortSignal;
 }): Promise<string | null> {
+  const memberProfile = bailianProfileFromRuntimeConfig(options?.runtimeConfig || {});
+  if (memberProfile) {
+    const image = await generateBailianWanImage(prompt, memberProfile, {
+      aspectRatio: options?.aspectRatio,
+      signal: options?.signal,
+    });
+    return image.toString('base64');
+  }
   if (SITIAN_API_TOKEN) {
     const result = await generateSitianImage(prompt, options);
     if (result) return result;

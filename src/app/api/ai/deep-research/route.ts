@@ -16,7 +16,7 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import type { RuntimeAIConfig } from '@/types';
 
 type DeepResearchRequest = {
@@ -61,7 +61,9 @@ export async function POST(request: NextRequest) {
   });
   if (!scope.ok) return scope.response;
 
-  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
+  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
+  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+  const runtimeConfig = runtimeConfigResult;
   const retrievalQuery = `深度研究问题：${question}\n请检索与研究边界、主要结论、争议和待核验问题有关的证据。`;
   const grounded = await buildGroundedRetrievalContext(retrievalQuery, papers, runtimeConfig, {
     topK: 12,

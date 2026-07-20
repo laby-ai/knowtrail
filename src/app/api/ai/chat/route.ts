@@ -4,7 +4,7 @@ import type { RuntimeAIConfig } from '@/types';
 import type { RagSourceInput } from '@/lib/rag';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
 import { auditCitationMarkers } from '@/lib/citation-audit';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
@@ -65,7 +65,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
+    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
+    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+    const runtimeConfig = runtimeConfigResult;
     const grounded = await buildGroundedRetrievalContext(message, papers || [], runtimeConfig, {
       ownerMemberId: accountSession?.member.id,
       notebookId,
