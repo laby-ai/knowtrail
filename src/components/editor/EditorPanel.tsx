@@ -25,6 +25,8 @@ import {
   generationUpdate,
   parseChatStreamPayload,
 } from '@/lib/chat-generation-lifecycle';
+import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
+import type { StudioGenerationState } from '@/lib/studio-generation-readiness';
 
 const CHAT_RESPONSE_MAX_TOKENS = 260;
 const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
@@ -50,6 +52,7 @@ export function EditorPanel() {
   const selectedSourceCount = getSelectedPapers().length;
   const totalSourceCount = folders.reduce((sum, folder) => sum + folder.papers.length, 0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
+  const researchChatReadiness = useStudioGenerationReadiness('researchChat');
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -76,7 +79,7 @@ export function EditorPanel() {
   // Send a message (used by input and quick buttons)
   const sendQuestion = useCallback(async (question: string, options: SendQuestionOptions = {}) => {
     const normalizedQuestion = question.trim();
-    if (!normalizedQuestion || isGenerating) return;
+    if (!normalizedQuestion || isGenerating || !researchChatReadiness.ready) return;
     if (options.appendUserMessage !== false) {
       const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
       addChatMessage({ id: userMsgId, role: 'user', content: normalizedQuestion, timestamp: new Date().toISOString() });
@@ -215,7 +218,7 @@ export function EditorPanel() {
       if (chatAbortRef.current === abortController) chatAbortRef.current = null;
       setIsGenerating(false);
     }
-  }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
+  }, [isGenerating, researchChatReadiness.ready, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
 
   const stopGeneration = useCallback(() => {
     if (!chatAbortRef.current) return;
@@ -244,6 +247,7 @@ export function EditorPanel() {
 
   // Generate report directly in chat
   const handleGenerateReport = useCallback(async () => {
+    if (!researchChatReadiness.ready) return;
     const selectedPapers = getSelectedPapers();
     if (selectedPapers.length === 0) {
       addChatMessage({
@@ -348,7 +352,7 @@ export function EditorPanel() {
     } finally {
       setIsGenerating(false);
     }
-  }, [addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
+  }, [researchChatReadiness.ready, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
 
   const toggleCitation = useCallback((citationId: string) => {
     setExpandedCitations(prev => { const next = new Set(prev); if (next.has(citationId)) next.delete(citationId); else next.add(citationId); return next; });
@@ -425,9 +429,9 @@ export function EditorPanel() {
               type="button"
               data-testid="chat-generate-report"
               onClick={handleGenerateReport}
-              disabled={isGenerating || selectedSourceCount === 0}
-              aria-label={selectedSourceCount > 0 ? '生成文献综述' : '先选择证据来源再生成综述'}
-              title={selectedSourceCount > 0 ? `基于 ${selectedSourceCount} 个已选证据来源生成综述` : '请先在左侧文献卡片圆点处选择来源'}
+              disabled={isGenerating || selectedSourceCount === 0 || !researchChatReadiness.ready}
+              aria-label={!researchChatReadiness.ready ? researchChatReadiness.message : selectedSourceCount > 0 ? '生成文献综述' : '先选择证据来源再生成综述'}
+              title={!researchChatReadiness.ready ? researchChatReadiness.message : selectedSourceCount > 0 ? `基于 ${selectedSourceCount} 个已选证据来源生成综述` : '请先在左侧文献卡片圆点处选择来源'}
               className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-blue-500/20 bg-blue-600 px-4 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-500 disabled:border-[var(--border-subtle)] disabled:bg-[var(--bg-tertiary)] disabled:text-[var(--text-tertiary)] disabled:shadow-none disabled:cursor-not-allowed"
             >
               {isGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -453,6 +457,7 @@ export function EditorPanel() {
           quickQuestions={QUICK_QUESTIONS}
           selectedSourceCount={selectedSourceCount}
           totalSourceCount={totalSourceCount}
+          researchChatReadiness={researchChatReadiness}
           onCitationClick={revealPaper}
           onRegenerate={regenerateLastAnswer}
         />
@@ -475,11 +480,12 @@ interface ChatViewProps {
   quickQuestions: QuickQuestion[];
   selectedSourceCount: number;
   totalSourceCount: number;
+  researchChatReadiness: StudioGenerationState;
   onCitationClick: (paperId: string, citation?: Citation) => void;
   onRegenerate: () => void;
 }
 
-function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, onCitationClick, onRegenerate }: ChatViewProps) {
+function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, researchChatReadiness, onCitationClick, onRegenerate }: ChatViewProps) {
   // --- Liquid pull physics ---
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
@@ -680,8 +686,8 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                     <button
                       key={q.label}
                       onClick={() => onQuickQuestion(q.question)}
-                      disabled={!hasSelectedSources}
-                      title={hasSelectedSources ? q.question : '请先在左侧选择证据来源'}
+                      disabled={!hasSelectedSources || !researchChatReadiness.ready}
+                      title={!researchChatReadiness.ready ? researchChatReadiness.message : hasSelectedSources ? q.question : '请先在左侧选择证据来源'}
                       className="quick-question-button liquid-glass-static flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-3 text-[13px] font-semibold leading-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:!border-[var(--border-hover)] transition-all disabled:cursor-not-allowed disabled:text-[var(--text-secondary)] disabled:hover:text-[var(--text-secondary)]"
                     >
                       <Icon className="h-[19px] w-[19px]" />
@@ -700,7 +706,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                   isPending={isGenerating && idx === messages.length - 1}
                   onToggleExpand={() => onToggleCitation(message.id)}
                   onCitationClick={onCitationClick}
-                  onRegenerate={message.role === 'assistant' && idx === messages.length - 1 && !isGenerating ? onRegenerate : undefined}
+                  onRegenerate={message.role === 'assistant' && idx === messages.length - 1 && !isGenerating && researchChatReadiness.ready ? onRegenerate : undefined}
                 />
                 {message.role === 'assistant' && message.followUps && message.followUps.length > 0 && !isGenerating && idx === messages.length - 1 && (
                   <div className="flex flex-wrap gap-2 mt-3 ml-12 animate-fade-in">
@@ -708,7 +714,9 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                       <button
                         key={qi}
                         onClick={() => onQuickQuestion(q)}
-                        className="liquid-glass-chip text-[12px] cursor-pointer"
+                        disabled={!researchChatReadiness.ready}
+                        title={!researchChatReadiness.ready ? researchChatReadiness.message : q}
+                        className="liquid-glass-chip text-[12px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {q}
                       </button>
@@ -787,7 +795,9 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                       onQuickQuestion(q.question);
                       closePanel();
                     }}
-                    className="quick-question-button liquid-glass-card flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-2xl px-2.5 py-3 text-[12px] font-medium leading-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+                    disabled={!researchChatReadiness.ready}
+                    title={!researchChatReadiness.ready ? researchChatReadiness.message : q.question}
+                    className="quick-question-button liquid-glass-card flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-2xl px-2.5 py-3 text-[12px] font-medium leading-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Icon className="h-[18px] w-[18px]" />
                     {q.label}
@@ -801,9 +811,14 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
 
       {/* Input */}
       <div className="px-6 pb-5 pt-3 border-t border-[var(--border-subtle)]">
+        {!researchChatReadiness.ready && (
+          <div data-testid="chat-model-readiness" className="mx-auto mb-2 max-w-3xl rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-200">
+            {researchChatReadiness.message}
+          </div>
+        )}
         <div className="max-w-3xl mx-auto flex items-end gap-3">
             <textarea
-              placeholder={hasSelectedSources ? '输入研究问题...(Shift+Enter 换行)' : '先选择左侧证据来源...'}
+              placeholder={!researchChatReadiness.ready ? '文献问答服务配置中...' : hasSelectedSources ? '输入研究问题...(Shift+Enter 换行)' : '先选择左侧证据来源...'}
               value={inputMessage}
               rows={1}
               onChange={(e) => {
@@ -819,7 +834,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                   (e.target as HTMLTextAreaElement).style.height = 'auto';
                 }
               }}
-              disabled={isGenerating || !hasSelectedSources}
+              disabled={isGenerating || !hasSelectedSources || !researchChatReadiness.ready}
               aria-label="输入研究问题"
               className="liquid-glass-input min-h-[48px] max-h-[140px] flex-1 resize-none rounded-2xl px-4 py-3 !text-[14px] leading-relaxed"
             />
@@ -834,7 +849,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
               <Square className="h-4 w-4 fill-current" />
             </button>
           ) : (
-            <button onClick={() => { onSend(); setInputMessage(''); }} disabled={!hasSelectedSources || !inputMessage.trim()} aria-label="发送问题" className="liquid-glass-btn flex h-12 w-[52px] items-center justify-center !rounded-2xl !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 disabled:!from-zinc-500/20 disabled:!to-zinc-500/20 disabled:!text-[var(--text-tertiary)] disabled:cursor-not-allowed">
+            <button onClick={() => { onSend(); setInputMessage(''); }} disabled={!hasSelectedSources || !inputMessage.trim() || !researchChatReadiness.ready} aria-label="发送问题" className="liquid-glass-btn flex h-12 w-[52px] items-center justify-center !rounded-2xl !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 disabled:!from-zinc-500/20 disabled:!to-zinc-500/20 disabled:!text-[var(--text-tertiary)] disabled:cursor-not-allowed">
               <Send className="h-4 w-4" />
             </button>
           )}

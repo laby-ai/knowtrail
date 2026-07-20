@@ -9,6 +9,10 @@ import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billi
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
+import {
+  resolveStudioGenerationReadiness,
+  studioGenerationUnavailablePayload,
+} from '@/lib/studio-generation-readiness';
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,6 +53,14 @@ export async function POST(request: NextRequest) {
         billing: { status: 'failed', code: 'account_login_required' },
       }), {
         status: 401,
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+      });
+    }
+
+    const readiness = resolveStudioGenerationReadiness().researchChat;
+    if (!debugRetrievalOnly && !readiness.ready) {
+      return new Response(JSON.stringify(studioGenerationUnavailablePayload(readiness)), {
+        status: 503,
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
       });
     }
