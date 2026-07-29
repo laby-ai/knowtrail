@@ -73,6 +73,7 @@ assert.match(taxonomySource, /id: 'results-expression', label: '成果表达'/, 
 assert.match(taxonomySource, /id: 'collaboration-memory', label: '协作沉淀'/, 'Taxonomy should define collaboration and memory');
 assert.match(taxonomySource, /id: 'knowledge'[\s\S]*label: '研究脉络'[\s\S]*categoryId: 'literature-evidence'/, 'Original knowledge map should be mapped as research context under literature evidence');
 assert.match(taxonomySource, /id: 'paper-search'[\s\S]*label: '论文检索'[\s\S]*categoryId: 'literature-evidence'[\s\S]*availability: 'ready'/, 'Paper search should be a real literature-evidence product');
+assert.match(taxonomySource, /id: 'paper-reading'[\s\S]*label: '论文精读'[\s\S]*categoryId: 'literature-evidence'[\s\S]*availability: 'ready'/, 'Paper reading should expose the contract-required translation and summary workspace');
 assert.match(taxonomySource, /id: 'deep-research'[\s\S]*label: '深度研究'[\s\S]*categoryId: 'literature-evidence'[\s\S]*availability: 'ready'/, 'Deep research should be a real literature-evidence product');
 assert.match(taxonomySource, /id: 'hypothesis-generation'[\s\S]*label: '假设生成'[\s\S]*categoryId: 'research-ideation'[\s\S]*availability: 'ready'/, 'Hypothesis generation should make research ideation visible through a real product');
 assert.match(taxonomySource, /id: 'data-processing'[\s\S]*label: '数据处理'[\s\S]*categoryId: 'research-ideation'[\s\S]*availability: 'ready'/, 'Data processing should be a real research-ideation product');
@@ -84,7 +85,7 @@ assert.match(taxonomySource, /id: 'presentation'[\s\S]*label: 'PPT 制作'[\s\S]
 assert.match(taxonomySource, /id: 'peer-review'[\s\S]*label: '论文审查'[\s\S]*categoryId: 'collaboration-memory'[\s\S]*availability: 'ready'/, 'Peer review should be a real collaboration product');
 assert.match(taxonomySource, /id: 'virtual-classroom'[\s\S]*label: '虚拟课堂'[\s\S]*categoryId: 'collaboration-memory'[\s\S]*availability: 'runtime-dependent'/, 'Virtual classroom should be mapped under collaboration without being marked ready');
 const productDefinitions = taxonomySource.slice(taxonomySource.indexOf('STUDIO_RESEARCH_PRODUCTS'));
-assert.equal((productDefinitions.match(/\n\s+id: '/g) || []).length, 12, 'Taxonomy should expose scientific illustration and the eleven existing real products');
+assert.equal((productDefinitions.match(/\n\s+id: '/g) || []).length, 13, 'Taxonomy should expose paper reading and the twelve existing real products');
 assert.match(switcherSource, /getVisibleStudioCategories/, 'Product center should render taxonomy categories through the empty-category filter');
 assert.match(switcherSource, /grid-cols-2/, 'Product cards should use a compact two-column layout so the mobile workspace keeps usable height');
 assert.doesNotMatch(switcherSource, /max-h-\[36vh\]|overflow-y-auto/, 'Product navigation should remain fully visible before the active workspace');
@@ -104,6 +105,7 @@ assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/studio-tool/ro
 assert.match(studioPanelSource, /activeTab === 'presentation' && <PresentationWorkspacePanel \/>/, 'PPT product should render its original workspace');
 assert.match(studioPanelSource, /activeTab === 'knowledge' && <KnowledgeMapPanel \/>/, 'Knowledge map product should render its original panel');
 assert.match(studioPanelSource, /activeTab === 'paper-search' && <PaperSearchPanel \/>/, 'Paper search product should render its real search panel');
+assert.match(studioPanelSource, /activeTab === 'paper-reading' && <PaperReadingPanel \/>/, 'Paper reading product should render its contract-aligned panel');
 assert.match(studioPanelSource, /activeTab === 'deep-research' && <DeepResearchPanel \/>/, 'Deep research product should render its real report panel');
 assert.match(studioPanelSource, /activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel \/>/, 'Hypothesis generation should render its real evidence-backed panel');
 assert.match(studioPanelSource, /activeTab === 'data-processing' && <DataProcessingPanel \/>/, 'Data processing should render its real table-plan panel');
@@ -174,6 +176,6 @@ assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结
 console.log(JSON.stringify({
   ok: true,
   checked: 'Studio product center exposes scientific illustration and the existing real products without navigation side effects',
-  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '学术写作', '文本润色', '科研绘图', 'PPT 制作', '论文审查', '虚拟课堂'],
-  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'academic-writing-start', 'text-polishing-start', 'scientific-illustration-start', 'image-ppt-generate', 'academic-ppt-generate', 'peer-review-start', 'virtual-classroom-open'],
+  products: ['论文检索', '论文精读', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '学术写作', '文本润色', '科研绘图', 'PPT 制作', '论文审查', '虚拟课堂'],
+  explicitButtons: ['discover-search', 'paper-reading-start', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'academic-writing-start', 'text-polishing-start', 'scientific-illustration-start', 'image-ppt-generate', 'academic-ppt-generate', 'peer-review-start', 'virtual-classroom-open'],
 }, null, 2));

@@ -5,6 +5,7 @@ import { KnowledgeMapPanel } from './KnowledgeMapPanel';
 import { PresentationWorkspacePanel } from './PresentationPanels';
 import { VirtualClassroomPanel } from './VirtualClassroomPanel';
 import { PaperSearchPanel } from './PaperSearchPanel';
+import { PaperReadingPanel } from './PaperReadingPanel';
 import { DeepResearchPanel } from './DeepResearchPanel';
 import { HypothesisGenerationPanel } from './HypothesisGenerationPanel';
 import { DataProcessingPanel } from './DataProcessingPanel';
@@ -46,6 +47,7 @@ export function StudioPanel() {
 
       <div className="px-5 py-4">
         {activeTab === 'paper-search' && <PaperSearchPanel />}
+        {activeTab === 'paper-reading' && <PaperReadingPanel />}
         {activeTab === 'deep-research' && <DeepResearchPanel />}
         {activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel />}
         {activeTab === 'data-processing' && <DataProcessingPanel />}

@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'text-polishing' | 'scientific-illustration' | 'knowledge' | 'presentation' | 'peer-review' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'paper-reading' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'text-polishing' | 'scientific-illustration' | 'knowledge' | 'presentation' | 'peer-review' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -34,6 +34,13 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     label: '论文检索',
     categoryId: 'literature-evidence',
     desc: '检索、核验并加入文献库',
+    availability: 'ready',
+  },
+  {
+    id: 'paper-reading',
+    label: '论文精读',
+    categoryId: 'literature-evidence',
+    desc: '翻译、逐段与全文总结',
     availability: 'ready',
   },
   {
