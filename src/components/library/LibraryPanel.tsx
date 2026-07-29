@@ -36,6 +36,7 @@ import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
 import { DiscoverSourcesModal } from './DiscoverSourcesModal';
 import { IngestionRetryButton } from './IngestionRetryButton';
+import { SourceStructureSummary } from './SourceStructureSummary';
 
 const SUPPORTED_TYPES: Record<string, FileType> = {
   'application/pdf': 'pdf',
@@ -132,6 +133,13 @@ interface IngestionSourceSummary {
   fileType: FileType;
   fileSize?: number;
   title: string;
+  authors?: string[];
+  year?: number;
+  keywords?: string[];
+  abstract?: string;
+  journal?: string;
+  doi?: string;
+  sections?: Paper['sections'];
   shortName?: string;
   status: Paper['ingestionStatus'];
   stages?: Paper['ingestionStages'];
@@ -505,10 +513,11 @@ export function LibraryPanel({
         addPaper(importFolderId, {
           id: detail.id,
           title: detail.title || detail.fileName,
-          authors: ['已入库来源'],
-          year: new Date(detail.createdAt || detail.updatedAt || Date.now()).getFullYear(),
-          keywords: ['持久来源'],
-          abstract: rawContent.slice(0, 240) || `${detail.title || detail.fileName} 已完成来源摄取。`,
+          authors: detail.authors?.length ? detail.authors : ['未解析作者'],
+          year: detail.year || new Date(detail.createdAt || detail.updatedAt || Date.now()).getFullYear(),
+          keywords: detail.keywords || [],
+          abstract: detail.abstract || rawContent.slice(0, 240) || `${detail.title || detail.fileName} 已完成来源摄取。`,
+          sections: detail.sections,
           content: rawContent || `${detail.title || detail.fileName} 已完成来源摄取。`,
           rawContent,
           shortName: detail.shortName || detail.fileName,
@@ -516,6 +525,8 @@ export function LibraryPanel({
           fileType: detail.fileType,
           fileSize: detail.fileSize || 0,
           uploadTime: detail.createdAt || detail.updatedAt || new Date().toISOString(),
+          journal: detail.journal,
+          doi: detail.doi,
           mineru: detail.mineru,
           mineruStatus: legacyMinerUStatus(detail.mineru),
           ingestionStatus: detail.status,
@@ -527,10 +538,11 @@ export function LibraryPanel({
         knownPapers.set(detail.id, {
           id: detail.id,
           title: detail.title || detail.fileName,
-          authors: ['已入库来源'],
-          year: new Date().getFullYear(),
-          keywords: ['持久来源'],
-          abstract: rawContent.slice(0, 240),
+          authors: detail.authors?.length ? detail.authors : ['未解析作者'],
+          year: detail.year || new Date().getFullYear(),
+          keywords: detail.keywords || [],
+          abstract: detail.abstract || rawContent.slice(0, 240),
+          sections: detail.sections,
           content: rawContent,
           rawContent,
           shortName: detail.shortName || detail.fileName,
@@ -538,6 +550,8 @@ export function LibraryPanel({
           fileType: detail.fileType,
           fileSize: detail.fileSize || 0,
           uploadTime: detail.createdAt || detail.updatedAt || new Date().toISOString(),
+          journal: detail.journal,
+          doi: detail.doi,
           mineruFigures: [],
         });
       }
@@ -553,7 +567,14 @@ export function LibraryPanel({
           current.mineru?.figureCount !== source.mineru?.figureCount ||
           current.vectorIndex?.status !== nextVectorIndex?.status ||
           current.vectorIndex?.count !== nextVectorIndex?.count ||
-          current.vectorIndex?.dimension !== nextVectorIndex?.dimension
+          current.vectorIndex?.dimension !== nextVectorIndex?.dimension ||
+          JSON.stringify(current.authors || []) !== JSON.stringify(source.authors || []) ||
+          current.year !== source.year ||
+          JSON.stringify(current.keywords || []) !== JSON.stringify(source.keywords || []) ||
+          current.abstract !== source.abstract ||
+          current.journal !== source.journal ||
+          current.doi !== source.doi ||
+          JSON.stringify(current.sections || []) !== JSON.stringify(source.sections || [])
         );
         if (changed) {
           updatePaper(source.id, {
@@ -563,6 +584,13 @@ export function LibraryPanel({
             mineru: source.mineru,
             mineruStatus: legacyMinerUStatus(source.mineru),
             vectorIndex: nextVectorIndex,
+            authors: source.authors?.length ? source.authors : current.authors,
+            year: source.year || current.year,
+            keywords: source.keywords || current.keywords,
+            abstract: source.abstract || current.abstract,
+            journal: source.journal,
+            doi: source.doi,
+            sections: source.sections,
           });
         }
       }
@@ -1435,7 +1463,23 @@ export function LibraryPanel({
                   .filter(chunk => Boolean(chunk.text?.trim()))
                   .slice(0, 12);
                 const dataPreview = buildSourceDataPreview(sourcePreview.paper, sourcePreview.source);
-                if (chunks.length === 0 && !dataPreview) {
+                const sourceAuthors = sourcePreview.source.authors?.length
+                  ? sourcePreview.source.authors
+                  : sourcePreview.paper.authors;
+                const sourceSections = sourcePreview.source.sections?.length
+                  ? sourcePreview.source.sections
+                  : sourcePreview.paper.sections;
+                const sourceAbstract = sourcePreview.source.abstract || sourcePreview.paper.abstract || '';
+                const hasSourceMetadata = Boolean(
+                  sourceAuthors?.length
+                  || sourceAbstract
+                  || sourcePreview.source.journal
+                  || sourcePreview.paper.journal
+                  || sourcePreview.source.doi
+                  || sourcePreview.paper.doi
+                  || sourceSections?.length,
+                );
+                if (chunks.length === 0 && !dataPreview && !hasSourceMetadata) {
                   return (
                     <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
                       来源详情已找到，但暂未包含可展示的原文片段。
@@ -1456,6 +1500,14 @@ export function LibraryPanel({
                         </p>
                       </div>
                     )}
+                    <SourceStructureSummary
+                      authors={sourceAuthors}
+                      year={sourcePreview.source.year || sourcePreview.paper.year}
+                      journal={sourcePreview.source.journal || sourcePreview.paper.journal}
+                      doi={sourcePreview.source.doi || sourcePreview.paper.doi}
+                      abstract={sourceAbstract}
+                      sections={sourceSections}
+                    />
                     {dataPreview && (
                       <div
                         data-testid="library-data-table-preview"

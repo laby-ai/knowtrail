@@ -331,9 +331,12 @@ export async function POST(request: NextRequest) {
           authors,
           year,
           abstract,
+          keywords,
           content,
           rawContent,
           shortName,
+          journal,
+          doi,
         }, { aiConfig });
 
         console.log(`[Upload] File: ${file.name}, ext: ${ext}, content length: ${content.length}, rawContent length: ${rawContent.length}, analysis: ${analysis ? 'OK' : needsAIAnalysis ? 'NULL' : 'SKIPPED'}, env: ${isProd ? 'PROD' : 'DEV'}`);

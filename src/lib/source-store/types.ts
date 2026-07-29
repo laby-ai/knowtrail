@@ -1,5 +1,6 @@
 import type { RagSourceInput, SourceChunk } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
+import type { PaperSection } from '@/lib/paper-structure';
 
 export const DEFAULT_SOURCE_STORE_PATH = '.data/sources/sources.json';
 export const POSTGRES_STORE_ID = 'default';
@@ -53,6 +54,13 @@ export interface StoredSourceRecord {
   fileType: string;
   fileSize?: number;
   title: string;
+  authors?: string[];
+  year?: number;
+  keywords?: string[];
+  abstract?: string;
+  journal?: string;
+  doi?: string;
+  sections?: PaperSection[];
   shortName: string;
   storageKey?: string;
   fileUrl?: string;
@@ -78,6 +86,9 @@ export interface IngestionSourceInput extends RagSourceInput {
   fileSize?: number;
   fileKey?: string;
   fileUrl?: string;
+  journal?: string;
+  doi?: string;
+  sections?: PaperSection[];
 }
 
 export interface IngestExtractedSourceOptions {

@@ -3,6 +3,7 @@ import { buildSourceChunks, type RagSourceInput, type SourceChunk } from '@/lib/
 import { embedTexts, hasRuntimeEmbeddingProvider } from '@/lib/runtime-embeddings';
 import { upsertSourceChunks } from '@/lib/vector-store';
 import { redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
+import { extractPaperSections } from '@/lib/paper-structure';
 import { LocalJsonSourceStoreAdapter } from '@/lib/source-store/local-json-adapter';
 import {
   POSTGRES_CHUNKS_TABLE,
@@ -308,6 +309,13 @@ export function buildSourceStoreFromPostgresRows(input: {
       fileType: row.file_type || payload.fileType || 'unknown',
       fileSize: optionalNumber(row.file_size) ?? payload.fileSize,
       title: row.title || payload.title || row.file_name || '未命名资料',
+      authors: payload.authors,
+      year: payload.year,
+      keywords: payload.keywords,
+      abstract: payload.abstract,
+      journal: payload.journal,
+      doi: payload.doi,
+      sections: payload.sections,
       shortName: row.short_name || payload.shortName || row.file_name || '未知资料',
       storageKey: row.storage_key || payload.storageKey,
       fileUrl: row.file_url || payload.fileUrl,
@@ -765,6 +773,13 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
     fileType: input.fileType,
     fileSize: input.fileSize,
     title: input.title || input.fileName,
+    authors: input.authors,
+    year: input.year,
+    keywords: input.keywords,
+    abstract: input.abstract,
+    journal: input.journal,
+    doi: input.doi,
+    sections: input.sections || extractPaperSections(input.rawContent || input.content),
     shortName: input.shortName || input.fileName,
     storageKey: input.fileKey,
     fileUrl: input.fileUrl,

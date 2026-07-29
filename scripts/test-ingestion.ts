@@ -149,7 +149,19 @@ async function main() {
         vector_count: 1,
         created_at: '2026-06-16T00:00:00.000Z',
         updated_at: '2026-06-16T00:01:00.000Z',
-        payload: {},
+        payload: {
+          authors: ['Postgres Author'],
+          year: 2025,
+          keywords: ['evidence', 'retrieval'],
+          abstract: 'A persisted abstract.',
+          journal: 'Evidence Systems',
+          doi: '10.1000/example',
+          sections: [{
+            title: '1 Introduction',
+            level: 1,
+            excerpt: 'Normalized payload metadata survives reconstruction.',
+          }],
+        },
       }],
       chunks: [{
         id: 'pg-source::chunk-1',
@@ -178,6 +190,13 @@ async function main() {
     assert.equal(normalizedStore.sources[0].chunks[0].page, 7);
     assert.equal(normalizedStore.sources[0].stages[0].name, 'chunk');
     assert.equal(normalizedStore.sources[0].vectorIndex.model, 'doubao-embedding-vision');
+    assert.deepEqual(normalizedStore.sources[0].authors, ['Postgres Author']);
+    assert.equal(normalizedStore.sources[0].year, 2025);
+    assert.deepEqual(normalizedStore.sources[0].keywords, ['evidence', 'retrieval']);
+    assert.equal(normalizedStore.sources[0].abstract, 'A persisted abstract.');
+    assert.equal(normalizedStore.sources[0].journal, 'Evidence Systems');
+    assert.equal(normalizedStore.sources[0].doi, '10.1000/example');
+    assert.equal(normalizedStore.sources[0].sections?.[0]?.title, '1 Introduction');
     const normalizedReadyChunks = buildReadySourceChunksResultFromSources(normalizedStore.sources, {
       identities: ['postgres.pdf'],
       query: '引用片段',
@@ -195,10 +214,20 @@ async function main() {
       title: 'Retention Cohort Analysis',
       authors: ['Lingbi'],
       year: 2026,
+      keywords: ['retention', 'cohort'],
       shortName: 'Lingbi. 2026',
       abstract: '用户留存研究。',
+      journal: 'Product Analytics Review',
+      doi: '10.1000/retention',
       content: '第三次有效使用是留存拐点。',
-      rawContent: '第 7 页：第三次有效使用后，30 日留存率提升 41%。',
+      rawContent: `摘要
+用户留存研究。
+
+一、研究方法
+按用户第三次有效使用构建留存队列。
+
+二、研究结果
+第 7 页：第三次有效使用后，30 日留存率提升 41%。`,
     }, {
       embedder: async texts => texts.map(deterministicEmbedding),
     });
@@ -210,6 +239,13 @@ async function main() {
     assert(indexed.stages.some(stage => stage.name === 'chunk' && stage.status === 'succeeded'));
     assert(indexed.stages.some(stage => stage.name === 'index' && stage.status === 'succeeded'));
     assert(indexed.stages.some(stage => stage.name === 'mineru' && stage.status === 'pending'));
+    assert.deepEqual(indexed.authors, ['Lingbi']);
+    assert.equal(indexed.year, 2026);
+    assert.deepEqual(indexed.keywords, ['retention', 'cohort']);
+    assert.equal(indexed.abstract, '用户留存研究。');
+    assert.equal(indexed.journal, 'Product Analytics Review');
+    assert.equal(indexed.doi, '10.1000/retention');
+    assert.deepEqual(indexed.sections?.map(section => section.title), ['摘要', '一、研究方法', '二、研究结果']);
 
     const readyChunks = await listReadySourceChunks();
     assert.equal(readyChunks.persistedSourceCount, 1);
@@ -274,6 +310,7 @@ async function main() {
         'Postgres ready chunk ilike/fts SQL contract',
         'source store health ready chunk search mode',
         'Postgres normalized rows read-model reconstruction',
+        'paper metadata and section structure persistence',
         'ready source chunk query/topK contract',
         'ingestion stage transitions',
         'source chunks persisted',

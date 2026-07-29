@@ -1,5 +1,6 @@
 // 学术论文智能宣讲助手 - 核心类型定义
 import type { KnowledgeMapData } from '@/lib/knowledge-map-types';
+import type { PaperSection } from '@/lib/paper-structure';
 
 // 文献库相关类型
 export type FileType = 'pdf' | 'doc' | 'docx' | 'txt' | 'jpg' | 'jpeg' | 'png' | 'gif' | 'webp' | 'md' | 'csv' | 'xlsx' | 'ppt' | 'pptx' | 'other';
@@ -46,6 +47,7 @@ export interface Paper {
   year: number;
   keywords: string[];
   abstract?: string;
+  sections?: PaperSection[];
   content: string;
   rawContent?: string; // 原始文档提取的文本（供 AI 对话时使用）
   shortName: string; // 用于引用标注，格式：[第一作者. 年份]
