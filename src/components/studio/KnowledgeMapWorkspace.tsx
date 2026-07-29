@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, FileSearch, GitBranch, Link as LinkIcon, Network, Search, ShieldCheck, Waypoints, X, Zap } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { CitationTrailPanel } from './CitationTrailPanel';
 import { KnowledgeMapGraph, type KnowledgeMapColorMode } from './KnowledgeMapGraph';
+import { buildKnowledgeMapView, type KnowledgeMapViewMode } from '@/lib/knowledge-map-views';
 import type { KnowledgeMapEdgeConfidence, KnowledgeMapNodeType } from '@/lib/knowledge-map-types';
 
 function formatCitationNumbers(numbers: number[]) {
@@ -36,22 +38,33 @@ const EDGE_CONFIDENCE_LABEL: Record<KnowledgeMapEdgeConfidence, string> = {
 
 const ALL_NODE_TYPES: KnowledgeMapNodeType[] = ['concept', 'method', 'finding', 'question', 'source', 'term'];
 const ALL_CONFIDENCES: KnowledgeMapEdgeConfidence[] = ['EXTRACTED', 'INFERRED', 'AMBIGUOUS'];
+const VIEW_OPTIONS: Array<{ mode: KnowledgeMapViewMode; label: string; description: string }> = [
+  { mode: 'knowledge', label: '知识图谱', description: '完整节点与关系' },
+  { mode: 'concept', label: '概念网络', description: '聚焦概念与方法' },
+  { mode: 'citation', label: '引用脉络', description: '逐条核对证据' },
+];
 
 export function KnowledgeMapWorkspace() {
   const { knowledgeMapViewer, closeKnowledgeMap } = useApp();
   const initialNodeId = knowledgeMapViewer?.map.nodes.find(node => node.focal)?.id || knowledgeMapViewer?.map.nodes[0]?.id || null;
+  const [viewMode, setViewMode] = useState<KnowledgeMapViewMode>('knowledge');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialNodeId);
   const [visibleTypes, setVisibleTypes] = useState<Set<KnowledgeMapNodeType>>(() => new Set(ALL_NODE_TYPES));
   const [visibleConfidences, setVisibleConfidences] = useState<Set<KnowledgeMapEdgeConfidence>>(() => new Set(ALL_CONFIDENCES));
   const [searchTerm, setSearchTerm] = useState('');
   const [colorMode, setColorMode] = useState<KnowledgeMapColorMode>('type');
 
+  const activeMap = useMemo(() => {
+    if (!knowledgeMapViewer || viewMode === 'citation') return knowledgeMapViewer?.map || null;
+    return buildKnowledgeMapView(knowledgeMapViewer.map, viewMode);
+  }, [knowledgeMapViewer, viewMode]);
+
   // Which node types actually appear, so we only show relevant filter chips.
   const presentTypes = useMemo(() => {
     const set = new Set<KnowledgeMapNodeType>();
-    knowledgeMapViewer?.map.nodes.forEach(n => set.add(n.type));
+    activeMap?.nodes.forEach(n => set.add(n.type));
     return ALL_NODE_TYPES.filter(t => set.has(t));
-  }, [knowledgeMapViewer]);
+  }, [activeMap]);
 
   const toggleType = (t: KnowledgeMapNodeType) => setVisibleTypes(prev => {
     const next = new Set(prev);
@@ -67,22 +80,28 @@ export function KnowledgeMapWorkspace() {
   // Jump selection to the first search hit.
   useEffect(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q || !knowledgeMapViewer) return;
-    const hit = knowledgeMapViewer.map.nodes.find(
+    if (!q || !activeMap) return;
+    const hit = activeMap.nodes.find(
       n => n.label.toLowerCase().includes(q) || n.summary.toLowerCase().includes(q),
     );
     if (hit) setSelectedNodeId(hit.id);
-  }, [searchTerm, knowledgeMapViewer]);
+  }, [searchTerm, activeMap]);
+
+  useEffect(() => {
+    if (!activeMap || viewMode === 'citation') return;
+    if (activeMap.nodes.some(node => node.id === selectedNodeId)) return;
+    setSelectedNodeId(activeMap.nodes.find(node => node.focal)?.id || activeMap.nodes[0]?.id || null);
+  }, [activeMap, selectedNodeId, viewMode]);
 
   const selectedNode = useMemo(() => {
-    if (!knowledgeMapViewer) return null;
-    return knowledgeMapViewer.map.nodes.find(node => node.id === selectedNodeId) || knowledgeMapViewer.map.nodes[0] || null;
-  }, [knowledgeMapViewer, selectedNodeId]);
+    if (!activeMap || viewMode === 'citation') return null;
+    return activeMap.nodes.find(node => node.id === selectedNodeId) || activeMap.nodes[0] || null;
+  }, [activeMap, selectedNodeId, viewMode]);
 
   const relatedEdges = useMemo(() => {
-    if (!knowledgeMapViewer || !selectedNode) return [];
-    return knowledgeMapViewer.map.edges.filter(edge => edge.source === selectedNode.id || edge.target === selectedNode.id);
-  }, [knowledgeMapViewer, selectedNode]);
+    if (!activeMap || !selectedNode) return [];
+    return activeMap.edges.filter(edge => edge.source === selectedNode.id || edge.target === selectedNode.id);
+  }, [activeMap, selectedNode]);
 
   if (!knowledgeMapViewer) return null;
 
@@ -141,7 +160,28 @@ export function KnowledgeMapWorkspace() {
         </div>
       </header>
 
+      <nav className="grid shrink-0 grid-cols-3 gap-1 border-b border-slate-200/70 bg-white px-3 py-2 sm:flex sm:px-5" aria-label="论文关系视图">
+        {VIEW_OPTIONS.map(option => (
+          <button
+            key={option.mode}
+            type="button"
+            onClick={() => setViewMode(option.mode)}
+            className={`min-w-0 rounded-xl px-3 py-2 text-left transition sm:min-w-36 ${
+              viewMode === option.mode
+                ? 'bg-blue-50 text-blue-800 shadow-[inset_0_0_0_1px_rgba(59,130,246,0.2)]'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+            }`}
+            data-testid={`knowledge-map-view-${option.mode}`}
+            aria-current={viewMode === option.mode ? 'page' : undefined}
+          >
+            <span className="block truncate text-xs font-semibold">{option.label}</span>
+            <span className="mt-0.5 hidden text-[10px] sm:block">{option.description}</span>
+          </button>
+        ))}
+      </nav>
+
       {/* Filter toolbar */}
+      {viewMode !== 'citation' && activeMap && (
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200/70 bg-white/60 px-5 py-2.5 backdrop-blur-xl" data-testid="knowledge-map-filters">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">类型</span>
         {presentTypes.map(t => {
@@ -179,7 +219,7 @@ export function KnowledgeMapWorkspace() {
           );
         })}
 
-        {map.communities.length > 0 && (
+        {activeMap.communities.length > 0 && (
           <div className="ml-auto flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-0.5" data-testid="knowledge-map-color-mode">
             {([['type', '按类型'], ['community', '按社区']] as const).map(([mode, label]) => (
               <button
@@ -198,31 +238,36 @@ export function KnowledgeMapWorkspace() {
           </div>
         )}
       </div>
+      )}
 
+      {viewMode === 'citation' ? (
+        <CitationTrailPanel map={map} citations={citations} />
+      ) : activeMap ? (
       <section className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 min-[1800px]:grid-cols-[minmax(0,1fr)_340px] min-[1800px]:overflow-hidden">
         <div className="min-h-[560px] min-[1800px]:min-h-0">
           <KnowledgeMapGraph
-            map={map}
+            map={activeMap}
             selectedNodeId={selectedNode?.id || null}
             onSelectNode={setSelectedNodeId}
             visibleTypes={visibleTypes}
             visibleConfidences={visibleConfidences}
             searchTerm={searchTerm}
+            colorMode={colorMode}
           />
         </div>
 
         <aside className="max-h-[360px] overflow-y-auto rounded-[1.35rem] border border-slate-200 bg-white/90 p-4 shadow-[var(--glass-shadow-sm)] backdrop-blur-xl min-[1800px]:max-h-none min-[1800px]:min-h-0" data-testid="knowledge-map-detail">
           {/* Graph-level insights derived by the extractor (hubs + bridges) */}
-          {(map.analysis.hubNodes.length > 0 || map.analysis.bridgeEdges.length > 0) && (
+          {(activeMap.analysis.hubNodes.length > 0 || activeMap.analysis.bridgeEdges.length > 0) && (
             <section className="mb-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3" data-testid="knowledge-map-insights">
-              {map.analysis.hubNodes.length > 0 && (
+              {activeMap.analysis.hubNodes.length > 0 && (
                 <div>
                   <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
                     <Zap className="h-3.5 w-3.5 text-amber-500" />
                     枢纽节点
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {map.analysis.hubNodes.slice(0, 6).map(hub => (
+                    {activeMap.analysis.hubNodes.slice(0, 6).map(hub => (
                       <button
                         key={hub.id}
                         type="button"
@@ -242,16 +287,16 @@ export function KnowledgeMapWorkspace() {
                   </div>
                 </div>
               )}
-              {map.analysis.bridgeEdges.length > 0 && (
+              {activeMap.analysis.bridgeEdges.length > 0 && (
                 <div>
                   <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
                     <Waypoints className="h-3.5 w-3.5 text-cyan-500" />
                     桥接关系
                   </div>
                   <div className="space-y-1.5">
-                    {map.analysis.bridgeEdges.slice(0, 3).map((bridge, index) => {
-                      const sourceNode = map.nodes.find(n => n.id === bridge.source);
-                      const targetNode = map.nodes.find(n => n.id === bridge.target);
+                    {activeMap.analysis.bridgeEdges.slice(0, 3).map((bridge, index) => {
+                      const sourceNode = activeMap.nodes.find(n => n.id === bridge.source);
+                      const targetNode = activeMap.nodes.find(n => n.id === bridge.target);
                       return (
                         <button
                           key={`${bridge.source}-${bridge.target}-${index}`}
@@ -322,7 +367,7 @@ export function KnowledgeMapWorkspace() {
                     </div>
                   ) : relatedEdges.map(edge => {
                     const otherId = edge.source === selectedNode.id ? edge.target : edge.source;
-                    const otherNode = map.nodes.find(node => node.id === otherId);
+                    const otherNode = activeMap.nodes.find(node => node.id === otherId);
                     return (
                       <button
                         key={edge.id}
@@ -352,7 +397,7 @@ export function KnowledgeMapWorkspace() {
                   可继续追问
                 </div>
                 <div className="space-y-2">
-                  {map.analysis.suggestedQuestions.slice(0, 4).map((question, index) => (
+                  {activeMap.analysis.suggestedQuestions.slice(0, 4).map((question, index) => (
                     <div key={`${question}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-700">
                       {question}
                     </div>
@@ -370,6 +415,7 @@ export function KnowledgeMapWorkspace() {
           )}
         </aside>
       </section>
+      ) : null}
     </main>
   );
 }

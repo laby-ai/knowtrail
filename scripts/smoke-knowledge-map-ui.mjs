@@ -9,6 +9,43 @@ import { chromium } from '@playwright/test';
 const workspace = process.cwd();
 const outDir = path.resolve('output', 'playwright');
 const bannedUserFacingText = /Graphify|Hyper-Extract|OpenMAIC|MAIC|Karpathy|\bwiki\b|vis-network|模型推断/i;
+const knowledgeMapFixture = {
+  map: {
+    schemaVersion: 1,
+    title: '证据追踪研究脉络',
+    generatedAt: '2026-07-30T00:00:00.000Z',
+    nodes: [
+      { id: 'evidence', label: '证据追踪', type: 'concept', summary: '证据追踪连接研究结论与来源片段。[1]', community: 'core', citationNumbers: [1], degree: 3, focal: true },
+      { id: 'coding', label: '主题编码', type: 'method', summary: '主题编码用于整理跨文献材料。[1]', community: 'method', citationNumbers: [1], degree: 2 },
+      { id: 'grading', label: '证据分级', type: 'method', summary: '证据分级区分直接表述与推断关系。[2]', community: 'method', citationNumbers: [2], degree: 2 },
+      { id: 'review', label: '可复核性', type: 'finding', summary: '引用编号提升研究结果的可复核性。[2]', community: 'result', citationNumbers: [2], degree: 2 },
+      { id: 'gap', label: '来源不足', type: 'question', summary: '来源不足时需要保留待核验状态。', community: 'open', citationNumbers: [], degree: 1 },
+    ],
+    edges: [
+      { id: 'e1', source: 'evidence', target: 'coding', relation: '依赖整理', confidence: 'EXTRACTED', evidence: '来源一说明需要先进行主题编码。[1]', citationNumbers: [1] },
+      { id: 'e2', source: 'coding', target: 'grading', relation: '衔接分级', confidence: 'EXTRACTED', evidence: '编码结果进入证据分级步骤。[1]', citationNumbers: [1] },
+      { id: 'e3', source: 'grading', target: 'review', relation: '提升复核', confidence: 'EXTRACTED', evidence: '来源二说明证据分级提升可复核性。[2]', citationNumbers: [2] },
+      { id: 'e4', source: 'gap', target: 'evidence', relation: '限制结论', confidence: 'AMBIGUOUS', evidence: '该限制尚待补充直接证据。', citationNumbers: [] },
+    ],
+    communities: [
+      { id: 'core', label: '核心概念', nodeIds: ['evidence'] },
+      { id: 'method', label: '研究方法', nodeIds: ['coding', 'grading'] },
+      { id: 'result', label: '研究发现', nodeIds: ['review'] },
+      { id: 'open', label: '待研究问题', nodeIds: ['gap'] },
+    ],
+    analysis: {
+      hubNodes: [{ id: 'evidence', label: '证据追踪', degree: 3 }],
+      bridgeEdges: [{ source: 'coding', target: 'grading', relation: '衔接分级', confidence: 'EXTRACTED', why: '连接材料整理和证据核验。' }],
+      suggestedQuestions: ['来源不足时应如何补充证据？'],
+    },
+  },
+  citations: [
+    { paperId: 'paper-1', paperShortName: '证据追踪', sourceId: 'paper-1', chunkId: 'chunk-1', chunkIndex: 0, sourceTitle: '证据追踪方法', excerpt: '先记录检索范围，再对来源片段进行主题编码。', score: 0.94, page: 3 },
+    { paperId: 'paper-1', paperShortName: '证据追踪', sourceId: 'paper-1', chunkId: 'chunk-2', chunkIndex: 1, sourceTitle: '证据追踪方法', excerpt: '证据分级和引用编号能够提升研究结果的可复核性。', score: 0.9, page: 4 },
+  ],
+  retrieval: { persistedSourceCount: 1, vectorIndexedSourceCount: 1, degraded: false },
+  citationAudit: { status: 'pass', usedCitationNumbers: [1, 2], missingCitationNumbers: [], invalidCitationNumbers: [] },
+};
 
 function findFreePort() {
   return new Promise((resolve, reject) => {
@@ -63,8 +100,8 @@ async function resolveApp(tempDir) {
       ...process.env,
       PORT: String(port),
       DEPLOY_RUN_PORT: String(port),
+      BIND_HOST: '127.0.0.1',
       INTERNAL_APP_ORIGIN: '',
-      ACCOUNT_CENTER_REQUIRE_AUTH: 'false',
       SOURCE_STORE_PATH: path.join(tempDir, 'sources.json'),
       ZVEC_STORE_PATH: path.join(tempDir, 'zvec'),
     },
@@ -111,6 +148,11 @@ async function main() {
     page.on('response', response => {
       if (response.status() >= 400) failedResponses.push(`${response.status()} ${response.url()}`);
     });
+    await page.route('**/api/ai/knowledge-map', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(knowledgeMapFixture),
+    }));
 
     await page.goto(`${app.origin}/#workbench`, { waitUntil: 'networkidle', timeout: 60_000 });
     if (await page.locator('[data-testid^="library-paper-"]').count() === 0) {
@@ -135,6 +177,14 @@ async function main() {
     const edgeCount = await page.locator('[data-testid="knowledge-map-edge"]').count();
     const title = await page.getByTestId('knowledge-map-title').innerText();
     const selectedNode = await page.getByTestId('knowledge-map-selected-node').innerText();
+    await page.getByTestId('knowledge-map-view-concept').click();
+    await page.getByTestId('knowledge-map-graph').waitFor({ state: 'visible' });
+    const conceptNodeCount = await page.locator('[data-testid="knowledge-map-node"], [data-testid="knowledge-map-focal-node"]').count();
+    await page.getByTestId('knowledge-map-view-citation').click();
+    await page.getByTestId('citation-trail-panel').waitFor({ state: 'visible' });
+    const citationTrailCount = await page.getByTestId('citation-trail-item').count();
+    await page.getByTestId('knowledge-map-view-knowledge').click();
+    await page.getByTestId('knowledge-map-graph').waitFor({ state: 'visible' });
     const bodyText = await page.locator('body').innerText();
     const userFacingLeak = bannedUserFacingText.test(bodyText);
     await page.screenshot({ path: desktopScreenshot, fullPage: true });
@@ -160,6 +210,11 @@ async function main() {
       throw new Error(`Mobile knowledge-map workspace did not render: ${error instanceof Error ? error.message : String(error)}; body=${body}`);
     });
     await page.getByTestId('knowledge-map-workspace').scrollIntoViewIfNeeded();
+    await page.getByTestId('knowledge-map-view-concept').click();
+    await page.getByTestId('knowledge-map-graph').waitFor({ state: 'visible' });
+    await page.getByTestId('knowledge-map-view-citation').click();
+    await page.getByTestId('citation-trail-panel').waitFor({ state: 'visible' });
+    const mobileCitationTrailCount = await page.getByTestId('citation-trail-item').count();
     const mobileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     await page.screenshot({ path: mobileScreenshot, fullPage: true });
 
@@ -171,6 +226,9 @@ async function main() {
         focalCount === 1 &&
         nodeCount >= 4 &&
         edgeCount >= 2 &&
+        conceptNodeCount >= 1 &&
+        citationTrailCount >= 1 &&
+        mobileCitationTrailCount >= 1 &&
         detailText.includes('引用状态') &&
         !userFacingLeak &&
         !mobileOverflow &&
@@ -183,6 +241,9 @@ async function main() {
       focalCount,
       nodeCount,
       edgeCount,
+      conceptNodeCount,
+      citationTrailCount,
+      mobileCitationTrailCount,
       detailHasCitationState: detailText.includes('引用状态'),
       userFacingLeak,
       mobileOverflow,
