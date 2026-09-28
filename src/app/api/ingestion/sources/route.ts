@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
       tokenEstimate: source.tokenEstimate,
       vectorIndex: source.vectorIndex,
       mineru: source.mineru,
+      literature: source.literature,
       updatedAt: source.updatedAt,
       error: source.error,
     })),

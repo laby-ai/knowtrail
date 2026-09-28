@@ -41,7 +41,7 @@ export async function resolveMemberBailianProfile(request: NextRequest | Request
   const session = await resolveAccountSessionFromRequest(request);
   if (!session) throw new BailianProfileRequiredError();
   const client = accountClient();
-  if (!client) throw new Error('账号模型配置服务尚未连接，请联系管理员。');
+  if (!client) throw new BailianProfileRequiredError();
   try {
     return await client.resolveMemberProviderProfile({
       tenantId: session.tenant_id,
@@ -62,6 +62,23 @@ export async function resolveRequestRuntimeAIConfig(
 ): Promise<Partial<RuntimeAIConfig>> {
   try {
     const profile = await resolveMemberBailianProfile(request);
+    const envConfig = serverRuntimeAIConfigFromEnv();
+
+    // Prefer ARK/OpenAI env vars over DashScope when available
+    const useEnvProvider = envConfig.apiBase && envConfig.apiKey &&
+      !envConfig.apiBase.includes('dashscope.aliyuncs.com');
+
+    if (useEnvProvider) {
+      return {
+        ...envConfig,
+        providerId: profile.provider_id,
+        workspaceId: profile.workspace_id,
+        region: profile.region,
+        imageModel: profile.image_model,
+        ttsModel: profile.tts_model,
+      };
+    }
+
     return {
       apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
       apiKey: profile.api_key,

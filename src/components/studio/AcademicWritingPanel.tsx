@@ -41,6 +41,7 @@ function toPaperRequest(paper: Paper) {
     abstract: paper.abstract,
     content: paper.content,
     rawContent: paper.rawContent,
+    literature: paper.literature,
     shortName: paper.shortName,
     keywords: paper.keywords,
     fileName: paper.fileName,

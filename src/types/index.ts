@@ -1,5 +1,6 @@
 // 学术论文智能宣讲助手 - 核心类型定义
 import type { KnowledgeMapData } from '@/lib/knowledge-map-types';
+import type { LiteratureMetadata } from '@/lib/literature/types';
 
 // 文献库相关类型
 export type FileType = 'pdf' | 'doc' | 'docx' | 'txt' | 'jpg' | 'jpeg' | 'png' | 'gif' | 'webp' | 'md' | 'csv' | 'xlsx' | 'ppt' | 'pptx' | 'other';
@@ -59,6 +60,8 @@ export interface Paper {
   journal?: string;
   /** DOI */
   doi?: string;
+  /** 检索来源的真实题录元数据，不代表已获取全文 */
+  literature?: LiteratureMetadata;
   /** MinerU 提取的论文图表列表 */
   mineruFigures?: MinerUFigure[];
   /** MinerU 提取状态: pending/running/done/failed */

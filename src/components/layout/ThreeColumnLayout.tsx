@@ -12,9 +12,11 @@ interface ThreeColumnLayoutProps {
   initialMobilePanel?: 'left' | 'center' | 'right';
 }
 
-const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths';
+const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths-v3';
+const MIN_PANEL = 200;
+const DIVIDER_WIDTH = 5;
 
-function readStoredWidths(): { left?: number; right?: number } {
+function readStoredWidths(): { leftPct?: number; rightPct?: number } {
   if (typeof window === 'undefined') return {};
   try {
     return JSON.parse(window.localStorage.getItem(WIDTHS_STORAGE_KEY) || '{}');
@@ -27,52 +29,92 @@ export function ThreeColumnLayout({
   leftPanel,
   centerPanel,
   rightPanel,
-  defaultLeftWidth = 280,
-  defaultRightWidth = 440,
+  defaultLeftWidth,
+  defaultRightWidth,
   initialMobilePanel = 'center',
 }: ThreeColumnLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [leftWidth, setLeftWidth] = useState(() => {
-    const stored = readStoredWidths().left;
-    return stored && stored >= 220 && stored <= 450 ? stored : defaultLeftWidth;
-  });
-  const [rightWidth, setRightWidth] = useState(() => {
-    const stored = readStoredWidths().right;
-    return stored && stored >= 360 && stored <= 680 ? stored : defaultRightWidth;
-  });
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [initialized, setInitialized] = useState(false);
+  const [leftPct, setLeftPct] = useState(1 / 3);
+  const [rightPct, setRightPct] = useState(1 / 3);
+  const leftPctRef = useRef(1 / 3);
+  const rightPctRef = useRef(1 / 3);
   const [dragging, setDragging] = useState<'left' | 'right' | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'left' | 'center' | 'right'>(initialMobilePanel);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const startXRef = useRef(0);
-  const startWidthRef = useRef(0);
+  const startLeftPctRef = useRef(1 / 3);
+  const startRightPctRef = useRef(1 / 3);
+
+  // Derive pixel widths from percentages and current container width
+  const available = Math.max(0, containerWidth - DIVIDER_WIDTH * 2);
+  const leftWidth = initialized && containerWidth > 0 ? Math.floor(available * leftPct) : 0;
+  const rightWidth = initialized && containerWidth > 0 ? Math.floor(available * rightPct) : 0;
+  const centerWidth = Math.max(0, available - leftWidth - rightWidth);
+
+  // ResizeObserver: recalculate pixel widths from stored percentages on every resize
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      setContainerWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Initialize from localStorage on first valid container width
+  useEffect(() => {
+    if (containerWidth <= 0 || initialized) return;
+    const stored = readStoredWidths();
+    const third = 1 / 3;
+    const lp = stored.leftPct && stored.leftPct > 0 ? stored.leftPct : third;
+    const rp = stored.rightPct && stored.rightPct > 0 ? stored.rightPct : third;
+    setLeftPct(lp);
+    setRightPct(rp);
+    leftPctRef.current = lp;
+    rightPctRef.current = rp;
+    setInitialized(true);
+  }, [containerWidth, initialized]);
 
   const handleMouseDown = useCallback((side: 'left' | 'right', e: React.MouseEvent) => {
     e.preventDefault();
     setDragging(side);
     startXRef.current = e.clientX;
-    startWidthRef.current = side === 'left' ? leftWidth : rightWidth;
-  }, [leftWidth, rightWidth]);
+    startLeftPctRef.current = leftPctRef.current;
+    startRightPctRef.current = rightPctRef.current;
+  }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragging) return;
+    if (!dragging || containerWidth <= 0) return;
     const delta = e.clientX - startXRef.current;
+    const avail = containerWidth - DIVIDER_WIDTH * 2;
+    if (avail <= 0) return;
+
     if (dragging === 'left') {
-      const newWidth = Math.max(220, Math.min(450, startWidthRef.current + delta));
-      setLeftWidth(newWidth);
+      const newPct = Math.max(MIN_PANEL / avail, Math.min(1 - MIN_PANEL / avail, startLeftPctRef.current + delta / avail));
+      setLeftPct(newPct);
+      leftPctRef.current = newPct;
     } else {
-      const newWidth = Math.max(360, Math.min(680, startWidthRef.current - delta));
-      setRightWidth(newWidth);
+      const newPct = Math.max(MIN_PANEL / avail, Math.min(1 - MIN_PANEL / avail, startRightPctRef.current - delta / avail));
+      setRightPct(newPct);
+      rightPctRef.current = newPct;
     }
-  }, [dragging]);
+  }, [dragging, containerWidth]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
     try {
-      window.localStorage.setItem(WIDTHS_STORAGE_KEY, JSON.stringify({ left: leftWidth, right: rightWidth }));
+      window.localStorage.setItem(WIDTHS_STORAGE_KEY, JSON.stringify({
+        leftPct: leftPctRef.current,
+        rightPct: rightPctRef.current,
+      }));
     } catch { /* quota — persistence is best-effort */ }
-  }, [leftWidth, rightWidth]);
+  }, []);
 
   useEffect(() => {
     if (dragging) {
@@ -132,9 +174,9 @@ export function ThreeColumnLayout({
         </div>
       </div>
 
-      {/* Left Panel — liquid glass */}
+      {/* Left Panel */}
       <div
-        className={`${mobilePanel === 'left' ? 'flex' : 'hidden'} ${leftCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 w-full flex-1 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full md:flex-none`}
+        className={`${mobilePanel === 'left' ? 'flex' : 'hidden'} ${leftCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full`}
         style={{ width: isMobile ? undefined : leftWidth }}
         aria-hidden={isMobile && mobilePanel !== 'left'}
       >
@@ -151,15 +193,14 @@ export function ThreeColumnLayout({
         />
       )}
 
-      {/* Center Panel — liquid glass */}
+      {/* Center Panel */}
       <div
-        className={`${mobilePanel === 'center' ? 'flex' : 'hidden'} relative min-h-0 w-full flex-1 overflow-hidden liquid-glass-panel md:flex md:h-full`}
-        style={{ borderRight: 'none', borderLeft: 'none' }}
+        className={`${mobilePanel === 'center' ? 'flex' : 'hidden'} relative min-h-0 flex-shrink-0 overflow-hidden liquid-glass-panel md:flex md:h-full`}
+        style={{ width: isMobile ? undefined : centerWidth, borderRight: 'none', borderLeft: 'none' }}
         aria-hidden={isMobile && mobilePanel !== 'center'}
       >
         {centerPanel}
 
-        {/* Collapse / expand toggles */}
         <button
           type="button"
           onClick={() => setLeftCollapsed(v => !v)}
@@ -192,9 +233,9 @@ export function ThreeColumnLayout({
         />
       )}
 
-      {/* Right Panel — liquid glass */}
+      {/* Right Panel */}
       <div
-        className={`${mobilePanel === 'right' ? 'flex' : 'hidden'} ${rightCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 w-full flex-1 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full md:flex-none`}
+        className={`${mobilePanel === 'right' ? 'flex' : 'hidden'} ${rightCollapsed ? 'md:hidden' : 'md:flex'} min-h-0 flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full`}
         style={{ width: isMobile ? undefined : rightWidth, borderRight: 'none', borderLeft: '1px solid var(--glass-border)' }}
         aria-hidden={isMobile && mobilePanel !== 'right'}
       >

@@ -1,4 +1,5 @@
 import type { RagSourceInput, SourceChunk } from '@/lib/rag';
+import type { LiteratureMetadata } from '@/lib/literature/types';
 import type { RuntimeAIConfig } from '@/types';
 
 export const DEFAULT_SOURCE_STORE_PATH = '.data/sources/sources.json';
@@ -66,9 +67,11 @@ export interface StoredSourceRecord {
   tokenEstimate: number;
   vectorIndex: VectorIndexRecord;
   mineru?: MinerUExtractionRecord;
+  literature?: LiteratureMetadata;
 }
 
 export interface IngestionSourceInput extends RagSourceInput {
+  literature?: LiteratureMetadata;
   id: string;
   ownerMemberId?: string;
   notebookId?: string;

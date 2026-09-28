@@ -109,6 +109,7 @@ export function StructuredPresentationPanel() {
       abstract: p.abstract,
       content: p.content,
       rawContent: p.rawContent,
+      literature: p.literature,
       shortName: p.shortName,
       fileUrl: p.fileUrl,
       fileKey: p.fileKey,

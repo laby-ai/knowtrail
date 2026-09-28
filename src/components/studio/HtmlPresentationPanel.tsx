@@ -283,6 +283,7 @@ export function HtmlPresentationPanel() {
             abstract: p.abstract,
             content: p.content,
             rawContent: p.rawContent,
+            literature: p.literature,
           })),
           aiConfig,
           styleId: selectedStyle,

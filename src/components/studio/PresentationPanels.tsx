@@ -196,6 +196,7 @@ function PresentationPanel() {
             abstract: p.abstract,
             content: p.content,
             rawContent: p.rawContent,
+            literature: p.literature,
           })),
           aiConfig,
           pageCount,

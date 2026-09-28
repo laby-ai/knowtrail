@@ -37,6 +37,24 @@ assert(grounded.promptContext.includes('sourceId:'), 'grounded prompt should exp
 assert(grounded.promptContext.includes('chunkId:'), 'grounded prompt should expose chunk ids');
 assert(grounded.citations.some(citation => citation.sourceId === 'paper-ui'), 'grounded context should retrieve UI prompt evidence');
 
+const metadataOnly = {
+  id: 'metadata-only', title: 'An unreviewed paper',
+  content: 'This display text must not become evidence.',
+  rawContent: 'This is not verified paper text.',
+  literature: { evidenceScope: 'metadata' as const },
+};
+assert.deepEqual(buildSourceChunks([metadataOnly]), []);
+assert.equal(buildGroundedContext('paper', [metadataOnly]).citations.length, 0);
+const abstractOnly = buildSourceChunks([{
+  ...metadataOnly,
+  abstract: 'This abstract reports an observed association. '.repeat(100),
+  literature: { evidenceScope: 'abstract' as const },
+}]);
+assert(abstractOnly.length > 1);
+assert(abstractOnly.every(chunk => chunk.sourceTitle.includes('仅摘要')));
+assert(abstractOnly.every(chunk => !chunk.text.includes('not verified') && !chunk.text.includes('display text')));
+assert.deepEqual(buildSourceChunks([{ ...metadataOnly, literature: { evidenceScope: 'abstract' as const } }]), []);
+
 console.log(JSON.stringify({
   ok: true,
   checked: [

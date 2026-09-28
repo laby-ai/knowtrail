@@ -64,10 +64,10 @@ function envFirst(...names: string[]): string {
 function resolveServerRuntimeAIConfig(input?: Partial<RuntimeAIConfig>): Partial<RuntimeAIConfig> {
   if (allowRequestRuntimeAIConfig() && hasRuntimeAIProvider(input)) return input;
   return {
-    apiBase: envFirst('OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE'),
-    apiKey: envFirst('OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY'),
-    model: envFirst('OPENAI_COMPAT_MODEL', 'ARK_MODEL'),
-    visionModel: envFirst('OPENAI_COMPAT_VISION_MODEL', 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL', 'ARK_VISION_MODEL'),
+    apiBase: envFirst('OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE', 'DASHSCOPE_API_BASE'),
+    apiKey: envFirst('OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY', 'DASHSCOPE_API_KEY'),
+    model: envFirst('OPENAI_COMPAT_MODEL', 'ARK_MODEL', 'DASHSCOPE_MODEL'),
+    visionModel: envFirst('OPENAI_COMPAT_VISION_MODEL', 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL', 'ARK_VISION_MODEL', 'DASHSCOPE_IMAGE_MODEL'),
     embeddingModel: envFirst('OPENAI_COMPAT_EMBEDDING_MODEL', 'ARK_EMBEDDING_MODEL'),
     ttsSpeaker: envFirst('AGENTPLAN_TTS_SPEAKER', 'ARK_TTS_SPEAKER'),
   };
@@ -122,6 +122,94 @@ async function imageUrlToBase64(url: string, apiKey?: string): Promise<string> {
   }
   const buffer = Buffer.from(await response.arrayBuffer());
   return buffer.toString('base64');
+}
+
+const DASHSCOPE_IMAGE_API = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis';
+const DASHSCOPE_TASK_API = 'https://dashscope.aliyuncs.com/api/v1/tasks';
+
+function isDashScopeEndpoint(apiBase: string): boolean {
+  return /dashscope\.aliyuncs\.com/i.test(apiBase);
+}
+
+function dashScopeSizeForAspectRatio(aspectRatio?: string): string {
+  if (aspectRatio === '4:3') return '1024*768';
+  if (aspectRatio === '1:1') return '1024*1024';
+  return '1280*720';
+}
+
+async function generateDashScopeNativeImage(
+  prompt: string,
+  apiKey: string,
+  options?: { aspectRatio?: string; negativePrompt?: string },
+): Promise<string> {
+  const model = envFirst('DASHSCOPE_IMAGE_MODEL', 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL') || 'wanx2.1-t2i-turbo';
+  const size = dashScopeSizeForAspectRatio(options?.aspectRatio);
+
+  const submitBody = {
+    model,
+    input: {
+      prompt,
+      ...(options?.negativePrompt ? { negative_prompt: options.negativePrompt } : {}),
+    },
+    parameters: { n: 1, size, prompt_extend: Boolean(options?.negativePrompt), watermark: false },
+  };
+
+  const submitResp = await fetch(DASHSCOPE_IMAGE_API, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'X-DashScope-Async': 'enable',
+    },
+    body: JSON.stringify(submitBody),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  const submitRaw = await submitResp.text().catch(() => '');
+  if (!submitResp.ok) {
+    throw new Error(`DashScope 图片生成提交失败:HTTP ${submitResp.status}${submitRaw ? ` - ${redactRuntimeAISecrets(submitRaw, apiKey)}` : ''}`);
+  }
+
+  let submitData: { output?: { task_id?: string; task_status?: string }; code?: string; message?: string };
+  try { submitData = JSON.parse(submitRaw); } catch {
+    throw new Error(`DashScope 图片提交返回非 JSON:${redactRuntimeAISecrets(submitRaw.slice(0, 300), apiKey)}`);
+  }
+
+  const taskId = submitData.output?.task_id;
+  if (!taskId) {
+    throw new Error(`DashScope 图片提交未返回 task_id${submitData.code ? `:${submitData.code}` : ''}`);
+  }
+
+  const pollDeadline = Date.now() + Number(process.env.PPT_IMAGE_TIMEOUT_MS || 180_000);
+  while (Date.now() < pollDeadline) {
+    const pollResp = await fetch(`${DASHSCOPE_TASK_API}/${taskId}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!pollResp.ok) {
+      console.error(`[DashScope] Task poll HTTP ${pollResp.status}`);
+      await new Promise(r => setTimeout(r, 3000));
+      continue;
+    }
+
+    const pollData: {
+      output?: { task_status?: string; results?: Array<{ url?: string }>; task_metrics?: Record<string, unknown> };
+    } = await pollResp.json();
+
+    const status = pollData.output?.task_status;
+    if (status === 'SUCCEEDED') {
+      const imageUrl = pollData.output?.results?.[0]?.url;
+      if (!imageUrl) throw new Error('DashScope 图片生成成功但未返回图片 URL');
+      return imageUrlToBase64(imageUrl, apiKey);
+    }
+    if (status === 'FAILED') {
+      throw new Error(`DashScope 图片生成任务失败:${JSON.stringify(pollData.output?.task_metrics || {})}`);
+    }
+
+    await new Promise(r => setTimeout(r, 3000));
+  }
+
+  throw new Error('DashScope 图片生成超时');
 }
 
 /**
@@ -252,12 +340,21 @@ async function generateImage(prompt: string, options?: {
     console.log('[生图] 尝试思坦AI...');
     const result = await generateSitianImage(prompt, options);
     if (result) return result;
-    console.log('[生图] 思坦AI失败，改用真实 OpenAI-compatible 图片模型...');
+    console.log('[生图] 思坦AI失败，改用其他图片模型...');
   } else {
-    console.log('[生图] 未配置思坦AI Token，使用真实 OpenAI-compatible 图片模型...');
+    console.log('[生图] 未配置思坦AI Token，使用其他图片模型...');
   }
 
-  return generateOpenAICompatibleImage(prompt, resolveServerRuntimeAIConfig(options?.runtimeConfig), options);
+  const resolvedConfig = resolveServerRuntimeAIConfig(options?.runtimeConfig);
+  const apiBase = resolveImageApiBase(resolvedConfig);
+  const apiKey = resolveImageApiKey(resolvedConfig);
+  if (apiKey && isDashScopeEndpoint(apiBase)) {
+    return generateDashScopeNativeImage(prompt, apiKey, {
+      aspectRatio: options?.aspectRatio,
+      negativePrompt: options?.negativePrompt,
+    });
+  }
+  return generateOpenAICompatibleImage(prompt, resolvedConfig, options);
 }
 
 // ============================================================

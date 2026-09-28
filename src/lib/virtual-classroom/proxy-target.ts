@@ -31,10 +31,7 @@ export function resolveClassroomProxyTarget(requestUrl: string, pathname: string
     || classroomRootProxyPrefixes.some(prefix => pathname.startsWith(prefix));
 
   if (!runtimePath && !rootPath) return { shouldProxy: false, targetPath: '' };
-  if (!runtimePath) return { shouldProxy: true, targetPath: requestUrl || pathname };
-
-  const stripped = (requestUrl || pathname).slice(CLASSROOM_RUNTIME_PREFIX.length);
-  return { shouldProxy: true, targetPath: stripped || '/' };
+  return { shouldProxy: true, targetPath: requestUrl || pathname };
 }
 
 export function shouldProxyMissingClassroomAsset(

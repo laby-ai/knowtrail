@@ -6,28 +6,43 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
   Circle,
+  FileText,
   Globe2,
   GraduationCap,
   Loader2,
   Plus,
+  Quote,
   Search,
   X,
 } from 'lucide-react';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { createDiscoveredSourceFile, type DiscoveredSourceFileInput } from '@/lib/discovered-source-file';
+import { copyTextWithFallback } from '@/lib/clipboard';
 
 type DiscoverResult = DiscoveredSourceFileInput;
 
 type IngestPhase = 'idle' | 'fetching' | 'done';
+
+type CitationStyle = 'apa' | 'GB/T 7714' | 'mla' | 'chicago' | 'ieee' | 'bibtex';
+
+const CITATION_STYLES: { value: CitationStyle; label: string }[] = [
+  { value: 'apa', label: 'APA 7th' },
+  { value: 'GB/T 7714', label: 'GB/T 7714' },
+  { value: 'mla', label: 'MLA 9th' },
+  { value: 'chicago', label: 'Chicago 17th' },
+  { value: 'ieee', label: 'IEEE' },
+  { value: 'bibtex', label: 'BibTeX' },
+];
 
 export function DiscoverSourcesModal({
   notebookId,
   onClose,
   onIngestFiles,
   variant = 'modal',
-  initialScope = 'webpage',
+  initialScope = 'scholar',
 }: {
   notebookId?: string;
   onClose: () => void;
@@ -47,6 +62,11 @@ export function DiscoverSourcesModal({
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>('idle');
   const [ingestProgress, setIngestProgress] = useState({ done: 0, total: 0 });
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
+  const [citeStyle, setCiteStyle] = useState<CitationStyle>('apa');
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [fulltextLoading, setFulltextLoading] = useState<string | null>(null);
+  const [fulltextError, setFulltextError] = useState<{link: string; message: string} | null>(null);
+  const [citeError, setCiteError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -159,6 +179,66 @@ export function DiscoverSourcesModal({
     setIngestPhase('idle');
   }, [results, selected, ingestPhase, notebookId, onIngestFiles, onClose, variant]);
 
+  const handleCite = useCallback(async (item: DiscoverResult) => {
+    setCiteError(null);
+    try {
+      const year = item.date ? new Date(item.date).getFullYear() : new Date().getFullYear();
+      const authors = (item.authors || []).map(name => ({ name }));
+      const res = await fetch('/api/literature/cite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          papers: [{ title: item.title, authors, year, url: item.link }],
+          style: citeStyle,
+        }),
+      });
+      if (!res.ok) throw new Error('引用格式化失败');
+      const data = await res.json();
+      const citation = data.citations?.[0] || '';
+      if (!citation) throw new Error('引用内容为空');
+
+      const ok = await copyTextWithFallback(citation);
+      if (!ok) {
+        setCiteError('复制失败，请手动复制: ' + citation);
+        setTimeout(() => setCiteError(null), 8000);
+        return;
+      }
+      setCopiedLink(item.link);
+      setTimeout(() => setCopiedLink(null), 3000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '引用格式化失败';
+      setCiteError(message);
+      setTimeout(() => setCiteError(null), 3000);
+    }
+  }, [citeStyle]);
+
+  const handleGetFullText = useCallback(async (item: DiscoverResult) => {
+    setFulltextError(null);
+    setFulltextLoading(item.link);
+    try {
+      const res = await fetch('/api/literature/fulltext', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'url', pdfUrl: item.link }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setFulltextError({link: item.link, message: data.message || '全文获取失败'});
+        setTimeout(() => setFulltextError(null), 3000);
+        return;
+      }
+      const data = await res.json();
+      setNotice(`全文获取成功 (${data.charCount} 字符)`);
+      setTimeout(() => setNotice(null), 3000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '全文获取失败';
+      setFulltextError({link: item.link, message});
+      setTimeout(() => setFulltextError(null), 3000);
+    } finally {
+      setFulltextLoading(null);
+    }
+  }, []);
+
   return (
     <div
       className={variant === 'modal'
@@ -241,12 +321,33 @@ export function DiscoverSourcesModal({
             <p className="text-[11px] leading-relaxed text-emerald-300">{notice}</p>
           </div>
         )}
+        {citeError && (
+          <div className="flex items-start gap-2 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" />
+            <p className="text-[11px] leading-relaxed text-red-300">{citeError}</p>
+          </div>
+        )}
         {searchProvider === 'arxiv' && (
           <div className="flex items-start gap-2 rounded-xl border border-blue-400/20 bg-blue-500/8 px-3 py-2" data-testid="discover-provider-boundary">
             <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
             <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
               当前使用 arXiv 开放源，英文题名或关键词通常更准确。结果是候选线索，引用前仍需核对题名、作者、日期、来源页和主张依据。
             </p>
+          </div>
+        )}
+
+        {results.length > 0 && (
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-[11px] text-[var(--text-tertiary)]">引用格式:</span>
+            <select
+              value={citeStyle}
+              onChange={e => setCiteStyle(e.target.value as CitationStyle)}
+              className="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-2 py-1 text-[11px] text-[var(--text-primary)]"
+            >
+              {CITATION_STYLES.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -304,10 +405,36 @@ export function DiscoverSourcesModal({
                         {itemError && (
                           <span className="mt-1 block text-[10px] text-red-400">抓取失败:{itemError}</span>
                         )}
+                        {fulltextError?.link === item.link && (
+                          <span className="mt-1 block text-[10px] text-red-400">全文获取失败: {fulltextError.message}</span>
+                        )}
                       </span>
                     </span>
                   </button>
-                  <div className="flex justify-end border-t border-[var(--border-subtle)] px-3.5 py-2">
+                  <div className="flex items-center justify-between border-t border-[var(--border-subtle)] px-3.5 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={e => { e.stopPropagation(); void handleCite(item); }}
+                        className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium transition ${
+                          copiedLink === item.link
+                            ? 'bg-green-500/10 text-green-500'
+                            : 'text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        {copiedLink === item.link
+                          ? <><Check className="h-3 w-3" /><span>已复制</span></>
+                          : <><Quote className="h-3 w-3" /><span>引用</span></>}
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); void handleGetFullText(item); }}
+                        disabled={fulltextLoading === item.link}
+                        className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium text-[var(--text-tertiary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-secondary)] disabled:opacity-50"
+                      >
+                        {fulltextLoading === item.link
+                          ? <><Loader2 className="h-3 w-3 animate-spin" /><span>获取中...</span></>
+                          : <><FileText className="h-3 w-3" /><span>获取全文</span></>}
+                      </button>
+                    </div>
                     <a
                       href={item.link}
                       target="_blank"

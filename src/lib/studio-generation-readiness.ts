@@ -37,9 +37,9 @@ function state(ready: boolean, unavailableMessage: string): StudioGenerationStat
 export function resolveStudioGenerationReadiness(
   env: StudioGenerationEnvironment = process.env,
 ): StudioGenerationReadiness {
-  const modelBase = envFirst(env, 'OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE');
-  const modelKey = envFirst(env, 'OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY');
-  const textModel = envFirst(env, 'OPENAI_COMPAT_MODEL', 'ARK_MODEL');
+  const modelBase = envFirst(env, 'OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE', 'DASHSCOPE_API_BASE');
+  const modelKey = envFirst(env, 'OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY', 'DASHSCOPE_API_KEY');
+  const textModel = envFirst(env, 'OPENAI_COMPAT_MODEL', 'ARK_MODEL', 'DASHSCOPE_MODEL');
   const textReady = hasAll([modelBase, modelKey, textModel]);
 
   const sitianReady = hasAll([
@@ -47,9 +47,9 @@ export function resolveStudioGenerationReadiness(
     envFirst(env, 'SITIAN_API_TOKEN'),
   ]);
   const compatibleImageReady = hasAll([
-    envFirst(env, 'OPENAI_COMPAT_IMAGE_API_BASE', 'ARK_IMAGE_API_BASE', 'OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE'),
-    envFirst(env, 'OPENAI_COMPAT_IMAGE_API_KEY', 'ARK_IMAGE_API_KEY', 'OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY'),
-    envFirst(env, 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL'),
+    envFirst(env, 'OPENAI_COMPAT_IMAGE_API_BASE', 'ARK_IMAGE_API_BASE', 'OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE', 'DASHSCOPE_API_BASE'),
+    envFirst(env, 'OPENAI_COMPAT_IMAGE_API_KEY', 'ARK_IMAGE_API_KEY', 'OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY', 'DASHSCOPE_API_KEY'),
+    envFirst(env, 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL', 'DASHSCOPE_IMAGE_MODEL'),
   ]);
   const imageReady = sitianReady || compatibleImageReady;
 

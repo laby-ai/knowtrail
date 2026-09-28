@@ -48,13 +48,18 @@ export async function POST(request: NextRequest) {
     } else {
       requestSources = papers;
       paperContext = papers
+        .filter(p => p.literature?.evidenceScope !== 'metadata')
         .map((p: RagSourceInput, i: number) => {
           const shortName = p.shortName || `${p.authors?.[0] || '未知'}. ${p.year || '?'}`;
+          if (p.literature?.evidenceScope === 'abstract') {
+            return p.abstract?.trim() ? `[文献${i + 1}] ${shortName} - ${p.title || '无标题'}（仅摘要，未获取全文）\n摘要：${p.abstract}` : '';
+          }
           const aiSummary = p.content || p.abstract || '无内容';
           const rawText = p.rawContent || '';
           const rawSection = rawText ? `\n原始文档文本：\n${rawText.slice(0, 10000)}` : '';
           return `[文献${i + 1}] ${shortName} - ${p.title || '无标题'}\n关键词: ${p.keywords?.join(', ') || '无'}\n摘要: ${p.abstract || '无'}\n详细内容：${aiSummary}${rawSection}`;
         })
+        .filter(Boolean)
         .join('\n\n---\n\n');
       paperCount = papers.length;
     }
@@ -80,6 +85,10 @@ export async function POST(request: NextRequest) {
           ? auditCitationMarkers(debugAnswerText, grounded.citations)
           : undefined,
       });
+    }
+
+    if (!evidenceContext.trim()) {
+      return NextResponse.json({ error: '所选文献仅有题录或没有可用内容，请添加摘要或全文后再生成报告。' }, { status: 422 });
     }
 
     const messages = [

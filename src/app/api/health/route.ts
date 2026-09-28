@@ -21,9 +21,9 @@ function hasAll(values: Array<string | undefined>): boolean {
 
 function hasServerFallbackModel(): boolean {
   return hasAll([
-    process.env.OPENAI_COMPAT_API_BASE || process.env.ARK_API_BASE || process.env.OPENAI_API_BASE,
-    process.env.OPENAI_COMPAT_API_KEY || process.env.ARK_API_KEY || process.env.OPENAI_API_KEY,
-    process.env.OPENAI_COMPAT_MODEL || process.env.ARK_MODEL,
+    process.env.OPENAI_COMPAT_API_BASE || process.env.ARK_API_BASE || process.env.OPENAI_API_BASE || process.env.DASHSCOPE_API_BASE,
+    process.env.OPENAI_COMPAT_API_KEY || process.env.ARK_API_KEY || process.env.OPENAI_API_KEY || process.env.DASHSCOPE_API_KEY,
+    process.env.OPENAI_COMPAT_MODEL || process.env.ARK_MODEL || process.env.DASHSCOPE_MODEL,
   ]);
 }
 

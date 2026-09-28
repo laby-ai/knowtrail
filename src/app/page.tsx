@@ -82,8 +82,6 @@ function AcademicPresenterContent({
           )}
           centerPanel={<WorkbenchCenterPanel />}
           rightPanel={<StudioPanel />}
-          defaultLeftWidth={280}
-          defaultRightWidth={500}
           initialMobilePanel={showSourceGuide ? 'left' : 'center'}
         />
       </div>

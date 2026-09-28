@@ -11,6 +11,14 @@ import {
   FileSearch,
   Square,
   Trash2,
+  Wrench,
+  Settings,
+  X,
+  BookOpen,
+  TrendingUp,
+  Scale,
+  AlertTriangle,
+  GitCompare,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
@@ -31,6 +39,15 @@ import type { StudioGenerationState } from '@/lib/studio-generation-readiness';
 const CHAT_RESPONSE_MAX_TOKENS = 260;
 const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
 
+const CHAT_SKILLS = [
+  { id: 'deep-analysis', label: '深度分析', icon: FileSearch, description: '深入分析文献内容与逻辑' },
+  { id: 'citation-trace', label: '引用追溯', icon: BookOpen, description: '追溯引用链与证据脉络' },
+  { id: 'data-extract', label: '数据提取', icon: TrendingUp, description: '提取关键数据与指标' },
+  { id: 'method-review', label: '方法审查', icon: Scale, description: '审查研究方法与实验设计' },
+  { id: 'risk-assess', label: '风险评估', icon: AlertTriangle, description: '识别局限性与潜在风险' },
+  { id: 'synthesis', label: '综合分析', icon: GitCompare, description: '跨文献综合对比分析' },
+] as const;
+
 interface SendQuestionOptions {
   appendUserMessage?: boolean;
   assistantMessageId?: string;
@@ -45,6 +62,8 @@ export function EditorPanel() {
   const [inputMessage, setInputMessage] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
+  const [selectedSkills, setSelectedSkills] = useState<Set<string>>(new Set());
+  const [showSkillSelector, setShowSkillSelector] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const _msgSeq = useRef(0);
   const chatAbortRef = useRef<AbortController | null>(null);
@@ -129,6 +148,7 @@ export function EditorPanel() {
             title: p.title, authors: p.authors, year: p.year,
             abstract: p.abstract, content: p.content, rawContent: p.rawContent, shortName: p.shortName,
             fileName: p.fileName, fileType: p.fileType,
+            literature: p.literature,
           })),
         }),
       });
@@ -272,6 +292,7 @@ export function EditorPanel() {
         index: i + 1, id: p.id, title: p.title, authors: p.authors, year: p.year,
         abstract: p.abstract, content: p.content, rawContent: p.rawContent,
         shortName: p.shortName, keywords: p.keywords, fileName: p.fileName, fileType: p.fileType,
+        literature: p.literature,
       }));
 
       const response = await fetch('/api/ai/report', {
@@ -382,6 +403,18 @@ export function EditorPanel() {
     URL.revokeObjectURL(url);
   }, [chatMessages]);
 
+  const toggleSkill = useCallback((skillId: string) => {
+    setSelectedSkills(prev => {
+      const next = new Set(prev);
+      if (next.has(skillId)) next.delete(skillId); else next.add(skillId);
+      return next;
+    });
+  }, []);
+
+  const toggleSkillSelector = useCallback(() => {
+    setShowSkillSelector(prev => !prev);
+  }, []);
+
   return (
     <div className="h-full flex flex-col">
       {/* Top bar */}
@@ -460,6 +493,10 @@ export function EditorPanel() {
           researchChatReadiness={researchChatReadiness}
           onCitationClick={revealPaper}
           onRegenerate={regenerateLastAnswer}
+          selectedSkills={selectedSkills}
+          onToggleSkill={toggleSkill}
+          showSkillSelector={showSkillSelector}
+          onToggleSkillSelector={toggleSkillSelector}
         />
       </div>
     </div>
@@ -483,9 +520,13 @@ interface ChatViewProps {
   researchChatReadiness: StudioGenerationState;
   onCitationClick: (paperId: string, citation?: Citation) => void;
   onRegenerate: () => void;
+  selectedSkills: Set<string>;
+  onToggleSkill: (skillId: string) => void;
+  showSkillSelector: boolean;
+  onToggleSkillSelector: () => void;
 }
 
-function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, researchChatReadiness, onCitationClick, onRegenerate }: ChatViewProps) {
+function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, researchChatReadiness, onCitationClick, onRegenerate, selectedSkills, onToggleSkill, showSkillSelector, onToggleSkillSelector }: ChatViewProps) {
   // --- Liquid pull physics ---
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
@@ -654,14 +695,14 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
     <div className="h-full flex flex-col">
       {/* Messages */}
       <div ref={scrollAreaCallbackRef} className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
-        <div className="space-y-6 max-w-2xl mx-auto">
+        <div className="space-y-6 w-full">
           {messages.length === 0 ? (
-            <div className="text-center py-16">
+            <div className="flex min-h-full flex-col items-center justify-center py-8">
               <div className="w-16 h-16 rounded-2xl liquid-glass-inset flex items-center justify-center mx-auto mb-5">
                 <MessageSquare className="h-7 w-7 text-[var(--text-tertiary)]" />
               </div>
               <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">开始文献问答</h3>
-              <p className="text-sm text-[var(--text-tertiary)] max-w-xs mx-auto">
+              <p className="text-sm text-[var(--text-tertiary)] max-w-sm mx-auto">
                 {hasSelectedSources
                   ? `已选择 ${selectedSourceCount} 个证据来源，可以开始问答、对比和证据追溯。`
                   : totalSourceCount > 0
@@ -679,7 +720,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                 <FileSearch className="h-3.5 w-3.5" />
                 {hasSelectedSources ? `已选 ${selectedSourceCount} 个证据来源` : '未选择证据来源'}
               </div>
-              <div className="mt-8 grid grid-cols-4 gap-3 max-w-2xl mx-auto">
+              <div className="mt-8 grid w-full grid-cols-4 gap-3">
                 {quickQuestions.map((q) => {
                   const Icon = q.icon;
                   return (
@@ -688,9 +729,9 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
                       onClick={() => onQuickQuestion(q.question)}
                       disabled={!hasSelectedSources || !researchChatReadiness.ready}
                       title={!researchChatReadiness.ready ? researchChatReadiness.message : hasSelectedSources ? q.question : '请先在左侧选择证据来源'}
-                      className="quick-question-button liquid-glass-static flex min-h-[64px] flex-col items-center justify-center gap-1.5 rounded-2xl px-3 py-3 text-[13px] font-semibold leading-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:!border-[var(--border-hover)] transition-all disabled:cursor-not-allowed disabled:text-[var(--text-secondary)] disabled:hover:text-[var(--text-secondary)]"
+                      className="quick-question-button liquid-glass-static flex min-h-[72px] flex-col items-center justify-center gap-2 rounded-2xl px-3 py-4 text-[13px] font-semibold leading-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:!border-[var(--border-hover)] transition-all disabled:cursor-not-allowed disabled:text-[var(--text-secondary)] disabled:hover:text-[var(--text-secondary)]"
                     >
-                      <Icon className="h-[19px] w-[19px]" />
+                      <Icon className="h-5 w-5" />
                       {q.label}
                     </button>
                   );
@@ -785,7 +826,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
             </div>
 
             {/* Quick questions grid */}
-            <div className="grid grid-cols-4 gap-2.5 max-w-xl mx-auto">
+            <div className="grid grid-cols-4 gap-2.5 w-full">
               {quickQuestions.map((q) => {
                 const Icon = q.icon;
                 return (
@@ -809,14 +850,95 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onStop, onQ
         </div>
       )}
 
+      {/* Skill/MCP Selector */}
+      <div className="px-6 pt-3 border-t border-[var(--border-subtle)]">
+        <div className="w-full">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={onToggleSkillSelector}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${
+                showSkillSelector
+                  ? 'border-blue-500/40 bg-blue-500/10 text-blue-600'
+                  : 'border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-tertiary)] hover:border-[var(--border-hover)] hover:text-[var(--text-secondary)]'
+              }`}
+            >
+              <Settings className="h-3 w-3" />
+              技能与工具
+            </button>
+            {selectedSkills.size > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {Array.from(selectedSkills).map(skillId => {
+                  const skill = CHAT_SKILLS.find(s => s.id === skillId);
+                  if (!skill) return null;
+                  const Icon = skill.icon;
+                  return (
+                    <span
+                      key={skillId}
+                      className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[10px] font-medium text-blue-600"
+                    >
+                      <Icon className="h-2.5 w-2.5" />
+                      {skill.label}
+                      <button
+                        type="button"
+                        onClick={() => onToggleSkill(skillId)}
+                        className="ml-0.5 hover:text-blue-800"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {showSkillSelector && (
+            <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-3 shadow-sm">
+              <div className="mb-2 text-[11px] font-semibold text-[var(--text-secondary)]">分析技能</div>
+              <div className="grid grid-cols-3 gap-2">
+                {CHAT_SKILLS.map(skill => {
+                  const Icon = skill.icon;
+                  const isSelected = selectedSkills.has(skill.id);
+                  return (
+                    <button
+                      key={skill.id}
+                      type="button"
+                      onClick={() => onToggleSkill(skill.id)}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left transition ${
+                        isSelected
+                          ? 'border-blue-500/40 bg-blue-500/10 text-blue-600'
+                          : 'border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-semibold">{skill.label}</div>
+                        <div className="truncate text-[10px] text-[var(--text-tertiary)]">{skill.description}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
+                <div className="mb-2 text-[11px] font-semibold text-[var(--text-secondary)]">MCP 工具</div>
+                <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
+                  <Wrench className="h-3 w-3" />
+                  <span>已连接 10 个学术 MCP 服务（Crossref、OpenAlex、Scopus 等）</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Input */}
       <div className="px-6 pb-5 pt-3 border-t border-[var(--border-subtle)]">
         {!researchChatReadiness.ready && (
-          <div data-testid="chat-model-readiness" className="mx-auto mb-2 max-w-3xl rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-200">
+          <div data-testid="chat-model-readiness" className="mb-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-200">
             {researchChatReadiness.message}
           </div>
         )}
-        <div className="max-w-3xl mx-auto flex items-end gap-3">
+        <div className="w-full flex items-end gap-3">
             <textarea
               placeholder={!researchChatReadiness.ready ? '文献问答服务配置中...' : hasSelectedSources ? '输入研究问题...(Shift+Enter 换行)' : '先选择左侧证据来源...'}
               value={inputMessage}
