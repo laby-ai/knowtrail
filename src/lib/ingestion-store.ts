@@ -1037,6 +1037,29 @@ export async function ingestExtractedSource(
   }
 }
 
+export class SourceDeletionConflict extends Error {}
+
+/** Delete only records belonging to this exact account and notebook. */
+export async function deleteIngestionSources(
+  ids: string[],
+  scope: { ownerMemberId?: string; notebookId: string },
+): Promise<string[]> {
+  const requested = new Set(ids);
+  let deletedIds: string[] = [];
+  await getSourceStoreAdapter().mutate(store => {
+    const matches = (source: StoredSourceRecord) => requested.has(source.id)
+      && (source.ownerMemberId || undefined) === scope.ownerMemberId
+      && (source.notebookId || 'default-workspace') === scope.notebookId;
+    const targets = store.sources.filter(matches);
+    if (targets.some(source => source.status === 'running' || source.status === 'pending')) {
+      throw new SourceDeletionConflict('所选文献仍在处理中，请处理完成后再删除。');
+    }
+    deletedIds = targets.map(source => source.id);
+    return { ...store, sources: store.sources.filter(source => !matches(source)) };
+  });
+  return deletedIds;
+}
+
 export async function listIngestionSources(scope: { ownerMemberId?: string; notebookId?: string } = {}): Promise<StoredSourceRecord[]> {
   const store = await getSourceStoreAdapter().read();
   return store.sources.filter(source => (

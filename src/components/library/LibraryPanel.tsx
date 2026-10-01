@@ -22,6 +22,7 @@ import {
   MoreHorizontal,
   BookOpen,
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useApp } from '@/contexts/AppContext';
 import type { CitationReveal } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
@@ -420,6 +421,11 @@ export function LibraryPanel({
   const [sourcePreview, setSourcePreview] = useState<SourcePreviewState | null>(null);
   const [sourcePreviewFocus, setSourcePreviewFocus] = useState<SourceMatrixPreviewFocus | null>(null);
   const [isSourceMatrixOpen, setIsSourceMatrixOpen] = useState(false);
+  const [removal, setRemoval] = useState<{ ids: string[]; folderId?: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [removalError, setRemovalError] = useState<string | null>(null);
+  const [removalNotice, setRemovalNotice] = useState<string | null>(null);
+  const removalInFlightRef = useRef(false);
   const ingestionSyncInFlightRef = useRef(false);
   const lastIngestionSyncAtRef = useRef(0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
@@ -526,11 +532,55 @@ export function LibraryPanel({
     };
   }, [accountAuthRequired, accountSession?.token, citationFocus, notebookId]);
 
+  const requestRemoval = (ids: string[], folderId?: string) => {
+    setContextMenu(null);
+    setRemovalError(null);
+    setRemoval({ ids: [...new Set(ids)], folderId });
+  };
+
+  const confirmRemoval = async () => {
+    if (!removal || removalInFlightRef.current) return;
+    removalInFlightRef.current = true;
+    libraryGenerationRef.current += 1; // Discard any list/detail responses fetched before deletion.
+    const generation = libraryGenerationRef.current;
+    setRemoving(true);
+    setRemovalError(null);
+    try {
+      if (removal.ids.length > 0) {
+        const response = await fetch('/api/ingestion/sources', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+          body: JSON.stringify({ ids: removal.ids, notebookId }),
+        });
+        const data = await response.json() as { success?: boolean; error?: string };
+        if (!response.ok || !data.success) throw new Error(data.error || '删除失败，请重试。');
+      }
+      if (generation !== libraryGenerationRef.current) return;
+      const removed = new Set(removal.ids);
+      foldersRef.current.forEach(folder => folder.papers.forEach(paper => {
+        if (removed.has(paper.id)) removePaper(folder.id, paper.id);
+      }));
+      if (removal.folderId) deleteFolder(removal.folderId);
+      if (sourcePreview && removed.has(sourcePreview.paper.id)) setSourcePreview(null);
+      setRemovalNotice(removal.ids.length ? `已从文献库删除 ${removal.ids.length} 个文献来源。` : '已删除空分组。');
+      setRemoval(null);
+    } catch (error) {
+      if (generation === libraryGenerationRef.current) setRemovalError(error instanceof Error ? error.message : '删除失败，请重试。');
+    } finally {
+      removalInFlightRef.current = false;
+      if (generation === libraryGenerationRef.current) {
+        setRemoving(false);
+        lastIngestionSyncAtRef.current = 0;
+        setIngestionSyncState('idle');
+      }
+    }
+  };
+
   const syncIngestionSources = useCallback(async () => {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountAuthRequired && !accountHeaders.Authorization) return;
     const now = Date.now();
-    if (ingestionSyncInFlightRef.current || literatureImportInFlightRef.current || now - lastIngestionSyncAtRef.current < 5000) return;
+    if (removalInFlightRef.current || ingestionSyncInFlightRef.current || literatureImportInFlightRef.current || now - lastIngestionSyncAtRef.current < 5000) return;
     ingestionSyncInFlightRef.current = true;
     lastIngestionSyncAtRef.current = now;
     const generation = libraryGenerationRef.current;
@@ -1096,6 +1146,20 @@ export function LibraryPanel({
         </div>
       </div>
 
+      {removalNotice && <p role="status" className="px-5 py-2 text-xs text-emerald-600">{removalNotice}</p>}
+      <Dialog open={removal !== null} onOpenChange={open => { if (!open && !removing) setRemoval(null); }}>
+        <DialogContent data-testid="library-delete-dialog" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }} showCloseButton={!removing}>
+          <DialogHeader>
+            <DialogTitle>确认删除{removal?.folderId ? '分组和文献' : '文献'}</DialogTitle>
+            <DialogDescription>将从当前文献本删除 {removal?.ids.length || 0} 个来源，删除后无法撤销。取消选择不会删除文献。</DialogDescription>
+          </DialogHeader>
+          {removalError && <p role="alert" className="my-3 text-sm text-red-500">{removalError}</p>}
+          <div className="mt-5 flex justify-end gap-3">
+            <button type="button" disabled={removing} onClick={() => setRemoval(null)} className="liquid-glass-btn">取消</button>
+            <button type="button" disabled={removing} onClick={() => void confirmRemoval()} data-testid="library-confirm-delete" className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">{removing ? '正在删除…' : '确认删除'}</button>
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* Selection bar */}
       {selectedPapers.length > 0 && (
         <div
@@ -1106,7 +1170,10 @@ export function LibraryPanel({
           <span className="text-xs font-medium text-blue-400">
             已选 {selectedPapers.length} 个文献来源
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" data-testid="library-delete-selected" onClick={() => requestRemoval(selectedPapers)} className="btn-ghost px-2 py-1 text-xs text-red-500">
+              <Trash2 className="h-3 w-3" /> 删除所选
+            </button>
             {selectedPapers.length >= 2 && (
               <button
                 type="button"
@@ -1124,7 +1191,7 @@ export function LibraryPanel({
             <button
               type="button"
               data-testid="library-clear-selection"
-              aria-label="清除已选文献"
+              aria-label="取消选择文献"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1133,7 +1200,7 @@ export function LibraryPanel({
               className="btn-ghost text-xs text-[var(--accent-blue)] hover:opacity-80 py-1 px-2"
               style={{ cursor: 'pointer', pointerEvents: 'auto' }}
             >
-              <X className="h-3 w-3" /> 清除
+              <X className="h-3 w-3" /> 取消选择
             </button>
           </div>
         </div>
@@ -1238,9 +1305,7 @@ export function LibraryPanel({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (folder.papers.length === 0 || window.confirm(`删除分组「${folder.name}」及其中 ${folder.papers.length} 个来源?此操作不可撤销。`)) {
-                      deleteFolder(folder.id);
-                    }
+                    requestRemoval(folder.papers.map(paper => paper.id), folder.id);
                   }}
                   className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--glass-subtle)] flex items-center justify-center text-zinc-500 hover:text-red-400 transition-all"
                   title="删除分组"
@@ -1877,16 +1942,12 @@ export function LibraryPanel({
             data-testid="library-remove-paper"
             onClick={() => {
               const paper = contextMenu.paper;
-              const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paper.id));
-              if (ownerFolder && window.confirm(`移除来源「${paper.title}」?`)) {
-                removePaper(ownerFolder.id, paper.id);
-              }
-              setContextMenu(null);
+              requestRemoval([paper.id]);
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            移除来源
+            删除文献
           </button>
         </div>
       )}
