@@ -1026,7 +1026,7 @@ export function LibraryPanel({
 
   return (
     <div
-      className="h-full flex flex-col relative"
+      className="h-full w-full min-w-0 flex flex-col relative"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -1045,14 +1045,14 @@ export function LibraryPanel({
 
       {/* Header */}
       <div className="px-4 pt-4 pb-3 border-b border-[var(--border-subtle)]">
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-[var(--text-primary)]">文献库</p>
             <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">
               {totalPapers} 个来源{ingestionSyncState === 'syncing' ? ' · 同步中' : ingestionSyncState === 'error' ? ' · 状态同步失败' : ''}
             </p>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               onClick={() => setIsLiteratureSearchOpen(true)}
               data-testid="library-literature-search"
@@ -1274,7 +1274,7 @@ export function LibraryPanel({
                       <FileTypeIcon fileType={paper.fileType} />
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] truncate font-medium text-[var(--text-primary)] leading-tight">{paper.title}</p>
+                        <p className="text-[13px] break-words font-medium text-[var(--text-primary)] leading-tight">{paper.title}</p>
                         <p className="text-xs text-[var(--text-secondary)] mt-1 truncate">
                           {paper.authors.join(', ') || '未知作者'} · {paper.literature ? paper.literature.year || '年份未知' : paper.year}
                         </p>

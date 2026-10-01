@@ -216,6 +216,23 @@ export function AppProvider({
     selectedPapers: initialSelectedPaperIds,
     activeFolderId: initialFolders[0]?.id || null,
   }));
+  const [foldersLoaded, setFoldersLoaded] = useState(false);
+  React.useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(`knowtrail:folders:${encodeURIComponent(storageScopeKey)}`);
+      if (raw) {
+        const folders: unknown = JSON.parse(raw);
+        if (Array.isArray(folders) && folders.every(folder => folder && typeof folder.id === 'string' && Array.isArray(folder.papers))) {
+          setState(previous => ({ ...previous, folders, activeFolderId: folders[0]?.id || null }));
+        }
+      }
+    } catch { /* Browser storage may be unavailable. */ }
+    setFoldersLoaded(true);
+  }, [storageScopeKey]);
+  React.useEffect(() => {
+    if (!foldersLoaded) return;
+    try { window.localStorage.setItem(`knowtrail:folders:${encodeURIComponent(storageScopeKey)}`, JSON.stringify(state.folders)); } catch { /* Server sources remain available. */ }
+  }, [foldersLoaded, state.folders, storageScopeKey]);
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
 
   React.useEffect(() => {

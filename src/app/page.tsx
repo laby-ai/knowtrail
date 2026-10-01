@@ -12,7 +12,6 @@ import { NotebookHome } from '@/components/home/NotebookHome';
 import {
   createDefaultNotebooks,
   scopedStorageKey,
-  normalizeNotebookTitle,
   NOTEBOOKS_STORAGE_KEY,
   ACTIVE_NOTEBOOK_STORAGE_KEY,
   type WorkspaceNotebook,
@@ -25,7 +24,9 @@ import {
   createFeaturedNotebookFolders,
 } from '@/components/home/featured-notebooks';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
-import { readStoredAccountSession } from '@/lib/account-session-browser';
+import { clearAccountSession, readStoredAccountSession } from '@/lib/account-session-browser';
+
+import { CreateNotebookDialog } from '@/components/home/CreateNotebookDialog';
 
 type View = 'landing' | 'notebooks' | 'workspace';
 
@@ -68,11 +69,9 @@ function saveActiveNotebookId(id: string | null, session: AccountAuthSession | n
 }
 
 function AcademicPresenterContent({
-  activeNotebookId: _activeNotebookId,
-  notebooks: _notebooks,
-  accountSession: _accountSession,
-  onBackHome: _onBackHome,
-  onSignOut: _onSignOut,
+  activeNotebookId,
+  notebooks,
+  onBackHome,
 }: {
   activeNotebookId: string | null;
   notebooks: WorkspaceNotebook[];
@@ -86,24 +85,33 @@ function AcademicPresenterContent({
   }, []);
 
   return (
-    <div className="h-screen w-screen overflow-hidden">
+    <div className="h-dvh w-full min-w-0 overflow-hidden flex flex-col">
+      <header className="flex shrink-0 items-center gap-4 border-b border-[var(--border-subtle)] px-4 py-2">
+        <button type="button" onClick={onBackHome} className="shrink-0 text-sm text-blue-500">返回文献本</button>
+        <h1 className="min-w-0 truncate text-sm font-semibold">{notebooks.find(n => n.id === activeNotebookId)?.title}</h1>
+      </header>
+      <div className="min-h-0 flex-1">
       <ThreeColumnLayout
         leftPanel={<LibraryPanel />}
         centerPanel={<EditorPanel />}
         rightPanel={<StudioPanel />}
-        defaultLeftWidth={280}
+        defaultLeftWidth={320}
         defaultRightWidth={380}
       />
+      </div>
     </div>
   );
 }
 
 export default function HomePage() {
+  const [createOpen, setCreateOpen] = useState(false);
   const [view, setView] = useState<View>('landing');
   const [accountStatus, setAccountStatus] = useState<AccountCenterStatus | null>(null);
   const [accountSession, setAccountSession] = useState<AccountAuthSession | null>(null);
   const [notebooks, setNotebooks] = useState<WorkspaceNotebook[]>(() => createDefaultNotebooks());
   const [activeNotebookId, setActiveNotebookId] = useState<string | null>(null);
+  const [loadedOwner, setLoadedOwner] = useState<string | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
   const [notebooksReady, setNotebooksReady] = useState(false);
 
   useEffect(() => {
@@ -125,17 +133,25 @@ export default function HomePage() {
       } else {
         setView('notebooks');
       }
-    } else if (viewParam) {
+    } else if (viewParam === 'workspace' || viewParam === 'notebooks') {
       setView(viewParam);
     }
+    setSessionReady(true);
+    const refreshSession = () => setAccountSession(readStoredAccountSession());
+    window.addEventListener('knowtrail-account-session-changed', refreshSession);
+    window.addEventListener('storage', refreshSession);
+    return () => { window.removeEventListener('knowtrail-account-session-changed', refreshSession); window.removeEventListener('storage', refreshSession); };
   }, []);
 
   useEffect(() => {
+    if (!sessionReady) return;
     const loaded = loadNotebooks(accountSession);
     setNotebooks(loaded);
-    setActiveNotebookId(loadActiveNotebookId(accountSession));
+    const storedId = loadActiveNotebookId(accountSession);
+    setActiveNotebookId(loaded.some(n => n.id === storedId) ? storedId : loaded[0]?.id ?? null);
+    setLoadedOwner(accountSession?.member.id || 'guest');
     setNotebooksReady(true);
-  }, [accountSession]);
+  }, [accountSession, sessionReady]);
 
   const persistNotebooks = useCallback((next: WorkspaceNotebook[]) => {
     setNotebooks(next);
@@ -146,9 +162,11 @@ export default function HomePage() {
     setView('notebooks');
   }, []);
 
-  const handleCreateNotebook = useCallback(() => {
-    const id = `notebook-${Date.now()}`;
-    const title = normalizeNotebookTitle('未命名文献本', notebooks.length);
+  const handleCreateNotebook = useCallback((name: string) => {
+    const title = name.trim();
+    if (!title || title.length > 80) return;
+    const id = `notebook-${crypto.randomUUID()}`;
+    setCreateOpen(false);
     const now = new Date().toISOString();
     const accents = [
       'from-sky-50 via-white to-cyan-50',
@@ -225,6 +243,7 @@ export default function HomePage() {
   }, []);
 
   const handleSignOut = useCallback(async () => {
+    clearAccountSession();
     setAccountSession(null);
     setNotebooks(createDefaultNotebooks());
     setActiveNotebookId(null);
@@ -238,8 +257,8 @@ export default function HomePage() {
   }, []);
 
   return (
-    <AppProvider>
-      <LiquidGlassProvider>
+    <LiquidGlassProvider>
+      <CreateNotebookDialog open={createOpen} onOpenChange={setCreateOpen} onCreate={handleCreateNotebook} />
         {view === 'landing' && (
           <LandingPage
             accountStatus={accountStatus}
@@ -254,14 +273,19 @@ export default function HomePage() {
             accountStatus={accountStatus}
             accountSession={accountSession}
             notebooksReady={notebooksReady}
-            onCreate={handleCreateNotebook}
+            onCreate={() => setCreateOpen(true)}
             onOpen={handleOpenNotebook}
             onOpenFeatured={handleOpenFeatured}
             onShowLanding={handleShowLanding}
             onSignOut={handleSignOut}
           />
         )}
-        {view === 'workspace' && (
+        {view === 'workspace' && notebooksReady && loadedOwner === (accountSession?.member.id || 'guest') && activeNotebookId && (
+          <AppProvider
+            key={`${accountSession?.member.id || 'guest'}:${activeNotebookId}`}
+            storageScopeKey={`${accountSession?.member.id || 'guest'}:${activeNotebookId}`}
+            initialFolders={isFeaturedNotebookId(activeNotebookId) ? createFeaturedNotebookFolders(activeNotebookId) : []}
+          >
           <AcademicPresenterContent
             activeNotebookId={activeNotebookId}
             notebooks={notebooks}
@@ -269,8 +293,8 @@ export default function HomePage() {
             onBackHome={handleBackToNotebooks}
             onSignOut={handleSignOut}
           />
+          </AppProvider>
         )}
-      </LiquidGlassProvider>
-    </AppProvider>
+    </LiquidGlassProvider>
   );
 }

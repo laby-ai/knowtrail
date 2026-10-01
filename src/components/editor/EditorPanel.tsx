@@ -21,8 +21,10 @@ import {
   Check,
   Clock,
 } from 'lucide-react';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { useApp } from '@/contexts/AppContext';
-import type { ChatMessage, Citation } from '@/types';
+import type { ChatMessage } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -32,7 +34,7 @@ import { createPulseScheduler } from '@/lib/pulse-scheduler';
 
 export function EditorPanel() {
   const {
-    chatMessages, addChatMessage, updateChatMessage, getSelectedPapers,
+    storageScopeKey, chatMessages, addChatMessage, updateChatMessage, getSelectedPapers,
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState('');
@@ -49,7 +51,7 @@ export function EditorPanel() {
   }, [chatMessages]);
 
   // Generate contextual follow-up questions
-  const generateFollowUps = useCallback((lastQuestion: string): string[] => {
+  const generateFollowUps = useCallback((): string[] => {
     const pools: Record<string, string[]> = {
       method: ['该研究采用了什么实验设计？', '样本量是否足够支撑结论？', '对照组设置是否合理？', '数据收集方法是否可靠？', '统计方法选择是否恰当？'],
       finding: ['最关键的发现是什么？', '结果是否与前人研究一致？', '效应量大小如何？', '有哪些意外发现？', '结果是否具有可重复性？'],
@@ -92,11 +94,12 @@ export function EditorPanel() {
     try {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
           message: question,
+          notebookId: notebookIdFromStorageScopeKey(storageScopeKey),
           papers: selectedPapers.map(p => ({
-            title: p.title, authors: p.authors, year: p.year,
+            id: p.id, title: p.title, authors: p.authors, year: p.year,
             abstract: p.abstract, content: p.content, rawContent: p.rawContent, shortName: p.shortName,
           })),
         }),
@@ -143,7 +146,7 @@ export function EditorPanel() {
           updateChatMessage(assistantMsgId, {
             content: accumulatedContent,
             citations: selectedPapers.map((p) => ({ paperId: p.id, paperShortName: p.shortName, excerpt: p.abstract || '' })),
-            followUps: generateFollowUps(question),
+            followUps: generateFollowUps(),
           });
         }
       }
@@ -155,7 +158,7 @@ export function EditorPanel() {
     } finally {
       setIsGenerating(false);
     }
-  }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers]);
+  }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers, storageScopeKey, generateFollowUps]);
 
   // Process queued messages when generation finishes
   useEffect(() => {
@@ -186,15 +189,16 @@ export function EditorPanel() {
 
     try {
       const paperObjects = selectedPapers.map((p, i) => ({
-        index: i + 1, title: p.title, authors: p.authors, year: p.year,
+        id: p.id, index: i + 1, title: p.title, authors: p.authors, year: p.year,
         abstract: p.abstract, content: p.content, rawContent: p.rawContent,
         shortName: p.shortName, keywords: p.keywords,
       }));
 
       const response = await fetch('/api/ai/report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
+          notebookId: notebookIdFromStorageScopeKey(storageScopeKey),
           papers: paperObjects,
           paperList: paperObjects.map((p) => ({ index: p.index, shortName: p.shortName, title: p.title, authors: p.authors, year: p.year })),
         }),
@@ -241,7 +245,7 @@ export function EditorPanel() {
           updateChatMessage(assistantMsgId, {
             content: reportText,
             citations: selectedPapers.map((p) => ({ paperId: p.id, paperShortName: p.shortName, excerpt: p.abstract || '' })),
-            followUps: generateFollowUps('综述报告'),
+            followUps: generateFollowUps(),
           });
         }
       }
@@ -253,7 +257,7 @@ export function EditorPanel() {
     } finally {
       setIsGenerating(false);
     }
-  }, [addChatMessage, updateChatMessage, getSelectedPapers]);
+  }, [addChatMessage, updateChatMessage, getSelectedPapers, storageScopeKey, generateFollowUps]);
 
   const toggleCitation = useCallback((citationId: string) => {
     setExpandedCitations(prev => { const next = new Set(prev); if (next.has(citationId)) next.delete(citationId); else next.add(citationId); return next; });
@@ -272,7 +276,7 @@ export function EditorPanel() {
   ];
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full w-full min-w-0 flex flex-col">
       {/* Top bar */}
       <div className="px-6 pt-5 pb-4 border-b border-[var(--border-subtle)]">
         <div className="flex items-center justify-between">
@@ -352,7 +356,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQues
   const scrollAreaCallbackRef = useCallback((node: HTMLDivElement | null) => {
     scrollAreaRef.current = node;
     if (scrollRef) {
-      (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      scrollRef.current = node;
     }
   }, [scrollRef]);
 
@@ -499,7 +503,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQues
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full w-full min-w-0 flex flex-col">
       {/* Messages */}
       <div ref={scrollAreaCallbackRef} className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         <div className="space-y-6">

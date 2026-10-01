@@ -26,7 +26,7 @@ export function StudioPanel() {
   const NavIcon = navItem.icon;
 
   return (
-    <div className="h-full flex flex-col min-h-0">
+    <div className="h-full w-full min-w-0 flex flex-col min-h-0">
       <div className="flex-shrink-0 px-5 pt-5 pb-4 border-b border-[var(--glass-border)]">
         <div className="flex items-center gap-3 mb-4">
           <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${navItem.accent} flex items-center justify-center border border-[var(--glass-border)]`}>
