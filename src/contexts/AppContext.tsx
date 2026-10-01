@@ -30,6 +30,8 @@ import {
   serializeChatHistory,
 } from '@/lib/chat-generation-lifecycle';
 
+import type { ChatSkillId } from '@/lib/chat-skills';
+
 export type CitationReveal = Pick<Citation, 'chunkId' | 'chunkIndex' | 'page' | 'excerpt' | 'sourceTitle' | 'paperShortName'>;
 
 export interface RevealPaperRequest {
@@ -50,6 +52,7 @@ interface AppState {
   // 中间编辑器
   editorMode: EditorMode;
   chatMessages: ChatMessage[];
+  selectedChatSkills: ChatSkillId[];
   currentReport: Report | null;
 
   // 右侧Studio
@@ -105,6 +108,7 @@ interface AppContextType extends AppState {
   addChatMessage: (message: ChatMessage) => void;
   updateChatMessage: (id: string, updates: Partial<ChatMessage>) => void;
   clearChat: () => void;
+  toggleChatSkill: (id: ChatSkillId) => void;
   setCurrentReport: (report: Report | null) => void;
   updateReportBlock: (blockId: string, updates: Partial<RichTextBlock>) => void;
   addReportBlock: (block: RichTextBlock) => void;
@@ -157,6 +161,7 @@ const defaultState: AppState = {
   activeFolderId: null,
   editorMode: 'chat',
   chatMessages: [],
+  selectedChatSkills: [],
   currentReport: null,
   activeStudioFeature: null,
   queuedStudioPrompt: null,
@@ -665,6 +670,12 @@ export function AppProvider({
 
   // ==================== PPT (setSlides is already defined above) ====================
 
+  const toggleChatSkill = useCallback((id: ChatSkillId) => {
+    setState(previous => ({ ...previous, selectedChatSkills: previous.selectedChatSkills.includes(id)
+      ? previous.selectedChatSkills.filter(skill => skill !== id)
+      : [...previous.selectedChatSkills, id] }));
+  }, []);
+
   const contextValue: AppContextType = {
     ...state,
     addFolder,
@@ -683,6 +694,7 @@ export function AppProvider({
     addChatMessage,
     updateChatMessage,
     clearChat,
+    toggleChatSkill,
     setCurrentReport,
     updateReportBlock,
     addReportBlock,

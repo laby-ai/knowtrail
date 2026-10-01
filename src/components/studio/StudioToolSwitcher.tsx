@@ -11,9 +11,9 @@ import {
   TableProperties,
   TestTubes,
   BookOpenText,
+  WandSparkles,
   ClipboardCheck,
   Images,
-  Mic,
 } from 'lucide-react';
 import {
   getVisibleStudioCategories,
@@ -36,8 +36,8 @@ const PRODUCT_VISUALS: Record<StudioTab, Pick<StudioNavItem, 'icon' | 'accent'>>
   'data-processing': { icon: TableProperties, accent: 'from-teal-500/10 to-emerald-500/5' },
   'experiment-design': { icon: TestTubes, accent: 'from-rose-500/10 to-amber-500/5' },
   'academic-writing': { icon: BookOpenText, accent: 'from-indigo-500/10 to-cyan-500/5' },
+  'text-polishing': { icon: WandSparkles, accent: 'from-fuchsia-500/10 to-rose-500/5' },
   'scientific-illustration': { icon: Images, accent: 'from-cyan-500/10 to-emerald-500/5' },
-  podcast: { icon: Mic, accent: 'from-orange-500/10 to-rose-500/5' },
   'peer-review': { icon: ClipboardCheck, accent: 'from-violet-500/10 to-emerald-500/5' },
   presentation: { icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
   knowledge: { icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
@@ -53,7 +53,7 @@ export function StudioToolSwitcher({
   activeTab,
   onSelect,
 }: {
-  activeTab: StudioTab;
+  activeTab: StudioTab | null;
   onSelect: (tab: StudioTab) => void;
 }) {
   const renderNavButton = (item: StudioNavItem) => {
@@ -65,6 +65,8 @@ export function StudioToolSwitcher({
         key={item.id}
         data-testid={`studio-nav-${item.id}`}
         aria-pressed={isActive}
+        aria-haspopup="dialog"
+        type="button"
         onClick={() => onSelect(item.id)}
         className={`spotlight-glass-card rounded-xl border px-3 py-2.5 text-left transition-all ${
           isActive

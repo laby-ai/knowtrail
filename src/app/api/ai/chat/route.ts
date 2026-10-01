@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { chatSkillInstructions } from '@/lib/chat-skills';
 import { llmStream, SYSTEM_PROMPTS } from '@/lib/ai-service';
 import type { RuntimeAIConfig } from '@/types';
 import type { RagSourceInput } from '@/lib/rag';
@@ -16,8 +17,9 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, papers, mode, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
+    const { message, papers, skills, mode, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
       message?: string;
+      skills?: unknown;
       papers?: RagSourceInput[];
       mode?: string;
       aiConfig?: Partial<RuntimeAIConfig>;
@@ -107,7 +109,7 @@ export async function POST(request: NextRequest) {
       : '';
 
     const messages = [
-      { role: 'system' as const, content: systemPrompt },
+      { role: 'system' as const, content: systemPrompt + chatSkillInstructions(skills) },
       ...(grounded.promptContext ? [{
         role: 'user' as const,
         content: `以下是从当前资料库检索出的证据片段。回答必须优先基于这些片段。\n\n${citationRules}\n\n${grounded.promptContext}`,

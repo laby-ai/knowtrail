@@ -59,12 +59,12 @@ assert.ok(studioPanelStart >= 0, 'StudioPanel export not found');
 assert.ok(panelContentStart > studioPanelStart, 'StudioPanel content switch not found');
 
 const navSection = studioPanelSource.slice(studioPanelStart, panelContentStart);
-assert.match(navSection, /<StudioToolSwitcher activeTab=\{activeTab\} onSelect=\{setActiveTab\} \/>/, 'StudioPanel should delegate tool switching to StudioToolSwitcher');
+assert.match(navSection, /<StudioToolSwitcher activeTab=\{activeTab\} onSelect=\{openTool\} \/>/, 'StudioPanel should delegate tool switching to StudioToolSwitcher');
 assert.match(switcherSource, /onClick=\{\(\) => onSelect\(item\.id\)\}/, 'Studio tool switcher should only request active tab changes');
 assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger generation side effects');
 assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');
 assert.match(navSection, /data-testid="studio-nav-helper"/, 'Studio nav should explain that generation happens in the detail panel');
-assert.match(studioPanelSource, /className="h-full overflow-y-auto"/, 'Studio should use one right-column scroll container for taxonomy and workspace');
+assert.match(studioPanelSource, /className="h-full w-full min-w-0 overflow-y-auto"/, 'Studio should use one right-column scroll container for taxonomy and workspace');
 assert.doesNotMatch(studioPanelSource, /flex-1 min-h-0 overflow-y-auto px-5 py-4/, 'Studio workspace must not create a second nested scroll region');
 
 assert.match(taxonomySource, /id: 'literature-evidence', label: '文献证据'/, 'Taxonomy should define literature evidence');
@@ -102,7 +102,7 @@ assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/lib/studio-tool-api-contr
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/studio-tool/route.ts')), 'Removed artifact API route should not remain without a product consumer');
 
 assert.match(studioPanelSource, /activeTab === 'presentation' && <PresentationWorkspacePanel \/>/, 'PPT product should render its original workspace');
-assert.match(studioPanelSource, /activeTab === 'knowledge' && <KnowledgeMapPanel \/>/, 'Knowledge map product should render its original panel');
+assert.match(studioPanelSource, /activeTab === 'knowledge'[\s\S]*<KnowledgeMapWorkspace \/> : <KnowledgeMapPanel \/>/, 'Knowledge map product should render its original panel');
 assert.match(studioPanelSource, /activeTab === 'paper-search' && <PaperSearchPanel \/>/, 'Paper search product should render its real search panel');
 assert.match(studioPanelSource, /activeTab === 'deep-research' && <DeepResearchPanel \/>/, 'Deep research product should render its real report panel');
 assert.match(studioPanelSource, /activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel \/>/, 'Hypothesis generation should render its real evidence-backed panel');
@@ -112,7 +112,7 @@ assert.match(studioPanelSource, /activeTab === 'academic-writing' && <AcademicWr
 assert.match(studioPanelSource, /activeTab === 'text-polishing' && <TextPolishingPanel \/>/, 'Text polishing should render its protected revision panel');
 assert.match(studioPanelSource, /activeTab === 'scientific-illustration' && <ScientificIllustrationPanel \/>/, 'Scientific illustration should render its real image panel');
 assert.match(studioPanelSource, /activeTab === 'peer-review' && <PeerReviewPanel \/>/, 'Peer review should render its read-only review panel');
-assert.match(studioPanelSource, /activeTab === 'virtual-classroom' && <VirtualClassroomPanel \/>/, 'Virtual classroom should render its original panel');
+assert.match(studioPanelSource, /activeTab === 'virtual-classroom'[\s\S]*<VirtualClassroomWorkspace \/> : <VirtualClassroomPanel \/>/, 'Virtual classroom should render its original panel');
 assert.match(paperSearchPanelSource, /<DiscoverSourcesModal[\s\S]*variant="embedded"/, 'Paper search should reuse the existing discover and ingest workspace');
 assert.match(discoverSourcesModalSource, /待核验/, 'Search results should state their verification boundary');
 assert.match(deepResearchPanelSource, /\/api\/ai\/deep-research/, 'Deep research should call its grounded server route');

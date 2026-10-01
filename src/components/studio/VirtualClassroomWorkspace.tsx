@@ -75,7 +75,7 @@ export function VirtualClassroomWorkspace() {
             data-testid="virtual-classroom-close-workspace"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            回到资料对话
+            返回工具
           </button>
           <div
             className="rounded-full border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-2 text-xs shadow-[var(--glass-shadow-sm)] backdrop-blur-xl"

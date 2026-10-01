@@ -104,7 +104,7 @@ export function KnowledgeMapWorkspace() {
             data-testid="knowledge-map-close-workspace"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            回到资料对话
+            返回工具
           </button>
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold text-slate-950" data-testid="knowledge-map-title">

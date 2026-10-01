@@ -30,11 +30,12 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { CHAT_SKILLS } from '@/lib/chat-skills';
 import { createPulseScheduler } from '@/lib/pulse-scheduler';
 
 export function EditorPanel() {
   const {
-    storageScopeKey, chatMessages, addChatMessage, updateChatMessage, getSelectedPapers,
+    storageScopeKey, selectedChatSkills, chatMessages, addChatMessage, updateChatMessage, getSelectedPapers,
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState('');
@@ -97,6 +98,7 @@ export function EditorPanel() {
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
           message: question,
+          skills: selectedChatSkills,
           notebookId: notebookIdFromStorageScopeKey(storageScopeKey),
           papers: selectedPapers.map(p => ({
             id: p.id, title: p.title, authors: p.authors, year: p.year,
@@ -158,7 +160,7 @@ export function EditorPanel() {
     } finally {
       setIsGenerating(false);
     }
-  }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers, storageScopeKey, generateFollowUps]);
+  }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers, storageScopeKey, selectedChatSkills, generateFollowUps]);
 
   // Process queued messages when generation finishes
   useEffect(() => {
@@ -257,7 +259,7 @@ export function EditorPanel() {
     } finally {
       setIsGenerating(false);
     }
-  }, [addChatMessage, updateChatMessage, getSelectedPapers, storageScopeKey, generateFollowUps]);
+  }, [addChatMessage, updateChatMessage, getSelectedPapers, storageScopeKey, selectedChatSkills, generateFollowUps]);
 
   const toggleCitation = useCallback((citationId: string) => {
     setExpandedCitations(prev => { const next = new Set(prev); if (next.has(citationId)) next.delete(citationId); else next.add(citationId); return next; });
@@ -293,6 +295,9 @@ export function EditorPanel() {
         </div>
       </div>
 
+      {selectedChatSkills.length > 0 && <div className="flex flex-wrap gap-1.5 px-6 py-2" aria-label="已选分析技能">
+        {CHAT_SKILLS.filter(skill => selectedChatSkills.includes(skill.id)).map(skill => <span key={skill.id} className="liquid-glass-chip text-[10px]">{skill.label}</span>)}
+      </div>}
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <ChatView
