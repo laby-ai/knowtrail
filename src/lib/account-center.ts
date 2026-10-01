@@ -7,8 +7,7 @@ export type AccountCenterStatus = {
   appSignatureConfigured: boolean;
   authRequired: boolean;
   billingReservationReady: boolean;
-  billingMode: 'not_configured' | 'portal_only' | 'reservation_ready' | 'local_quota';
-  localQuotaPath: string | null;
+  billingMode: 'not_configured' | 'portal_only' | 'reservation_ready';
 };
 
 function envValue(...names: string[]): string {
@@ -30,12 +29,10 @@ export function getAccountCenterStatus(): AccountCenterStatus {
     envValue('ACCOUNT_CENTER_CREDENTIAL_KEY') &&
     envValue('ACCOUNT_CENTER_CLIENT_SECRET')
   );
-  const localQuotaPath = envValue('LOCAL_USAGE_QUOTA_PATH');
-  const externalReservationReady = apiBaseConfigured && tenantIdConfigured && appSignatureConfigured && (memberBindingConfigured || authRequired);
-  const billingReservationReady = externalReservationReady || Boolean(localQuotaPath);
+  const billingReservationReady = apiBaseConfigured && tenantIdConfigured && appSignatureConfigured && (memberBindingConfigured || authRequired);
 
   return {
-    configured: Boolean(publicUrl) || apiBaseConfigured || Boolean(localQuotaPath),
+    configured: Boolean(publicUrl) || apiBaseConfigured,
     publicUrl: publicUrl || null,
     apiBaseConfigured,
     tenantIdConfigured,
@@ -43,7 +40,6 @@ export function getAccountCenterStatus(): AccountCenterStatus {
     appSignatureConfigured,
     authRequired,
     billingReservationReady,
-    billingMode: localQuotaPath ? 'local_quota' : externalReservationReady ? 'reservation_ready' : publicUrl ? 'portal_only' : 'not_configured',
-    localQuotaPath: localQuotaPath || null,
+    billingMode: billingReservationReady ? 'reservation_ready' : publicUrl ? 'portal_only' : 'not_configured',
   };
 }

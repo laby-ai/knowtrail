@@ -6,15 +6,12 @@ export interface WorkspaceNotebook {
   sourceCount: number;
   updatedAt: string;
   accent: string;
-  archivedAt?: string;
-  templateId?: string;
 }
 
 export type AccountCenterStatus = {
   configured: boolean;
   publicUrl: string | null;
-  billingMode: 'not_configured' | 'portal_only' | 'reservation_ready' | 'local_quota';
-  localQuotaPath: string | null;
+  billingMode: 'not_configured' | 'portal_only' | 'reservation_ready';
   billingReservationReady: boolean;
   authRequired?: boolean;
 };

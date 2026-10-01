@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
-import { hasRuntimeAIProvider, resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import type { RuntimeAIConfig } from '@/types';
 
 const isImageType = (ext: string) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
-
-function hasServerFallbackModel(): boolean {
-  return hasRuntimeAIProvider(resolveServerRuntimeAIConfig());
-}
 
 function fallbackAnalysis(fileName: string, fileContent: string, abstract = 'AI分析暂时不可用，请稍后重试') {
   return {
@@ -33,15 +29,18 @@ export async function POST(request: NextRequest) {
     if (!fileContent && !fileName && !imageBase64) {
       return NextResponse.json({ error: '缺少文件内容' }, { status: 400 });
     }
+    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
+    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+    const runtimeConfig = runtimeConfigResult;
 
     const isImage = isImageType(fileType || '');
 
     if (isImage && imageBase64) {
-      return await analyzeImage(imageBase64, fileName || 'image', aiConfig);
+      return await analyzeImage(imageBase64, fileName || 'image', runtimeConfig);
     }
 
     // 文本类文件走 LLM 分析
-    return await analyzeText(fileContent || '', fileName || 'document', fileType || 'txt', aiConfig);
+    return await analyzeText(fileContent || '', fileName || 'document', fileType || 'txt', runtimeConfig);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error || '分析失败');
     console.error('[Analyze API Error]', msg);
@@ -50,13 +49,6 @@ export async function POST(request: NextRequest) {
 }
 
 async function analyzeImage(imageBase64: string, fileName: string, aiConfig?: Partial<RuntimeAIConfig>): Promise<NextResponse> {
-  if (!hasRuntimeAIProvider(aiConfig) && !hasServerFallbackModel()) {
-    return NextResponse.json({
-      success: false,
-      analysis: fallbackAnalysis(fileName, `[图片文件: ${fileName}]`, '未配置视觉模型，已跳过图片 AI 分析。'),
-    });
-  }
-
   const prompt = `请仔细分析这张图片，提取其中的学术信息。
 
 如果是学术论文截图或PDF截图，请提取：标题、作者、年份、关键词、摘要。
@@ -103,13 +95,6 @@ async function analyzeImage(imageBase64: string, fileName: string, aiConfig?: Pa
 }
 
 async function analyzeText(fileContent: string, fileName: string, fileType: string, aiConfig?: Partial<RuntimeAIConfig>): Promise<NextResponse> {
-  if (!hasRuntimeAIProvider(aiConfig) && !hasServerFallbackModel()) {
-    return NextResponse.json({
-      success: false,
-      analysis: fallbackAnalysis(fileName, fileContent, '未配置文本模型，已使用原文生成基础资料记录。'),
-    });
-  }
-
   const contentTypeLabel = {
     pdf: 'PDF文档',
     docx: 'Word文档',

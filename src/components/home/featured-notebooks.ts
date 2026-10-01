@@ -14,10 +14,6 @@ export interface FeaturedNotebook {
 
 const FEATURED_UPDATED_AT = '2026-06-01T00:00:00.000Z';
 
-function sampleChunkCount(content: string) {
-  return content.split(/[。！？.!?]+/).filter(part => part.trim()).length;
-}
-
 function samplePaper(input: {
   id: string;
   title: string;
@@ -41,9 +37,8 @@ function samplePaper(input: {
     fileType: 'txt',
     fileSize: input.content.length,
     uploadTime: FEATURED_UPDATED_AT,
-    isSample: true,
     ingestionStatus: 'succeeded',
-    ingestionChunkCount: sampleChunkCount(input.content),
+    ingestionChunkCount: 4,
     vectorIndex: { status: 'not_configured' },
     mineruFigures: [],
   };
@@ -185,33 +180,17 @@ export const FEATURED_NOTEBOOKS: FeaturedNotebook[] = [
   },
 ];
 
-export function filterFeaturedNotebooks(query: string) {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return FEATURED_NOTEBOOKS;
-
-  return FEATURED_NOTEBOOKS.filter(notebook =>
-    [notebook.title, notebook.author, notebook.meta]
-      .some(value => value.toLowerCase().includes(normalizedQuery)),
-  );
-}
-
 export function isFeaturedNotebookId(id: string | null | undefined) {
   return FEATURED_NOTEBOOKS.some(notebook => notebook.id === id);
 }
 
-export function featuredTemplateId(notebook: Pick<WorkspaceNotebook, 'id' | 'templateId'>) {
-  const candidate = notebook.templateId || notebook.id;
-  return isFeaturedNotebookId(candidate) ? candidate : null;
-}
-
-export function featuredNotebookToWorkspace(notebook: FeaturedNotebook, copyId = notebook.id): WorkspaceNotebook {
+export function featuredNotebookToWorkspace(notebook: FeaturedNotebook): WorkspaceNotebook {
   return {
-    id: copyId,
+    id: notebook.id,
     title: notebook.title,
     sourceCount: notebook.sourceCount,
     updatedAt: FEATURED_UPDATED_AT,
     accent: notebook.accent,
-    templateId: notebook.id,
   };
 }
 

@@ -1,4 +1,5 @@
 export interface RagSourceInput {
+  literature?: { evidenceScope: 'metadata' | 'abstract' | 'fulltext' };
   id?: string;
   title?: string;
   authors?: string[];
@@ -70,6 +71,11 @@ function sourceTitle(source: RagSourceInput): string {
 }
 
 function sourceText(source: RagSourceInput): string {
+  if (source.literature?.evidenceScope === 'metadata') return '';
+  if (source.literature?.evidenceScope === 'abstract') {
+    if (!source.abstract?.trim()) return '';
+    return normalizeText(`证据范围：仅摘要，未获取全文。\n\n摘要：${source.abstract}`);
+  }
   return normalizeText([
     source.title ? `标题：${source.title}` : '',
     source.abstract ? `摘要：${source.abstract}` : '',
@@ -120,7 +126,9 @@ export function buildSourceChunks(sources: RagSourceInput[]): SourceChunk[] {
   return sources.flatMap((source, sourceIndex) => {
     const text = sourceText(source);
     const sourceId = sourceIdFor(source, sourceIndex);
-    const title = sourceTitle(source);
+    const title = source.literature?.evidenceScope === 'abstract'
+      ? `${sourceTitle(source)}（仅摘要）`
+      : sourceTitle(source);
     const shortName = sourceShortName(source);
 
     return splitIntoChunks(text).map((chunkText, chunkIndex) => ({

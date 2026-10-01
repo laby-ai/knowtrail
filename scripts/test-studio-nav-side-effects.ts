@@ -7,7 +7,6 @@ function read(relativePath: string) {
 }
 
 const studioPanelSource = read('src/components/studio/StudioPanel.tsx');
-const pageSource = read('src/app/page.tsx');
 const switcherSource = read('src/components/studio/StudioToolSwitcher.tsx');
 const presentationPanelSource = read('src/components/studio/PresentationPanels.tsx');
 const structuredPresentationPanelSource = read('src/components/studio/StructuredPresentationPanel.tsx');
@@ -54,30 +53,19 @@ const taxonomySource = fs.readFileSync(taxonomyPath, 'utf8');
 const productCenterSource = `${studioPanelSource}\n${switcherSource}`;
 const retainedSource = `${productCenterSource}\n${presentationPanelSource}\n${virtualClassroomPanelSource}\n${virtualClassroomWorkspaceSource}`;
 
-const studioPanelStart = studioPanelSource.indexOf('export function StudioPanel');
+const studioPanelStart = studioPanelSource.indexOf('export function StudioPanel()');
 const panelContentStart = studioPanelSource.indexOf('{activeTab ===', studioPanelStart);
 assert.ok(studioPanelStart >= 0, 'StudioPanel export not found');
 assert.ok(panelContentStart > studioPanelStart, 'StudioPanel content switch not found');
 
 const navSection = studioPanelSource.slice(studioPanelStart, panelContentStart);
-assert.match(navSection, /<StudioToolSwitcher[\s\S]*activeTab=\{activeTab\}[\s\S]*onSelect=\{onSelect\}[\s\S]*navItems=\{visibleNavItems\}/, 'StudioPanel should remain a side-effect-free tool directory');
-assert.match(navSection, /getVisibleStudioNav\(hideVirtualClassroom\)/, 'StudioPanel should derive visible navigation from mounted embed state');
-assert.match(switcherSource, /params\.get\('hideVirtualClassroom'\)/, 'Studio visibility should honor the explicit hide flag');
-assert.match(switcherSource, /params\.get\('embed'\) === 'research-agent'/, 'Research-agent embed should hide the duplicate virtual classroom entry');
-assert.match(switcherSource, /!CHAT_SKILL_PRODUCT_IDS\.has\(item\.id\)/, 'Chat-first tools should be filtered from the right product directory');
-assert.match(switcherSource, /item\.id !== 'virtual-classroom'/, 'The embedded workbench should still filter the duplicate virtual classroom product');
+assert.match(navSection, /<StudioToolSwitcher activeTab=\{activeTab\} onSelect=\{setActiveTab\} \/>/, 'StudioPanel should delegate tool switching to StudioToolSwitcher');
 assert.match(switcherSource, /onClick=\{\(\) => onSelect\(item\.id\)\}/, 'Studio tool switcher should only request active tab changes');
 assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger generation side effects');
 assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');
-assert.match(pageSource, /function openStudioWorkspace\(tab: StudioTab\)/, 'Workbench should expose one side-effect-free tool opening action');
-assert.match(pageSource, /function closeStudioWorkspace\(\)/, 'Workbench should expose an immediate return to the product directory');
-assert.match(pageSource, /sessionStorage\.setItem\(ACTIVE_TOOL_STORAGE_KEY, tab\)/, 'Workbench should preserve the active tool across refresh');
-assert.match(studioPanelSource, /export function StudioWorkspacePanel/, 'Studio should expose the focused workspace independently from the right directory');
-assert.match(studioPanelSource, /data-testid="studio-back-to-directory"/, 'Focused workspaces should provide a stable return action');
-assert.match(studioPanelSource, /data-testid="studio-back-to-directory"[\s\S]*?aria-label="返回产物中心"/, 'Focused workspaces should label the return destination without relying on an icon alone');
-assert.match(studioPanelSource, /data-testid="studio-directory-scroll"/, 'The product directory should own its scrolling');
-assert.match(studioPanelSource, /data-testid="studio-workspace-scroll"/, 'The focused workspace should own its scrolling');
-assert.doesNotMatch(studioPanelSource, /切换入口只打开对应工作区，检索或生成需在下方明确操作。/, 'Studio should not describe the removed appended-workspace interaction');
+assert.match(navSection, /data-testid="studio-nav-helper"/, 'Studio nav should explain that generation happens in the detail panel');
+assert.match(studioPanelSource, /className="h-full overflow-y-auto"/, 'Studio should use one right-column scroll container for taxonomy and workspace');
+assert.doesNotMatch(studioPanelSource, /flex-1 min-h-0 overflow-y-auto px-5 py-4/, 'Studio workspace must not create a second nested scroll region');
 
 assert.match(taxonomySource, /id: 'literature-evidence', label: '文献证据'/, 'Taxonomy should define literature evidence');
 assert.match(taxonomySource, /id: 'research-ideation', label: '研究构思'/, 'Taxonomy should define research ideation even while it has no ready product');
@@ -185,7 +173,7 @@ assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结
 
 console.log(JSON.stringify({
   ok: true,
-  checked: 'The embedded Studio directory keeps focused research tools and moves chat-first tools into the conversation composer',
-  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '科研绘图', 'PPT 制作'],
-  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'scientific-illustration-start', 'image-ppt-generate', 'academic-ppt-generate'],
+  checked: 'Studio product center exposes scientific illustration and the existing real products without navigation side effects',
+  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '学术写作', '文本润色', '科研绘图', 'PPT 制作', '论文审查', '虚拟课堂'],
+  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'academic-writing-start', 'text-polishing-start', 'scientific-illustration-start', 'image-ppt-generate', 'academic-ppt-generate', 'peer-review-start', 'virtual-classroom-open'],
 }, null, 2));

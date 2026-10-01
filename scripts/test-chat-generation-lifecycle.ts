@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import {
   CHAT_HISTORY_LIMIT,
   chatHistoryStorageKey,
@@ -28,19 +26,6 @@ const failedAssistant = {
 };
 
 async function main() {
-const editorPanel = fs.readFileSync(path.join(process.cwd(), 'src/components/editor/EditorPanel.tsx'), 'utf8');
-
-assert.match(
-  editorPanel,
-  /message\.followUps[\s\S]{0,500}disabled=\{!hasSelectedSources \|\| !researchChatReadiness\.ready\}/,
-  'follow-up questions must be unavailable until a source is selected',
-);
-assert.match(
-  editorPanel,
-  /Liquid pull quick questions panel[\s\S]{0,3600}disabled=\{!hasSelectedSources \|\| !researchChatReadiness\.ready\}/,
-  'the active-chat quick question panel must be unavailable until a source is selected',
-);
-
 assert.notEqual(
   chatHistoryStorageKey('account-a:notebook-1'),
   chatHistoryStorageKey('account-b:notebook-1'),
@@ -110,7 +95,6 @@ assert.equal(await copyTextWithFallback('', { legacyCopy: () => true }), false, 
 console.log(JSON.stringify({
   ok: true,
   checked: [
-    'source-required quick questions stay visibly unavailable without evidence',
     'account/workspace-scoped history key',
     'pending and failed generation state',
     'retry reuses the failed answer without duplicating the question',

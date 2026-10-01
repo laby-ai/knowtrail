@@ -12,7 +12,6 @@ import { scientificIllustrationStoreStatus } from '@/lib/scientific-illustration
 import { resolveExplainerVideoProviderConfig } from '@/lib/explainer-video-provider';
 import { operationalObservabilityStatus } from '@/lib/operational-observability';
 import { resolveStudioGenerationReadiness } from '@/lib/studio-generation-readiness';
-import { localUploadStoreStatus } from '@/lib/local-file-storage';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,9 +21,9 @@ function hasAll(values: Array<string | undefined>): boolean {
 
 function hasServerFallbackModel(): boolean {
   return hasAll([
-    process.env.OPENAI_COMPAT_API_BASE || process.env.ARK_API_BASE || process.env.OPENAI_API_BASE,
-    process.env.OPENAI_COMPAT_API_KEY || process.env.ARK_API_KEY || process.env.OPENAI_API_KEY,
-    process.env.OPENAI_COMPAT_MODEL || process.env.ARK_MODEL,
+    process.env.OPENAI_COMPAT_API_BASE || process.env.ARK_API_BASE || process.env.OPENAI_API_BASE || process.env.DASHSCOPE_API_BASE,
+    process.env.OPENAI_COMPAT_API_KEY || process.env.ARK_API_KEY || process.env.OPENAI_API_KEY || process.env.DASHSCOPE_API_KEY,
+    process.env.OPENAI_COMPAT_MODEL || process.env.ARK_MODEL || process.env.DASHSCOPE_MODEL,
   ]);
 }
 
@@ -39,7 +38,6 @@ export async function GET() {
   let internalAppOriginValid = true;
   let internalAppOriginError: string | undefined;
   const scientificIllustrationStore = await scientificIllustrationStoreStatus();
-  const localUploadStore = await localUploadStoreStatus();
 
   try {
     resolveInternalAppOrigin();
@@ -57,17 +55,7 @@ export async function GET() {
       userProvidedOpenAICompatibleConfig: allowRequestRuntimeAIConfig(),
       accountBoundModelConfig: true,
       serverFallbackModelConfigured: hasServerFallbackModel(),
-      sitianImageProviderConfigured: hasAll([
-        process.env.SITIAN_API_BASE,
-        process.env.SITIAN_API_TOKEN,
-      ]),
-      bailianImageProviderConfigured: hasAll([
-        process.env.DASHSCOPE_API_KEY,
-        process.env.DASHSCOPE_IMAGE_MODEL,
-      ]) && process.env.DASHSCOPE_IMAGE_MODEL === 'qwen-image-2.0',
-      sitianImageProviderRequired: process.env.SITIAN_IMAGE_PROVIDER_REQUIRED === 'true',
       fileStorageAdapter: isUsingObjectStorage() ? 's3' : 'local',
-      localUploadStore,
       objectStorageConfigured: isObjectStorageConfigured(),
       mineruConfigured: Boolean(process.env.MINERU_API_TOKEN?.trim()),
       mineruJob: mineruJobHealth(),

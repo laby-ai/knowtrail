@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
 import { KnowledgeMapPanel } from './KnowledgeMapPanel';
 import { PresentationWorkspacePanel } from './PresentationPanels';
 import { VirtualClassroomPanel } from './VirtualClassroomPanel';
@@ -11,161 +10,53 @@ import { HypothesisGenerationPanel } from './HypothesisGenerationPanel';
 import { DataProcessingPanel } from './DataProcessingPanel';
 import { ExperimentDesignPanel } from './ExperimentDesignPanel';
 import { AcademicWritingPanel } from './AcademicWritingPanel';
-import { TextPolishingPanel } from './TextPolishingPanel';
 import { PeerReviewPanel } from './PeerReviewPanel';
 import { ScientificIllustrationPanel } from './ScientificIllustrationPanel';
+import { PodcastPanel } from './PodcastPanel';
 import {
   STUDIO_NAV,
   StudioToolSwitcher,
-  getVisibleStudioNav,
-  shouldHideVirtualClassroom,
   type StudioNavItem,
   type StudioTab,
 } from './StudioToolSwitcher';
 
-export const ACTIVE_TOOL_STORAGE_KEY = 'knowtrail:studio-active-tool';
-
-export function StudioPanel({
-  compact = false,
-  activeTab,
-  onSelect,
-  onClose,
-}: {
-  compact?: boolean;
-  activeTab: StudioTab | null;
-  onSelect: (tab: StudioTab) => void;
-  onClose: () => void;
-}) {
-  const [hideVirtualClassroom, setHideVirtualClassroom] = useState(false);
-  const visibleNavItems = useMemo(
-    () => getVisibleStudioNav(hideVirtualClassroom),
-    [hideVirtualClassroom],
-  );
-  const DirectoryIcon = STUDIO_NAV[0].icon;
-
-  useEffect(() => {
-    setHideVirtualClassroom(shouldHideVirtualClassroom());
-  }, []);
-
-  if (activeTab) {
-    return (
-      <StudioWorkspacePanel
-        compact={compact}
-        activeTab={activeTab}
-        onClose={onClose}
-      />
-    );
-  }
-
-  return (
-    <div
-      data-testid="studio-directory-scroll"
-      className="h-full min-h-0 overflow-y-auto"
-      data-density={compact ? 'compact' : 'default'}
-    >
-      <div className={compact ? 'px-4 pb-4 pt-3' : 'px-5 pb-5 pt-5'}>
-        <div className={compact ? 'mb-4 flex items-center gap-2.5' : 'mb-5 flex items-center gap-3'}>
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)]">
-            <DirectoryIcon className="h-4 w-4 text-[var(--text-secondary)]" />
-          </div>
-          <div>
-            <h2 className={compact
-              ? 'text-sm font-semibold tracking-tight text-[var(--text-primary)]'
-              : 'text-base font-semibold tracking-tight text-[var(--text-primary)]'}>产物中心</h2>
-            <p className="text-[11px] text-[var(--text-tertiary)]">选择工具，在右侧完成输入、进度与结果</p>
-          </div>
-        </div>
-
-        <StudioToolSwitcher
-          compact={compact}
-          activeTab={activeTab}
-          onSelect={onSelect}
-          navItems={visibleNavItems}
-        />
-      </div>
-    </div>
-  );
-}
-
-export function StudioWorkspacePanel({
-  compact = false,
-  activeTab,
-  onClose,
-}: {
-  compact?: boolean;
-  activeTab: StudioTab;
-  onClose: () => void;
-}) {
-  const navItem: StudioNavItem = STUDIO_NAV.find(item => item.id === activeTab) ?? STUDIO_NAV[0];
+export function StudioPanel() {
+  const [activeTab, setActiveTab] = useState<StudioTab>(STUDIO_NAV[0].id);
+  const navItem: StudioNavItem = STUDIO_NAV.find(n => n.id === activeTab) ?? STUDIO_NAV[0];
   const NavIcon = navItem.icon;
 
   return (
-    <div
-      data-testid="studio-workspace-right"
-      className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]"
-      data-density={compact ? 'compact' : 'default'}
-    >
-      <div
-        data-testid="studio-workspace-header"
-        className={compact
-          ? 'flex shrink-0 items-center gap-3 border-b border-[#E4E9F1] px-4 py-3'
-          : 'flex shrink-0 items-center gap-3 border-b border-[var(--glass-border)] px-5 py-4'}
-      >
-        <button
-          type="button"
-          data-testid="studio-back-to-directory"
-          onClick={onClose}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-          aria-label="返回产物中心"
-          title="返回产物中心"
-        >
-          <ArrowLeft className="pointer-events-none h-4 w-4" />
-        </button>
-        <div className="min-w-0 flex-1">
-          <div
-            data-testid="studio-workspace-breadcrumb"
-            className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[var(--text-tertiary)]"
-          >
-            <span>产物中心</span>
-            <span aria-hidden="true">›</span>
-            <span className="truncate">{navItem.label}</span>
+    <div className="h-full flex flex-col min-h-0">
+      <div className="flex-shrink-0 px-5 pt-5 pb-4 border-b border-[var(--glass-border)]">
+        <div className="flex items-center gap-3 mb-4">
+          <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${navItem.accent} flex items-center justify-center border border-[var(--glass-border)]`}>
+            <NavIcon className="h-4 w-4 text-[var(--text-secondary)]" />
           </div>
-          <h2 className="mt-0.5 truncate text-sm font-semibold tracking-tight text-[var(--text-primary)]">{navItem.label}</h2>
+          <div>
+            <h2 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">产物中心</h2>
+            <p className="text-xs text-[var(--text-tertiary)]">资料工具与生成结果</p>
+          </div>
         </div>
-        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--glass-border)] bg-gradient-to-br ${navItem.accent}`}>
-          <NavIcon className="h-4 w-4 text-[var(--text-secondary)]" />
-        </div>
+
+        <StudioToolSwitcher activeTab={activeTab} onSelect={setActiveTab} />
+        <p data-testid="studio-nav-helper" className="mt-3 text-[11px] leading-relaxed text-[var(--text-quaternary)]">
+          切换入口只打开对应工作区，检索或生成需在下方明确操作。
+        </p>
       </div>
 
-      <div
-        data-testid="studio-workspace-scroll"
-        className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${compact ? 'px-4 py-4' : 'px-5 py-5'}`}
-      >
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-3.5 py-3">
-            <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-              {navItem.desc}。中间文献问答保持可见，当前工具的输入、处理进度和结果集中在这里。
-            </p>
-          </div>
-
-          <div
-            data-testid="studio-tool-content"
-            className="rounded-[20px] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-4 shadow-[0_12px_30px_rgba(70,96,128,0.06)]"
-          >
-            {activeTab === 'paper-search' && <PaperSearchPanel />}
-            {activeTab === 'deep-research' && <DeepResearchPanel />}
-            {activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel />}
-            {activeTab === 'data-processing' && <DataProcessingPanel />}
-            {activeTab === 'experiment-design' && <ExperimentDesignPanel />}
-            {activeTab === 'academic-writing' && <AcademicWritingPanel />}
-            {activeTab === 'text-polishing' && <TextPolishingPanel />}
-            {activeTab === 'scientific-illustration' && <ScientificIllustrationPanel />}
-            {activeTab === 'peer-review' && <PeerReviewPanel />}
-            {activeTab === 'presentation' && <PresentationWorkspacePanel />}
-            {activeTab === 'knowledge' && <KnowledgeMapPanel />}
-            {activeTab === 'virtual-classroom' && <VirtualClassroomPanel />}
-          </div>
-        </div>
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+        {activeTab === 'paper-search' && <PaperSearchPanel />}
+        {activeTab === 'deep-research' && <DeepResearchPanel />}
+        {activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel />}
+        {activeTab === 'data-processing' && <DataProcessingPanel />}
+        {activeTab === 'experiment-design' && <ExperimentDesignPanel />}
+        {activeTab === 'academic-writing' && <AcademicWritingPanel />}
+        {activeTab === 'scientific-illustration' && <ScientificIllustrationPanel />}
+        {activeTab === 'podcast' && <PodcastPanel />}
+        {activeTab === 'peer-review' && <PeerReviewPanel />}
+        {activeTab === 'presentation' && <PresentationWorkspacePanel />}
+        {activeTab === 'knowledge' && <KnowledgeMapPanel />}
+        {activeTab === 'virtual-classroom' && <VirtualClassroomPanel />}
       </div>
     </div>
   );

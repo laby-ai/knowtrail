@@ -4,8 +4,9 @@ import { buildPodcastRetrievalPreview, getPodcastStudioJobResponse, submitPodcas
 import { toStudioJobResponse } from '@/lib/studio-job';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
-import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
-import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
+import { normalizeNotebookId } from '@/lib/notebook-scope';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,30 +20,37 @@ export async function POST(request: NextRequest) {
       notebookId?: string;
     };
     const { text, content, title, papers = [], aiConfig, debugRetrievalOnly } = body;
-    const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
-
+    const notebookId = normalizeNotebookId(body.notebookId);
     const requestedText = text || content || '';
     if (!requestedText && papers.length === 0) {
       return NextResponse.json({ error: '缺少文本内容' }, { status: 400 });
     }
 
-    const scope = await resolveAccountNotebookScope(request, {
-      notebookId: body.notebookId,
-      loginMessage: '请先登录国科大科教平台，再生成语音摘要。',
-    });
-    if (!scope.ok) {
-      return scope.response;
+    let ownerMemberId: string | undefined;
+    try {
+      const accountSession = await resolveAccountSessionFromRequest(request);
+      if (accountAuthRequired() && !accountSession) {
+        return NextResponse.json({
+          error: '请先登录账号，再生成语音摘要。',
+          status: 'failed',
+          errorType: 'account_login_required',
+        }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+      }
+      ownerMemberId = accountSession?.member.id;
+    } catch {
+      return NextResponse.json({
+        error: '账号登录已过期，请重新登录。',
+        status: 'failed',
+        errorType: 'invalid_account_session',
+      }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
     }
 
+    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
+    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
+    const runtimeConfig = runtimeConfigResult;
+
     if (debugRetrievalOnly) {
-      const preview = await buildPodcastRetrievalPreview({
-        requestedText,
-        title,
-        papers,
-        aiConfig: runtimeConfig,
-        ownerMemberId: scope.ownerMemberId,
-        notebookId: scope.notebookId,
-      });
+      const preview = await buildPodcastRetrievalPreview({ requestedText, title, papers, aiConfig: runtimeConfig, ownerMemberId, notebookId });
       return NextResponse.json({
         success: true,
         citations: preview.citations,
@@ -51,14 +59,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const job = await submitPodcastJob({
-      requestedText,
-      title,
-      papers,
-      aiConfig: runtimeConfig,
-      ownerMemberId: scope.ownerMemberId,
-      notebookId: scope.notebookId,
-    });
+    const job = await submitPodcastJob({ requestedText, title, papers, aiConfig: runtimeConfig, ownerMemberId, notebookId });
     return NextResponse.json(toStudioJobResponse(job), { status: 202 });
   } catch (error) {
     const failure = classifyPodcastGenerationError(error);
@@ -92,18 +93,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '缺少 taskId 参数' }, { status: 400 });
     }
 
-    const scope = await resolveAccountNotebookScope(request, {
-      notebookId: request.nextUrl.searchParams.get('notebookId'),
-      loginMessage: '请先登录国科大科教平台，再查看语音摘要任务。',
-    });
-    if (!scope.ok) {
-      return scope.response;
+    let ownerMemberId: string | undefined;
+    try {
+      const accountSession = await resolveAccountSessionFromRequest(request);
+      if (accountAuthRequired() && !accountSession) {
+        return NextResponse.json({
+          error: '请先登录账号，再查看语音摘要任务。',
+          status: 'failed',
+          errorType: 'account_login_required',
+        }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
+      }
+      ownerMemberId = accountSession?.member.id;
+    } catch {
+      return NextResponse.json({
+        error: '账号登录已过期，请重新登录。',
+        status: 'failed',
+        errorType: 'invalid_account_session',
+      }, { status: 401, headers: { 'Cache-Control': 'no-store' } });
     }
 
-    const studioJob = getPodcastStudioJobResponse(taskId, {
-      ownerMemberId: scope.ownerMemberId,
-      notebookId: scope.notebookId,
-    });
+    const notebookId = normalizeNotebookId(request.nextUrl.searchParams.get('notebookId'));
+    const studioJob = getPodcastStudioJobResponse(taskId, { ownerMemberId, notebookId });
     if (studioJob) {
       return NextResponse.json(studioJob);
     }

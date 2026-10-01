@@ -18,7 +18,6 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
 import { copyTextWithFallback } from '@/lib/clipboard';
-import { alignCitationsToAnswerMarkers } from '@/lib/citation-answer-alignment';
 
 export function MessageItem({
   message,
@@ -41,9 +40,6 @@ export function MessageItem({
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const isCopyable = !isUser && hasContent
     && (!message.generation || message.generation.status === 'completed');
-  const displayedCitations = message.citations
-    ? alignCitationsToAnswerMarkers(message.content, message.citations)
-    : [];
 
   const handleCopy = async () => {
     const copied = await copyTextWithFallback(message.content);
@@ -123,11 +119,11 @@ export function MessageItem({
           />
         )}
 
-        {displayedCitations.length > 0 && (
+        {message.citations && message.citations.length > 0 && (
           <div className="mt-2">
             <button onClick={onToggleExpand} className="text-[11px] text-zinc-600 hover:text-blue-400 transition-colors flex items-center gap-1">
               <LinkIcon className="h-3 w-3" />
-              {isExpanded ? '隐藏来源' : `${displayedCitations.length} 个引用来源`}
+              {isExpanded ? '隐藏来源' : `${message.citations.length} 个引用来源`}
               <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
@@ -137,7 +133,7 @@ export function MessageItem({
                     {getReadableRetrievalDetail(message.retrieval)}
                   </div>
                 )}
-                {displayedCitations.map((citation, idx) => {
+                {message.citations.map((citation, idx) => {
                   const targetPaperId = citation.paperId || citation.sourceId;
                   const clickable = Boolean(targetPaperId && onCitationClick);
                   const locator = getCitationLocator(citation);

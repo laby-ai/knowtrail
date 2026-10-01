@@ -5,13 +5,19 @@ import { clientApiRequest } from '@/lib/client-api';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, ClipboardCheck, Download } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { useScopedStudioState } from '@/hooks/use-scoped-studio-state';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { PeerReviewAudit, PeerReviewComment, PeerReviewPerspective, PeerReviewReport } from '@/lib/peer-review-contract';
 import type { Citation, Paper, RetrievalMetadata } from '@/types';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type PanelStatus = 'idle' | 'running' | 'complete' | 'error';
 
@@ -37,6 +43,7 @@ function toPaperRequest(paper: Paper) {
     abstract: paper.abstract,
     content: paper.content,
     rawContent: paper.rawContent,
+    literature: paper.literature,
     shortName: paper.shortName,
     keywords: paper.keywords,
     fileName: paper.fileName,
@@ -88,20 +95,20 @@ export function PeerReviewPanel() {
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
-  const [manuscript, setManuscript] = useScopedStudioState(storageScopeKey, 'peer-review', 'manuscript', '');
-  const [scope, setScope] = useScopedStudioState(storageScopeKey, 'peer-review', 'scope', '全文逻辑、方法严谨性与证据边界');
-  const [perspective, setPerspective] = useScopedStudioState<PeerReviewPerspective>(storageScopeKey, 'peer-review', 'perspective', 'overall');
-  const [report, setReport] = useScopedStudioState<PeerReviewReport | null>(storageScopeKey, 'peer-review', 'report', null);
-  const [audit, setAudit] = useScopedStudioState<PeerReviewAudit | null>(storageScopeKey, 'peer-review', 'audit', null);
-  const [citations, setCitations] = useScopedStudioState<Citation[]>(storageScopeKey, 'peer-review', 'citations', []);
-  const [retrieval, setRetrieval] = useScopedStudioState<RetrievalMetadata | null>(storageScopeKey, 'peer-review', 'retrieval', null);
-  const [reviewLimits, setReviewLimits] = useScopedStudioState<string[]>(storageScopeKey, 'peer-review', 'review-limits', []);
-  const [artifactMarkdown, setArtifactMarkdown] = useScopedStudioState(storageScopeKey, 'peer-review', 'artifact-markdown', '');
-  const [artifactFileName, setArtifactFileName] = useScopedStudioState(storageScopeKey, 'peer-review', 'artifact-file-name', 'peer-review-report.md');
+  const [manuscript, setManuscript] = useState('');
+  const [scope, setScope] = useState('全文逻辑、方法严谨性与证据边界');
+  const [perspective, setPerspective] = useState<PeerReviewPerspective>('overall');
+  const [report, setReport] = useState<PeerReviewReport | null>(null);
+  const [audit, setAudit] = useState<PeerReviewAudit | null>(null);
+  const [citations, setCitations] = useState<Citation[]>([]);
+  const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(null);
+  const [reviewLimits, setReviewLimits] = useState<string[]>([]);
+  const [artifactMarkdown, setArtifactMarkdown] = useState('');
+  const [artifactFileName, setArtifactFileName] = useState('peer-review-report.md');
   const [status, setStatus] = useState<PanelStatus>('idle');
   const [stage, setStage] = useState('reading');
   const [progress, setProgress] = useState(0);
-  const [message, setMessage] = useScopedStudioState(storageScopeKey, 'peer-review', 'message', '粘贴稿件并选择审查视角后开始。');
+  const [message, setMessage] = useState('粘贴稿件并选择审查视角后开始。');
   const [error, setError] = useState<string | null>(null);
 
   const sourceSummary = useMemo(
@@ -220,7 +227,14 @@ export function PeerReviewPanel() {
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-[11px] font-medium text-[var(--text-secondary)]">审查视角</span>
-          <select value={perspective} onChange={event => setPerspective(event.target.value as PeerReviewPerspective)} disabled={status === 'running'} data-testid="peer-review-perspective" className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)]">{PERSPECTIVES.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select>
+          <Select value={perspective} onValueChange={v => setPerspective(v as PeerReviewPerspective)} disabled={status === 'running'}>
+            <SelectTrigger className="mt-1.5 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PERSPECTIVES.map(option => <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </label>
         <label className="block">
           <span className="text-[11px] font-medium text-[var(--text-secondary)]">审查范围</span>

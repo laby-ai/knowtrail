@@ -8,8 +8,14 @@ import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { PolishingScene, TextPolishingAudit, TextPolishingResult, TextProtectionSnapshot } from '@/lib/text-polishing-contract';
 import { useApp } from '@/contexts/AppContext';
-import { useScopedStudioState } from '@/hooks/use-scoped-studio-state';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 type PanelStatus = 'idle' | 'running' | 'complete' | 'error';
 const STAGES: StudioJobProgressStage[] = [
@@ -38,10 +44,10 @@ export function TextPolishingPanel() {
   const { storageScopeKey } = useApp();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
-  const [sourceText, setSourceText] = useScopedStudioState(storageScopeKey, 'text-polishing', 'source-text', '');
-  const [goal, setGoal] = useScopedStudioState(storageScopeKey, 'text-polishing', 'goal', '减少模板腔，保持专业、克制和自然。');
-  const [scene, setScene] = useScopedStudioState<PolishingScene>(storageScopeKey, 'text-polishing', 'scene', 'paper');
-  const [protectedTermsText, setProtectedTermsText] = useScopedStudioState(storageScopeKey, 'text-polishing', 'protected-terms', '');
+  const [sourceText, setSourceText] = useState('');
+  const [goal, setGoal] = useState('减少模板腔，保持专业、克制和自然。');
+  const [scene, setScene] = useState<PolishingScene>('paper');
+  const [protectedTermsText, setProtectedTermsText] = useState('');
   const [result, setResult] = useState<TextPolishingResult | null>(null);
   const [audit, setAudit] = useState<TextPolishingAudit | null>(null);
   const [protection, setProtection] = useState<TextProtectionSnapshot | null>(null);
@@ -163,7 +169,16 @@ export function TextPolishingPanel() {
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="text-[11px] font-medium text-[var(--text-secondary)]">文本场景</span>
-          <select value={scene} onChange={event => setScene(event.target.value as PolishingScene)} disabled={status === 'running'} data-testid="text-polishing-scene" className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)]"><option value="paper">论文正文</option><option value="proposal">基金 / 项目书</option><option value="presentation">答辩 / 讲稿</option></select>
+          <Select value={scene} onValueChange={v => setScene(v as PolishingScene)} disabled={status === 'running'}>
+            <SelectTrigger className="mt-1.5 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="paper">论文正文</SelectItem>
+              <SelectItem value="proposal">基金 / 项目书</SelectItem>
+              <SelectItem value="presentation">答辩 / 讲稿</SelectItem>
+            </SelectContent>
+          </Select>
         </label>
         <label className="block">
           <span className="text-[11px] font-medium text-[var(--text-secondary)]">额外保护术语</span>

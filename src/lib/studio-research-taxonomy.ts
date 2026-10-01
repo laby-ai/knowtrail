@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'text-polishing' | 'scientific-illustration' | 'knowledge' | 'presentation' | 'peer-review' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'scientific-illustration' | 'podcast' | 'knowledge' | 'presentation' | 'peer-review' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -75,14 +75,7 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     id: 'academic-writing',
     label: '学术写作',
     categoryId: 'results-expression',
-    desc: '段落证据与主张映射',
-    availability: 'ready',
-  },
-  {
-    id: 'text-polishing',
-    label: '文本润色',
-    categoryId: 'results-expression',
-    desc: '保护事实与可解释修订',
+    desc: '段落证据映射与文本润色',
     availability: 'ready',
   },
   {
@@ -93,10 +86,17 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     availability: 'ready',
   },
   {
-    id: 'presentation',
-    label: 'PPT 制作',
+    id: 'podcast',
+    label: '音视频输出',
     categoryId: 'results-expression',
-    desc: '图片页 / 可编辑 PPT',
+    desc: '双语字幕与播客风格讲解',
+    availability: 'ready',
+  },
+  {
+    id: 'presentation',
+    label: '演示材料',
+    categoryId: 'results-expression',
+    desc: '知识卡片与可编辑 PPT',
     availability: 'ready',
   },
   {
@@ -115,17 +115,9 @@ export const STUDIO_RESEARCH_PRODUCTS = [
   },
 ] as const satisfies readonly StudioResearchProduct[];
 
-export const CHAT_SKILL_PRODUCT_IDS = new Set<StudioProductId>([
-  'academic-writing',
-  'text-polishing',
-  'peer-review',
-]);
-
 export function getVisibleStudioCategories() {
   return STUDIO_RESEARCH_CATEGORIES.map(category => ({
     ...category,
-    products: STUDIO_RESEARCH_PRODUCTS
-      .filter(product => !CHAT_SKILL_PRODUCT_IDS.has(product.id))
-      .filter(product => product.categoryId === category.id),
+    products: STUDIO_RESEARCH_PRODUCTS.filter(product => product.categoryId === category.id),
   })).filter(category => category.products.length > 0);
 }

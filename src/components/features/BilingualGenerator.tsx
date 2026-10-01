@@ -15,7 +15,7 @@ interface BilingualPair {
 }
 
 export function BilingualGenerator() {
-  const { getSelectedPapers } = useApp();
+  const { getSelectedPapers, addChatMessage } = useApp();
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [bilingualPairs, setBilingualPairs] = useState<BilingualPair[]>([]);
@@ -28,6 +28,8 @@ export function BilingualGenerator() {
     const selectedPapers = getSelectedPapers();
     setIsGenerating(true);
     setError(null);
+    // Send user message to Chat
+    addChatMessage({ id: `msg-${Date.now()}-studio`, role: 'user', content: `请生成双语字幕和音频文本`, timestamp: new Date().toISOString() });
 
     try {
       const response = await fetch('/api/ai/chat', {

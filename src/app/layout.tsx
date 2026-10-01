@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ThemeScript } from '@/components/ThemeScript';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -43,9 +44,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" data-theme="light" suppressHydrationWarning>
+    <html lang="zh-CN" suppressHydrationWarning>
       <body className="antialiased bg-[var(--bg-primary)] text-[var(--text-primary)]">
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('theme');document.documentElement.setAttribute('data-theme',t==='dark'?'dark':'light')}catch(e){document.documentElement.setAttribute('data-theme','light')}})()` }} />
+        <ThemeScript />
         {children}
       </body>
     </html>

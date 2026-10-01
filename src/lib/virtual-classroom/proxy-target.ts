@@ -31,18 +31,19 @@ export function resolveClassroomProxyTarget(requestUrl: string, pathname: string
     || classroomRootProxyPrefixes.some(prefix => pathname.startsWith(prefix));
 
   if (!runtimePath && !rootPath) return { shouldProxy: false, targetPath: '' };
-  if (!runtimePath) return { shouldProxy: true, targetPath: requestUrl || pathname };
-
-  const stripped = (requestUrl || pathname).slice(CLASSROOM_RUNTIME_PREFIX.length);
-  return { shouldProxy: true, targetPath: stripped || '/' };
+  return { shouldProxy: true, targetPath: requestUrl || pathname };
 }
 
 export function shouldProxyMissingClassroomAsset(
   pathname: string,
   mainStaticRoot: string,
   exists: (absolutePath: string) => boolean,
+  currentOrigin?: string,
 ): boolean {
   if (!pathname.startsWith(NEXT_STATIC_PREFIX)) return false;
+
+  // Prevent loop: don't proxy if classroom runtime points to current server
+  if (currentOrigin && currentOrigin.includes('localhost:5000')) return false;
 
   let relativeAsset: string;
   try {

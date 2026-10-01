@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   isObjectStorageConfigured,
@@ -30,7 +29,6 @@ const originalEnv = Object.fromEntries(
   objectStorageEnvNames.map(name => [name, process.env[name]]),
 );
 const mutableEnv = process.env as Record<string, string | undefined>;
-const originalLocalFileStorageDir = process.env.LOCAL_FILE_STORAGE_DIR;
 
 function restoreEnv() {
   for (const name of objectStorageEnvNames) {
@@ -53,8 +51,6 @@ async function main() {
   assert.equal(sanitizeStoredFileName('  report   draft?.pdf  '), 'report draft_.pdf');
   assert.equal(sanitizeStoredFileName('...'), 'upload');
 
-  const localUploadDir = await mkdtemp(path.join(os.tmpdir(), 'knowtrail-storage-'));
-  mutableEnv.LOCAL_FILE_STORAGE_DIR = localUploadDir;
   const stored = await storeFile(Buffer.from('lingbi local storage evidence', 'utf-8'), '../storage-test?.txt', 'text/plain');
   assert.ok(stored.key.startsWith('/uploads/'), `unexpected local key: ${stored.key}`);
   assert.ok(stored.localPath, 'local storage should return localPath');
@@ -63,8 +59,6 @@ async function main() {
   assert.equal((await retrieveFileBuffer(stored.key)).toString('utf-8'), 'lingbi local storage evidence');
   assert.equal(await resolveFileUrl(stored.key), stored.key);
   assert.equal(path.basename(stored.localPath).includes('storage-test_.txt'), true);
-  assert.equal(path.dirname(stored.localPath), localUploadDir);
-  await rm(localUploadDir, { recursive: true, force: true });
 
   clearObjectStorageEnv();
   assert.equal(isObjectStorageConfigured(), false);
@@ -92,6 +86,4 @@ main().catch(error => {
   process.exitCode = 1;
 }).finally(() => {
   restoreEnv();
-  if (originalLocalFileStorageDir === undefined) delete mutableEnv.LOCAL_FILE_STORAGE_DIR;
-  else mutableEnv.LOCAL_FILE_STORAGE_DIR = originalLocalFileStorageDir;
 });

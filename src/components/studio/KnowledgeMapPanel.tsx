@@ -139,6 +139,7 @@ export function KnowledgeMapPanel() {
         abstract: paper.abstract || '',
         content: (paper.rawContent || paper.content || '').slice(0, 10000),
         rawContent: paper.rawContent,
+        literature: paper.literature,
       }));
 
       const response = await clientApiRequest('/api/ai/knowledge-map', {

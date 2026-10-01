@@ -70,7 +70,7 @@ async function runPodcastJob(jobId: string, podcastText: string, aiConfig?: Part
       status: 'running',
       stage: 'synthesizing-audio',
       progress: 62,
-      message: '正在调用豆包语音合成生成播客音频...',
+      message: '正在调用百炼语音合成生成播客音频...',
     });
 
     const result = await generatePodcastSegments(podcastText, {

@@ -5,7 +5,6 @@ import { clientApiRequest } from '@/lib/client-api';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, FlaskConical } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { useScopedStudioState } from '@/hooks/use-scoped-studio-state';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { ExperimentDesignProtocol } from '@/lib/experiment-design-contract';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
@@ -37,6 +36,7 @@ function toPaperRequest(paper: Paper) {
     abstract: paper.abstract,
     content: paper.content,
     rawContent: paper.rawContent,
+    literature: paper.literature,
     shortName: paper.shortName,
     keywords: paper.keywords,
     fileName: paper.fileName,
@@ -65,14 +65,14 @@ export function ExperimentDesignPanel() {
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
-  const [question, setQuestion] = useScopedStudioState(storageScopeKey, 'experiment-design', 'question', '');
-  const [hypothesis, setHypothesis] = useScopedStudioState(storageScopeKey, 'experiment-design', 'hypothesis', '');
-  const [experimentalUnit, setExperimentalUnit] = useScopedStudioState(storageScopeKey, 'experiment-design', 'experimental-unit', '');
-  const [armsText, setArmsText] = useScopedStudioState(storageScopeKey, 'experiment-design', 'arms', '处理组, 对照组');
-  const [primaryOutcome, setPrimaryOutcome] = useScopedStudioState(storageScopeKey, 'experiment-design', 'primary-outcome', '');
-  const [constraints, setConstraints] = useScopedStudioState(storageScopeKey, 'experiment-design', 'constraints', '');
-  const [alpha, setAlpha] = useScopedStudioState(storageScopeKey, 'experiment-design', 'alpha', 0.05);
-  const [targetPower, setTargetPower] = useScopedStudioState(storageScopeKey, 'experiment-design', 'target-power', 0.8);
+  const [question, setQuestion] = useState('');
+  const [hypothesis, setHypothesis] = useState('');
+  const [experimentalUnit, setExperimentalUnit] = useState('');
+  const [armsText, setArmsText] = useState('处理组, 对照组');
+  const [primaryOutcome, setPrimaryOutcome] = useState('');
+  const [constraints, setConstraints] = useState('');
+  const [alpha, setAlpha] = useState(0.05);
+  const [targetPower, setTargetPower] = useState(0.8);
   const [protocol, setProtocol] = useState<ExperimentDesignProtocol | null>(null);
   const [artifactMarkdown, setArtifactMarkdown] = useState('');
   const [artifactFileName, setArtifactFileName] = useState('experiment-preregistration.md');

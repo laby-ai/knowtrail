@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,6 +11,7 @@ import { buildAcademicPptx } from '../src/lib/ppt/academic-renderer';
 
 const workspace = process.cwd();
 const startupTimeoutMs = Number(process.env.PPT_FILE_SMOKE_TIMEOUT_MS || 45_000);
+const evidenceDir = path.join(workspace, 'output', 'playwright');
 
 function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -69,11 +70,16 @@ async function resolveSmokeApp(tempDir: string) {
     cwd: workspace,
     env: {
       ...process.env,
+      BIND_HOST: '127.0.0.1',
       PORT: String(port),
       DEPLOY_RUN_PORT: String(port),
       INTERNAL_APP_ORIGIN: '',
       SOURCE_STORE_PATH: path.join(tempDir, 'sources.json'),
       ZVEC_STORE_PATH: path.join(tempDir, 'zvec'),
+      ARK_API_BASE: 'https://models.example.test/v1',
+      ARK_API_KEY: 'ppt-file-output-smoke-key',
+      ARK_MODEL: 'ppt-file-output-text-model',
+      ARK_IMAGE_MODEL: 'ppt-file-output-image-model',
       ALLOW_INSECURE_API_BASE: 'true',
       ALLOW_PRIVATE_API_BASE: 'true',
     },
@@ -275,6 +281,20 @@ async function runBrowserPptExport(tempDir: string) {
     await expectVisible(page.getByText('PPT File-Level Source').first(), 'PPT citation source title did not render.');
     await expectVisible(page.getByRole('button', { name: '导出 PPTX' }), 'PPT export button did not render.');
 
+    await mkdir(evidenceDir, { recursive: true });
+    const desktopResult = path.join(evidenceDir, 'ppt-desktop-result.png');
+    await page.getByTestId('image-ppt-result').screenshot({ path: desktopResult });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByTestId('workbench-mobile-tab-right').click();
+    await page.getByTestId('studio-nav-presentation').click();
+    await page.getByTestId('workbench-mobile-tab-center').click();
+    await page.getByTestId('workbench-mobile-tab-right').click();
+    const mobileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    const mobileResult = path.join(evidenceDir, 'ppt-mobile-result.png');
+    await page.getByTestId('image-ppt-result').screenshot({ path: mobileResult });
+    assert(!mobileOverflow, 'PPT result caused horizontal overflow on mobile.');
+
     const downloadPromise = page.waitForEvent('download', { timeout: 20_000 });
     await page.getByRole('button', { name: '导出 PPTX' }).click();
     const download = await downloadPromise;
@@ -287,6 +307,8 @@ async function runBrowserPptExport(tempDir: string) {
       managedApp: smokeApp.managed,
       requests: { upload: uploadHits(), chat: chatHits(), ppt: pptHits() },
       inspection,
+      screenshots: { desktopResult, mobileResult },
+      mobileOverflow,
     };
   } finally {
     await browser?.close().catch(() => undefined);
@@ -334,6 +356,7 @@ async function main() {
         'regular PPT right-panel generation renders slides from SSE',
         'regular PPT right-panel generation renders grounded evidence status and citations',
         'regular PPT browser export downloads a readable PPTX package',
+        'regular PPT result is visibly rendered on desktop and mobile without overflow',
         'regular PPTX contains slide XML and expected title text',
         'academic PPT-v2 backend builder returns a readable PPTX package',
         'academic PPT-v2 PPTX contains slide XML and expected title text',

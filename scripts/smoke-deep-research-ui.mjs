@@ -156,6 +156,7 @@ async function main() {
       cwd: workspace,
       env: {
         ...process.env,
+        BIND_HOST: '127.0.0.1',
         PORT: String(appPort),
         DEPLOY_RUN_PORT: String(appPort),
         INTERNAL_APP_ORIGIN: '',
@@ -166,6 +167,7 @@ async function main() {
         OPENAI_COMPAT_API_BASE: fakeServices.origin,
         OPENAI_COMPAT_API_KEY: 'deep-research-smoke',
         OPENAI_COMPAT_MODEL: 'deep-research-smoke-model',
+        KNOWTRAIL_OBSERVABILITY_HASH_KEY: 'deep-research-smoke-observability-key-2026',
         ALLOW_INSECURE_API_BASE: 'true',
         ALLOW_PRIVATE_API_BASE: 'true',
         METASO_API_BASE: fakeServices.origin,
@@ -197,7 +199,16 @@ async function main() {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const consoleErrors = [];
+    const failedResponses = [];
     page.on('pageerror', error => consoleErrors.push(error.message));
+    page.on('response', async response => {
+      if (response.status() < 400) return;
+      failedResponses.push({
+        status: response.status(),
+        url: response.url(),
+        body: (await response.text().catch(() => '')).slice(0, 1000),
+      });
+    });
     await page.goto(`${appOrigin}/#workbench`, { waitUntil: 'networkidle' });
 
     await page.getByTestId('discover-query').fill('evidence synthesis');
@@ -212,11 +223,23 @@ async function main() {
     await page.getByTestId('deep-research-question').fill('证据合成方法如何降低结论偏差？');
     await page.getByTestId('deep-research-start').click();
     await page.getByTestId('deep-research-progress').waitFor({ state: 'visible' });
-    await page.getByText('报告结构与引用编号检查通过；关键结论仍建议定位来源核验原文。').waitFor({ state: 'visible', timeout: 30_000 });
+    try {
+      await page.getByText('报告结构与引用编号检查通过；关键结论仍建议定位来源核验原文。').waitFor({ state: 'visible', timeout: 30_000 });
+    } catch (error) {
+      const bodyText = (await page.locator('body').innerText().catch(() => '')).slice(-3000);
+      throw new Error([
+        error instanceof Error ? error.message : String(error),
+        `failed responses: ${JSON.stringify(failedResponses)}`,
+        `page tail: ${bodyText}`,
+        `server tail: ${output.join('').slice(-3000)}`,
+      ].join('\n'));
+    }
     await page.getByTestId('deep-research-result').getByText('主要结论', { exact: true }).waitFor({ state: 'visible' });
     await page.getByTestId('studio-evidence-citation-link').first().waitFor({ state: 'visible' });
     const desktopScreenshot = path.join(evidenceDir, 'deep-research-desktop.png');
+    const desktopResultScreenshot = path.join(evidenceDir, 'deep-research-desktop-result.png');
     await page.screenshot({ path: desktopScreenshot, fullPage: true });
+    await page.getByTestId('deep-research-result').screenshot({ path: desktopResultScreenshot });
 
     await page.getByTestId('deep-research-question').fill('slow-cancel');
     await page.getByTestId('deep-research-start').click();
@@ -228,12 +251,20 @@ async function main() {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByTestId('workbench-mobile-tab-right').click();
     await page.getByTestId('studio-nav-deep-research').click();
+    await page.getByTestId('deep-research-question').fill('移动端证据合成如何保持结果状态？');
+    await page.getByTestId('deep-research-start').click();
+    await page.getByText('报告结构与引用编号检查通过；关键结论仍建议定位来源核验原文。').waitFor({ state: 'visible', timeout: 30_000 });
+    await page.getByTestId('workbench-mobile-tab-center').click();
+    await page.getByTestId('workbench-mobile-tab-right').click();
+    await page.getByTestId('deep-research-result').getByText('主要结论', { exact: true }).waitFor({ state: 'visible' });
     const mobileOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     const mobileScreenshot = path.join(evidenceDir, 'deep-research-mobile.png');
+    const mobileResultScreenshot = path.join(evidenceDir, 'deep-research-mobile-result.png');
     await page.screenshot({ path: mobileScreenshot, fullPage: true });
+    await page.getByTestId('deep-research-result').screenshot({ path: mobileResultScreenshot });
 
     assert(fakeServices.searchRequests.length === 1, `Expected one paper search request, got ${fakeServices.searchRequests.length}.`);
-    assert(fakeServices.modelRequests.length === 2, `Expected completed and cancelled model requests, got ${fakeServices.modelRequests.length}.`);
+    assert(fakeServices.modelRequests.length === 3, `Expected desktop completed, cancelled, and mobile completed model requests, got ${fakeServices.modelRequests.length}.`);
     assert(fakeServices.modelRequests.every(request => request.stream === true), 'Deep research did not request model streaming.');
     assert(fakeServices.modelRequests.every(request => JSON.stringify(request.messages).includes('只能基于已选来源')), 'Model prompt lost the selected-source boundary.');
     assert(consoleErrors.length === 0, `Browser errors: ${consoleErrors.join(' | ')}`);
@@ -244,7 +275,12 @@ async function main() {
       appOrigin,
       providerRequests: { search: fakeServices.searchRequests.length, model: fakeServices.modelRequests.length },
       noEvidence: { status: noEvidenceResponse.status, errorType: noEvidenceBody.errorType },
-      screenshots: { desktop: desktopScreenshot, mobile: mobileScreenshot },
+      screenshots: {
+        desktop: desktopScreenshot,
+        desktopResult: desktopResultScreenshot,
+        mobile: mobileScreenshot,
+        mobileResult: mobileResultScreenshot,
+      },
       mobileOverflow,
       checked: [
         'paper-search result is ingested and selected before deep research',
@@ -252,6 +288,7 @@ async function main() {
         'evidence citations remain clickable back to the selected source',
         'no-evidence requests return 422 without invoking the model',
         'client cancellation preserves partial evidence and marks the draft incomplete',
+        'mobile product-tab switching preserves the completed report',
       ],
     };
     await writeFile(path.join(evidenceDir, 'deep-research-evidence.json'), JSON.stringify(evidence, null, 2), 'utf8');

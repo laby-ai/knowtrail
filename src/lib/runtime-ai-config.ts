@@ -79,6 +79,19 @@ export function serverRuntimeAIConfigFromEnv(): Partial<RuntimeAIConfig> {
     };
   }
 
+  const dashscopeBase = envFirst('DASHSCOPE_API_BASE');
+  const dashscopeKey = envFirst('DASHSCOPE_API_KEY');
+  if (dashscopeBase && dashscopeKey) {
+    return {
+      apiBase: dashscopeBase,
+      apiKey: dashscopeKey,
+      model: envFirst('DASHSCOPE_MODEL', 'OPENAI_COMPAT_MODEL', 'ARK_MODEL'),
+      visionModel: envFirst('DASHSCOPE_VISION_MODEL', 'OPENAI_COMPAT_VISION_MODEL'),
+      embeddingModel: envFirst('DASHSCOPE_EMBEDDING_MODEL', 'OPENAI_COMPAT_EMBEDDING_MODEL'),
+      ttsSpeaker: envFirst('AGENTPLAN_TTS_SPEAKER', 'DOUBAO_TTS_SPEAKER'),
+    };
+  }
+
   return {
     apiBase: envFirst('OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE'),
     apiKey: envFirst('OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY'),

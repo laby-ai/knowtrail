@@ -1,5 +1,6 @@
 // 学术论文智能宣讲助手 - 核心类型定义
 import type { KnowledgeMapData } from '@/lib/knowledge-map-types';
+import type { LiteratureMetadata } from '@/lib/literature/types';
 
 // 文献库相关类型
 export type FileType = 'pdf' | 'doc' | 'docx' | 'txt' | 'jpg' | 'jpeg' | 'png' | 'gif' | 'webp' | 'md' | 'csv' | 'xlsx' | 'ppt' | 'pptx' | 'other';
@@ -55,12 +56,12 @@ export interface Paper {
   fileUrl?: string; // 存储路径（开发：本地路径，生产：S3 key 或签名 URL）
   fileKey?: string; // S3 对象 key（生产环境持久化用）
   uploadTime: string;
-  /** Built-in demonstration source. It is never persisted to the user's source store. */
-  isSample?: boolean;
   /** 期刊/会议名称 */
   journal?: string;
   /** DOI */
   doi?: string;
+  /** 检索来源的真实题录元数据，不代表已获取全文 */
+  literature?: LiteratureMetadata;
   /** MinerU 提取的论文图表列表 */
   mineruFigures?: MinerUFigure[];
   /** MinerU 提取状态: pending/running/done/failed */
@@ -256,6 +257,11 @@ export interface RuntimeAIConfig {
   visionModel: string;
   embeddingModel: string;
   ttsSpeaker: string;
+  providerId?: string;
+  workspaceId?: string;
+  region?: string;
+  imageModel?: string;
+  ttsModel?: string;
 }
 
 export interface StudioPromptRequest {

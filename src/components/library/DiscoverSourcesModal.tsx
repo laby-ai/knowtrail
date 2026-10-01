@@ -6,30 +6,43 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
   Circle,
+  FileText,
   Globe2,
   GraduationCap,
   Loader2,
   Plus,
+  Quote,
   Search,
   X,
 } from 'lucide-react';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { createDiscoveredSourceFile, type DiscoveredSourceFileInput } from '@/lib/discovered-source-file';
-import { readPaperHostContext } from '@/lib/paper-host-bridge';
-import { optimizePaperHostDiscoverQuery, searchPaperHostSources } from '@/lib/paper-host-discover-search';
+import { copyTextWithFallback } from '@/lib/clipboard';
 
 type DiscoverResult = DiscoveredSourceFileInput;
 
 type IngestPhase = 'idle' | 'fetching' | 'done';
+
+type CitationStyle = 'apa' | 'GB/T 7714' | 'mla' | 'chicago' | 'ieee' | 'bibtex';
+
+const CITATION_STYLES: { value: CitationStyle; label: string }[] = [
+  { value: 'apa', label: 'APA 7th' },
+  { value: 'GB/T 7714', label: 'GB/T 7714' },
+  { value: 'mla', label: 'MLA 9th' },
+  { value: 'chicago', label: 'Chicago 17th' },
+  { value: 'ieee', label: 'IEEE' },
+  { value: 'bibtex', label: 'BibTeX' },
+];
 
 export function DiscoverSourcesModal({
   notebookId,
   onClose,
   onIngestFiles,
   variant = 'modal',
-  initialScope = 'webpage',
+  initialScope = 'scholar',
 }: {
   notebookId?: string;
   onClose: () => void;
@@ -38,8 +51,6 @@ export function DiscoverSourcesModal({
   initialScope?: 'webpage' | 'scholar';
 }) {
   const [query, setQuery] = useState('');
-  const [optimizedQuery, setOptimizedQuery] = useState('');
-  const [planKeywords, setPlanKeywords] = useState<string[]>([]);
   const [scope, setScope] = useState<'webpage' | 'scholar'>(initialScope);
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<DiscoverResult[]>([]);
@@ -47,12 +58,16 @@ export function DiscoverSourcesModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [searchProvider, setSearchProvider] = useState<'metaso' | 'arxiv' | 'giiisp-paper' | 'dashscope-web' | null>(null);
+  const [searchProvider, setSearchProvider] = useState<'metaso' | 'arxiv' | null>(null);
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>('idle');
   const [ingestProgress, setIngestProgress] = useState({ done: 0, total: 0 });
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
+  const [citeStyle, setCiteStyle] = useState<CitationStyle>('apa');
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [fulltextLoading, setFulltextLoading] = useState<string | null>(null);
+  const [fulltextError, setFulltextError] = useState<{link: string; message: string} | null>(null);
+  const [citeError, setCiteError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const searchSequence = useRef(0);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -66,9 +81,8 @@ export function DiscoverSourcesModal({
   }, [onClose, variant]);
 
   const handleSearch = useCallback(async () => {
-    const original = query.trim();
-    if (!original || isSearching) return;
-    const sequence = ++searchSequence.current;
+    const q = query.trim();
+    if (!q || isSearching) return;
     setIsSearching(true);
     setError(null);
     setNotice(null);
@@ -76,59 +90,17 @@ export function DiscoverSourcesModal({
     setItemErrors({});
     setSelected(new Set());
     try {
-      let effectiveQuery = optimizedQuery.trim();
-      if (!effectiveQuery) {
-        const hostContext = readPaperHostContext();
-        let plan: { success?: boolean; optimizedQuery?: string; keywords?: string[]; error?: string };
-        if (hostContext.enabled && window.paperHostBridge) {
-          try {
-            plan = { success: true, ...await optimizePaperHostDiscoverQuery(original, scope) };
-          } catch (error) {
-            plan = { error: error instanceof Error ? error.message : '检索式优化暂不可用' };
-          }
-        } else {
-          const planResponse = await fetch('/api/discover/optimize-query', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
-            body: JSON.stringify({ query: original, scope, notebookId }),
-          });
-          plan = await planResponse.json();
-          if (!planResponse.ok) plan.success = false;
-        }
-        if (sequence !== searchSequence.current) return;
-        if (plan.success && typeof plan.optimizedQuery === 'string') {
-          effectiveQuery = plan.optimizedQuery.trim();
-          setOptimizedQuery(effectiveQuery);
-          setPlanKeywords(Array.isArray(plan.keywords) ? plan.keywords : []);
-        } else {
-          effectiveQuery = original;
-          setOptimizedQuery(original);
-          setPlanKeywords([]);
-          setNotice(plan.error || '检索式优化暂不可用，已使用原始检索式。');
-        }
-      }
-
-      const hostContext = readPaperHostContext();
-      if (hostContext.enabled && window.paperHostBridge) {
-        const result = await searchPaperHostSources({ query: effectiveQuery, scope });
-        if (sequence !== searchSequence.current) return;
-        setResults(result.results);
-        setSearchProvider(result.provider);
-      } else {
-        const res = await fetch('/api/discover/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
-          body: JSON.stringify({ query: effectiveQuery, scope, size: 10, withContent: false, notebookId }),
-        });
-        const data = await res.json();
-        if (sequence !== searchSequence.current) return;
-        if (!res.ok || !data.success) throw new Error(data.error || '搜索失败');
-        setResults(Array.isArray(data.results) ? data.results : []);
-        setSearchProvider(data.provider === 'arxiv' ? 'arxiv' : 'metaso');
-      }
+      const res = await fetch('/api/discover/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+        body: JSON.stringify({ query: q, scope, size: 10, withContent: false, notebookId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || '搜索失败');
+      setResults(Array.isArray(data.results) ? data.results : []);
+      setSearchProvider(data.provider === 'arxiv' ? 'arxiv' : 'metaso');
       setSearched(true);
     } catch (err) {
-      if (sequence !== searchSequence.current) return;
       setError(err instanceof Error ? err.message : '搜索失败，请重试');
       setResults([]);
       setSearchProvider(null);
@@ -136,7 +108,7 @@ export function DiscoverSourcesModal({
     } finally {
       setIsSearching(false);
     }
-  }, [query, optimizedQuery, scope, isSearching, notebookId]);
+  }, [query, scope, isSearching, notebookId]);
 
   const toggleSelect = useCallback((link: string) => {
     setSelected(prev => {
@@ -207,17 +179,78 @@ export function DiscoverSourcesModal({
     setIngestPhase('idle');
   }, [results, selected, ingestPhase, notebookId, onIngestFiles, onClose, variant]);
 
+  const handleCite = useCallback(async (item: DiscoverResult) => {
+    setCiteError(null);
+    try {
+      const year = item.date ? new Date(item.date).getFullYear() : new Date().getFullYear();
+      const authors = (item.authors || []).map(name => ({ name }));
+      const res = await fetch('/api/literature/cite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          papers: [{ title: item.title, authors, year, url: item.link }],
+          style: citeStyle,
+        }),
+      });
+      if (!res.ok) throw new Error('引用格式化失败');
+      const data = await res.json();
+      const citation = data.citations?.[0] || '';
+      if (!citation) throw new Error('引用内容为空');
+
+      const ok = await copyTextWithFallback(citation);
+      if (!ok) {
+        setCiteError('复制失败，请手动复制: ' + citation);
+        setTimeout(() => setCiteError(null), 8000);
+        return;
+      }
+      setCopiedLink(item.link);
+      setTimeout(() => setCopiedLink(null), 3000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '引用格式化失败';
+      setCiteError(message);
+      setTimeout(() => setCiteError(null), 3000);
+    }
+  }, [citeStyle]);
+
+  const handleGetFullText = useCallback(async (item: DiscoverResult) => {
+    setFulltextError(null);
+    setFulltextLoading(item.link);
+    try {
+      const res = await fetch('/api/literature/fulltext', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'url', pdfUrl: item.link }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setFulltextError({link: item.link, message: data.message || '全文获取失败'});
+        setTimeout(() => setFulltextError(null), 3000);
+        return;
+      }
+      const data = await res.json();
+      setNotice(`全文获取成功 (${data.charCount} 字符)`);
+      setTimeout(() => setNotice(null), 3000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '全文获取失败';
+      setFulltextError({link: item.link, message});
+      setTimeout(() => setFulltextError(null), 3000);
+    } finally {
+      setFulltextLoading(null);
+    }
+  }, []);
+
   return (
     <div
       className={variant === 'modal'
-        ? 'fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-fade-in'
+        ? 'fixed inset-0 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in'
         : 'w-full'}
+      style={variant === 'modal' ? { background: 'var(--dialog-overlay)' } : undefined}
       data-testid={variant === 'modal' ? 'discover-sources-modal' : 'paper-search-workspace'}
       onClick={variant === 'modal' ? onClose : undefined}
     >
       <div
         className={variant === 'modal'
-          ? 'flex max-h-[86vh] w-full max-w-2xl flex-col gap-3 rounded-2xl border border-white/10 bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in'
+          ? 'liquid-glass-card flex max-h-[86vh] w-full max-w-2xl flex-col gap-3 rounded-2xl p-5 shadow-2xl animate-scale-in'
           : 'flex w-full flex-col gap-3'}
         onClick={e => e.stopPropagation()}
       >
@@ -259,11 +292,7 @@ export function DiscoverSourcesModal({
             <input
               ref={inputRef}
               value={query}
-              onChange={e => {
-                setQuery(e.target.value);
-                setOptimizedQuery('');
-                setPlanKeywords([]);
-              }}
+              onChange={e => setQuery(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void handleSearch(); }}
               placeholder="输入主题,例如:多模态大模型评测方法"
               data-testid="discover-query"
@@ -277,33 +306,9 @@ export function DiscoverSourcesModal({
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 text-xs font-semibold text-white transition hover:from-blue-400 hover:to-blue-500 disabled:opacity-45"
           >
             {isSearching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            {optimizedQuery ? '搜索' : '优化并搜索'}
+            搜索
           </button>
         </div>
-
-        {optimizedQuery && (
-          <div className="rounded-xl border border-blue-400/20 bg-blue-500/8 px-3 py-2" data-testid="discover-query-plan">
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-blue-300">可编辑检索式</span>
-              <span className="text-[10px] text-[var(--text-quaternary)]">模型只整理检索式，结果来自真实来源</span>
-            </div>
-            <input
-              value={optimizedQuery}
-              onChange={event => setOptimizedQuery(event.target.value)}
-              onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void handleSearch(); }}
-              data-testid="discover-optimized-query"
-              className="liquid-glass-input w-full px-3 py-2 text-xs"
-              aria-label="可编辑检索式"
-            />
-            {planKeywords.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5" aria-label="检索关键词">
-                {planKeywords.map(keyword => (
-                  <span key={keyword} className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-300">{keyword}</span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {error && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2">
@@ -317,6 +322,12 @@ export function DiscoverSourcesModal({
             <p className="text-[11px] leading-relaxed text-emerald-300">{notice}</p>
           </div>
         )}
+        {citeError && (
+          <div className="flex items-start gap-2 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" />
+            <p className="text-[11px] leading-relaxed text-red-300">{citeError}</p>
+          </div>
+        )}
         {searchProvider === 'arxiv' && (
           <div className="flex items-start gap-2 rounded-xl border border-blue-400/20 bg-blue-500/8 px-3 py-2" data-testid="discover-provider-boundary">
             <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
@@ -325,16 +336,19 @@ export function DiscoverSourcesModal({
             </p>
           </div>
         )}
-        {(searchProvider === 'giiisp-paper' || searchProvider === 'dashscope-web') && (
-          <div className="flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/8 px-3 py-2" data-testid="discover-provider-boundary">
-            {searchProvider === 'giiisp-paper'
-              ? <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
-              : <Globe2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />}
-            <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-              {searchProvider === 'giiisp-paper'
-                ? '当前使用与科教平台首页一致的集思谱论文检索。结果是候选线索，引用前仍需核对来源页。'
-                : '当前使用与科教平台首页一致的联网检索。这里只展示服务返回的真实来源，不展示模型生成的引用。'}
-            </p>
+
+        {results.length > 0 && (
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-[11px] text-[var(--text-tertiary)]">引用格式:</span>
+            <select
+              value={citeStyle}
+              onChange={e => setCiteStyle(e.target.value as CitationStyle)}
+              className="rounded-lg border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-2 py-1 text-[11px] text-[var(--text-primary)]"
+            >
+              {CITATION_STYLES.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -392,10 +406,36 @@ export function DiscoverSourcesModal({
                         {itemError && (
                           <span className="mt-1 block text-[10px] text-red-400">抓取失败:{itemError}</span>
                         )}
+                        {fulltextError?.link === item.link && (
+                          <span className="mt-1 block text-[10px] text-red-400">全文获取失败: {fulltextError.message}</span>
+                        )}
                       </span>
                     </span>
                   </button>
-                  <div className="flex justify-end border-t border-[var(--border-subtle)] px-3.5 py-2">
+                  <div className="flex items-center justify-between border-t border-[var(--border-subtle)] px-3.5 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={e => { e.stopPropagation(); void handleCite(item); }}
+                        className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium transition ${
+                          copiedLink === item.link
+                            ? 'bg-green-500/10 text-green-500'
+                            : 'text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        {copiedLink === item.link
+                          ? <><Check className="h-3 w-3" /><span>已复制</span></>
+                          : <><Quote className="h-3 w-3" /><span>引用</span></>}
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); void handleGetFullText(item); }}
+                        disabled={fulltextLoading === item.link}
+                        className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium text-[var(--text-tertiary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-secondary)] disabled:opacity-50"
+                      >
+                        {fulltextLoading === item.link
+                          ? <><Loader2 className="h-3 w-3 animate-spin" /><span>获取中...</span></>
+                          : <><FileText className="h-3 w-3" /><span>获取全文</span></>}
+                      </button>
+                    </div>
                     <a
                       href={item.link}
                       target="_blank"

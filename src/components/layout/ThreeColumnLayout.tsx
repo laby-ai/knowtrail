@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { LibraryBig, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Sparkles } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
 
 interface ThreeColumnLayoutProps {
   leftPanel: React.ReactNode;
@@ -10,26 +10,18 @@ interface ThreeColumnLayoutProps {
   defaultLeftWidth?: number;
   defaultRightWidth?: number;
   initialMobilePanel?: 'left' | 'center' | 'right';
-  appearance?: 'glass' | 'quiet-research';
-  rightFocusKey?: string | null;
 }
 
-const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths';
-const COLLAPSE_STORAGE_KEY = 'knowtrail:workbench-panel-collapsed';
+const WIDTHS_STORAGE_KEY = 'knowtrail:workbench-panel-widths-v5';
+const MIN_LEFT = 220;
+const MAX_LEFT = 450;
+const MIN_RIGHT = 280;
+const MAX_RIGHT = 650;
 
-function readStoredWidths(storageKey: string): { left?: number; right?: number } {
+function readStoredWidths(): { leftPx?: number; rightPx?: number } {
   if (typeof window === 'undefined') return {};
   try {
-    return JSON.parse(window.localStorage.getItem(storageKey) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function readStoredCollapse(storageKey: string): { left?: boolean; right?: boolean } {
-  if (typeof window === 'undefined') return {};
-  try {
-    return JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+    return JSON.parse(window.localStorage.getItem(WIDTHS_STORAGE_KEY) || '{}');
   } catch {
     return {};
   }
@@ -39,34 +31,28 @@ export function ThreeColumnLayout({
   leftPanel,
   centerPanel,
   rightPanel,
-  defaultLeftWidth = 280,
-  defaultRightWidth = 440,
+  defaultLeftWidth = 320,
+  defaultRightWidth = 520,
   initialMobilePanel = 'center',
-  appearance = 'glass',
-  rightFocusKey = null,
 }: ThreeColumnLayoutProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const widthsStorageKey = appearance === 'quiet-research'
-    ? `${WIDTHS_STORAGE_KEY}:quiet-research`
-    : WIDTHS_STORAGE_KEY;
-  const collapseStorageKey = appearance === 'quiet-research'
-    ? `${COLLAPSE_STORAGE_KEY}:quiet-research`
-    : COLLAPSE_STORAGE_KEY;
-  const [leftWidth, setLeftWidth] = useState(() => {
-    const stored = readStoredWidths(widthsStorageKey).left;
-    return stored && stored >= 220 && stored <= 450 ? stored : defaultLeftWidth;
-  });
-  const [rightWidth, setRightWidth] = useState(() => {
-    const stored = readStoredWidths(widthsStorageKey).right;
-    return stored && stored >= 360 && stored <= 680 ? stored : defaultRightWidth;
-  });
+  const [leftWidth, setLeftWidth] = useState(defaultLeftWidth);
+  const [rightWidth, setRightWidth] = useState(defaultRightWidth);
   const [dragging, setDragging] = useState<'left' | 'right' | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'left' | 'center' | 'right'>(initialMobilePanel);
-  const [leftCollapsed, setLeftCollapsed] = useState(() => readStoredCollapse(collapseStorageKey).left === true);
-  const [rightCollapsed, setRightCollapsed] = useState(() => readStoredCollapse(collapseStorageKey).right === true);
+  const [leftCollapsed, setLeftCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+  const preCollapseLeftRef = useRef(defaultLeftWidth);
+  const preCollapseRightRef = useRef(defaultRightWidth);
+
+  useEffect(() => {
+    const stored = readStoredWidths();
+    if (stored.leftPx) setLeftWidth(stored.leftPx);
+    if (stored.rightPx) setRightWidth(stored.rightPx);
+  }, []);
 
   const handleMouseDown = useCallback((side: 'left' | 'right', e: React.MouseEvent) => {
     e.preventDefault();
@@ -79,32 +65,21 @@ export function ThreeColumnLayout({
     if (!dragging) return;
     const delta = e.clientX - startXRef.current;
     if (dragging === 'left') {
-      const newWidth = Math.max(220, Math.min(450, startWidthRef.current + delta));
-      setLeftWidth(newWidth);
+      setLeftWidth(Math.max(MIN_LEFT, Math.min(MAX_LEFT, startWidthRef.current + delta)));
     } else {
-      const newWidth = Math.max(360, Math.min(680, startWidthRef.current - delta));
-      setRightWidth(newWidth);
+      setRightWidth(Math.max(MIN_RIGHT, Math.min(MAX_RIGHT, startWidthRef.current - delta)));
     }
   }, [dragging]);
 
   const handleMouseUp = useCallback(() => {
     setDragging(null);
     try {
-      window.localStorage.setItem(widthsStorageKey, JSON.stringify({ left: leftWidth, right: rightWidth }));
+      window.localStorage.setItem(WIDTHS_STORAGE_KEY, JSON.stringify({
+        leftPx: leftWidth,
+        rightPx: rightWidth,
+      }));
     } catch { /* quota — persistence is best-effort */ }
-  }, [leftWidth, rightWidth, widthsStorageKey]);
-
-  const resizeFromKeyboard = useCallback((side: 'left' | 'right', delta: number) => {
-    if (side === 'left') setLeftWidth(width => Math.max(220, Math.min(450, width + delta)));
-    else setRightWidth(width => Math.max(360, Math.min(680, width + delta)));
-  }, []);
-
-  const handleDividerKeyDown = (side: 'left' | 'right', event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    event.preventDefault();
-    const direction = event.key === 'ArrowRight' ? 1 : -1;
-    resizeFromKeyboard(side, side === 'left' ? direction * 16 : direction * -16);
-  };
+  }, [leftWidth, rightWidth]);
 
   useEffect(() => {
     if (dragging) {
@@ -132,197 +107,133 @@ export function ThreeColumnLayout({
     setMobilePanel(initialMobilePanel);
   }, [initialMobilePanel]);
 
-  useEffect(() => {
-    if (rightFocusKey) setMobilePanel('right');
-  }, [rightFocusKey]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(collapseStorageKey, JSON.stringify({ left: leftCollapsed, right: rightCollapsed }));
-    } catch { /* quota — persistence is best-effort */ }
-  }, [collapseStorageKey, leftCollapsed, rightCollapsed]);
-
-  if (isMobile) {
-    const tabs: Array<{ id: 'left' | 'center' | 'right'; label: string }> = [
-      { id: 'left', label: '资料' },
-      { id: 'center', label: '对话' },
-      { id: 'right', label: '产物' },
-    ];
-
-    return (
-      <div ref={containerRef} className="h-full w-full min-w-0 overflow-hidden flex flex-col">
-        <div className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]/92 px-3 py-2 backdrop-blur-xl">
-          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-1 shadow-[var(--glass-shadow-sm)]">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setMobilePanel(tab.id)}
-                data-testid={`workbench-mobile-tab-${tab.id}`}
-                className={`rounded-xl px-3 py-2 text-sm font-medium transition-all ${
-                  mobilePanel === tab.id
-                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[0_8px_24px_rgba(15,23,42,0.14)]'
-                    : 'text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-hidden liquid-glass-panel" style={{ borderRight: 'none', borderLeft: 'none' }}>
-          <div className={mobilePanel === 'left' ? 'h-full' : 'hidden'}>{leftPanel}</div>
-          <div className={mobilePanel === 'center' ? 'h-full' : 'hidden'}>{centerPanel}</div>
-          <div className={mobilePanel === 'right' ? 'h-full' : 'hidden'}>{rightPanel}</div>
-        </div>
-      </div>
-    );
-  }
-
-  const panelClass = appearance === 'quiet-research' ? 'quiet-workbench-panel' : 'liquid-glass-panel';
+  const tabs: Array<{ id: 'left' | 'center' | 'right'; label: string }> = [
+    { id: 'left', label: '资料' },
+    { id: 'center', label: '对话' },
+    { id: 'right', label: '产物' },
+  ];
 
   return (
     <div
       ref={containerRef}
-      className={`relative h-full w-full flex ${appearance === 'quiet-research' ? 'quiet-workbench-shell' : ''}`}
+      className="relative flex h-full w-full flex-col overflow-hidden md:flex-row"
       style={{ cursor: dragging ? 'col-resize' : undefined }}
     >
-      {leftCollapsed && (
-        <aside
-          className={`mr-3 flex h-full w-14 flex-shrink-0 flex-col items-center gap-3 overflow-hidden py-3 ${panelClass}`}
-          data-testid="workbench-left-rail"
-          aria-label="资料库已收起"
-        >
-          <button
-            type="button"
-            onClick={() => setLeftCollapsed(false)}
-            data-testid="workbench-expand-left"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-            title="展开资料库"
-            aria-label="展开资料库"
-          >
-            <PanelLeftOpen className="pointer-events-none h-4 w-4" />
-          </button>
-          <LibraryBig className="mt-1 h-4 w-4 text-[var(--text-tertiary)]" aria-hidden="true" />
-          <span className="[writing-mode:vertical-rl] text-xs font-medium tracking-[0.18em] text-[var(--text-tertiary)]">资料库</span>
-        </aside>
-      )}
-
-      {/* Left Panel — liquid glass */}
-      {!leftCollapsed && (
-        <div
-          className={`h-full flex-shrink-0 overflow-hidden ${panelClass}`}
-          style={{ width: leftWidth }}
-          data-testid="workbench-left-panel"
-        >
-          {leftPanel}
+      <div className="flex-shrink-0 border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]/92 px-3 py-2 backdrop-blur-xl md:hidden">
+        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-1 shadow-[var(--glass-shadow-sm)]">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setMobilePanel(tab.id)}
+              data-testid={`workbench-mobile-tab-${tab.id}`}
+              className={`rounded-xl px-3 py-2 text-sm font-medium transition-all ${
+                mobilePanel === tab.id
+                  ? 'bg-[var(--text-primary)] text-[var(--bg-primary)] shadow-[0_8px_24px_rgba(15,23,42,0.14)]'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
+
+      {/* Left Panel */}
+      <div
+        className={`${mobilePanel === 'left' ? 'flex' : 'hidden'} ${leftCollapsed ? 'md:hidden' : 'md:flex'} h-full flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full`}
+        style={{ width: isMobile ? undefined : leftWidth }}
+        aria-hidden={isMobile && mobilePanel !== 'left'}
+      >
+        {leftPanel}
+      </div>
 
       {/* Left Divider */}
       {!leftCollapsed && (
         <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整资料栏宽度"
-          aria-valuenow={leftWidth}
-          tabIndex={0}
-          data-testid="workbench-divider-left"
-          className="panel-divider flex-shrink-0"
+          className="panel-divider hidden flex-shrink-0 md:block"
           onMouseDown={(e) => handleMouseDown('left', e)}
-          onKeyDown={(event) => handleDividerKeyDown('left', event)}
-          onDoubleClick={() => setLeftCollapsed(true)}
+          onDoubleClick={() => {
+            preCollapseLeftRef.current = leftWidth;
+            preCollapseRightRef.current = rightWidth;
+            setLeftCollapsed(true);
+          }}
           title="拖拽调宽 · 双击收起"
         />
       )}
 
-      {/* Center Panel — liquid glass */}
+      {/* Center Panel */}
       <div
-        className={`relative h-full flex-1 overflow-hidden ${panelClass}`}
+        className={`${mobilePanel === 'center' ? 'flex' : 'hidden'} relative h-full flex-1 overflow-hidden liquid-glass-panel md:flex md:h-full`}
         style={{ borderRight: 'none', borderLeft: 'none' }}
-        data-testid="workbench-center-panel"
+        aria-hidden={isMobile && mobilePanel !== 'center'}
       >
         {centerPanel}
 
-        {/* Collapse / expand toggles */}
-        {!leftCollapsed && (
-          <button
-            type="button"
-            onClick={() => setLeftCollapsed(true)}
-            data-testid="workbench-toggle-left"
-            className="absolute left-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
-            title="收起资料库"
-            aria-label="收起资料库"
-          >
-            <PanelLeftClose className="pointer-events-none h-3.5 w-3.5" />
-          </button>
-        )}
-        {!rightCollapsed && (
-          <button
-            type="button"
-            onClick={() => setRightCollapsed(true)}
-            data-testid="workbench-toggle-right"
-            className="absolute right-2 top-1/2 z-20 flex h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)]"
-            title="收起产物中心"
-            aria-label="收起产物中心"
-          >
-            <PanelRightClose className="pointer-events-none h-3.5 w-3.5" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => {
+            if (!leftCollapsed) {
+              preCollapseLeftRef.current = leftWidth;
+              preCollapseRightRef.current = rightWidth;
+              setLeftCollapsed(true);
+            } else {
+              setLeftWidth(preCollapseLeftRef.current);
+              setRightWidth(preCollapseRightRef.current);
+              setLeftCollapsed(false);
+            }
+          }}
+          data-testid="workbench-toggle-left"
+          className="absolute left-2 top-1/2 z-20 hidden h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)] md:flex"
+          title={leftCollapsed ? '展开资料库' : '收起资料库'}
+          aria-label={leftCollapsed ? '展开资料库' : '收起资料库'}
+        >
+          {leftCollapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (!rightCollapsed) {
+              preCollapseLeftRef.current = leftWidth;
+              preCollapseRightRef.current = rightWidth;
+              setRightCollapsed(true);
+            } else {
+              setLeftWidth(preCollapseLeftRef.current);
+              setRightWidth(preCollapseRightRef.current);
+              setRightCollapsed(false);
+            }
+          }}
+          data-testid="workbench-toggle-right"
+          className="absolute right-2 top-1/2 z-20 hidden h-9 w-6 -translate-y-1/2 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-primary)]/85 text-[var(--text-tertiary)] opacity-40 backdrop-blur transition-all hover:opacity-100 hover:text-[var(--text-primary)] md:flex"
+          title={rightCollapsed ? '展开产物中心' : '收起产物中心'}
+          aria-label={rightCollapsed ? '展开产物中心' : '收起产物中心'}
+        >
+          {rightCollapsed ? <PanelRightOpen className="h-3.5 w-3.5" /> : <PanelRightClose className="h-3.5 w-3.5" />}
+        </button>
       </div>
 
       {/* Right Divider */}
       {!rightCollapsed && (
         <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整产物栏宽度"
-          aria-valuenow={rightWidth}
-          tabIndex={0}
-          data-testid="workbench-divider-right"
-          className="panel-divider flex-shrink-0"
+          className="panel-divider hidden flex-shrink-0 md:block"
           onMouseDown={(e) => handleMouseDown('right', e)}
-          onKeyDown={(event) => handleDividerKeyDown('right', event)}
-          onDoubleClick={() => setRightCollapsed(true)}
+          onDoubleClick={() => {
+            preCollapseLeftRef.current = leftWidth;
+            preCollapseRightRef.current = rightWidth;
+            setRightCollapsed(true);
+          }}
           title="拖拽调宽 · 双击收起"
         />
       )}
 
-      {/* Right Panel — liquid glass */}
-      {!rightCollapsed && (
-        <div
-          className={`h-full flex-shrink-0 overflow-hidden ${panelClass}`}
-          style={{
-            width: rightWidth,
-            borderRight: 'none',
-            borderLeft: appearance === 'quiet-research' ? 'none' : '1px solid var(--glass-border)',
-          }}
-          data-testid="workbench-right-panel"
-        >
-          {rightPanel}
-        </div>
-      )}
-
-      {rightCollapsed && (
-        <aside
-          className={`ml-3 flex h-full w-14 flex-shrink-0 flex-col items-center gap-3 overflow-hidden py-3 ${panelClass}`}
-          data-testid="workbench-right-rail"
-          aria-label="产物中心已收起"
-        >
-          <button
-            type="button"
-            onClick={() => setRightCollapsed(false)}
-            data-testid="workbench-expand-right"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-            title="展开产物中心"
-            aria-label="展开产物中心"
-          >
-            <PanelRightOpen className="pointer-events-none h-4 w-4" />
-          </button>
-          <Sparkles className="mt-1 h-4 w-4 text-[var(--text-tertiary)]" aria-hidden="true" />
-          <span className="[writing-mode:vertical-rl] text-xs font-medium tracking-[0.18em] text-[var(--text-tertiary)]">产物中心</span>
-        </aside>
-      )}
+      {/* Right Panel */}
+      <div
+        className={`${mobilePanel === 'right' ? 'flex' : 'hidden'} ${rightCollapsed ? 'md:hidden' : 'md:flex'} h-full flex-shrink-0 overflow-hidden liquid-glass-panel md:h-full`}
+        style={{ width: isMobile ? undefined : rightWidth, borderRight: 'none', borderLeft: '1px solid var(--glass-border)' }}
+        aria-hidden={isMobile && mobilePanel !== 'right'}
+      >
+        {rightPanel}
+      </div>
     </div>
   );
 }

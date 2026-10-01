@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, FileSearch, GitBranch, Link as LinkIcon, Network, Search, ShieldCheck, Waypoints, X, Zap } from 'lucide-react';
+import { ArrowLeft, FileSearch, GitBranch, Link as LinkIcon, Network, ShieldCheck, Waypoints, X, Zap } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { KnowledgeMapGraph, type KnowledgeMapColorMode } from './KnowledgeMapGraph';
 import type { KnowledgeMapEdgeConfidence, KnowledgeMapNodeType } from '@/lib/knowledge-map-types';
@@ -114,14 +114,13 @@ export function KnowledgeMapWorkspace() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative hidden sm:block">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <div className="hidden sm:block">
             <input
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               placeholder="搜索节点"
               data-testid="knowledge-map-search"
-              className="w-40 rounded-full border border-slate-200 bg-white/80 py-1.5 pl-8 pr-7 text-xs text-slate-700 outline-none transition focus:w-52 focus:border-blue-300"
+              className="w-40 rounded-full border border-slate-200 bg-white/80 py-1.5 px-3 pr-7 text-xs text-slate-700 outline-none transition focus:w-52 focus:border-blue-300"
             />
             {searchTerm && (
               <button

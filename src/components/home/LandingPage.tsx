@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { BrandMark } from '@/components/brand/BrandMark';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import {
   ACCOUNT_NOTEBOOK_NEXT,
@@ -88,7 +89,7 @@ const researchRoadmap: ResearchRoadmapGroup[] = [
     label: '已在使用',
     title: '先把可溯源的文献本做扎实',
     body: '围绕用户已上传的论文、网页和研究笔记组织问答与产物，不把来源和分析判断混在一起。',
-    accentClass: 'border-blue-100 bg-blue-50/70 text-blue-700',
+    accentClass: 'border-blue-400/30 bg-blue-500/20 text-blue-200',
     items: [
       { icon: Quote, title: '证据溯源问答', body: '回答优先基于已选来源，并保留可复核的引用线索。' },
       { icon: BookOpen, title: '文献本 / 课题本', body: '把文献、笔记和后续产物留在同一个研究上下文。' },
@@ -99,7 +100,7 @@ const researchRoadmap: ResearchRoadmapGroup[] = [
     label: '正在强化',
     title: '把 PDF 建议拆成可验证的小闭环',
     body: '优先做科研用户最敏感的段落证据、跨文献比较和文献矩阵，而不是一次性堆功能入口。',
-    accentClass: 'border-emerald-100 bg-emerald-50/70 text-emerald-700',
+    accentClass: 'border-emerald-400/30 bg-emerald-500/20 text-emerald-200',
     items: [
       { icon: ClipboardCheck, title: '段落级引用定位', body: '让摘要、观点和对比结论能回到具体来源片段。' },
       { icon: GitCompare, title: '跨文献对比', body: '抽取多篇文献的共识、分歧和研究演化线索。' },
@@ -110,7 +111,7 @@ const researchRoadmap: ResearchRoadmapGroup[] = [
     label: '规划中',
     title: '重能力只在可交付后开放',
     body: '涉及外部学术库、代码执行和多人协作的能力会分阶段接入，避免把未上线能力写成承诺。',
-    accentClass: 'border-slate-200 bg-slate-50 text-slate-700',
+    accentClass: 'border-white/20 bg-white/10 text-white/70',
     items: [
       { icon: BarChart3, title: '数据分析与 Results 草稿', body: '面向 CSV/Excel 的统计分析、图表和结果段落仍需独立验证。' },
       { icon: PenLine, title: '证据驱动写作', body: '引言、章节草稿和每句话来源追踪会在引用体系稳定后推进。' },
@@ -125,7 +126,7 @@ function ResearchPartnerSection() {
   return (
     <section className="mx-auto max-w-7xl px-5 py-20">
       <MotionReveal>
-        <h2 className="text-center text-4xl font-normal tracking-tight text-slate-950 md:text-5xl">从文献到证据链</h2>
+        <h2 className="text-center text-4xl font-normal tracking-tight text-white md:text-5xl">从文献到证据链</h2>
       </MotionReveal>
       <div className="mt-12 space-y-16">
         {researchFeatures.map((feature, index) => {
@@ -138,9 +139,9 @@ function ResearchPartnerSection() {
               className={`grid items-center gap-8 lg:grid-cols-[0.52fr_1fr] ${flip ? 'lg:grid-cols-[1fr_0.52fr]' : ''}`}
             >
               <div className={flip ? 'lg:order-2' : ''}>
-                <Icon className="mb-5 h-9 w-9 text-slate-950" strokeWidth={2.1} />
-                <h3 className="text-3xl font-normal tracking-tight text-slate-950">{feature.title}</h3>
-                <p className="mt-5 max-w-sm text-lg leading-8 text-slate-600">{feature.body}</p>
+                <Icon className="mb-5 h-9 w-9 text-white" strokeWidth={2.1} />
+                <h3 className="text-3xl font-normal tracking-tight text-white">{feature.title}</h3>
+                <p className="mt-5 max-w-sm text-lg leading-8 text-white/70">{feature.body}</p>
               </div>
               <div className={flip ? 'lg:order-1' : ''}>
                 <FeatureMotionDemo variant={feature.variant} label={feature.label} detail={feature.detail} />
@@ -158,11 +159,11 @@ function ResearchRoadmapSection() {
     <section className="mx-auto max-w-7xl px-5 py-20">
       <MotionReveal>
         <div className="max-w-3xl">
-          <p className="text-sm font-semibold text-blue-600">科研能力路线图</p>
-          <h2 className="mt-3 text-4xl font-normal tracking-tight text-slate-950 md:text-5xl">
+          <p className="text-sm font-semibold text-blue-300">科研能力路线图</p>
+          <h2 className="mt-3 text-4xl font-normal tracking-tight text-white md:text-5xl">
             功能建议会进入路线图，但不提前冒充已上线
           </h2>
-          <p className="mt-5 text-lg leading-8 text-slate-600">
+          <p className="mt-5 text-lg leading-8 text-white/70">
             灵笔会沿着文献调研、实验设计、数据分析、论文写作和投稿准备逐步打磨。当前先把可信来源、证据溯源和研究产物闭环做稳。
           </p>
         </div>
@@ -171,25 +172,25 @@ function ResearchRoadmapSection() {
       <div className="mt-10 grid gap-5 lg:grid-cols-3">
         {researchRoadmap.map((group, groupIndex) => (
           <MotionReveal key={group.title} delay={groupIndex * 0.08}>
-            <div className="h-full rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+            <div className="liquid-glass-card h-full rounded-[28px] p-6">
               <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${group.accentClass}`}>
                 {group.label}
               </span>
-              <h3 className="mt-5 text-2xl font-normal leading-tight tracking-tight text-slate-950">{group.title}</h3>
-              <p className="mt-3 text-sm leading-6 text-slate-600">{group.body}</p>
+              <h3 className="mt-5 text-2xl font-normal leading-tight tracking-tight text-white">{group.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-white/70">{group.body}</p>
 
               <div className="mt-6 space-y-3">
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <div key={item.title} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+                    <div key={item.title} className="liquid-glass-inset rounded-2xl p-4">
                       <div className="flex items-start gap-3">
-                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-slate-700 shadow-sm">
+                        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/80" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%)' }}>
                           <Icon className="h-4.5 w-4.5" />
                         </span>
                         <div>
-                          <div className="text-sm font-semibold text-slate-950">{item.title}</div>
-                          <p className="mt-1 text-xs leading-5 text-slate-600">{item.body}</p>
+                          <div className="text-sm font-semibold text-white">{item.title}</div>
+                          <p className="mt-1 text-xs leading-5 text-white/60">{item.body}</p>
                         </div>
                       </div>
                     </div>
@@ -210,20 +211,20 @@ function WorkPrincipleSection() {
   return (
     <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-20 lg:grid-cols-[0.72fr_1.28fr]">
       <MotionReveal>
-        <h2 className="text-4xl font-normal tracking-tight text-slate-950 md:text-5xl">科研工作流</h2>
-        <p className="mt-6 max-w-md text-lg leading-8 text-slate-600">
+        <h2 className="text-4xl font-normal tracking-tight text-white md:text-5xl">科研工作流</h2>
+        <p className="mt-6 max-w-md text-lg leading-8 text-white/70">
           把来源放进一个文献本。提问时，回答会围绕这组来源组织，并保留可复核的依据。
         </p>
       </MotionReveal>
 
       <MotionReveal delay={0.1}>
-        <div className="relative min-h-[560px] overflow-hidden rounded-[34px] border border-blue-100 bg-[radial-gradient(circle_at_70%_18%,rgba(219,234,254,0.88),transparent_34%),radial-gradient(circle_at_18%_80%,rgba(209,250,229,0.72),transparent_34%),#ffffff] p-5 shadow-[0_28px_76px_rgba(37,99,235,0.10)] sm:p-8">
-          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.78),rgba(255,255,255,0.28))]" />
+        <div className="liquid-glass-card relative min-h-[560px] overflow-hidden rounded-[34px] p-5 sm:p-8">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-purple-500/10 to-emerald-500/10" />
 
           {principleSources.map((source, index) => (
             <motion.div
               key={source.title}
-              className={`home-principle-source absolute hidden w-[250px] rounded-[26px] border p-5 shadow-[0_22px_50px_rgba(76,96,140,0.13)] backdrop-blur md:block ${source.className}`}
+              className={`home-principle-source absolute hidden w-[250px] rounded-[26px] border border-white/20 p-5 shadow-[0_22px_50px_rgba(76,96,140,0.13)] backdrop-blur-xl md:block ${source.className}`}
               animate={shouldReduceMotion ? undefined : { y: [0, -8, 0] }}
               transition={{ duration: 7.5 + index * 0.8, repeat: Infinity, ease: 'easeInOut', delay: index * -1.1 }}
             >
@@ -232,42 +233,42 @@ function WorkPrincipleSection() {
                   {source.number}
                 </span>
                 <div>
-                  <div className="text-sm font-semibold text-slate-950">{source.title}</div>
-                  <div className="mt-1 text-xs text-slate-500">{source.body}</div>
+                  <div className="text-sm font-semibold text-white">{source.title}</div>
+                  <div className="mt-1 text-xs text-white/60">{source.body}</div>
                 </div>
               </div>
               <div className="mt-5 space-y-2">
-                <span className="block h-2.5 w-full rounded-full bg-current/18" />
-                <span className="block h-2.5 w-3/5 rounded-full bg-current/14" />
+                <span className="block h-2.5 w-full rounded-full bg-white/20" />
+                <span className="block h-2.5 w-3/5 rounded-full bg-white/15" />
               </div>
             </motion.div>
           ))}
 
           <motion.div
-            className="absolute left-1/2 top-[52%] w-[min(560px,calc(100%-2.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-[30px] border border-blue-100 bg-white/92 p-6 shadow-[0_30px_86px_rgba(37,99,235,0.18)] backdrop-blur-md sm:p-8"
+            className="absolute left-1/2 top-[52%] w-[min(560px,calc(100%-2.5rem))] -translate-x-1/2 -translate-y-1/2 rounded-[30px] border border-white/20 bg-black/40 p-6 shadow-[0_30px_86px_rgba(37,99,235,0.18)] backdrop-blur-xl sm:p-8"
             animate={shouldReduceMotion ? undefined : { scale: [1, 1.012, 1], boxShadow: ['0 30px 86px rgba(37,99,235,0.15)', '0 34px 98px rgba(37,99,235,0.22)', '0 30px 86px rgba(37,99,235,0.15)'] }}
             transition={{ duration: 8.5, repeat: Infinity, ease: 'easeInOut' }}
           >
             <div className="flex items-center justify-between gap-4">
-              <div className="rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
+              <div className="rounded-full border border-blue-400/30 bg-blue-500/20 px-4 py-2 text-sm font-semibold text-blue-200">
                 证据溯源回答
               </div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+              <div className="flex items-center gap-2 text-xs font-semibold text-white/50">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
                 引用线索已检查
               </div>
             </div>
             <div className="mt-8 space-y-3">
-              <span className="block h-3 w-3/4 rounded-full bg-slate-200" />
-              <span className="home-evidence-breathe block h-3 w-[88%] rounded-full bg-blue-200" />
-              <span className="block h-3 w-2/3 rounded-full bg-slate-200" />
-              <span className="block h-3 w-5/6 rounded-full bg-slate-200" />
+              <span className="block h-3 w-3/4 rounded-full bg-white/20" />
+              <span className="home-evidence-breathe block h-3 w-[88%] rounded-full bg-blue-400/40" />
+              <span className="block h-3 w-2/3 rounded-full bg-white/20" />
+              <span className="block h-3 w-5/6 rounded-full bg-white/20" />
             </div>
             <div className="mt-8 flex flex-wrap gap-2">
               {['文献 1', '文献 2', '记录 3'].map((item, index) => (
                 <span
                   key={item}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${index === 1 ? 'home-evidence-chip bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold ${index === 1 ? 'home-evidence-chip bg-emerald-500/80 text-white' : 'bg-white/10 text-white/60'}`}
                 >
                   {item}
                 </span>
@@ -276,14 +277,14 @@ function WorkPrincipleSection() {
           </motion.div>
 
           <motion.div
-            className="absolute bottom-8 right-8 hidden max-w-xs items-center gap-3 rounded-3xl border border-blue-100 bg-white/88 px-4 py-3 shadow-[0_18px_46px_rgba(37,99,235,0.13)] backdrop-blur md:flex"
+            className="absolute bottom-8 right-8 hidden max-w-xs items-center gap-3 rounded-3xl border border-white/20 bg-black/40 px-4 py-3 shadow-[0_18px_46px_rgba(37,99,235,0.13)] backdrop-blur-xl md:flex"
             animate={shouldReduceMotion ? undefined : { y: [0, -7, 0] }}
             transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut', delay: -2.4 }}
           >
-            <BrandMark compact className="h-10 w-10 border-blue-100 shadow-none" />
+            <BrandMark compact className="h-10 w-10 border-white/20 shadow-none" />
             <div>
-              <div className="text-sm font-semibold text-slate-950">KnowTrail</div>
-              <div className="text-xs text-slate-500">问题、回答和引用依据保存在一起。</div>
+              <div className="text-sm font-semibold text-white">KnowTrail</div>
+              <div className="text-xs text-white/60">问题、回答和引用依据保存在一起。</div>
             </div>
           </motion.div>
         </div>
@@ -302,25 +303,26 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
     event.preventDefault();
     onOpenNotebookHome();
   };
-  const accountLinkClick = opensNotebookDirectly ? openNotebookHomeFromLink : undefined;
+  const accountLinkClick = openNotebookHomeFromLink;
 
   return (
-    <div className="min-h-screen bg-[#eef4ff] text-slate-950">
-      <nav className="sticky top-0 z-50 bg-[#eaf2ff]/92 px-5 py-4 backdrop-blur-xl">
+    <div className="landing-page-root min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+      <nav className="sticky top-0 z-50 border-b border-white/10 bg-black/20 px-5 py-4 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3">
             <BrandMark compact />
-            <span className="whitespace-nowrap text-2xl font-semibold tracking-tight">KnowTrail</span>
+            <span className="whitespace-nowrap text-2xl font-semibold tracking-tight text-white">KnowTrail</span>
           </Link>
-          <div className="hidden items-center gap-8 text-base font-semibold text-slate-800 md:flex">
-            <a href="#overview" className="border-b-2 border-slate-950 pb-1">概览</a>
+          <div className="hidden items-center gap-8 text-base font-semibold text-white/80 md:flex">
+            <a href="#overview" className="border-b-2 border-white pb-1">概览</a>
             <a href="#how-it-works" className="pb-1">方案</a>
           </div>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Link
               href={accountUrl}
               onClick={accountLinkClick}
-              className="hidden h-11 items-center rounded-full px-4 text-sm font-semibold text-slate-700 transition hover:bg-white/70 md:inline-flex"
+              className="liquid-glass-btn hidden h-11 items-center rounded-full px-4 text-sm font-semibold text-white transition md:inline-flex"
               data-testid="nav-open-notebooks"
             >
               文献本
@@ -328,7 +330,8 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
             <Link
               href={accountUrl}
               onClick={accountLinkClick}
-              className="inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-full bg-blue-600 px-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition hover:bg-blue-700 sm:px-5"
+              className="liquid-glass-btn-primary inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-full px-3 text-sm font-semibold sm:px-5"
+              style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%)', border: '1px solid rgba(255,255,255,0.3)' }}
               data-testid="nav-login-account"
             >
               <span className="hidden sm:inline">{accountCtaText}</span>
@@ -337,7 +340,7 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
             </Link>
             <button
               type="button"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-700 hover:bg-white/70 md:hidden"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:bg-white/10 md:hidden"
               aria-label="打开菜单"
               aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen(open => !open)}
@@ -347,10 +350,10 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
           </div>
         </div>
         {mobileMenuOpen && (
-          <div className="mx-auto mt-3 grid max-w-7xl gap-2 rounded-2xl border border-blue-100 bg-white/94 p-2 text-sm font-semibold text-slate-800 shadow-[0_18px_50px_rgba(37,99,235,0.12)] md:hidden">
-            <a href="#overview" className="rounded-xl px-4 py-3 hover:bg-blue-50" onClick={() => setMobileMenuOpen(false)}>概览</a>
-            <a href="#how-it-works" className="rounded-xl px-4 py-3 hover:bg-blue-50" onClick={() => setMobileMenuOpen(false)}>方案</a>
-            <Link href={accountUrl} onClick={(event) => { setMobileMenuOpen(false); accountLinkClick?.(event); }} className="rounded-xl px-4 py-3 hover:bg-blue-50">
+          <div className="liquid-glass-card mx-auto mt-3 grid max-w-7xl gap-2 rounded-2xl p-2 text-sm font-semibold text-white/90 md:hidden">
+            <a href="#overview" className="rounded-xl px-4 py-3 hover:bg-white/10" onClick={() => setMobileMenuOpen(false)}>概览</a>
+            <a href="#how-it-works" className="rounded-xl px-4 py-3 hover:bg-white/10" onClick={() => setMobileMenuOpen(false)}>方案</a>
+            <Link href={accountUrl} onClick={(event) => { setMobileMenuOpen(false); accountLinkClick?.(event); }} className="rounded-xl px-4 py-3 hover:bg-white/10">
               文献本
             </Link>
           </div>
@@ -359,19 +362,20 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
 
       <main id="overview">
         <section className="px-5 pb-12 pt-8 md:pt-14">
-          <div className="mx-auto max-w-[1560px] rounded-[34px] bg-white px-5 pb-6 pt-16 shadow-[0_30px_90px_rgba(37,99,235,0.08)] md:px-8 md:pt-28">
+          <div className="liquid-glass-card mx-auto max-w-[1560px] rounded-[34px] px-5 pb-6 pt-16 md:px-8 md:pt-28">
             <div className="mx-auto max-w-5xl text-center">
-              <h1 className="text-5xl font-normal leading-[1.08] tracking-[-0.03em] text-[#303134] md:text-7xl">
-                读懂<span className="bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400 bg-clip-text text-transparent">每篇文献</span>
+              <h1 className="text-5xl font-normal leading-[1.08] tracking-[-0.03em] text-white md:text-7xl">
+                读懂<span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">每篇文献</span>
               </h1>
-              <p className="mx-auto mt-7 max-w-3xl text-xl leading-8 text-slate-600">
+              <p className="mx-auto mt-7 max-w-3xl text-xl leading-8 text-white/70">
                 以你信任的来源为基础，把论文 PDF、网页、音频和研究笔记放进一个文献本，用提问、引用和组会材料继续研究。
               </p>
               <div className="mt-8 flex justify-center">
                 <Link
                   href={accountUrl}
                   onClick={accountLinkClick}
-                  className="inline-flex h-14 items-center justify-center gap-2 rounded-full bg-blue-600 px-8 text-lg font-semibold text-white shadow-[0_14px_30px_rgba(37,99,235,0.22)] transition hover:bg-blue-700"
+                  className="liquid-glass-btn-primary inline-flex h-14 items-center justify-center gap-2 rounded-full px-8 text-lg font-semibold"
+                  style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%)', border: '1px solid rgba(255,255,255,0.3)' }}
                   data-testid="hero-login-account"
                 >
                   开启科研模式
@@ -391,20 +395,21 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
         <ResearchRoadmapSection />
 
         <section className="mx-auto max-w-7xl px-5 pb-24">
-          <div className="flex flex-col items-center justify-between gap-5 rounded-[28px] border border-blue-100 bg-white p-7 shadow-sm md:flex-row">
+          <div className="liquid-glass-card flex flex-col items-center justify-between gap-5 rounded-[28px] p-7 md:flex-row">
             <div className="flex items-center gap-4">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full text-blue-300" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)' }}>
                 <Sparkles className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="text-2xl font-normal tracking-tight text-slate-950">从一个文献本开始</h2>
-                <p className="mt-1 text-sm text-slate-600">上传文献、提出研究问题、保存可追溯结果。</p>
+                <h2 className="text-2xl font-normal tracking-tight text-white">从一个文献本开始</h2>
+                <p className="mt-1 text-sm text-white/70">上传文献、提出研究问题、保存可追溯结果。</p>
               </div>
             </div>
             <Link
               href={accountUrl}
               onClick={accountLinkClick}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-slate-950 px-6 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="liquid-glass-btn-primary inline-flex h-12 items-center justify-center gap-2 rounded-full px-6 text-sm font-semibold"
+              style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%)', border: '1px solid rgba(255,255,255,0.3)' }}
               data-testid="hero-open-notebooks"
             >
               进入文献本

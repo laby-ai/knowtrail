@@ -1,14 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
-import { paperHostHighCostAuthRequired } from '@/lib/paper-host-high-cost-auth';
-import { paperHostLoginRequiredResponse, readPaperHostRequestScope } from '@/lib/paper-host-request-scope';
 
 export interface AccountNotebookScope {
   tenantId?: string;
   ownerMemberId?: string;
   notebookId?: string;
-  usageQuotaExempt: boolean;
 }
 
 export type AccountNotebookScopeResult =
@@ -21,35 +18,8 @@ export async function resolveAccountNotebookScope(
     notebookId?: unknown;
     loginMessage: string;
     invalidMessage?: string;
-    requireAuthenticatedPaperHost?: boolean;
   },
 ): Promise<AccountNotebookScopeResult> {
-  const paperHostScope = readPaperHostRequestScope(request);
-  if (paperHostScope.enabled) {
-    if (!paperHostScope.ready) {
-      return {
-        ok: false,
-        response: paperHostLoginRequiredResponse(input.loginMessage),
-      };
-    }
-    if (
-      input.requireAuthenticatedPaperHost
-      && paperHostHighCostAuthRequired()
-      && paperHostScope.accountScope === 'guest'
-    ) {
-      return {
-        ok: false,
-        response: paperHostLoginRequiredResponse(input.loginMessage),
-      };
-    }
-    return {
-      ok: true,
-      ownerMemberId: paperHostScope.ownerMemberId,
-      notebookId: normalizeNotebookId(input.notebookId),
-      usageQuotaExempt: paperHostScope.accountScope === 'current-user',
-    };
-  }
-
   try {
     const accountSession = await resolveAccountSessionFromRequest(request);
     if (accountAuthRequired() && !accountSession) {
@@ -67,7 +37,6 @@ export async function resolveAccountNotebookScope(
       tenantId: accountSession?.tenant_id,
       ownerMemberId: accountSession?.member.id,
       notebookId: normalizeNotebookId(input.notebookId),
-      usageQuotaExempt: Boolean(accountSession),
     };
   } catch {
     return {

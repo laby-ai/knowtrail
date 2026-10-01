@@ -1,6 +1,6 @@
 'use client';
 
-import { ClipboardPaste, Globe2, Lightbulb, Loader2, Search, Upload, X } from 'lucide-react';
+import { ClipboardPaste, FileText, Globe2, Lightbulb, Upload, X } from 'lucide-react';
 
 const SOURCE_EXAMPLES = [
   {
@@ -40,12 +40,6 @@ export function SourceGuideModal({
   onPasteTitleChange,
   onPasteSubmit,
   onUpload,
-  sourceUrl,
-  urlState,
-  urlError,
-  onUrlChange,
-  onUrlSubmit,
-  onDiscover,
 }: {
   pastedSourceText: string;
   pastedSourceTitle: string;
@@ -54,12 +48,6 @@ export function SourceGuideModal({
   onPasteTitleChange: (value: string) => void;
   onPasteSubmit: () => void;
   onUpload: () => void;
-  sourceUrl: string;
-  urlState: 'idle' | 'loading';
-  urlError: string | null;
-  onUrlChange: (value: string) => void;
-  onUrlSubmit: () => void;
-  onDiscover: () => void;
 }) {
   return (
     <div
@@ -152,39 +140,16 @@ export function SourceGuideModal({
         </div>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4" data-testid="source-guide-url">
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4 opacity-75">
             <Globe2 className="mb-4 h-5 w-5 text-cyan-400" />
-            <span className="block text-sm font-semibold text-[var(--text-primary)]">添加网页链接</span>
-            <span className="mt-1 block text-xs leading-relaxed text-[var(--text-tertiary)]">读取网页正文并作为可追溯来源保存，不只保留链接。</span>
-            <input
-              value={sourceUrl}
-              onChange={(event) => onUrlChange(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') onUrlSubmit(); }}
-              placeholder="https://example.com/article"
-              className="liquid-glass-input mt-3 text-xs"
-              aria-label="网页链接"
-            />
-            {urlError && <p className="mt-2 text-xs leading-relaxed text-red-400">{urlError}</p>}
-            <button
-              type="button"
-              onClick={onUrlSubmit}
-              disabled={!sourceUrl.trim() || urlState === 'loading'}
-              className="liquid-glass-btn-primary mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-2 text-xs disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              {urlState === 'loading' && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              {urlState === 'loading' ? '正在读取网页' : '读取并加入文献本'}
-            </button>
+            <span className="block text-sm font-semibold text-[var(--text-primary)]">网页/预印本文献</span>
+            <span className="mt-1 block text-xs leading-relaxed text-[var(--text-tertiary)]">当前先用上传或粘贴保证来源可审计；后续可扩展 DOI、arXiv 或跨库检索。</span>
           </div>
-          <button
-            type="button"
-            onClick={onDiscover}
-            className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4 text-left transition hover:border-[var(--accent-blue)] hover:bg-[var(--glass-active)]"
-            data-testid="source-guide-discover"
-          >
-            <Search className="mb-4 h-5 w-5 text-violet-400" />
-            <span className="block text-sm font-semibold text-[var(--text-primary)]">检索学术与网页来源</span>
-            <span className="mt-1 block text-xs leading-relaxed text-[var(--text-tertiary)]">输入研究主题，核验检索结果后再选择加入文献本。</span>
-          </button>
+          <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4">
+            <FileText className="mb-4 h-5 w-5 text-violet-400" />
+            <span className="block text-sm font-semibold text-[var(--text-primary)]">生成前先看证据</span>
+            <span className="mt-1 block text-xs leading-relaxed text-[var(--text-tertiary)]">看来源片段数、索引状态和选中文献，再继续问答、文献速览或研究脉络。</span>
+          </div>
         </div>
         <button
           type="button"

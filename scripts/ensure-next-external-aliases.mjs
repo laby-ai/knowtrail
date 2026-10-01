@@ -6,7 +6,6 @@ import process from 'node:process';
 const workspace = process.env.APP_WORKSPACE_PATH || process.cwd();
 const nextServerDir = path.join(workspace, '.next', 'server');
 const nodeModulesDir = path.join(workspace, 'node_modules');
-const nextNodeModulesDir = path.join(workspace, '.next', 'node_modules');
 
 const KNOWN_EXTERNALS = [
   { pattern: /^pg-[a-f0-9]{16,}$/i, packageName: 'pg' },
@@ -32,28 +31,20 @@ function packagePath(packageName) {
   return path.join(nodeModulesDir, ...packageName.split('/'));
 }
 
-async function ensureAliasAt(baseDir, alias, targetPath) {
-  const aliasPath = path.join(baseDir, ...alias.split('/'));
+async function ensureAlias(alias, packageName) {
+  const targetPath = packagePath(packageName);
+  const aliasPath = packagePath(alias);
+  if (!existsSync(targetPath)) {
+    throw new Error(`Cannot create Next external alias ${alias}: missing node_modules package ${packageName}`);
+  }
+
   await mkdir(path.dirname(aliasPath), { recursive: true });
   await rm(aliasPath, { recursive: true, force: true });
   const relativeTarget = path.relative(path.dirname(aliasPath), targetPath) || '.';
   const symlinkTarget = process.platform === 'win32' ? targetPath : relativeTarget;
   const symlinkType = process.platform === 'win32' ? 'junction' : 'dir';
   await symlink(symlinkTarget, aliasPath, symlinkType);
-  return aliasPath;
-}
-
-async function ensureAlias(alias, packageName) {
-  const targetPath = packagePath(packageName);
-  if (!existsSync(targetPath)) {
-    throw new Error(`Cannot create Next external alias ${alias}: missing node_modules package ${packageName}`);
-  }
-
-  const aliasPaths = [await ensureAliasAt(nodeModulesDir, alias, targetPath)];
-  if (existsSync(nextNodeModulesDir)) {
-    aliasPaths.push(await ensureAliasAt(nextNodeModulesDir, alias, targetPath));
-  }
-  return { alias, packageName, aliasPaths, targetPath };
+  return { alias, packageName, aliasPath, targetPath };
 }
 
 async function main() {
@@ -83,11 +74,7 @@ async function main() {
     ok: true,
     checked: '.next/server external package aliases',
     aliasCount: ensured.length,
-    aliases: ensured.map(item => ({
-      alias: item.alias,
-      packageName: item.packageName,
-      locations: item.aliasPaths.map(aliasPath => path.relative(workspace, aliasPath)),
-    })),
+    aliases: ensured.map(item => ({ alias: item.alias, packageName: item.packageName })),
   }, null, 2));
 }
 

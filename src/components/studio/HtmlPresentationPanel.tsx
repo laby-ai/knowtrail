@@ -283,6 +283,7 @@ export function HtmlPresentationPanel() {
             abstract: p.abstract,
             content: p.content,
             rawContent: p.rawContent,
+            literature: p.literature,
           })),
           aiConfig,
           styleId: selectedStyle,
@@ -700,7 +701,7 @@ export function HtmlPresentationPanel() {
 
       {/* ── Re-layout dialog ── */}
       {relayoutIdx !== null && slides[relayoutIdx] && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" data-testid="html-ppt-relayout-dialog">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" style={{ background: 'var(--dialog-overlay)' }} data-testid="html-ppt-relayout-dialog">
           <div className="w-full max-w-2xl space-y-3 rounded-2xl border border-white/10 bg-[var(--bg-primary)] p-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">重排此页 · {slides[relayoutIdx].title}</h3>

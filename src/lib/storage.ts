@@ -6,7 +6,6 @@ import {
   type S3ClientConfig,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { resolveLocalUploadsDir } from './local-file-storage';
 
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const isProd = runtimeEnv === 'production';
@@ -157,7 +156,7 @@ export async function storeFile(
     // 本地文件存储：保存到 public/uploads/，可用于开发和显式 local 生产部署。
     const { writeFile, mkdir } = await import('fs/promises');
     const path = await import('path');
-    const uploadDir = resolveLocalUploadsDir();
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads');
     await mkdir(uploadDir, { recursive: true });
     const savedName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${sanitizeStoredFileName(fileName)}`;
     const savedPath = path.join(uploadDir, savedName);
@@ -187,10 +186,7 @@ export async function retrieveFileBuffer(fileKeyOrPath: string): Promise<Buffer>
     // 本地文件存储：fileKeyOrPath 是本地路径如 /uploads/xxx.pdf
     const fs = await import('fs/promises');
     const path = await import('path');
-    const normalizedPath = fileKeyOrPath.replace(/^\/+/, '');
-    const fullPath = normalizedPath.startsWith('uploads/')
-      ? path.join(resolveLocalUploadsDir(), normalizedPath.slice('uploads/'.length))
-      : path.join(process.cwd(), 'public', normalizedPath);
+    const fullPath = path.join(process.cwd(), 'public', fileKeyOrPath.replace(/^\//, ''));
     return fs.readFile(fullPath);
   }
 
@@ -208,11 +204,7 @@ export async function listStoredFileKeys(prefix: string, maxKeys = 100): Promise
     const fs = await import('fs/promises');
     const path = await import('path');
     const normalizedPrefix = prefix.replace(/^\/+|\/+$/g, '');
-    const basePath = normalizedPrefix === 'uploads'
-      ? resolveLocalUploadsDir()
-      : normalizedPrefix.startsWith('uploads/')
-        ? path.join(resolveLocalUploadsDir(), normalizedPrefix.slice('uploads/'.length))
-        : path.join(process.cwd(), 'public', normalizedPrefix);
+    const basePath = path.join(process.cwd(), 'public', normalizedPrefix);
     const keys: string[] = [];
 
     async function walk(dir: string, relativePrefix: string) {

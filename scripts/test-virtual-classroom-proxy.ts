@@ -6,7 +6,7 @@ import {
 
 assert.deepEqual(
   resolveClassroomProxyTarget('/classroom-runtime/api/health?fresh=1', '/classroom-runtime/api/health'),
-  { shouldProxy: true, targetPath: '/api/health?fresh=1' },
+  { shouldProxy: true, targetPath: '/classroom-runtime/api/health?fresh=1' },
 );
 
 const mainStaticRoot = '/app/.next/static';
@@ -28,7 +28,7 @@ assert.equal(
 );
 assert.deepEqual(
   resolveClassroomProxyTarget('/classroom-runtime/classroom/demo-id', '/classroom-runtime/classroom/demo-id'),
-  { shouldProxy: true, targetPath: '/classroom/demo-id' },
+  { shouldProxy: true, targetPath: '/classroom-runtime/classroom/demo-id' },
 );
 assert.deepEqual(
   resolveClassroomProxyTarget('/api/classroom?id=demo-id', '/api/classroom'),
@@ -36,7 +36,7 @@ assert.deepEqual(
 );
 assert.deepEqual(
   resolveClassroomProxyTarget('/classroom-runtime', '/classroom-runtime'),
-  { shouldProxy: true, targetPath: '/' },
+  { shouldProxy: true, targetPath: '/classroom-runtime' },
 );
 assert.deepEqual(
   resolveClassroomProxyTarget('/classroom-runtime-evil', '/classroom-runtime-evil'),
@@ -54,7 +54,7 @@ assert.deepEqual(
 console.log(JSON.stringify({
   ok: true,
   checked: [
-    'public classroom prefix is removed before sidecar forwarding',
+    'public classroom prefix is preserved before sidecar forwarding',
     'query strings are preserved',
     'root sidecar API calls remain root-relative',
     'lookalike prefixes are not proxied',

@@ -1,5 +1,10 @@
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { buildSourceChunks, type RagSourceInput, type SourceChunk } from '@/lib/rag';
+import { fetchLiteratureFullText, FullTextError } from '@/lib/literature/fulltext';
+import { literatureEntryKey, sameLiteratureEntry } from '@/lib/literature/library';
+import type { FullTextResult, LiteratureFullTextStatus, LiteratureMetadata } from '@/lib/literature/types';
+import { normalizeNotebookId } from '@/lib/notebook-scope';
 import { embedTexts } from '@/lib/ai-service';
 import { upsertSourceChunks } from '@/lib/vector-store';
 import { hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
@@ -137,12 +142,12 @@ function sourceMatchesIdentities(source: StoredSourceRecord, identities: Set<str
 }
 
 function sourceMatchesOwner(source: StoredSourceRecord, ownerMemberId?: string): boolean {
-  if (!ownerMemberId) return true;
+  if (!ownerMemberId) return !source.literature;
   return source.ownerMemberId === ownerMemberId;
 }
 
 function sourceMatchesNotebook(source: StoredSourceRecord, notebookId?: string): boolean {
-  if (!notebookId) return true;
+  if (!notebookId) return !source.literature;
   return (source.notebookId || 'default-workspace') === notebookId;
 }
 
@@ -220,13 +225,13 @@ export function buildReadySourceChunksResultFromSources(
   const candidateLimit = scope.topK && scope.topK > 0 ? Math.floor(scope.topK) : undefined;
   const readySources = sources.filter(source => (
     source.status === 'succeeded' &&
-    source.chunks.length > 0 &&
+    (source.chunks?.length ?? 0) > 0 &&
     sourceMatchesOwner(source, scope.ownerMemberId) &&
     sourceMatchesNotebook(source, scope.notebookId) &&
     sourceMatchesIdentities(source, identities)
   )).map(source => ({
     ...source,
-    chunks: source.chunks.filter(chunk => chunkMatchesQuery(chunk, queryTokens)),
+    chunks: (source.chunks || []).filter(chunk => chunkMatchesQuery(chunk, queryTokens)),
   })).filter(source => source.chunks.length > 0);
   const chunks = readySources.flatMap(source => source.chunks).slice(0, candidateLimit);
   const returnedSourceIds = new Set(chunks.map(chunk => chunk.sourceId));
@@ -304,6 +309,7 @@ export function buildSourceStoreFromPostgresRows(input: {
       id: row.id || payload.id || '',
       ownerMemberId: payload.ownerMemberId,
       notebookId: payload.notebookId,
+      literature: payload.literature,
       fileName: row.file_name || payload.fileName || 'unknown',
       fileType: row.file_type || payload.fileType || 'unknown',
       fileSize: optionalNumber(row.file_size) ?? payload.fileSize,
@@ -451,6 +457,7 @@ class PostgresSourceStoreAdapter implements SourceStoreAdapter {
         ${identityFilter}
         ${ownerFilter}
         ${notebookFilter}
+        ${scope.ownerMemberId && scope.notebookId ? '' : "AND s.payload->>'literature' IS NULL"}
         AND EXISTS (
           SELECT 1 FROM ${POSTGRES_CHUNKS_TABLE} c
           WHERE c.source_id = s.id
@@ -549,7 +556,7 @@ class PostgresSourceStoreAdapter implements SourceStoreAdapter {
         ],
       );
 
-      for (const chunk of source.chunks) {
+      for (const chunk of (source.chunks || [])) {
         await client.query(
           `
             INSERT INTO ${POSTGRES_CHUNKS_TABLE} (
@@ -752,6 +759,7 @@ function sourceInputForChunks(input: IngestionSourceInput): RagSourceInput {
     shortName: input.shortName,
     fileName: input.fileName,
     fileType: input.fileType,
+    literature: input.literature,
   };
 }
 
@@ -761,6 +769,7 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
     id: input.id,
     ownerMemberId: input.ownerMemberId,
     notebookId: input.notebookId,
+    literature: input.literature,
     fileName: input.fileName,
     fileType: input.fileType,
     fileSize: input.fileSize,
@@ -780,6 +789,160 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
       updatedAt: timestamp,
     },
   };
+}
+
+type LiteratureUpgrade = { source: StoredSourceRecord; fullText: LiteratureFullTextStatus };
+const literatureUpgrades = new Map<string, Promise<LiteratureUpgrade>>();
+
+async function upgradeLiteratureFullText(
+  adapter: SourceStoreAdapter,
+  original: StoredSourceRecord,
+  metadata: LiteratureMetadata,
+  fetcher: typeof fetchLiteratureFullText,
+): Promise<LiteratureUpgrade> {
+  let downloaded: FullTextResult | undefined;
+  let outcome: LiteratureFullTextStatus;
+  try {
+    downloaded = await fetcher(metadata);
+    if (!downloaded.fullText.trim()) {
+      throw new FullTextError('extraction_failed', '未能提取正文，可上传合法持有的 PDF。');
+    }
+    outcome = { status: 'downloaded', charCount: downloaded.fullText.length };
+  } catch (error) {
+    outcome = error instanceof FullTextError
+      ? { status: 'partial', code: error.code, message: error.message }
+      : { status: 'partial', code: 'network_error', message: '全文请求失败，请稍后重试或上传 PDF。' };
+  }
+
+  const matches = (source: StoredSourceRecord) => source.id === original.id
+    && source.ownerMemberId === original.ownerMemberId && source.notebookId === original.notebookId;
+  if (outcome.status === 'partial' || !downloaded) {
+    const source = (await adapter.read()).sources.find(matches);
+    if (!source) throw new Error('Literature source no longer exists');
+    return {
+      source,
+      fullText: source.literature?.evidenceScope === 'fulltext' ? { status: 'existing' } : outcome,
+    };
+  }
+
+  let updated: StoredSourceRecord | undefined;
+  const fullText = downloaded.fullText;
+  await adapter.mutate(store => {
+    const source = store.sources.find(matches);
+    if (!source?.literature) throw new Error('Literature source no longer exists');
+    updated = source;
+    if (source.literature.evidenceScope === 'fulltext') {
+      outcome = { status: 'existing' };
+      return store;
+    }
+    const chunks = buildSourceChunks([{
+      id: source.id,
+      title: source.title,
+      abstract: source.literature.abstract,
+      rawContent: fullText,
+      shortName: source.shortName,
+      literature: { evidenceScope: 'fulltext' },
+    }]);
+    if (!chunks.length) throw new Error('Full text produced no evidence chunks');
+    source.literature = { ...source.literature, evidenceScope: 'fulltext' };
+    source.chunks = chunks;
+    source.chunkCount = chunks.length;
+    source.tokenEstimate = chunks.reduce((sum, chunk) => sum + chunk.tokenEstimate, 0);
+    source.stages = setStage(source.stages, 'extract', 'succeeded');
+    source.updatedAt = nowIso();
+    return store;
+  });
+  if (!updated) throw new Error('Literature upgrade did not complete');
+  return { source: updated, fullText: outcome };
+}
+
+export async function importLiteratureSource(
+  literature: LiteratureMetadata,
+  scope: { ownerMemberId: string; notebookId: string },
+  options: { fetchFullText?: typeof fetchLiteratureFullText } = {},
+): Promise<LiteratureUpgrade & { alreadyExists: boolean }> {
+  const ownerMemberId = scope.ownerMemberId;
+  const notebookId = normalizeNotebookId(scope.notebookId);
+  if (!ownerMemberId?.trim() || !notebookId || !literature.title.trim()) {
+    throw new Error('Literature imports require an owner, notebook and title');
+  }
+  const abstract = literature.abstract.trim();
+  // Whitelist real bibliographic fields; never persist caller-supplied full text.
+  const metadata: LiteratureMetadata = {
+    title: literature.title.trim(),
+    authors: literature.authors.map(author => ({ name: author.name })),
+    year: literature.year,
+    doi: literature.doi,
+    arxivId: literature.arxivId,
+    abstract,
+    venue: literature.venue,
+    url: literature.url,
+    source: literature.source,
+    provider: literature.provider,
+    evidenceScope: abstract ? 'abstract' : 'metadata',
+    retrievedAt: literature.retrievedAt,
+    oaLocations: literature.oaLocations,
+  };
+  let result: { source: StoredSourceRecord; alreadyExists: boolean } | undefined;
+  await getSourceStoreAdapter().mutate(store => {
+    const existing = store.sources.find(source => (
+      source.ownerMemberId === ownerMemberId &&
+      source.notebookId === notebookId &&
+      source.literature && sameLiteratureEntry(source.literature, metadata)
+    ));
+    if (existing) {
+      result = { source: existing, alreadyExists: true };
+      return store;
+    }
+
+    const identity = literatureEntryKey(metadata);
+    const id = `lit-${createHash('sha256').update(JSON.stringify([ownerMemberId, notebookId, identity])).digest('hex')}`;
+    const shortName = `${metadata.authors[0]?.name || '未知作者'}. ${metadata.year || '?'}`;
+    const source = createRecord({
+      id, ownerMemberId, notebookId,
+      fileName: metadata.title,
+      fileType: 'other',
+      title: metadata.title,
+      shortName,
+      literature: metadata,
+    });
+    source.chunks = abstract ? buildSourceChunks([{
+      id, title: metadata.title, abstract, shortName, literature: metadata,
+    }]) : [];
+    source.chunkCount = source.chunks.length;
+    source.tokenEstimate = source.chunks.reduce((sum, chunk) => sum + chunk.tokenEstimate, 0);
+    source.status = 'succeeded';
+    source.stages = source.stages.filter(stage => ['store', 'normalize', 'chunk'].includes(stage.name));
+    for (const stage of ['store', 'normalize', 'chunk'] as const) {
+      source.stages = setStage(source.stages, stage, 'succeeded');
+    }
+    source.updatedAt = nowIso();
+    result = { source, alreadyExists: false };
+    return { ...store, sources: [...store.sources, source].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) };
+  });
+  if (!result) throw new Error('Literature import did not complete');
+  if (result.source.literature?.evidenceScope === 'fulltext') {
+    return { ...result, fullText: { status: 'existing' } };
+  }
+
+  const sourceId = result.source.id;
+  let upgrade = literatureUpgrades.get(sourceId);
+  if (!upgrade) {
+    const existingMetadata = result.source.literature!;
+    upgrade = upgradeLiteratureFullText(getSourceStoreAdapter(), result.source, {
+      ...existingMetadata,
+      doi: existingMetadata.doi || metadata.doi,
+      arxivId: existingMetadata.arxivId || metadata.arxivId,
+      url: metadata.url || existingMetadata.url,
+      oaLocations: metadata.oaLocations || existingMetadata.oaLocations,
+    }, options.fetchFullText || fetchLiteratureFullText);
+    literatureUpgrades.set(sourceId, upgrade);
+  }
+  try {
+    return { ...await upgrade, alreadyExists: result.alreadyExists };
+  } finally {
+    if (literatureUpgrades.get(sourceId) === upgrade) literatureUpgrades.delete(sourceId);
+  }
 }
 
 export async function ingestExtractedSource(
@@ -896,24 +1059,6 @@ export async function getIngestionSource(id: string, scope: { ownerMemberId?: st
     sourceMatchesOwner(source, scope.ownerMemberId) &&
     sourceMatchesNotebook(source, scope.notebookId)
   ));
-}
-
-export async function deleteIngestionSource(
-  id: string,
-  scope: { ownerMemberId?: string; notebookId?: string } = {},
-): Promise<boolean> {
-  let deleted = false;
-  await getSourceStoreAdapter().mutate(store => {
-    const sources = store.sources.filter(source => {
-      const matches = source.id === id &&
-        sourceMatchesOwner(source, scope.ownerMemberId) &&
-        sourceMatchesNotebook(source, scope.notebookId);
-      if (matches) deleted = true;
-      return !matches;
-    });
-    return deleted ? { ...store, sources } : store;
-  });
-  return deleted;
 }
 
 export async function updateSourceMinerUStatus(
