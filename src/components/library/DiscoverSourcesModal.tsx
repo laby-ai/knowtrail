@@ -20,9 +20,19 @@ import {
 } from 'lucide-react';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { createDiscoveredSourceFile, type DiscoveredSourceFileInput } from '@/lib/discovered-source-file';
+import {
+  type DiscoverRelevanceStageSummary,
+  type DiscoverRelevanceVerdict,
+} from '@/lib/discover-relevance-stage';
 import { copyTextWithFallback } from '@/lib/clipboard';
 
-type DiscoverResult = DiscoveredSourceFileInput;
+type DiscoverResult = DiscoveredSourceFileInput & {
+  relevance?: {
+    verdict: DiscoverRelevanceVerdict;
+    confidence: number;
+    reason: string;
+  };
+};
 
 type IngestPhase = 'idle' | 'fetching' | 'done';
 
@@ -36,6 +46,13 @@ const CITATION_STYLES: { value: CitationStyle; label: string }[] = [
   { value: 'ieee', label: 'IEEE' },
   { value: 'bibtex', label: 'BibTeX' },
 ];
+
+const RELEVANCE_BADGES: Record<DiscoverRelevanceVerdict, { label: string; className: string }> = {
+  unassessed: { label: '待核验', className: 'border-amber-400/25 bg-amber-500/10 text-amber-400' },
+  relevant: { label: '相关', className: 'border-emerald-400/25 bg-emerald-500/10 text-emerald-400' },
+  partially_relevant: { label: '部分相关', className: 'border-blue-400/25 bg-blue-500/10 text-blue-400' },
+  irrelevant: { label: '不相关', className: 'border-amber-400/25 bg-amber-500/10 text-amber-400' },
+};
 
 export function DiscoverSourcesModal({
   notebookId,
@@ -59,6 +76,7 @@ export function DiscoverSourcesModal({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [searchProvider, setSearchProvider] = useState<'metaso' | 'arxiv' | null>(null);
+  const [relevanceStage, setRelevanceStage] = useState<DiscoverRelevanceStageSummary | null>(null);
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>('idle');
   const [ingestProgress, setIngestProgress] = useState({ done: 0, total: 0 });
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
@@ -68,6 +86,30 @@ export function DiscoverSourcesModal({
   const [fulltextError, setFulltextError] = useState<{link: string; message: string} | null>(null);
   const [citeError, setCiteError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchRequestRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => searchRequestRef.current?.abort(), []);
+
+  const changeScope = (nextScope: 'webpage' | 'scholar') => {
+    if (nextScope === scope) return;
+    searchRequestRef.current?.abort();
+    searchRequestRef.current = null;
+    setScope(nextScope);
+    setResults([]);
+    setSelected(new Set());
+    setSearched(false);
+    setIsSearching(false);
+    setSearchProvider(null);
+    setRelevanceStage(null);
+    setError(null);
+    setNotice(null);
+    setItemErrors({});
+    setCiteError(null);
+    setCopiedLink(null);
+    setFulltextError(null);
+    setIngestPhase('idle');
+    setIngestProgress({ done: 0, total: 0 });
+  };
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -83,30 +125,43 @@ export function DiscoverSourcesModal({
   const handleSearch = useCallback(async () => {
     const q = query.trim();
     if (!q || isSearching) return;
+    searchRequestRef.current?.abort();
+    const controller = new AbortController();
+    searchRequestRef.current = controller;
+    setResults([]);
     setIsSearching(true);
     setError(null);
     setNotice(null);
     setSearchProvider(null);
+    setRelevanceStage(null);
     setItemErrors({});
     setSelected(new Set());
     try {
       const res = await fetch('/api/discover/search', {
+        signal: controller.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({ query: q, scope, size: 10, withContent: false, notebookId }),
       });
       const data = await res.json();
+      if (controller.signal.aborted || searchRequestRef.current !== controller) return;
       if (!res.ok || !data.success) throw new Error(data.error || '搜索失败');
-      setResults(Array.isArray(data.results) ? data.results : []);
+      const responseResults: DiscoverResult[] = Array.isArray(data.results) ? data.results : [];
+      const stage: DiscoverRelevanceStageSummary | undefined = data.relevanceStage;
+      setRelevanceStage(stage || null);
+      setResults(stage?.status === 'no-query-terms'
+        ? responseResults
+        : responseResults.filter(item => item.relevance?.verdict !== 'irrelevant'));
       setSearchProvider(data.provider === 'arxiv' ? 'arxiv' : 'metaso');
       setSearched(true);
     } catch (err) {
+      if (controller.signal.aborted || searchRequestRef.current !== controller) return;
       setError(err instanceof Error ? err.message : '搜索失败，请重试');
       setResults([]);
       setSearchProvider(null);
       setSearched(true);
     } finally {
-      setIsSearching(false);
+      if (searchRequestRef.current === controller) setIsSearching(false);
     }
   }, [query, scope, isSearching, notebookId]);
 
@@ -250,7 +305,7 @@ export function DiscoverSourcesModal({
     >
       <div
         className={variant === 'modal'
-          ? 'liquid-glass-card flex max-h-[86vh] w-full max-w-2xl flex-col gap-3 rounded-2xl p-5 shadow-2xl animate-scale-in'
+          ? 'flex max-h-[86vh] w-full max-w-2xl flex-col gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in'
           : 'flex w-full flex-col gap-3'}
         onClick={e => e.stopPropagation()}
       >
@@ -271,12 +326,14 @@ export function DiscoverSourcesModal({
         </div>
 
         {/* Search row */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex shrink-0 gap-1 rounded-xl bg-[var(--glass-subtle)] p-1">
-            {([['webpage', '网页', Globe2], ['scholar', '学术', GraduationCap]] as const).map(([id, label, Icon]) => (
+            {([['webpage', '互联网网页', Globe2], ['scholar', '学术论文', GraduationCap]] as const).map(([id, label, Icon]) => (
               <button
                 key={id}
-                onClick={() => setScope(id)}
+                onClick={() => changeScope(id)}
+                aria-pressed={scope === id}
+                disabled={ingestPhase === 'fetching' || fulltextLoading !== null}
                 className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
                   scope === id ? 'bg-[var(--glass-active)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                 }`}
@@ -309,6 +366,13 @@ export function DiscoverSourcesModal({
             搜索
           </button>
         </div>
+
+        <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]" data-testid="discover-scope-description">
+          {scope === 'scholar'
+            ? '检索论文与预印本候选；未配置学术检索服务时使用 arXiv，覆盖范围有限。发表及同行评审状态需到来源页核验。'
+            : '检索公开网页，如机构网站、新闻、博客和技术文章；网页内容不等同于学术论文。'}
+          相关性仅表示关键词匹配程度，不代表来源可信度或学术质量。
+        </p>
 
         {error && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2">
@@ -349,6 +413,19 @@ export function DiscoverSourcesModal({
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
+          </div>
+        )}
+
+        {relevanceStage && relevanceStage.status !== 'empty-search' && (
+          <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] px-3 py-2" data-testid="discover-relevance-stage">
+            <p className="text-[11px] font-medium text-[var(--text-primary)]">来源相关性筛选</p>
+            <p className="mt-0.5 text-[10px] leading-relaxed text-[var(--text-tertiary)]">{relevanceStage.reason}</p>
+            <p className="mt-1 text-[10px] text-[var(--text-quaternary)]">
+              通过 {relevanceStage.acceptedCount}/{relevanceStage.totalCount} ·
+              相关 {relevanceStage.relevantCount} ·
+              部分相关 {relevanceStage.partiallyRelevantCount} ·
+              已过滤 {relevanceStage.irrelevantCount}
+            </p>
           </div>
         )}
 
@@ -397,11 +474,22 @@ export function DiscoverSourcesModal({
                         </span>
                         <span className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-quaternary)]">
                           {host && <span className="rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5">{host}</span>}
+                          <span data-testid="discover-source-category">
+                            {item.sourceCategory === 'scholar' ? '学术论文候选 · 发表/评审待核验' : item.sourceCategory === 'webpage' ? '互联网网页' : item.sourceCategory === 'document' ? '文档' : '类别待核验'}
+                          </span>
                           {item.date && <span>{item.date}</span>}
                           {item.authors && item.authors.length > 0 && <span className="truncate">{item.authors.slice(0, 2).join('、')}</span>}
                           <span className="rounded-full border border-amber-400/25 bg-amber-500/10 px-1.5 py-0.5 text-amber-400">
                             {item.verificationStatus === 'open-source-candidate' ? '开放源候选 · 待核验' : '待核验'}
                           </span>
+                          {item.relevance && relevanceStage?.status !== 'no-query-terms' && (
+                            <span
+                              title={item.relevance.reason}
+                              className={`rounded-full border px-1.5 py-0.5 ${RELEVANCE_BADGES[item.relevance.verdict].className}`}
+                            >
+                              {RELEVANCE_BADGES[item.relevance.verdict].label} · {item.relevance.confidence}
+                            </span>
+                          )}
                         </span>
                         {itemError && (
                           <span className="mt-1 block text-[10px] text-red-400">抓取失败:{itemError}</span>

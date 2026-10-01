@@ -27,6 +27,7 @@ async function main() {
 const parsed = parseArxivAtom(atom);
 assert.equal(parsed.total, 1);
 assert.deepEqual(parsed.results[0], {
+  sourceCategory: 'scholar',
   title: 'Evidence-aware multimodal evaluation',
   link: 'https://arxiv.org/abs/2501.01234v2',
   snippet: 'We evaluate & audit multimodal systems with traceable evidence.',
@@ -87,6 +88,23 @@ const metasoResult = await searchDiscoveredSources({
   },
 });
 assert.equal(metasoResult.provider, 'metaso');
+for (const scope of ['scholar', 'webpage', 'document'] as const) {
+  const result = await searchDiscoveredSources({ query: 'topic', scope, size: 3, withContent: false }, {
+    metasoApiKey: 'test',
+    fetchImpl: async () => Response.json({
+      webpages: [{ title: 'webpage', link: 'https://example.org/web' }],
+      scholars: [{ title: 'scholar', link: 'https://example.org/paper' }],
+      documents: [{ title: 'document', link: 'https://example.org/doc' }],
+    }),
+  });
+  assert.deepEqual(result.results.map(item => item.title), [scope]);
+  assert.equal(result.results[0].sourceCategory, scope);
+}
+const noScholar = await searchDiscoveredSources({ query: 'topic', scope: 'scholar', size: 3, withContent: false }, {
+  metasoApiKey: 'test',
+  fetchImpl: async () => Response.json({ webpages: [{ title: 'web only', link: 'https://example.org' }] }),
+});
+assert.equal(noScholar.results.length, 0, 'Scholar search must not fall back to webpage results');
 assert.deepEqual(metasoBodies, [{
   q: 'evidence synthesis',
   scope: 'scholar',

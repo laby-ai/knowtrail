@@ -1,4 +1,5 @@
 export interface DiscoveredSourceFileInput {
+  sourceCategory?: 'webpage' | 'scholar' | 'document';
   title: string;
   link: string;
   snippet: string;
@@ -27,7 +28,9 @@ export async function createDiscoveredSourceFile(
   }
 
   const safeTitle = (sourceTitle || '网络文献线索').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
-  const sourceLabel = item.provider === 'arxiv' ? 'arXiv 开放元数据候选' : '网络文献线索';
+  const sourceLabel = item.sourceCategory === 'scholar' || item.provider === 'arxiv'
+    ? `${item.provider === 'arxiv' ? 'arXiv 开放元数据候选 · ' : ''}学术论文候选（发表及同行评审状态待核验）`
+    : item.sourceCategory === 'webpage' ? '互联网网页' : item.sourceCategory === 'document' ? '文档' : '网络文献线索';
   const header = `来源类型:${sourceLabel}\n来源链接:${item.link}\n${item.date ? `发布时间:${item.date}\n` : ''}${item.authors?.length ? `作者:${item.authors.join('、')}\n` : ''}\n`;
   return new File([header + sourceText], `${safeTitle}.txt`, { type: 'text/plain' });
 }

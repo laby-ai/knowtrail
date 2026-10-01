@@ -11,6 +11,7 @@ export interface DiscoverSearchInput {
 }
 
 export interface DiscoveredSource {
+  sourceCategory?: DiscoverSearchScope;
   title: string;
   link: string;
   snippet: string;
@@ -93,6 +94,7 @@ export function parseArxivAtom(xml: string): DiscoverSearchResult {
         .map(author => text(author.name))
         .filter(Boolean),
       provider: 'arxiv' as const,
+      sourceCategory: 'scholar' as const,
       verificationStatus: 'open-source-candidate' as const,
     };
   }).filter(item => item.title && /^https:\/\/arxiv\.org\/abs\//.test(item.link));
@@ -165,8 +167,13 @@ async function searchMetaso(input: DiscoverSearchInput, options: Required<Pick<S
     throw new DiscoverSearchProviderError('搜索服务返回异常');
   }
   if (parsed.code && parsed.code !== 0) throw new DiscoverSearchProviderError(`搜索失败:${parsed.message || parsed.code}`);
-  const items = parsed.webpages || parsed.scholars || parsed.documents || parsed.papers || [];
+  const items = input.scope === 'webpage'
+    ? parsed.webpages ?? []
+    : input.scope === 'document'
+      ? parsed.documents ?? []
+      : parsed.scholars ?? parsed.papers ?? [];
   const results = items.map(item => ({
+    sourceCategory: input.scope,
     title: text(item.title),
     link: text(item.link),
     snippet: text(item.snippet),
