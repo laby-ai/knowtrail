@@ -165,7 +165,10 @@ export default function HomePage() {
   const handleCreateNotebook = useCallback((name: string) => {
     const title = name.trim();
     if (!title || title.length > 80) return;
-    const id = `notebook-${crypto.randomUUID()}`;
+    const randomId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    const id = `notebook-${randomId}`;
     setCreateOpen(false);
     const now = new Date().toISOString();
     const accents = [
