@@ -236,6 +236,14 @@ export function AppProvider({
   }, [storageScopeKey]);
   React.useEffect(() => {
     if (!foldersLoaded) return;
+    setState(previous => {
+      const availablePaperIds = new Set(previous.folders.flatMap(folder => folder.papers.map(paper => paper.id)));
+      const selectedPapers = previous.selectedPapers.filter(paperId => availablePaperIds.has(paperId));
+      return selectedPapers.length === previous.selectedPapers.length ? previous : { ...previous, selectedPapers };
+    });
+  }, [state.folders, foldersLoaded]);
+  React.useEffect(() => {
+    if (!foldersLoaded) return;
     try { window.localStorage.setItem(`knowtrail:folders:${encodeURIComponent(storageScopeKey)}`, JSON.stringify(state.folders)); } catch { /* Server sources remain available. */ }
   }, [foldersLoaded, state.folders, storageScopeKey]);
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
@@ -740,3 +748,4 @@ export function useApp() {
   }
   return context;
 }
+

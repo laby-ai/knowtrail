@@ -1100,6 +1100,7 @@ export function LibraryPanel({
       {selectedPapers.length > 0 && (
         <div
           data-testid="library-selection-count"
+          aria-live="polite"
           className="px-5 py-2.5 bg-blue-500/[0.06] border-b border-blue-500/10 flex flex-wrap items-center justify-between gap-2 animate-fade-in"
         >
           <span className="text-xs font-medium text-blue-400">
@@ -1122,7 +1123,10 @@ export function LibraryPanel({
             )}
             <button
               type="button"
+              data-testid="library-clear-selection"
+              aria-label="清除已选文献"
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 clearSelection();
               }}
