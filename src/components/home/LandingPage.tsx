@@ -312,7 +312,6 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
           </Link>
           <div className="hidden items-center gap-8 text-base font-semibold text-white/80 md:flex">
             <a href="#overview" className="border-b-2 border-white pb-1">概览</a>
-            <a href="#how-it-works" className="pb-1">方案</a>
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
@@ -330,7 +329,6 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
         {mobileMenuOpen && (
           <div className="liquid-glass-card mx-auto mt-3 grid max-w-7xl gap-2 rounded-2xl p-2 text-sm font-semibold text-white/90 md:hidden">
             <a href="#overview" className="rounded-xl px-4 py-3 hover:bg-white/10" onClick={() => setMobileMenuOpen(false)}>概览</a>
-            <a href="#how-it-works" className="rounded-xl px-4 py-3 hover:bg-white/10" onClick={() => setMobileMenuOpen(false)}>方案</a>
           </div>
         )}
       </nav>
