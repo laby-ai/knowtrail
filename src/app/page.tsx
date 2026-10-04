@@ -271,7 +271,6 @@ export default function HomePage() {
             notebooksReady={notebooksReady}
             onCreate={() => setCreateOpen(true)}
             onOpen={handleOpenNotebook}
-            onOpenFeatured={handleOpenFeatured}
             onShowLanding={handleShowLanding}
             onSignOut={handleSignOut}
           />

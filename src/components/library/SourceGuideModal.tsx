@@ -1,36 +1,8 @@
 'use client';
 
-import { ClipboardPaste, FileText, Globe2, Lightbulb, Upload, X } from 'lucide-react';
+import { ClipboardPaste, FileText, Globe2, Upload, X } from 'lucide-react';
 
-const SOURCE_EXAMPLES = [
-  {
-    title: '组会文献速览',
-    tag: '文献速览',
-    body: [
-      '研究主题：近期多模态模型在科学图像理解中的应用进展。',
-      '文献要点：先把论文和研究笔记放进同一个文献本，再围绕方法、数据集、指标和局限提出具体问题。',
-      '待追问问题：哪些结论有原文支持？哪些部分还需要补充证据来源？这组文献适合整理成怎样的组会材料？',
-    ].join('\n\n'),
-  },
-  {
-    title: '实验数据分析记录',
-    tag: '实验记录',
-    body: [
-      '实验场景：一组处理前后样本需要整理统计方法、图表和结果描述。',
-      '主要问题：数据、图表和实验记录分散在多个文件里，复盘时很难回到原始依据。',
-      '可用线索：按实验条件、样本量、统计方法和主要差异整理，后续更容易生成 Results 初稿和图注。',
-    ].join('\n\n'),
-  },
-  {
-    title: '论文精读记录',
-    tag: '精读摘要',
-    body: [
-      '研究问题：这篇论文想解决什么问题，为什么重要？',
-      '方法摘要：作者使用了哪些数据、模型或实验设计？对照组和评估指标是什么？',
-      '主要发现：哪些结论可以直接引用，哪些只是推断？局限和后续方向分别是什么？',
-    ].join('\n\n'),
-  },
-];
+
 
 export function SourceGuideModal({
   pastedSourceText,
@@ -100,7 +72,7 @@ export function SourceGuideModal({
             <textarea
               value={pastedSourceText}
               onChange={(event) => onPasteTextChange(event.target.value)}
-              placeholder="把论文摘要、实验记录、网页片段或研究笔记粘贴到这里，也可以先点下方示例体验。"
+              placeholder="把论文摘要、实验记录、网页片段或研究笔记粘贴到这里。"
               className="liquid-glass-input mt-2 min-h-24 resize-none text-xs leading-relaxed"
             />
             <button
@@ -112,30 +84,6 @@ export function SourceGuideModal({
             >
               加入文献本
             </button>
-          </div>
-        </div>
-
-        <div className="mt-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-amber-400" />
-            <span className="text-sm font-semibold text-[var(--text-primary)]">没有现成文献？先试一个科研示例</span>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {SOURCE_EXAMPLES.map((example, index) => (
-              <button
-                key={example.title}
-                type="button"
-                onClick={() => {
-                  onPasteTitleChange(example.title);
-                  onPasteTextChange(example.body);
-                }}
-                className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-3 text-left transition hover:border-[var(--accent-blue)] hover:bg-[var(--glass-active)]"
-                data-testid={`source-guide-example-${index}`}
-              >
-                <span className="block truncate text-xs font-semibold text-[var(--text-primary)]">{example.title}</span>
-                <span className="mt-1 block text-[11px] text-[var(--text-tertiary)]">{example.tag}</span>
-              </button>
-            ))}
           </div>
         </div>
 

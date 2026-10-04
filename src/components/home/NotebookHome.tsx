@@ -17,7 +17,6 @@ import {
 } from '@/components/home/workspace-types';
 import {
   CreateNotebookCard,
-  FeaturedNotebookStrip,
   NotebookCard,
 } from '@/components/home/NotebookCards';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -30,7 +29,6 @@ type NotebookHomeProps = {
   notebooksReady: boolean;
   onCreate: () => void;
   onOpen: (id: string) => void;
-  onOpenFeatured: (id: string) => void;
   onShowLanding: () => void;
   onSignOut: () => void;
 };
@@ -71,7 +69,6 @@ export function NotebookHome({
   notebooksReady,
   onCreate,
   onOpen,
-  onOpenFeatured,
   onShowLanding,
   onSignOut,
 }: NotebookHomeProps) {
@@ -133,8 +130,6 @@ export function NotebookHome({
             />
           </label>
         </div>
-
-        <FeaturedNotebookStrip disabled={!notebooksReady} onOpen={onOpenFeatured} />
 
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-5 sm:py-8">
           <div className="mb-4 flex items-center justify-between gap-4">
