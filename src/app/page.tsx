@@ -124,18 +124,11 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    const viewParam = params.get('view') as View | null;
+    const viewParam = params.get('view');
     const storedSession = readStoredAccountSession();
-    if (storedSession) {
-      setAccountSession(storedSession);
-      if (viewParam === 'workspace' || viewParam === 'notebooks') {
-        setView(viewParam);
-      } else {
-        setView('notebooks');
-      }
-    } else if (viewParam === 'workspace' || viewParam === 'notebooks') {
-      setView(viewParam);
-    }
+    setAccountSession(storedSession);
+    // Restoring a session must not skip the public home page.
+    setView(viewParam === 'workspace' || viewParam === 'notebooks' ? viewParam : 'landing');
     setSessionReady(true);
     const refreshSession = () => setAccountSession(readStoredAccountSession());
     window.addEventListener('knowtrail-account-session-changed', refreshSession);
