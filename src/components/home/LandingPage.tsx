@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import {
-  ArrowRight,
   BarChart3,
   BookOpen,
   ClipboardCheck,
