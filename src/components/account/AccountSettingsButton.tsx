@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Settings, UserRound, ShieldCheck, KeyRound, LogOut } from 'lucide-react';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
@@ -54,6 +54,38 @@ function SecuritySettings({ session, onSignOut }: { session: AccountAuthSession;
 
 export function AccountSettingsButton({ session, onSignOut }: { session: AccountAuthSession; onSignOut: () => void }) {
   const [open, setOpen] = useState(false);
+  const [resolvedSession, setResolvedSession] = useState<AccountAuthSession | null>(null);
+  const [profileError, setProfileError] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    setResolvedSession(null);
+    setProfileError('');
+    async function loadAccount() {
+      try {
+        const response = await fetch('/api/account/session', {
+          headers: { Authorization: `Bearer ${session.token}` },
+          cache: 'no-store', signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(response.status === 401
+          ? '登录状态已失效，请退出后重新登录。' : '暂时无法读取账号系统信息，请重试。');
+        const profile = await response.json() as Partial<AccountAuthSession>;
+        if (!profile.member?.id || typeof profile.member.display_name !== 'string' || typeof profile.member.email !== 'string') {
+          throw new Error('账号系统返回的信息不完整，请重试。');
+        }
+        if (!controller.signal.aborted) setResolvedSession({
+          token: session.token, expires_at: profile.expires_at || '',
+          member: profile.member, tenant_id: profile.tenant_id || '', tenant_name: profile.tenant_name || '',
+        });
+      } catch (failure) {
+        if (!controller.signal.aborted) setProfileError(failure instanceof Error ? failure.message : '暂时无法读取账号信息。');
+      }
+    }
+    void loadAccount();
+    return () => controller.abort();
+  }, [open, session.token, refresh]);
+  const account = resolvedSession?.token === session.token ? resolvedSession : null;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -66,7 +98,11 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
           <DialogTitle>设置</DialogTitle>
           <DialogDescription>管理账号、安全和百炼模型配置。</DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue="account" className="mt-5">
+        {profileError ? <div className="mt-5 space-y-3">
+          <p role="alert" className="text-sm text-red-600">{profileError}</p>
+          <button type="button" onClick={() => setRefresh(value => value + 1)} className="liquid-glass-btn px-3 py-2 text-sm">重新加载</button>
+          <button type="button" onClick={() => { setOpen(false); onSignOut(); }} className="ml-3 text-sm text-red-600">退出账号</button>
+        </div> : !account ? <p role="status" className="mt-5 text-sm text-[var(--text-secondary)]">正在同步账号信息…</p> : <Tabs defaultValue="account" className="mt-5">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="account"><UserRound className="h-4 w-4" />账号</TabsTrigger>
             <TabsTrigger value="security"><ShieldCheck className="h-4 w-4" />安全</TabsTrigger>
@@ -75,14 +111,14 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
           <TabsContent value="account" className="pt-4">
             <h3 className="mb-4 text-sm font-semibold">账号信息</h3>
             <dl className="space-y-4 text-sm">
-              <div><dt className="text-[var(--text-secondary)]">显示名称</dt><dd className="mt-1 break-words">{session.member.display_name || '当前账号'}</dd></div>
-              <div><dt className="text-[var(--text-secondary)]">邮箱</dt><dd className="mt-1 break-all">{session.member.email || '暂未获取邮箱信息'}</dd></div>
-              {session.tenant_name && <div><dt className="text-[var(--text-secondary)]">所属组织</dt><dd className="mt-1 break-words">{session.tenant_name}</dd></div>}
+              <div><dt className="text-[var(--text-secondary)]">显示名称</dt><dd className="mt-1 break-words">{account.member.display_name || '未设置'}</dd></div>
+              <div><dt className="text-[var(--text-secondary)]">邮箱</dt><dd className="mt-1 break-all">{account.member.email || '账号系统未提供邮箱'}</dd></div>
+              {account.tenant_name && <div><dt className="text-[var(--text-secondary)]">所属组织</dt><dd className="mt-1 break-words">{account.tenant_name}</dd></div>}
             </dl>
           </TabsContent>
-          <TabsContent value="security" className="pt-4"><SecuritySettings session={session} onSignOut={() => { setOpen(false); onSignOut(); }} /></TabsContent>
-          <TabsContent value="bailian" className="pt-4"><BailianProviderSettings session={session} /></TabsContent>
-        </Tabs>
+          <TabsContent value="security" className="pt-4"><SecuritySettings session={account} onSignOut={() => { setOpen(false); onSignOut(); }} /></TabsContent>
+          <TabsContent value="bailian" className="pt-4"><BailianProviderSettings session={account} /></TabsContent>
+        </Tabs>}
       </DialogContent>
     </Dialog>
   );
