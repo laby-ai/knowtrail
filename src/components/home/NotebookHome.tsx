@@ -3,13 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
-  LogOut,
   Plus,
   Search,
   UserRound,
 } from 'lucide-react';
 import { BrandMark } from '@/components/brand/BrandMark';
-import { BailianProviderButton } from '@/components/account/BailianProviderButton';
+import { AccountSettingsButton } from '@/components/account/AccountSettingsButton';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import {
   ACCOUNT_NOTEBOOK_NEXT,
@@ -60,27 +59,8 @@ function AccountArea({
     );
   }
 
-  return (
-    <div className="liquid-glass-card flex items-center gap-1.5 rounded-lg p-1" data-testid="notebook-home-account">
-      <div className="flex h-8 w-8 items-center justify-center rounded-md text-sm font-semibold text-white" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(139, 92, 246, 0.8) 100%)' }}>
-        {accountSession.member.display_name.slice(0, 1)}
-      </div>
-      <div className="hidden min-w-0 md:block">
-        <div className="truncate text-sm font-semibold leading-4 text-white">{accountSession.member.display_name}</div>
-        <div className="truncate text-xs leading-4 text-white/60">{accountSession.member.email}</div>
-      </div>
-      <BailianProviderButton session={accountSession} />
-      <button
-        type="button"
-        onClick={onSignOut}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-white/60 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-        aria-label="退出账号"
-        title="退出账号"
-      >
-        <LogOut className="h-4 w-4" />
-      </button>
-    </div>
-  );
+  return <AccountSettingsButton session={accountSession} onSignOut={onSignOut} />;
+
 }
 
 export function NotebookHome({
