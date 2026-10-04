@@ -293,12 +293,10 @@ function WorkPrincipleSection() {
   );
 }
 
-export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome }: LandingPageProps) {
+export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const opensNotebookDirectly = Boolean(accountSession);
   const accountUrl = opensNotebookDirectly ? NOTEBOOK_HOME_HREF : `/account?next=${ACCOUNT_NOTEBOOK_NEXT}`;
-  const accountCtaText = accountSession ? '进入文献本' : accountStatus?.configured ? '登录后使用' : '试用 KnowTrail';
-  const mobileAccountCtaText = accountSession ? '进入' : accountStatus?.configured ? '登录' : '试用';
   const openNotebookHomeFromLink = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     onOpenNotebookHome();
@@ -319,25 +317,6 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <Link
-              href={accountUrl}
-              onClick={accountLinkClick}
-              className="liquid-glass-btn hidden h-11 items-center rounded-full px-4 text-sm font-semibold text-white transition md:inline-flex"
-              data-testid="nav-open-notebooks"
-            >
-              文献本
-            </Link>
-            <Link
-              href={accountUrl}
-              onClick={accountLinkClick}
-              className="liquid-glass-btn-primary inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-full px-3 text-sm font-semibold sm:px-5"
-              style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%)', border: '1px solid rgba(255,255,255,0.3)' }}
-              data-testid="nav-login-account"
-            >
-              <span className="hidden sm:inline">{accountCtaText}</span>
-              <span className="sm:hidden">{mobileAccountCtaText}</span>
-              <ArrowRight className="h-4 w-4" />
-            </Link>
             <button
               type="button"
               className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:bg-white/10 md:hidden"
@@ -353,9 +332,6 @@ export function LandingPage({ accountStatus, accountSession, onOpenNotebookHome 
           <div className="liquid-glass-card mx-auto mt-3 grid max-w-7xl gap-2 rounded-2xl p-2 text-sm font-semibold text-white/90 md:hidden">
             <a href="#overview" className="rounded-xl px-4 py-3 hover:bg-white/10" onClick={() => setMobileMenuOpen(false)}>概览</a>
             <a href="#how-it-works" className="rounded-xl px-4 py-3 hover:bg-white/10" onClick={() => setMobileMenuOpen(false)}>方案</a>
-            <Link href={accountUrl} onClick={(event) => { setMobileMenuOpen(false); accountLinkClick?.(event); }} className="rounded-xl px-4 py-3 hover:bg-white/10">
-              文献本
-            </Link>
           </div>
         )}
       </nav>
