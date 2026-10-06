@@ -9,6 +9,7 @@ import { StudioPanel } from '@/components/studio/StudioPanel';
 import { LiquidGlassProvider } from '@/components/ui/liquid-glass-provider';
 import { LandingPage } from '@/components/home/LandingPage';
 import { NotebookHome } from '@/components/home/NotebookHome';
+import { AccountSettingsButton } from '@/components/account/AccountSettingsButton';
 import {
   createDefaultNotebooks,
   scopedStorageKey,
@@ -66,6 +67,8 @@ function AcademicPresenterContent({
   activeNotebookId,
   notebooks,
   onBackHome,
+  accountSession,
+  onSignOut,
 }: {
   activeNotebookId: string | null;
   notebooks: WorkspaceNotebook[];
@@ -82,7 +85,8 @@ function AcademicPresenterContent({
     <div className="h-dvh w-full min-w-0 overflow-hidden flex flex-col">
       <header className="flex shrink-0 items-center gap-4 border-b border-[var(--border-subtle)] px-4 py-2">
         <button type="button" onClick={onBackHome} className="shrink-0 text-sm text-blue-500">返回文献本</button>
-        <h1 className="min-w-0 truncate text-sm font-semibold">{notebooks.find(n => n.id === activeNotebookId)?.title}</h1>
+        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{notebooks.find(n => n.id === activeNotebookId)?.title}</h1>
+        {accountSession && <AccountSettingsButton session={accountSession} onSignOut={onSignOut} />}
       </header>
       <div className="min-h-0 flex-1">
       <ThreeColumnLayout
