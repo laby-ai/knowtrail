@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
 import {
   BarChart3,
   BookOpen,
@@ -9,7 +8,6 @@ import {
   Database,
   FileDown,
   GitCompare,
-  Menu,
   PenLine,
   Presentation,
   Quote,
@@ -293,7 +291,6 @@ function WorkPrincipleSection() {
 }
 
 export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const opensNotebookDirectly = Boolean(accountSession);
   const accountUrl = opensNotebookDirectly ? NOTEBOOK_HOME_HREF : `/account?next=${ACCOUNT_NOTEBOOK_NEXT}`;
   const openNotebookHomeFromLink = (event: React.MouseEvent<HTMLAnchorElement>) => {
@@ -310,27 +307,8 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
             <BrandMark compact />
             <span className="whitespace-nowrap text-2xl font-semibold tracking-tight text-white">KnowTrail</span>
           </Link>
-          <div className="hidden items-center gap-8 text-base font-semibold text-white/80 md:flex">
-            <a href="#overview" className="border-b-2 border-white pb-1">概览</a>
-          </div>
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <button
-              type="button"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:bg-white/10 md:hidden"
-              aria-label="打开菜单"
-              aria-expanded={mobileMenuOpen}
-              onClick={() => setMobileMenuOpen(open => !open)}
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-          </div>
+          <ThemeToggle />
         </div>
-        {mobileMenuOpen && (
-          <div className="liquid-glass-card mx-auto mt-3 grid max-w-7xl gap-2 rounded-2xl p-2 text-sm font-semibold text-white/90 md:hidden">
-            <a href="#overview" className="rounded-xl px-4 py-3 hover:bg-white/10" onClick={() => setMobileMenuOpen(false)}>概览</a>
-          </div>
-        )}
       </nav>
 
       <main id="overview">
