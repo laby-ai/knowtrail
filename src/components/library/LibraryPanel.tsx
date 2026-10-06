@@ -1278,7 +1278,7 @@ export function LibraryPanel({
               className="mt-4 rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-4 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:bg-[var(--glass-hover)]"
               data-testid="library-empty-examples"
             >
-              查看示例
+              添加资料
             </button>
           </div>
         ) : (

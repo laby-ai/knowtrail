@@ -36,15 +36,7 @@ export function normalizeNotebookTitle(title: string, index = 0): string {
 }
 
 export function createDefaultNotebooks(): WorkspaceNotebook[] {
-  return [
-    {
-      id: 'default-workspace',
-      title: '未命名文献本',
-      sourceCount: 0,
-      updatedAt: DEFAULT_WORKSPACE_UPDATED_AT,
-      accent: 'from-sky-50 via-white to-cyan-50',
-    },
-  ];
+  return [];
 }
 
 export function formatNotebookDate(value: string) {

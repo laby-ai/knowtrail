@@ -17,14 +17,8 @@ import {
   type WorkspaceNotebook,
   type AccountCenterStatus,
 } from '@/components/home/workspace-types';
-import {
-  FEATURED_NOTEBOOKS,
-  isFeaturedNotebookId,
-  featuredNotebookToWorkspace,
-  createFeaturedNotebookFolders,
-} from '@/components/home/featured-notebooks';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
-import { clearAccountSession, readStoredAccountSession } from '@/lib/account-session-browser';
+import { accountAuthHeaders, clearAccountSession, readStoredAccountSession } from '@/lib/account-session-browser';
 
 import { CreateNotebookDialog } from '@/components/home/CreateNotebookDialog';
 
@@ -113,6 +107,8 @@ export default function HomePage() {
   const [loadedOwner, setLoadedOwner] = useState<string | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [notebooksReady, setNotebooksReady] = useState(false);
+  const [notebookError, setNotebookError] = useState('');
+  const [reloadNotebooks, setReloadNotebooks] = useState(0);
 
   useEffect(() => {
     fetch('/api/account/status')
@@ -138,31 +134,56 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!sessionReady) return;
-    const loaded = loadNotebooks(accountSession);
-    setNotebooks(loaded);
-    const storedId = loadActiveNotebookId(accountSession);
-    setActiveNotebookId(loaded.some(n => n.id === storedId) ? storedId : loaded[0]?.id ?? null);
-    setLoadedOwner(accountSession?.member.id || 'guest');
-    setNotebooksReady(true);
-  }, [accountSession, sessionReady]);
+    const controller = new AbortController();
+    setNotebooksReady(false);
+    setNotebookError('');
+    const owner = accountSession?.member.id || 'guest';
+    async function load() {
+      try {
+        // Preserve locally created notebooks; never import bundled templates or a fabricated default.
+        const legacy = (accountSession?.member.id === 'account-center-token' ? [] : loadNotebooks(accountSession)).filter(item => item.id !== 'default-workspace' && !item.id.startsWith('featured-'));
+        const response = await fetch('/api/notebooks', {
+          method: legacy.length ? 'POST' : 'GET', signal: controller.signal, cache: 'no-store',
+          headers: { ...accountAuthHeaders(), 'Content-Type': 'application/json' },
+          ...(legacy.length ? { body: JSON.stringify({ notebooks: legacy.map(({id, title}) => ({id, title})), onlyMissing: true }) } : {}),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || '无法加载文献本');
+        if (controller.signal.aborted) return;
+        const loaded: WorkspaceNotebook[] = result.notebooks;
+        setNotebooks(loaded);
+        saveNotebooks(loaded, accountSession);
+        const storedId = loadActiveNotebookId(accountSession);
+        setActiveNotebookId(loaded.some(n => n.id === storedId) ? storedId : loaded[0]?.id ?? null);
+        setLoadedOwner(owner);
+        setNotebooksReady(true);
+      } catch (error) {
+        if (!controller.signal.aborted) { setNotebooks([]); setNotebookError(error instanceof Error ? error.message : '无法加载文献本'); }
+      }
+    }
+    void load();
+    return () => controller.abort();
+  }, [accountSession, sessionReady, view, reloadNotebooks]);
 
-  const persistNotebooks = useCallback((next: WorkspaceNotebook[]) => {
-    setNotebooks(next);
-    saveNotebooks(next, accountSession);
+  const persistNotebooks = useCallback(async (next: WorkspaceNotebook[]) => {
+    const response = await fetch('/api/notebooks', { method: 'POST', headers: { ...accountAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ notebooks: next.map(({id, title}) => ({id, title})) }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '保存文献本失败');
+    setNotebooks(result.notebooks);
+    saveNotebooks(result.notebooks, accountSession);
   }, [accountSession]);
 
   const handleOpenNotebookHome = useCallback(() => {
     setView('notebooks');
   }, []);
 
-  const handleCreateNotebook = useCallback((name: string) => {
+  const handleCreateNotebook = useCallback(async (name: string) => {
     const title = name.trim();
     if (!title || title.length > 80) return;
     const randomId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     const id = `notebook-${randomId}`;
-    setCreateOpen(false);
     const now = new Date().toISOString();
     const accents = [
       'from-sky-50 via-white to-cyan-50',
@@ -179,8 +200,8 @@ export default function HomePage() {
       updatedAt: now,
       accent,
     };
-    const next = [newNotebook, ...notebooks];
-    persistNotebooks(next);
+    await persistNotebooks([newNotebook]);
+    setCreateOpen(false);
     setActiveNotebookId(id);
     saveActiveNotebookId(id, accountSession);
     setView('workspace');
@@ -189,44 +210,6 @@ export default function HomePage() {
   const handleOpenNotebook = useCallback((id: string) => {
     setActiveNotebookId(id);
     saveActiveNotebookId(id, accountSession);
-    const notebook = notebooks.find(n => n.id === id);
-    if (notebook) {
-      const now = new Date().toISOString();
-      const updated = notebooks.map(n => n.id === id ? { ...n, updatedAt: now } : n);
-      persistNotebooks(updated);
-    }
-    setView('workspace');
-  }, [notebooks, persistNotebooks, accountSession]);
-
-  const handleOpenFeatured = useCallback((id: string) => {
-    if (!isFeaturedNotebookId(id)) return;
-    const featured = FEATURED_NOTEBOOKS.find(n => n.id === id);
-    if (!featured) return;
-
-    const existing = notebooks.find(n => n.id === id);
-    if (existing) {
-      setActiveNotebookId(id);
-      saveActiveNotebookId(id, accountSession);
-      setView('workspace');
-      return;
-    }
-
-    const wsNotebook = featuredNotebookToWorkspace(featured);
-    const next = [wsNotebook, ...notebooks];
-    persistNotebooks(next);
-    setActiveNotebookId(id);
-    saveActiveNotebookId(id, accountSession);
-
-    const folders = createFeaturedNotebookFolders(id);
-    if (folders.length > 0) {
-      try {
-        window.localStorage.setItem(
-          scopedStorageKey(`lingbi-folders:${id}`, accountSession),
-          JSON.stringify(folders),
-        );
-      } catch { /* quota */ }
-    }
-
     setView('workspace');
   }, [notebooks, persistNotebooks, accountSession]);
 
@@ -262,6 +245,7 @@ export default function HomePage() {
             onOpenNotebookHome={handleOpenNotebookHome}
           />
         )}
+        {view === 'notebooks' && notebookError && <div role="alert" className="p-4 text-red-600">{notebookError}<button className="ml-3 underline" onClick={() => setReloadNotebooks(value => value + 1)}>重试</button></div>}
         {view === 'notebooks' && (
           <NotebookHome
             notebooks={notebooks}
@@ -279,7 +263,7 @@ export default function HomePage() {
           <AppProvider
             key={`${accountSession?.member.id || 'guest'}:${activeNotebookId}`}
             storageScopeKey={`${accountSession?.member.id || 'guest'}:${activeNotebookId}`}
-            initialFolders={isFeaturedNotebookId(activeNotebookId) ? createFeaturedNotebookFolders(activeNotebookId) : []}
+            initialFolders={[]}
           >
           <AcademicPresenterContent
             activeNotebookId={activeNotebookId}

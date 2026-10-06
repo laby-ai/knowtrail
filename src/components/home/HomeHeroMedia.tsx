@@ -12,40 +12,23 @@ const sourceTiles = [
 
 export function HomeHeroMedia() {
   return (
-    <div className="home-motion-stage pointer-events-none relative mx-auto h-[420px] w-full max-w-6xl overflow-hidden rounded-[34px] border border-white/18 bg-black/40 shadow-[0_26px_90px_rgba(0,0,0,0.4)] backdrop-blur-xl md:h-[520px]">
+    <div className="home-motion-stage relative mx-auto h-[420px] w-full max-w-6xl overflow-hidden rounded-[34px] border border-white/18 bg-black/40 shadow-[0_26px_90px_rgba(0,0,0,0.4)] backdrop-blur-xl md:h-[520px]">
       <video
         className="absolute inset-x-0 bottom-0 h-full w-full object-cover opacity-95"
+        controls
         autoPlay
         muted
         loop
         playsInline
         preload="metadata"
         poster="assets/home/lingbi-hero-poster.jpg"
-        aria-hidden="true"
+        aria-label="灵笔产品介绍视频"
       >
         <source src="assets/home/lingbi-hero-loop.webm" type="video/webm" />
         <source src="assets/home/lingbi-hero-loop.mp4" type="video/mp4" />
       </video>
 
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(0,0,0,0.3),rgba(0,0,0,0.10)_42%,transparent_76%)]" />
-      <div className="absolute left-1/2 top-[44%] flex w-[calc(100%-2rem)] max-w-[460px] -translate-x-1/2 -translate-y-1/2 items-center gap-2 rounded-[28px] border border-white/20 bg-black/50 px-3 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:w-auto sm:gap-3 sm:px-5 sm:py-4">
-        <button
-          type="button"
-          aria-hidden="true"
-          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white shadow-lg sm:h-12 sm:w-12"
-          style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(139, 92, 246, 0.9) 100%)' }}
-        >
-          <span className="h-5 w-1.5 rounded-full bg-white" />
-          <span className="ml-1 h-5 w-1.5 rounded-full bg-white" />
-        </button>
-        <span className="flex-shrink-0 text-sm font-medium text-white/60">1:42</span>
-        <span className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-white/15 sm:w-44 sm:flex-none">
-          <span className="absolute inset-y-0 left-0 w-[58%] rounded-full bg-blue-400" />
-          <span className="absolute left-[55%] top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-blue-400 shadow-md shadow-blue-400/30" />
-        </span>
-        <span className="flex-shrink-0 text-sm font-medium text-white/50">3:01</span>
-      </div>
-
       {sourceTiles.map((tile, index) => {
         const Icon = tile.icon;
         return (
@@ -77,7 +60,7 @@ export function HomeHeroMedia() {
 
       <div className="absolute bottom-5 right-6 hidden items-center gap-1.5 rounded-full border border-white/20 bg-black/40 px-3 py-2 text-xs font-semibold text-blue-200 shadow-sm backdrop-blur-xl md:flex">
         <Sparkles className="h-3.5 w-3.5" />
-        实时资料脉络
+        资料整理流程展示
       </div>
     </div>
   );

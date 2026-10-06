@@ -155,13 +155,13 @@ export function NotebookHome({
           ) : (
             <div className="liquid-glass-inset flex min-h-48 flex-col items-center justify-center rounded-xl px-6 text-center">
               <Search className="h-6 w-6 text-white/40" />
-              <p className="mt-3 text-sm font-semibold text-white/80">没有匹配的文献本</p>
+              <p className="mt-3 text-sm font-semibold text-white/80">{!notebooksReady ? '正在加载文献本…' : query ? '没有匹配的文献本' : '还没有文献本'}</p>
               <button
                 type="button"
-                onClick={() => setQuery('')}
+                disabled={!notebooksReady} onClick={() => query ? setQuery('') : onCreate()}
                 className="mt-3 rounded-lg px-3 py-2 text-sm font-medium text-blue-300 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
-                清除搜索
+                {query ? '清除搜索' : '新建文献本'}
               </button>
             </div>
           )}
