@@ -1,6 +1,7 @@
 'use client';
 
 import { ClientRequestError, clientApiRequest } from '@/lib/client-api';
+import dynamic from 'next/dynamic';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -24,6 +25,8 @@ import {
   StructuredPresentationOutlineDraft,
   type StructuredPresentationOutlineItem,
 } from './StructuredPresentationOutlineDraft';
+
+const PptxPreview = dynamic(() => import('./PptxPreview'), { ssr: false });
 
 export function StructuredPresentationPanel() {
   const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
@@ -211,6 +214,7 @@ export function StructuredPresentationPanel() {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       setPptxUrl(url);
+      setMineruStatus('');
       setProgressMsg('');
       setProgressStep('');
     } catch (e: unknown) {
@@ -444,7 +448,7 @@ export function StructuredPresentationPanel() {
         </div>
       ) : pptxUrl ? (
         /* Success state */
-        <div className="flex flex-col gap-3 w-full max-w-[340px]" data-testid="academic-ppt-success">
+        <div className="flex flex-col gap-3 w-full max-w-4xl" data-testid="academic-ppt-success">
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl liquid-glass-static !border-emerald-500/20">
             <Check className="w-5 h-5 text-emerald-400" />
             <span className="text-sm text-emerald-400 font-medium">PPT生成完成</span>
@@ -462,6 +466,7 @@ export function StructuredPresentationPanel() {
               {qualityWarning}
             </div>
           )}
+          <PptxPreview fileUrl={pptxUrl} />
           <button
             onClick={handleDownload}
             data-testid="academic-ppt-download"
