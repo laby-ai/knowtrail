@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
-import { allowRequestRuntimeAIConfig, hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
+import { allowRequestRuntimeAIConfig, hasRuntimeAIProvider, redactRuntimeAISecrets, serverRuntimeAIConfigFromEnv } from '@/lib/runtime-ai-config';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
 import { bailianProfileFromRuntimeConfig, resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
@@ -63,14 +63,7 @@ function envFirst(...names: string[]): string {
 
 function resolveServerRuntimeAIConfig(input?: Partial<RuntimeAIConfig>): Partial<RuntimeAIConfig> {
   if (allowRequestRuntimeAIConfig() && hasRuntimeAIProvider(input)) return input;
-  return {
-    apiBase: envFirst('OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE', 'DASHSCOPE_API_BASE'),
-    apiKey: envFirst('OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY', 'DASHSCOPE_API_KEY'),
-    model: envFirst('OPENAI_COMPAT_MODEL', 'ARK_MODEL', 'DASHSCOPE_MODEL'),
-    visionModel: envFirst('OPENAI_COMPAT_VISION_MODEL', 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL', 'ARK_VISION_MODEL', 'DASHSCOPE_IMAGE_MODEL'),
-    embeddingModel: envFirst('OPENAI_COMPAT_EMBEDDING_MODEL', 'ARK_EMBEDDING_MODEL'),
-    ttsSpeaker: envFirst('AGENTPLAN_TTS_SPEAKER', 'ARK_TTS_SPEAKER'),
-  };
+  return serverRuntimeAIConfigFromEnv();
 }
 
 function normalizeOpenAIImageEndpoint(apiBase: string): string {
