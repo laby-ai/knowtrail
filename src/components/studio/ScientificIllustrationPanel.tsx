@@ -130,6 +130,8 @@ export function ScientificIllustrationPanel() {
     try {
       const response = await clientApiRequest('/api/ai/scientific-illustration', {
         method: 'POST',
+        // Leave time inside the 210 second overall deadline to fetch the image.
+        timeoutMs: 200_000,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           purpose: purpose.trim(),
