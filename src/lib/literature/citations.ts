@@ -1,6 +1,6 @@
 import type { CitationPaper, CitationStyle } from './types';
 
-function formatAuthorsForStyle(authors: { name: string }[], style: CitationStyle): string {
+function formatAuthorsForStyle(authors: { name: string }[], style: Exclude<CitationStyle, 'vancouver'>): string {
   if (authors.length === 0) return 'Unknown Author';
 
   switch (style) {
@@ -23,7 +23,7 @@ function formatAuthorsForStyle(authors: { name: string }[], style: CitationStyle
       return authors[0].name + ', et al.';
     }
     case 'ieee': {
-      const parts = authors.map((a, i) => {
+      const parts = authors.map(a => {
         const initials = a.name.split(/\s+/).filter(Boolean).map(w => w[0] + '.').join(' ');
         const lastName = a.name.split(/\s+/).filter(Boolean).pop() || a.name;
         return `${initials} ${lastName}`;
