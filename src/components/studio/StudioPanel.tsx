@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from '@/components/ui/dialog';
 import { StudioSkillsTools } from './StudioSkillsTools';
@@ -27,6 +27,11 @@ import {
 
 export function StudioPanel() {
   const [activeTab, setActiveTab] = useState<StudioTab | null>(null);
+  useEffect(() => {
+    const open = () => setActiveTab('data-processing');
+    window.addEventListener('lingbi:open-data-analysis', open);
+    return () => window.removeEventListener('lingbi:open-data-analysis', open);
+  }, []);
   const navItem: StudioNavItem = STUDIO_NAV.find(n => n.id === activeTab) ?? STUDIO_NAV[0];
   const NavIcon = navItem.icon;
   const triggerRef = useRef<HTMLElement | null>(null);

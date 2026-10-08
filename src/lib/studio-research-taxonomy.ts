@@ -1,6 +1,7 @@
 export type StudioResearchCategoryId =
   | 'literature-evidence'
   | 'research-ideation'
+  | 'data-analysis'
   | 'results-expression'
   | 'collaboration-memory';
 
@@ -22,16 +23,17 @@ export interface StudioResearchProduct {
 }
 
 export const STUDIO_RESEARCH_CATEGORIES = [
-  { id: 'literature-evidence', label: '文献证据' },
-  { id: 'research-ideation', label: '研究构思' },
-  { id: 'results-expression', label: '成果表达' },
-  { id: 'collaboration-memory', label: '协作沉淀' },
+  { id: 'literature-evidence', label: '文献调研' },
+  { id: 'research-ideation', label: '实验设计' },
+  { id: 'data-analysis', label: '数据分析' },
+  { id: 'results-expression', label: '论文写作与汇报' },
+  { id: 'collaboration-memory', label: '审查与科研交流' },
 ] as const satisfies readonly StudioResearchCategory[];
 
 export const STUDIO_RESEARCH_PRODUCTS = [
   {
     id: 'paper-search',
-    label: '论文检索',
+    label: '跨库文献检索',
     categoryId: 'literature-evidence',
     desc: '检索、核验并加入文献库',
     availability: 'ready',
@@ -59,8 +61,8 @@ export const STUDIO_RESEARCH_PRODUCTS = [
   },
   {
     id: 'data-processing',
-    label: '数据处理',
-    categoryId: 'research-ideation',
+    label: '实验数据分析',
+    categoryId: 'data-analysis',
     desc: '真实表格诊断与基线方案',
     availability: 'ready',
   },

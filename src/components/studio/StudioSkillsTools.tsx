@@ -14,7 +14,7 @@ export function StudioSkillsTools() {
   return (
     <section className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-subtle)] p-3" data-testid="studio-skills-tools">
       <button type="button" aria-expanded={open} aria-controls="studio-skills-list" onClick={() => setOpen(value => !value)} className="flex w-full items-center gap-2 text-left text-xs font-semibold">
-        <Settings className="h-3.5 w-3.5" />技能与工具
+        <Settings className="h-3.5 w-3.5" />科研分析方法
         <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">{selectedChatSkills.length ? `${selectedChatSkills.length} 已选` : '展开'}</span>
       </button>
       {open && <div id="studio-skills-list" className="mt-3 grid grid-cols-2 gap-2">

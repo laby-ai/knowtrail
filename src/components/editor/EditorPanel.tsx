@@ -31,14 +31,24 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { CHAT_SKILLS } from '@/lib/chat-skills';
+import { useResearchPreferences } from '@/components/research/ResearchPreferencesProvider';
 import { createPulseScheduler } from '@/lib/pulse-scheduler';
 
 export function EditorPanel() {
+  const { preferences } = useResearchPreferences();
   const {
     storageScopeKey, selectedChatSkills, chatMessages, addChatMessage, updateChatMessage, getSelectedPapers,
   } = useApp();
 
   const [inputMessage, setInputMessage] = useState('');
+  useEffect(() => {
+    const insert = (event: Event) => {
+      const detail: unknown = (event as CustomEvent<unknown>).detail;
+      if (typeof detail === 'string') setInputMessage(current => current ? `${current}\n\n${detail}` : detail);
+    };
+    window.addEventListener('lingbi:insert-citation', insert);
+    return () => window.removeEventListener('lingbi:insert-citation', insert);
+  }, []);
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -99,6 +109,7 @@ export function EditorPanel() {
         body: JSON.stringify({
           message: question,
           skills: selectedChatSkills,
+          researchMode: preferences.researchMode,
           notebookId: notebookIdFromStorageScopeKey(storageScopeKey),
           papers: selectedPapers.map(p => ({
             id: p.id, title: p.title, authors: p.authors, year: p.year,
@@ -160,7 +171,7 @@ export function EditorPanel() {
     } finally {
       setIsGenerating(false);
     }
-  }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers, storageScopeKey, selectedChatSkills, generateFollowUps]);
+  }, [isGenerating, addChatMessage, updateChatMessage, getSelectedPapers, storageScopeKey, selectedChatSkills, generateFollowUps, preferences.researchMode]);
 
   // Process queued messages when generation finishes
   useEffect(() => {

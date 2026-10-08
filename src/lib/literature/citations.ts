@@ -141,9 +141,34 @@ function formatGbt7714(paper: CitationPaper): string {
   return ref;
 }
 
+function formatVancouver(paper: CitationPaper): string {
+  const authors = paper.authors.map(author => {
+    const name = author.name.trim();
+    if (name.includes(',')) {
+      const [surname, given = ''] = name.split(',');
+      if (/^[A-Za-z .'-]+$/.test(given)) return `${surname.trim()} ${given.trim().split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 2).join('').toUpperCase()}`;
+    }
+    if (!/^[A-Za-z .'-]+$/.test(name)) return name;
+    const parts = name.split(/\s+/);
+    if (parts.length < 2) return name;
+    const surname = parts.pop()!;
+    return `${surname} ${parts.map(part => part[0]).slice(0, 2).join('').toUpperCase()}`;
+  }).join(', ');
+  let result = `${authors ? authors + '. ' : ''}${paper.title}.`;
+  if (paper.venue) result += ` ${paper.venue}.`;
+  result += ` ${paper.year}`;
+  if (paper.volume) result += `;${paper.volume}`;
+  if (paper.issue) result += `(${paper.issue})`;
+  if (paper.pages) result += `:${paper.pages}`;
+  result += '.';
+  if (paper.doi) result += ` doi: ${paper.doi}.`;
+  return result;
+}
+
 export function formatCitation(paper: CitationPaper, style: CitationStyle): string {
   switch (style) {
     case 'bibtex': return formatBibtex(paper);
+    case 'vancouver': return formatVancouver(paper);
     case 'apa': return formatApa(paper);
     case 'mla': return formatMla(paper);
     case 'chicago': return formatChicago(paper);
@@ -157,6 +182,7 @@ export function formatBibliography(papers: CitationPaper[], style: CitationStyle
     const citation = formatCitation(p, style);
     if (style === 'bibtex') return citation;
     if (style === 'ieee') return `[${i + 1}] ${citation}`;
+    if (style === 'vancouver') return `${i + 1}. ${citation}`;
     return citation;
   }).join('\n\n');
 }

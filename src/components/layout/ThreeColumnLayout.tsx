@@ -44,6 +44,19 @@ export function ThreeColumnLayout({
   const [containerWidth, setContainerWidth] = useState(1280);
   const [isMobile, setIsMobile] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<'left' | 'center' | 'right'>(initialMobilePanel);
+  useEffect(() => {
+    const left = () => { setLeftCollapsed(false); setMobilePanel('left'); };
+    const center = () => setMobilePanel('center');
+    const right = () => { setRightCollapsed(false); setMobilePanel('right'); };
+    window.addEventListener('lingbi:open-literature-search', left);
+    window.addEventListener('lingbi:insert-citation', center);
+    window.addEventListener('lingbi:open-data-analysis', right);
+    return () => {
+      window.removeEventListener('lingbi:open-literature-search', left);
+      window.removeEventListener('lingbi:insert-citation', center);
+      window.removeEventListener('lingbi:open-data-analysis', right);
+    };
+  }, []);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const fitted = fitWorkbenchWidths(containerWidth, leftWidth, rightWidth, leftCollapsed, rightCollapsed);

@@ -17,8 +17,9 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, papers, skills, mode, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
+    const { message, papers, skills, researchMode = true, mode, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
       message?: string;
+      researchMode?: boolean;
       skills?: unknown;
       papers?: RagSourceInput[];
       mode?: string;
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
       : '';
 
     const messages = [
-      { role: 'system' as const, content: systemPrompt + chatSkillInstructions(skills) },
+      { role: 'system' as const, content: systemPrompt + chatSkillInstructions(skills) + (researchMode ? '\n科研模式：仅处理研究、文献、实验、统计、学术写作及科研汇报任务。娱乐闲聊或无来源的事实请求应说明边界，并引导回研究问题。结论必须区分来源证据、推断和无法核验的信息，禁止编造引用。' : '') },
       ...(grounded.promptContext ? [{
         role: 'user' as const,
         content: `以下是从当前资料库检索出的证据片段。回答必须优先基于这些片段。\n\n${citationRules}\n\n${grounded.promptContext}`,

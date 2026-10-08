@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useResearchPreferences } from '@/components/research/ResearchPreferencesProvider';
+import { RESEARCH_DISCIPLINES } from '@/lib/research-preferences';
 import {
   Dialog,
   DialogContent,
@@ -57,6 +59,7 @@ const CITATION_STYLES: { value: CitationStyle; label: string }[] = [
   { value: 'mla', label: 'MLA 9th' },
   { value: 'chicago', label: 'Chicago 17th' },
   { value: 'ieee', label: 'IEEE' },
+  { value: 'vancouver', label: 'Vancouver' },
   { value: 'bibtex', label: 'BibTeX' },
 ];
 
@@ -97,9 +100,19 @@ export function LiteratureSearchDialog({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [citeError, setCiteError] = useState<string | null>(null);
   const [citeStyle, setCiteStyle] = useState<CitationStyle>('apa');
+  const { preferences, loaded: preferencesLoaded } = useResearchPreferences();
+  const sourcesChanged = useRef(false);
+  const citationChanged = useRef(false);
+  const defaults = preferences.researchMode ? RESEARCH_DISCIPLINES.find(item => item.id === preferences.disciplines[0]) : undefined;
+  useEffect(() => {
+    if (!preferencesLoaded || !defaults) return;
+    if (!sourcesChanged.current) setSelectedSources(new Set(defaults.sources));
+    if (!citationChanged.current) setCiteStyle(defaults.citationStyle);
+  }, [defaults, preferencesLoaded]);
   const [yearRange, setYearRange] = useState<string>('all');
 
   const toggleSource = useCallback((source: LiteratureProviderId) => {
+    sourcesChanged.current = true;
     setSelectedSources(prev => {
       const next = new Set(prev);
       if (next.has(source)) {
@@ -295,7 +308,7 @@ export function LiteratureSearchDialog({
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--text-tertiary)]">引用格式:</span>
-                <Select value={citeStyle} onValueChange={v => setCiteStyle(v as CitationStyle)}>
+                <Select value={citeStyle} onValueChange={v => { citationChanged.current = true; setCiteStyle(v as CitationStyle); }}>
                   <SelectTrigger className="h-7 min-w-[120px] text-xs">
                     <SelectValue />
                   </SelectTrigger>

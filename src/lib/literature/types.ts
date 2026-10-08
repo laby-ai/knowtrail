@@ -74,7 +74,7 @@ export interface LiteratureImportFeedback {
   fullText: LiteratureFullTextStatus;
 }
 
-export type CitationStyle = 'bibtex' | 'apa' | 'mla' | 'chicago' | 'ieee' | 'GB/T 7714';
+export type CitationStyle = 'bibtex' | 'apa' | 'mla' | 'chicago' | 'ieee' | 'GB/T 7714' | 'vancouver';
 
 export interface CitationPaper {
   title: string;

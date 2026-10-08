@@ -416,6 +416,11 @@ export function LibraryPanel({
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
   const [isLiteratureSearchOpen, setIsLiteratureSearchOpen] = useState(false);
+  useEffect(() => {
+    const open = () => setIsLiteratureSearchOpen(true);
+    window.addEventListener('lingbi:open-literature-search', open);
+    return () => window.removeEventListener('lingbi:open-literature-search', open);
+  }, []);
   const [pastedSourceText, setPastedSourceText] = useState('');
   const [pastedSourceTitle, setPastedSourceTitle] = useState('');
   const [sourcePreview, setSourcePreview] = useState<SourcePreviewState | null>(null);

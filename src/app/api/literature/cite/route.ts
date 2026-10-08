@@ -4,7 +4,7 @@ import { formatCitation, formatBibliography } from '@/lib/literature/citations';
 import { verifyLiteratureResult } from '@/lib/literature/result-token';
 import type { CitationPaper, CitationStyle } from '@/lib/literature/types';
 
-const citationStyleEnum = z.enum(['bibtex', 'apa', 'mla', 'chicago', 'ieee', 'GB/T 7714']);
+const citationStyleEnum = z.enum(['bibtex', 'apa', 'mla', 'chicago', 'ieee', 'GB/T 7714', 'vancouver']);
 
 const paperSchema = z.object({
   title: z.string(),
