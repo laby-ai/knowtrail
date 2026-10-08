@@ -236,7 +236,7 @@ export function LiteratureSearchDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="liquid-glass-card max-w-3xl flex flex-col overflow-hidden"
+        className="liquid-glass-card max-w-3xl sm:max-w-3xl flex flex-col overflow-hidden"
         style={{
           height: '85vh',
         }}
@@ -256,17 +256,19 @@ export function LiteratureSearchDialog({
 
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="space-y-3 flex-shrink-0">
-            <div className="flex gap-2">
-              <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
                 <Input
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSearch()}
                   placeholder="输入关键词搜索文献..."
-                  className="liquid-glass-input px-3"
+                  aria-label="文献检索关键词"
+                  className="liquid-glass-input h-14"
+                  style={{ fontSize: 16, padding: '14px 16px' }}
                 />
               </div>
-              <Button onClick={handleSearch} disabled={loading || !query.trim()}>
+              <Button className="h-14 shrink-0 px-5 text-base" onClick={handleSearch} disabled={loading || !query.trim()}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : '搜索'}
               </Button>
             </div>

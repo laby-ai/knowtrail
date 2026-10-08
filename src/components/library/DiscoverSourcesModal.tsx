@@ -305,7 +305,7 @@ export function DiscoverSourcesModal({
     >
       <div
         className={variant === 'modal'
-          ? 'flex max-h-[86vh] w-full max-w-2xl flex-col gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in'
+          ? 'flex max-h-[86vh] w-full max-w-3xl flex-col gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in'
           : 'flex w-full flex-col gap-3'}
         onClick={e => e.stopPropagation()}
       >
@@ -327,7 +327,7 @@ export function DiscoverSourcesModal({
 
         {/* Search row */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex shrink-0 gap-1 rounded-xl bg-[var(--glass-subtle)] p-1">
+          <div className="flex w-full gap-1 rounded-xl bg-[var(--glass-subtle)] p-1">
             {([['webpage', '互联网网页', Globe2], ['scholar', '学术论文', GraduationCap]] as const).map(([id, label, Icon]) => (
               <button
                 key={id}
@@ -344,8 +344,8 @@ export function DiscoverSourcesModal({
               </button>
             ))}
           </div>
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-quaternary)]" />
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[var(--text-quaternary)]" />
             <input
               ref={inputRef}
               value={query}
@@ -353,14 +353,16 @@ export function DiscoverSourcesModal({
               onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void handleSearch(); }}
               placeholder="输入主题,例如:多模态大模型评测方法"
               data-testid="discover-query"
-              className="liquid-glass-input w-full pl-9 pr-3 py-2.5 text-xs"
+              aria-label="发现信源搜索主题"
+              className="liquid-glass-input h-14 w-full"
+              style={{ fontSize: 16, padding: '14px 16px 14px 44px' }}
             />
           </div>
           <button
             onClick={() => void handleSearch()}
             disabled={isSearching || !query.trim()}
             data-testid="discover-search"
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 text-xs font-semibold text-white transition hover:from-blue-400 hover:to-blue-500 disabled:opacity-45"
+            className="flex h-14 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 text-base font-semibold text-white transition hover:from-blue-400 hover:to-blue-500 disabled:opacity-45"
           >
             {isSearching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
             搜索
