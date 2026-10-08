@@ -257,6 +257,7 @@ function PresentationPanel() {
               setProgressMsg(data.message);
             } else if (data.stage === 'done') {
               finalSlides = data.slides || [];
+              if (typeof data.warning === 'string') setGenerationNotice(data.warning);
             } else if (data.stage === 'error') {
               throw new Error(data.message);
             }

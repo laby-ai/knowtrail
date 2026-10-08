@@ -6,6 +6,7 @@ import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
 import { bailianProfileFromRuntimeConfig, resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import { generateBailianWanImage } from '@/lib/bailian-wan-image';
+import { generateImageBatch } from '@/lib/ppt/image-batch';
 import { DETAIL_LEVEL_SPECS, getStyleDescription, PPT_LANG_INSTRUCTION } from '@/lib/ppt/image-ppt-style';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import {
@@ -683,46 +684,12 @@ async function genImagesParallel(
   refImageBase64?: string,
   runtimeConfig?: Partial<RuntimeAIConfig>,
 ): Promise<ImageGenerationResult[]> {
-  const CONCURRENCY = 3; // 并发数（每日额度500张）
-  const results: ImageGenerationResult[] = new Array(prompts.length).fill(null).map(() => ({ imageBase64: null }));
-  let completed = 0;
-
-  for (let i = 0; i < prompts.length; i += CONCURRENCY) {
-    const batch = prompts.slice(i, i + CONCURRENCY);
-    const imagePromises = batch.map(async (prompt, batchIdx) => {
-      const globalIdx = i + batchIdx;
-      try {
-        console.log(`[PPT] 🎨 生成第 ${globalIdx + 1}/${prompts.length} 页图片...`);
-        const base64Data = await generateImage(prompt, {
-          aspectRatio,
-          negativePrompt: '文字模糊、低质量、变形、水印、签名、多余装饰、排版混乱',
-          referenceImageBase64: refImageBase64,
-          runtimeConfig,
-        });
-        if (base64Data) {
-          console.log(`[PPT] ✓ 第 ${globalIdx + 1}/${prompts.length} 页成功 (${(base64Data.length / 1024).toFixed(0)}KB)`);
-        } else {
-          console.log(`[PPT] ✗ 第 ${globalIdx + 1}/${prompts.length} 页失败`);
-        }
-        completed++;
-        onProgress?.(completed, prompts.length);
-        return { idx: globalIdx, result: { imageBase64: base64Data } };
-      } catch (err) {
-        const error = err instanceof Error ? err.message : String(err);
-        console.error(`[PPT] ✗ 第 ${globalIdx + 1} 页异常:`, err);
-        completed++;
-        onProgress?.(completed, prompts.length);
-        return { idx: globalIdx, result: { imageBase64: null, error } };
-      }
-    });
-
-    const batchResults = await Promise.all(imagePromises);
-    for (const { idx, result } of batchResults) {
-      results[idx] = result;
-    }
-  }
-
-  return results;
+  return generateImageBatch(prompts, prompt => generateImage(prompt, {
+    aspectRatio,
+    negativePrompt: '文字模糊、低质量、变形、水印、签名、多余装饰、排版混乱',
+    referenceImageBase64: refImageBase64,
+    runtimeConfig,
+  }), onProgress);
 }
 
 // ============================================================
@@ -965,15 +932,15 @@ export async function POST(request: NextRequest) {
 
         // ── Stage 2: Generate Descriptions (PARALLEL) ──
         sendEvent({ stage: 'description', status: 'generating', message: '正在并行生成每页内容描述...' });
-        const descResults = await genDesc(ideaPrompt, outline, evidencePapers, detailLevel, language, runtimeConfig);
+        const descResults = await genDesc(ideaPrompt, pages, evidencePapers, detailLevel, language, runtimeConfig);
         const descriptions = descResults.map(d => parseDesc(d));
         sendEvent({ stage: 'description', status: 'done', message: `每页描述生成完成 (${descResults.reduce((s, d) => s + d.length, 0)} 字)` });
 
         // ── Stage 3: Build Image Prompts ──
-        const prompts = genPrompts(outline, descResults, styleDesc, language, aspectRatio);
+        const prompts = genPrompts(pages, descResults, styleDesc, language, aspectRatio);
 
         // ── Stage 4: Generate Images (PARALLEL with progress) ──
-        sendEvent({ stage: 'image', status: 'generating', message: '正在并行生成幻灯片图片...', imageTotal: prompts.length });
+        sendEvent({ stage: 'image', status: 'generating', message: '正在逐页生成幻灯片图片；遇到限流时将自动等待重试。', imageTotal: prompts.length });
         const imageResults = await genImagesParallel(prompts, (completed, total) => {
           sendEvent({ stage: 'image', status: 'progress', message: `图片生成中... ${completed}/${total}`, imageCompleted: completed, imageTotal: total });
         }, aspectRatio, refImageBase64, runtimeConfig);
@@ -981,7 +948,7 @@ export async function POST(request: NextRequest) {
 
         const successCount = imageUrls.filter(u => u !== null).length;
         sendEvent({ stage: 'image', status: 'done', message: `图片生成完成 ${successCount}/${imageUrls.length}` });
-        if (successCount !== imageUrls.length) {
+        if (successCount === 0) {
           const firstError = imageResults.find(result => result.error)?.error;
           throw new Error(`图片生成失败：${successCount}/${imageUrls.length} 页成功。${firstError ? `首个错误：${firstError}` : '请检查账号绑定的图片模型服务。'}`);
         }
@@ -1004,6 +971,7 @@ export async function POST(request: NextRequest) {
           stage: 'done',
           status: 'done',
           message: 'PPT 生成完成！',
+          warning: successCount < imageUrls.length ? `已生成 ${successCount} / ${imageUrls.length} 页图片。未生成图片的页面保留文字内容，请检查后使用。` : undefined,
           slides,
           citations: grounded.citations,
           retrieval: toRetrievalMetadata(grounded),
