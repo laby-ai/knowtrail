@@ -1,6 +1,6 @@
 'use client';
 
-import { clientApiRequest } from '@/lib/client-api';
+import { ClientRequestError, clientApiRequest } from '@/lib/client-api';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -162,6 +162,9 @@ export function StructuredPresentationPanel() {
 
       const res = await clientApiRequest('/api/ai/ppt-v2', {
         method: 'POST',
+        // This endpoint returns a file only after planning, review and rendering.
+        // Keep its deadline below the dedicated proxy's 660 second timeout.
+        timeoutMs: 600_000,
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
           notebookId,
@@ -212,7 +215,12 @@ export function StructuredPresentationPanel() {
       setProgressStep('');
     } catch (e: unknown) {
       const aborted = abortController.signal.aborted || (e instanceof DOMException && e.name === 'AbortError');
-      setError(aborted ? '已取消生成，可以调整设置后重新开始。' : e instanceof Error ? e.message : '生成失败');
+      const timedOut = e instanceof ClientRequestError && e.code === 'timeout';
+      setError(aborted
+        ? '已取消生成，可以调整设置后重新开始。'
+        : timedOut
+          ? 'PPT 生成等待已超过 10 分钟，暂未收到文件。请稍后重试，或减少所选资料后重新生成。'
+          : e instanceof Error ? e.message : '生成失败');
       setQualityWarning(null);
       setQualitySummary(null);
       setProgressMsg('');
