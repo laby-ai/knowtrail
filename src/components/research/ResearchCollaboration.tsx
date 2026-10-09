@@ -130,6 +130,7 @@ export function ResearchCollaboration({
           void run(reloadList);
         }}
         data-testid="research-collaboration-open"
+        aria-label={initialContent ? "保存并共享草稿" : "课题组共享"}
       >
         <Users className="h-4 w-4" />
         <span className={initialContent ? "" : "hidden sm:inline"}>
