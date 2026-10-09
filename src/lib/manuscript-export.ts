@@ -42,7 +42,7 @@ function paragraphText(text: string, markers: number[]) {
       .join("")
   );
 }
-export function evidenceEntries(citations: Citation[]) {
+export function evidenceEntries(citations: Citation[], english = false) {
   return citations.map((item, index) => ({
     number: index + 1,
     title:
@@ -52,8 +52,12 @@ export function evidenceEntries(citations: Citation[]) {
       item.sourceId ||
       "来源名称未提供",
     locator: [
-      item.page ? `第 ${item.page} 页` : "",
-      typeof item.chunkIndex === "number" ? `片段 ${item.chunkIndex + 1}` : "",
+      item.page ? (english ? `p. ${item.page}` : `第 ${item.page} 页`) : "",
+      typeof item.chunkIndex === "number"
+        ? english
+          ? `chunk ${item.chunkIndex + 1}`
+          : `片段 ${item.chunkIndex + 1}`
+        : "",
     ]
       .filter(Boolean)
       .join("，"),
@@ -104,6 +108,9 @@ export async function exportDocx(
   layout: ManuscriptLayout,
   template?: JournalWordTemplate | null,
 ): Promise<Uint8Array> {
+  const english = !/[\u3400-\u9fff]/.test(
+    draft.title + draft.paragraphs.map((item) => item.text).join(""),
+  );
   const zip = new JSZip();
   zip.file(
     "[Content_Types].xml",
@@ -180,13 +187,17 @@ export async function exportDocx(
     ...draft.paragraphs.map((item) =>
       p(paragraphText(item.text, item.evidenceMarkers)),
     ),
-    p("引用证据索引", true),
-    p("编号对应检索片段；完整参考文献与引用真实性需由作者核验。"),
-    ...evidenceEntries(citations).flatMap((item) => [
+    p(english ? "Evidence index" : "引用证据索引", true),
+    p(
+      english
+        ? "Numbers identify retrieved excerpts. The author must verify the complete references and original sources."
+        : "编号对应检索片段；完整参考文献与引用真实性需由作者核验。",
+    ),
+    ...evidenceEntries(citations, english).flatMap((item) => [
       p(`[${item.number}] ${item.title} ${item.locator}`),
       p(item.excerpt),
     ]),
-    p("作者核验事项", true),
+    p(english ? "Author verification checklist" : "作者核验事项", true),
     ...[...draft.limitations, ...draft.revisionChecklist].map((item) =>
       p(item),
     ),
