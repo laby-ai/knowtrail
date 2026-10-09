@@ -17,8 +17,25 @@ const parser = new XMLParser({
   ignoreAttributes: false,
   removeNSPrefix: true,
   parseAttributeValue: false,
-  processEntities: false,
+  processEntities: true,
 });
+interface ZipChunkStream {
+  on(event: "data", callback: (chunk: Uint8Array) => void): ZipChunkStream;
+  on(event: "error", callback: (error: Error) => void): ZipChunkStream;
+  on(event: "end", callback: () => void): ZipChunkStream;
+  pause(): ZipChunkStream;
+  resume(): ZipChunkStream;
+}
+interface StreamingZipEntry {
+  internalStream(type: "uint8array"): ZipChunkStream;
+}
+function supportsStreaming(
+  entry: JSZip.JSZipObject,
+): entry is JSZip.JSZipObject & StreamingZipEntry {
+  return (
+    "internalStream" in entry && typeof entry.internalStream === "function"
+  );
+}
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -36,6 +53,28 @@ function validXml(text: string) {
     throw new Error("模板 XML 无效，请重新下载 DOCX 模板。");
   return object(parser.parse(text));
 }
+function xmlPart(
+  text: string,
+  name: string,
+  namespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+) {
+  const normalized = validXml(text);
+  const source = object(
+    new XMLParser({
+      ignoreAttributes: false,
+      parseAttributeValue: false,
+      processEntities: true,
+    }).parse(text),
+  );
+  const key = Object.keys(source).find((key) => key.split(":").pop() === name);
+  if (!key) throw new Error("模板 XML 结构无效。");
+  const prefix = key.includes(":") ? key.split(":")[0] : "";
+  if (
+    attribute(source[key], prefix ? `xmlns:${prefix}` : "xmlns") !== namespace
+  )
+    throw new Error("模板 XML 命名空间无效。");
+  return object(normalized[name]);
+}
 async function readBounded(
   zip: JSZip,
   name: string,
@@ -49,6 +88,10 @@ async function readBounded(
   return new Promise((resolve, reject) => {
     let total = 0;
     const chunks: Uint8Array[] = [];
+    if (!supportsStreaming(entry)) {
+      reject(new Error("ZIP 读取组件不支持安全流式解码。"));
+      return;
+    }
     const stream = entry.internalStream("uint8array");
     stream
       .on("data", (chunk) => {
@@ -85,12 +128,17 @@ export async function inspectJournalWordTemplate(
 ): Promise<JournalWordTemplate> {
   if (bytes.length > 5 * 1024 * 1024)
     throw new Error("请选择不超过 5 MB 的 DOCX 模板。");
-  const zip = await JSZip.loadAsync(bytes);
+  let zip: JSZip;
+  try {
+    zip = await JSZip.loadAsync(bytes);
+  } catch {
+    throw new Error("文件不是有效的 DOCX 模板，请重新下载或选择。");
+  }
   if (Object.keys(zip.files).length > 1000)
     throw new Error("模板内容过多，请使用纯排版模板。");
   const stylesXml = (await readBounded(zip, "word/styles.xml"))!,
     documentXml = (await readBounded(zip, "word/document.xml"))!;
-  const stylesRoot = object(validXml(stylesXml).styles);
+  const stylesRoot = xmlPart(stylesXml, "styles");
   const entries = array(stylesRoot.style)
     .map(object)
     .filter((item) => attribute(item, "type") === "paragraph");
@@ -102,7 +150,9 @@ export async function inspectJournalWordTemplate(
     .filter((item) => item.id);
   if (!styles.length || styles.length > 500)
     throw new Error("模板没有可用的段落样式，或样式过多。");
-  const body = object(object(validXml(documentXml).document).body),
+  if (styles.some((style) => style.id.length > 255 || style.name.length > 255))
+    throw new Error("模板样式名称或编号过长，请精简模板。");
+  const body = object(xmlPart(documentXml, "document").body),
     section = object(body.sectPr);
   if (!Object.keys(section).length) throw new Error("模板缺少纸张和分栏设置。");
   const width = size(attribute(section.pgSz, "w"), 11906),
@@ -128,8 +178,13 @@ export async function inspectJournalWordTemplate(
     ids.find((id) => styles.some((item) => item.id === id)) || styles[0].id;
   const themeXml = await readBounded(zip, "word/theme/theme1.xml", true),
     numberingXml = await readBounded(zip, "word/numbering.xml", true);
-  if (themeXml) validXml(themeXml);
-  if (numberingXml) validXml(numberingXml);
+  if (themeXml)
+    xmlPart(
+      themeXml,
+      "theme",
+      "http://schemas.openxmlformats.org/drawingml/2006/main",
+    );
+  if (numberingXml) xmlPart(numberingXml, "numbering");
   return {
     name,
     stylesXml,
