@@ -89,7 +89,7 @@ export function StudioEvidenceStatusPanel({
             <LinkIcon className="h-3 w-3" />
             <span>{citations.length} 条引用线索</span>
           </div>
-          {citations.slice(0, compact ? 2 : 3).map((citation, idx) => {
+          {(compact ? citations.slice(0, 2) : citations).map((citation, idx) => {
             const targetId = citationTargetId(citation);
             const locator = citationLocator(citation);
             const content = (

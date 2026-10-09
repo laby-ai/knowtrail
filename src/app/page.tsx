@@ -11,6 +11,7 @@ import { LandingPage } from '@/components/home/LandingPage';
 import { NotebookHome } from '@/components/home/NotebookHome';
 import { AccountSettingsButton } from '@/components/account/AccountSettingsButton';
 import { ResearchPreferencesProvider, ResearchModeButton } from '@/components/research/ResearchPreferencesProvider';
+import { ResearchCollaboration } from '@/components/research/ResearchCollaboration';
 import {
   createDefaultNotebooks,
   scopedStorageKey,
@@ -88,6 +89,7 @@ function AcademicPresenterContent({
         <button type="button" onClick={onBackHome} className="shrink-0 text-sm text-blue-500">返回文献本</button>
         <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{notebooks.find(n => n.id === activeNotebookId)?.title}</h1>
         {accountSession && <ResearchModeButton />}
+        {accountSession && <ResearchCollaboration />}
         {accountSession && <AccountSettingsButton session={accountSession} onSignOut={onSignOut} />}
       </header>
       <div className="min-h-0 flex-1">

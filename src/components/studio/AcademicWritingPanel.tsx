@@ -6,10 +6,12 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, BookOpenText, CheckCircle2, Download } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
-import type { AcademicWritingDraft, AcademicWritingSection } from '@/lib/academic-writing-contract';
+import { buildAcademicWritingMarkdown, type AcademicWritingDraft, type AcademicWritingSection } from '@/lib/academic-writing-contract';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Citation, Paper, RetrievalMetadata } from '@/types';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
+import { EvidenceText } from '@/components/research/EvidenceText';
+import { ManuscriptDelivery } from '@/components/research/ManuscriptDelivery';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 import {
   Select,
@@ -241,7 +243,7 @@ export function AcademicWritingPanel() {
 
       <div className="flex flex-wrap gap-2">
         <button type="button" data-testid="academic-writing-start" onClick={() => void runWriting()} disabled={!formReady || selectedPapers.length === 0 || status === 'running'} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">生成章节草稿</button>
-        {artifactMarkdown && <button type="button" data-testid="academic-writing-download" onClick={() => downloadMarkdown(artifactMarkdown, artifactFileName)} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-secondary)]"><Download className="h-3.5 w-3.5" />下载 Markdown 草稿</button>}
+        {artifactMarkdown && <button type="button" data-testid="academic-writing-download" onClick={() => downloadMarkdown(draft ? buildAcademicWritingMarkdown(draft) : artifactMarkdown, artifactFileName)} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-secondary)]"><Download className="h-3.5 w-3.5" />下载 Markdown 草稿</button>}
       </div>
 
       {status === 'running' && <StudioJobProgress title="学术写作进行中" message={message} stages={STAGES} currentStageKey={stage} progressPercent={progress} hint="只基于已选来源片段；证据不足的主张会标记为待补证据。" onCancel={() => abortRef.current?.abort()} cancelLabel="停止生成" testId="academic-writing-progress" />}
@@ -253,7 +255,7 @@ export function AcademicWritingPanel() {
           <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3">
             <h3 className="text-sm font-semibold text-[var(--text-primary)]">{draft.title}</h3>
             <div className="mt-3 space-y-3">
-              {draft.paragraphs.map((paragraph, index) => <article key={`${paragraph.role}-${index}`} className="rounded-lg bg-[var(--glass-subtle)] p-3"><div className="mb-1 text-[10px] font-semibold uppercase text-[var(--text-tertiary)]">{paragraph.role} · {paragraph.supportStatus}</div><p className="text-xs leading-6 text-[var(--text-primary)]">{paragraph.text}</p></article>)}
+              {draft.paragraphs.map((paragraph, index) => <article key={`${paragraph.role}-${index}`} className="rounded-lg bg-[var(--glass-subtle)] p-3"><div className="mb-1 text-[10px] font-semibold uppercase text-[var(--text-tertiary)]">{paragraph.role} · {paragraph.supportStatus}</div><p className="text-xs leading-6 text-[var(--text-primary)]"><EvidenceText text={paragraph.text} markers={paragraph.evidenceMarkers} citations={citations} /></p><details className="mt-2 text-xs"><summary className="cursor-pointer text-[var(--text-tertiary)]">编辑段落</summary><textarea className="liquid-glass-input mt-2 min-h-28 w-full" value={paragraph.text} aria-label={`编辑段落 ${index + 1}`} onChange={event => setDraft(current => current ? { ...current, paragraphs: current.paragraphs.map((item, position) => position === index ? { ...item, text: event.target.value } : item) } : current)} /></details></article>)}
             </div>
           </section>
           <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3">
@@ -261,6 +263,7 @@ export function AcademicWritingPanel() {
             <div className="mt-2 space-y-2">{draft.claimEvidenceMap.map((item, index) => <div key={index} className="rounded-lg bg-[var(--glass-subtle)] p-2.5 text-[11px] leading-relaxed"><div className="font-medium text-[var(--text-primary)]">{item.claim}</div><div className="mt-1 text-[var(--text-secondary)]">{item.evidence}</div><div className="mt-1 text-[var(--text-tertiary)]">{item.evidenceMarkers.map(marker => `[${marker}]`).join('、') || '待补证据'} · {item.status}</div></div>)}</div>
           </section>
           <StudioEvidenceStatusPanel citations={citations} retrieval={retrieval} />
+          <ManuscriptDelivery draft={draft} citations={citations} />
           {(writingStatus?.retrievalLimits || []).length > 0 && <div className="rounded-lg border border-amber-400/25 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">{writingStatus?.retrievalLimits?.map(item => <div key={item}>• {item}</div>)}</div>}
         </div>
       )}
