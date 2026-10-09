@@ -4,7 +4,7 @@ export type DataAnalysisMethod = typeof ANALYSIS_METHODS[number];
 export const dataAnalysisRequestSchema = z.object({
   sourceId: z.string().min(1).max(160), notebookId: z.string().min(1).max(96),
   question: z.string().trim().min(1).max(1200), sampleUnit: z.string().trim().min(1).max(160),
-  method: z.enum(ANALYSIS_METHODS).default('auto'), targetColumn: z.string().trim().max(200).optional(),
+  method: z.enum(ANALYSIS_METHODS).default('auto'), targetColumn: z.string().trim().min(1).max(200),
   groupColumn: z.string().trim().max(200).optional(), sheetName: z.string().trim().max(200).optional(),
   independentObservations: z.boolean().default(false),
 }).strict();

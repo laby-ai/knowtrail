@@ -12,7 +12,7 @@ import { saveDataAnalysis } from '@/lib/data-analysis-store';
 
 export async function POST(request: NextRequest) {
   const parsed = dataAnalysisRequestSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success || !normalizeNotebookId(parsed.data.notebookId)) return Response.json({ error: '请提供文献本、数据来源、研究问题和样本单位。' }, { status: 400 });
+  if (!parsed.success || !normalizeNotebookId(parsed.data.notebookId)) return Response.json({ error: '请提供文献本、数据来源、研究问题、样本单位及目标列。' }, { status: 400 });
   const input = parsed.data;
   const scope = await resolveAccountNotebookScope(request, { notebookId: input.notebookId, loginMessage: '请登录后执行统计分析。' });
   if (!scope.ok) return scope.response;

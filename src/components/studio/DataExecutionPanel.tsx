@@ -21,8 +21,7 @@ export function DataExecutionPanel({ source, columns, question, sampleUnit, note
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const [figureUrl, setFigureUrl] = useState('');
-  const firstNumeric = columns.find(column => column.type === 'numeric')?.name || '';
-  useEffect(() => { controller.current?.abort(); setResult(null); setTarget(firstNumeric); setGroup(''); setIndependent(false); setError(''); }, [source?.id, firstNumeric]);
+  useEffect(() => { controller.current?.abort(); setResult(null); setTarget(''); setGroup(''); setIndependent(false); setError(''); }, [source?.id]);
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     if (!result) { setFigureUrl(''); return; }
