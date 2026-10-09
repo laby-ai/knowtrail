@@ -39,3 +39,7 @@ python analyze.py ORIGINAL.csv analysis-config.json > result.json
 ```
 
 Excel 替换文件名并保留配置中 sheetName。此环境不是任意 Python IDE；它执行固定方法，其他统计设计仍需专门接入。
+
+## 本次验收
+
+2026-10-09：真实隔离容器执行 CSV、501 行 CSV 和指定工作表 XLSX；校验 Welch t、Welch ANOVA、回归、缺失值、零方差、账号及文献本隔离和六类导出。浏览器使用隔离账号与真实计算结果回放验证结果表、Results 和 SVG 展示；生产构建通过。执行接口代理等待上限 150 秒。
