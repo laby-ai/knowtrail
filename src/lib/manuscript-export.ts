@@ -2,6 +2,10 @@ import JSZip from "jszip";
 import type { AcademicWritingDraft } from "./academic-writing-contract";
 import type { Citation } from "@/types";
 import type { JournalWordTemplate } from "./journal-word-template";
+import {
+  referencePlainText,
+  type ReferenceMetadata,
+} from "./reference-metadata";
 
 export type ManuscriptLayout = "single" | "double";
 const xml = (value: string) =>
@@ -69,6 +73,7 @@ export function exportLatex(
   draft: AcademicWritingDraft,
   citations: Citation[],
   layout: ManuscriptLayout,
+  references: ReferenceMetadata[] = [],
 ): string {
   return `\\documentclass[UTF8,a4paper${layout === "double" ? ",twocolumn" : ""}]{ctexart}
 \\usepackage[margin=2.5cm]{geometry}
@@ -89,6 +94,7 @@ ${evidenceEntries(citations)
   .join("\n")}
 \\section*{作者核验事项}
 ${[...draft.limitations, ...draft.revisionChecklist].map(texEscape).join("\n\n")}
+${references.length ? "\\section*{参考文献题录}\n" + references.map((item, index) => `\\noindent [R${index + 1}] ${texEscape(referencePlainText(item))}\\par\n${texEscape(item.warnings.join("; "))}\\par`).join("\n") : ""}
 \\end{document}\n`;
 }
 
@@ -107,6 +113,7 @@ export async function exportDocx(
   citations: Citation[],
   layout: ManuscriptLayout,
   template?: JournalWordTemplate | null,
+  references: ReferenceMetadata[] = [],
 ): Promise<Uint8Array> {
   const english = !/[\u3400-\u9fff]/.test(
     draft.title + draft.paragraphs.map((item) => item.text).join(""),
@@ -201,6 +208,25 @@ export async function exportDocx(
     ...[...draft.limitations, ...draft.revisionChecklist].map((item) =>
       p(item),
     ),
+    ...(references.length
+      ? [
+          p(english ? "Bibliographic metadata" : "参考文献题录", true),
+          ...references.flatMap((item, index) => [
+            p(`[R${index + 1}] ${referencePlainText(item)}`),
+            p(
+              (english ? "Evidence markers: " : "对应证据编号：") +
+                citations
+                  .flatMap((citation, number) =>
+                    (citation.sourceId || citation.paperId) === item.sourceId
+                      ? [`[${number + 1}]`]
+                      : [],
+                  )
+                  .join(", "),
+            ),
+            ...item.warnings.map((warning) => p(warning)),
+          ]),
+        ]
+      : []),
   ].join("");
   zip.file(
     "word/document.xml",

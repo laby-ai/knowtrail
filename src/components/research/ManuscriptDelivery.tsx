@@ -14,6 +14,7 @@ import { ResearchCollaboration } from "./ResearchCollaboration";
 import { JournalTemplatePicker } from "./JournalTemplatePicker";
 import { ReferenceMetadataPanel } from "./ReferenceMetadataPanel";
 import type { JournalWordTemplate } from "@/lib/journal-word-template";
+import type { ReferenceMetadata } from "@/lib/reference-metadata";
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -39,11 +40,26 @@ export function ManuscriptDelivery({
   const [busy, setBusy] = useState(false);
   const [template, setTemplate] = useState<JournalWordTemplate | null>(null);
   const [templateBusy, setTemplateBusy] = useState(false);
+  const referenceKey =
+    draft.title +
+    JSON.stringify(citations.map((item) => item.sourceId || item.paperId));
+  const [bibliography, setBibliography] = useState<{
+    key: string;
+    items: ReferenceMetadata[];
+  } | null>(null);
+  const references =
+    bibliography?.key === referenceKey ? bibliography.items : [];
   async function word() {
     setError("");
     setBusy(true);
     try {
-      const bytes = await exportDocx(draft, citations, layout, template);
+      const bytes = await exportDocx(
+        draft,
+        citations,
+        layout,
+        template,
+        references,
+      );
       download(
         new Blob([new Uint8Array(bytes).buffer], {
           type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -94,7 +110,7 @@ export function ManuscriptDelivery({
           type="button"
           onClick={() =>
             download(
-              new Blob([exportLatex(draft, citations, layout)], {
+              new Blob([exportLatex(draft, citations, layout, references)], {
                 type: "text/plain;charset=utf-8",
               }),
               "manuscript.tex",
@@ -119,7 +135,11 @@ export function ManuscriptDelivery({
         </p>
       )}
       <JournalDiscovery initialQuery={draft.title} />
-      <ReferenceMetadataPanel citations={citations} />
+      <ReferenceMetadataPanel
+        key={referenceKey}
+        citations={citations}
+        onLoaded={(items) => setBibliography({ key: referenceKey, items })}
+      />
       <JournalTemplatePicker
         value={template}
         onChange={(next) => {

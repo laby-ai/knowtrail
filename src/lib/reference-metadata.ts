@@ -74,6 +74,21 @@ export function missingReferenceFields(paper: CitationPaper): string[] {
     !paper.doi && !paper.url && "DOI 或来源地址缺失",
   ].filter((item): item is string => Boolean(item));
 }
+export function referencePlainText(item: ReferenceMetadata): string {
+  const paper = item.paper;
+  return [
+    paper.authors.map((author) => author.name).join("; "),
+    paper.year && String(paper.year),
+    paper.title,
+    paper.venue,
+    paper.volume &&
+      `${paper.volume}${paper.issue ? "(" + paper.issue + ")" : ""}`,
+    paper.pages,
+    paper.doi ? `DOI: ${paper.doi}` : paper.url,
+  ]
+    .filter(Boolean)
+    .join(". ");
+}
 function bibValue(value: string) {
   const specials: Record<string, string> = {
     "\\": "\\textbackslash{}",

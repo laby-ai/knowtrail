@@ -12,8 +12,10 @@ import type { Citation } from "@/types";
 
 export function ReferenceMetadataPanel({
   citations,
+  onLoaded,
 }: {
   citations: Citation[];
+  onLoaded: (items: ReferenceMetadata[]) => void;
 }) {
   const { storageScopeKey } = useApp();
   const [items, setItems] = useState<ReferenceMetadata[]>([]);
@@ -48,6 +50,7 @@ export function ReferenceMetadataPanel({
       if (!response.ok || !payload.items)
         throw new Error(payload.error || "参考文献读取失败。");
       setItems(payload.items);
+      onLoaded(payload.items);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "参考文献读取失败。");
     } finally {
