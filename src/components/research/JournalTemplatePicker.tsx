@@ -109,6 +109,9 @@ export function JournalTemplatePicker({
                 <label key={key}>
                   {["标题样式", "正文样式", "章节标题样式"][index]}
                   <select
+                    aria-label={
+                      ["标题样式", "正文样式", "章节标题样式"][index]
+                    }
                     className="liquid-glass-input mt-1 w-full"
                     value={value[key]}
                     onChange={(event) =>
