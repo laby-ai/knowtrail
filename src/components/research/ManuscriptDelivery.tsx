@@ -11,6 +11,8 @@ import {
 import type { Citation } from "@/types";
 import { JournalDiscovery } from "./JournalDiscovery";
 import { ResearchCollaboration } from "./ResearchCollaboration";
+import { JournalTemplatePicker } from "./JournalTemplatePicker";
+import type { JournalWordTemplate } from "@/lib/journal-word-template";
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -34,11 +36,13 @@ export function ManuscriptDelivery({
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [template, setTemplate] = useState<JournalWordTemplate | null>(null);
+  const [templateBusy, setTemplateBusy] = useState(false);
   async function word() {
     setError("");
     setBusy(true);
     try {
-      const bytes = await exportDocx(draft, citations, layout);
+      const bytes = await exportDocx(draft, citations, layout, template);
       download(
         new Blob([new Uint8Array(bytes).buffer], {
           type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -62,6 +66,7 @@ export function ManuscriptDelivery({
         <select
           className="liquid-glass-input mt-1"
           value={layout}
+          disabled={Boolean(template)}
           onChange={(event) =>
             setLayout(event.target.value as ManuscriptLayout)
           }
@@ -77,7 +82,7 @@ export function ManuscriptDelivery({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || templateBusy}
           onClick={() => void word()}
           className="liquid-glass-btn px-3 py-2 text-xs"
           data-testid="manuscript-docx"
@@ -113,6 +118,14 @@ export function ManuscriptDelivery({
         </p>
       )}
       <JournalDiscovery initialQuery={draft.title} />
+      <JournalTemplatePicker
+        value={template}
+        onChange={(next) => {
+          setTemplate(next);
+          if (next) setLayout(next.columns === 2 ? "double" : "single");
+        }}
+        onBusyChange={setTemplateBusy}
+      />
       <ResearchCollaboration
         initialTitle={draft.title}
         initialContent={

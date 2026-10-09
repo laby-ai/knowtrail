@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import type { AcademicWritingDraft } from "./academic-writing-contract";
 import type { Citation } from "@/types";
+import type { JournalWordTemplate } from "./journal-word-template";
 
 export type ManuscriptLayout = "single" | "double";
 const xml = (value: string) =>
@@ -87,7 +88,7 @@ ${[...draft.limitations, ...draft.revisionChecklist].map(texEscape).join("\n\n")
 \\end{document}\n`;
 }
 
-function wordParagraph(text: string, style?: string) {
+function wordParagraph(text: string, style?: string, templateSpacing = false) {
   const runs = text
     .split(/(\[\d+\])/g)
     .map(
@@ -95,12 +96,13 @@ function wordParagraph(text: string, style?: string) {
         `<w:r>${/^\[\d+\]$/.test(part) ? '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>' : ""}<w:t xml:space="preserve">${xml(part)}</w:t></w:r>`,
     )
     .join("");
-  return `<w:p><w:pPr>${style ? `<w:pStyle w:val="${style}"/>` : ""}<w:spacing w:after="160" w:line="300" w:lineRule="auto"/></w:pPr>${runs}</w:p>`;
+  return `<w:p><w:pPr>${style ? `<w:pStyle w:val="${xml(style)}"/>` : ""}${templateSpacing ? "" : '<w:spacing w:after="160" w:line="300" w:lineRule="auto"/>'}</w:pPr>${runs}</w:p>`;
 }
 export async function exportDocx(
   draft: AcademicWritingDraft,
   citations: Citation[],
   layout: ManuscriptLayout,
+  template?: JournalWordTemplate | null,
 ): Promise<Uint8Array> {
   const zip = new JSZip();
   zip.file(
@@ -119,25 +121,79 @@ export async function exportDocx(
     "word/styles.xml",
     '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="SimSun"/><w:sz w:val="22"/><w:color w:val="000000"/></w:rPr></w:rPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style><w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:rPr><w:b/><w:sz w:val="32"/><w:color w:val="000000"/></w:rPr></w:style><w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:pPr><w:keepNext/></w:pPr><w:rPr><w:b/><w:sz w:val="24"/><w:color w:val="000000"/></w:rPr></w:style></w:styles>',
   );
+  if (template) {
+    zip.file("word/styles.xml", template.stylesXml);
+    let contentTypes = await zip.file("[Content_Types].xml")!.async("text");
+    let relationships = await zip
+      .file("word/_rels/document.xml.rels")!
+      .async("text");
+    if (template.themeXml) {
+      zip.file("word/theme/theme1.xml", template.themeXml);
+      contentTypes = contentTypes.replace(
+        "</Types>",
+        '<Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/></Types>',
+      );
+      relationships = relationships.replace(
+        "</Relationships>",
+        '<Relationship Id="templateTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/></Relationships>',
+      );
+    }
+    if (template.numberingXml) {
+      zip.file("word/numbering.xml", template.numberingXml);
+      contentTypes = contentTypes.replace(
+        "</Types>",
+        '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>',
+      );
+      relationships = relationships.replace(
+        "</Relationships>",
+        '<Relationship Id="templateNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/></Relationships>',
+      );
+    }
+    zip.file("[Content_Types].xml", contentTypes);
+    zip.file("word/_rels/document.xml.rels", relationships);
+  }
+  const p = (text: string, heading = false) =>
+    wordParagraph(
+      text,
+      template
+        ? heading
+          ? template.headingStyle
+          : template.bodyStyle
+        : heading
+          ? "Heading1"
+          : undefined,
+      Boolean(template),
+    );
+  let title = wordParagraph(
+    draft.title,
+    template?.titleStyle || "Title",
+    Boolean(template),
+  );
+  if (template?.columns === 2) {
+    const titleSection = template.sectionXml
+      .replace('<w:cols w:num="2"', '<w:cols w:num="1"')
+      .replace("<w:sectPr>", '<w:sectPr><w:type w:val="continuous"/>');
+    title = title.replace("</w:pPr>", `${titleSection}</w:pPr>`);
+  }
   const body = [
-    wordParagraph(draft.title, "Title"),
+    title,
     ...draft.paragraphs.map((item) =>
-      wordParagraph(paragraphText(item.text, item.evidenceMarkers)),
+      p(paragraphText(item.text, item.evidenceMarkers)),
     ),
-    wordParagraph("引用证据索引", "Heading1"),
-    wordParagraph("编号对应检索片段；完整参考文献与引用真实性需由作者核验。"),
+    p("引用证据索引", true),
+    p("编号对应检索片段；完整参考文献与引用真实性需由作者核验。"),
     ...evidenceEntries(citations).flatMap((item) => [
-      wordParagraph(`[${item.number}] ${item.title} ${item.locator}`),
-      wordParagraph(item.excerpt),
+      p(`[${item.number}] ${item.title} ${item.locator}`),
+      p(item.excerpt),
     ]),
-    wordParagraph("作者核验事项", "Heading1"),
+    p("作者核验事项", true),
     ...[...draft.limitations, ...draft.revisionChecklist].map((item) =>
-      wordParagraph(item),
+      p(item),
     ),
   ].join("");
   zip.file(
     "word/document.xml",
-    `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417"/><w:cols w:num="${layout === "double" ? 2 : 1}" w:space="420"/></w:sectPr></w:body></w:document>`,
+    `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}${template ? template.sectionXml.replace("<w:sectPr>", '<w:sectPr><w:type w:val="continuous"/>') : `<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417"/><w:cols w:num="${layout === "double" ? 2 : 1}" w:space="420"/></w:sectPr>`}</w:body></w:document>`,
   );
   return zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
 }
