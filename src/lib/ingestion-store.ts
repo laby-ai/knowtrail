@@ -142,7 +142,7 @@ function sourceMatchesIdentities(source: StoredSourceRecord, identities: Set<str
 }
 
 function sourceMatchesOwner(source: StoredSourceRecord, ownerMemberId?: string): boolean {
-  if (!ownerMemberId) return !source.literature;
+  if (!ownerMemberId) return !source.ownerMemberId;
   return source.ownerMemberId === ownerMemberId;
 }
 

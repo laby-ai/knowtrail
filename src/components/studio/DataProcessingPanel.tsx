@@ -10,6 +10,7 @@ import type { DataProcessingPlan, DataTaskFamily } from '@/lib/data-processing-p
 import { buildDataTablePreviewForPaper } from '@/lib/data-table-preview';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Paper } from '@/types';
+import { DataExecutionPanel } from './DataExecutionPanel';
 
 type PanelStatus = 'idle' | 'running' | 'complete' | 'error';
 
@@ -149,7 +150,7 @@ export function DataProcessingPanel() {
           基于真实表格定义数据任务
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-          先明确样本、输入、输出、切分和 baseline。这里只生成可复核方案，不声称已训练模型或完成统计检验。
+          上传实验数据，用自然语言说明分析需求。可先定义可复核方案，再读取原文件执行统计分析。
         </p>
       </div>
 
@@ -289,6 +290,7 @@ export function DataProcessingPanel() {
         </div>
       )}
 
+      {selectedSource && <DataExecutionPanel source={selectedSource} columns={columns} question={question} sampleUnit={sampleUnit} notebookId={notebookId} sheetName={preview?.sheetName} />}
       {plan && status === 'complete' && (
         <div className="space-y-3" data-testid="data-processing-result">
           <div className="flex items-start gap-2 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2">
