@@ -52,14 +52,15 @@ export async function POST(request: NextRequest) {
       { error: "请选择当前文献本中最多 20 个来源。" },
       { status: 400 },
     );
+  const data = input.data;
   const scope = {
     ownerMemberId: session.member.id,
-    notebookId: input.data.notebookId,
+    notebookId: data.notebookId,
   };
   const sources = new Map(
     (await listIngestionSources(scope)).map((source) => [source.id, source]),
   );
-  const ids = [...new Set(input.data.sourceIds)];
+  const ids = [...new Set(data.sourceIds)];
   if (ids.some((id) => !sources.has(id)))
     return Response.json({ error: "文献已移除或无权读取。" }, { status: 404 });
   const items: ReferenceMetadata[] = [];
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
         },
       };
       const doi = referenceDoi(metadata?.doi);
-      if (input.data.enrich && doi) {
+      if (data.enrich && doi) {
         try {
           const response = await fetch(
             `https://api.crossref.org/works/${encodeURIComponent(doi)}`,
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
         } catch {
           item.warnings.push("DOI 题录暂未补全，保留文献库字段");
         }
-      } else if (input.data.enrich)
+      } else if (data.enrich)
         item.warnings.push("无有效 DOI，未向 Crossref 查询");
       item.warnings.push(...missingReferenceFields(item.paper));
       if (item.kind !== "journal-article")
