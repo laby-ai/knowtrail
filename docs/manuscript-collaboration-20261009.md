@@ -28,3 +28,14 @@
 逐刊官方模板自动套版、规范完整书目、整本文献本共同维护、实时共同编辑、跨组织邀请及聊天云同步仍需继续实现。已有版本冲突控制不等于实时多人光标协同。学术语料微调按用户决定暂缓。
 
 官方依据：[Crossref REST API](https://github.com/CrossRef/rest-api-doc)、[IEEE 官方模板说明](https://journals.ieeeauthorcenter.ieee.org/create-your-ieee-journal-article/authoring-tools-and-templates/tools-for-ieee-authors/ieee-article-templates/)。
+## 2026-10-09 期刊 Word 模板进展
+
+- 新增 IEEE Access 官方 Word 2024 样式套用，以及本地 DOCX 模板导入。提取实际段落样式、纸张尺寸、页边距和单/双栏；可映射标题、正文、章节标题样式。
+- 导出创建新文档，只使用模板的样式、主题、编号及安全的页面设置，不复制示例作者、DOI、页眉页脚、宏或嵌入文件。通用 LaTeX 导出保持独立，目前不是出版社 LaTeX 模板套版。
+- 官方模板来源固定，服务端缓存与下载均校验 SHA-256。所有模板接口仍要求真实账号验证。本地模板只在浏览器解析，不上传服务端。限制文件、XML 解压大小和条目数量，拒绝 DTD/实体声明及错误命名空间。
+- 官方模板验收：PaperTitle/PARA 样式、实际纸张尺寸、双栏正文与跨栏标题、原示例正文移除、英文核验标签；真实 DOCX 经 LibreOffice 渲染，逐页检查无截断或乱码。
+- 前述统计执行、科研偏好及稿件协作分支已通过服务器现有 Git 授权推送到 laby-ai/knowtrail；本轮代码使用独立期刊模板分支。
+
+仍需完善完整规范书目、其他期刊精确套版、整本文献本共同维护及实时共同编辑。官方样式套用不代表已经满足期刊全部投稿条件。
+
+官方来源：https://ieeeaccess.ieee.org/authors/preparing-your-article/
