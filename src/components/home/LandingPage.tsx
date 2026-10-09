@@ -95,8 +95,8 @@ const researchRoadmap: ResearchRoadmapGroup[] = [
   },
   {
     label: '正在强化',
-    title: '把 PDF 建议拆成可验证的小闭环',
-    body: '优先做科研用户最敏感的段落证据、跨文献比较和文献矩阵，而不是一次性堆功能入口。',
+    title: '把文献整理成可核验的研究材料',
+    body: '通过段落证据、跨文献比较和文献矩阵，检查研究主张及其来源。',
     accentClass: 'border-emerald-400/30 bg-emerald-500/20 text-emerald-200',
     items: [
       { icon: ClipboardCheck, title: '段落级引用定位', body: '让摘要、观点和对比结论能回到具体来源片段。' },
@@ -105,16 +105,16 @@ const researchRoadmap: ResearchRoadmapGroup[] = [
     ],
   },
   {
-    label: '规划中',
-    title: '重能力只在可交付后开放',
-    body: '涉及外部学术库、代码执行和多人协作的能力会分阶段接入，避免把未上线能力写成承诺。',
+    label: '已接入',
+    title: '计算结果、交付论文、共享研究资料',
+    body: '从原始表格执行统计计算，导出章节草稿，并按成员权限保存和共享研究资料。',
     accentClass: 'border-white/20 bg-white/10 text-white/70',
     items: [
-      { icon: BarChart3, title: '数据分析与 Results 草稿', body: '面向 CSV/Excel 的统计分析、图表和结果段落仍需独立验证。' },
-      { icon: PenLine, title: '证据驱动写作', body: '引言、章节草稿和每句话来源追踪会在引用体系稳定后推进。' },
-      { icon: Database, title: '学术数据库接入', body: 'DOI、arXiv、PubMed 等检索源属于后续扩展，不伪装为当前已上线。' },
-      { icon: FileDown, title: 'LaTeX / Word 导出', body: '期刊模板与导出格式会在内容结构稳定后接入。' },
-      { icon: UsersRound, title: '课题组协作', body: '共享文献本和多人编辑会作为团队场景单独设计权限与审计。' },
+      { icon: BarChart3, title: '数据分析与 Results 草稿', body: '对 CSV/Excel 执行描述统计、Welch 检验或回归，导出图表、结果与复现脚本。' },
+      { icon: PenLine, title: '证据驱动写作', body: '起草并编辑章节段落，通过证据编号查看检索片段与原文位置。' },
+      { icon: Database, title: '相关期刊检索', body: '从 Crossref 获取主题相关论文的真实刊载期刊、ISSN 与 DOI。' },
+      { icon: FileDown, title: 'LaTeX / Word 导出', body: '导出通用学术稿，选择单栏或双栏排版，并查看官方期刊模板入口。' },
+      { icon: UsersRound, title: '课题组协作', body: '按成员权限共享研究文档和选定文献，保存时检查版本冲突并记录修改。' },
     ],
   },
 ];
@@ -158,7 +158,7 @@ function ResearchRoadmapSection() {
         <div className="max-w-3xl">
           <p className="text-sm font-semibold text-blue-300">科研能力路线图</p>
           <h2 className="mt-3 text-4xl font-normal tracking-tight text-white md:text-5xl">
-            功能建议会进入路线图，但不提前冒充已上线
+            围绕真实来源完成研究与交付
           </h2>
           <p className="mt-5 text-lg leading-8 text-white/70">
             灵笔会沿着文献调研、实验设计、数据分析、论文写作和投稿准备逐步打磨。当前先把可信来源、证据溯源和研究产物闭环做稳。
