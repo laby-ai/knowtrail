@@ -12,6 +12,7 @@ import type { Citation } from "@/types";
 import { JournalDiscovery } from "./JournalDiscovery";
 import { ResearchCollaboration } from "./ResearchCollaboration";
 import { JournalTemplatePicker } from "./JournalTemplatePicker";
+import { ReferenceMetadataPanel } from "./ReferenceMetadataPanel";
 import type { JournalWordTemplate } from "@/lib/journal-word-template";
 
 function download(blob: Blob, name: string) {
@@ -118,6 +119,7 @@ export function ManuscriptDelivery({
         </p>
       )}
       <JournalDiscovery initialQuery={draft.title} />
+      <ReferenceMetadataPanel citations={citations} />
       <JournalTemplatePicker
         value={template}
         onChange={(next) => {
