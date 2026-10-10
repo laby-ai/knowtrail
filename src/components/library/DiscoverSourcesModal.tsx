@@ -237,7 +237,7 @@ export function DiscoverSourcesModal({
   const handleCite = useCallback(async (item: DiscoverResult) => {
     setCiteError(null);
     try {
-      const year = item.date ? new Date(item.date).getFullYear() : new Date().getFullYear();
+      const year = item.date && Number.isFinite(new Date(item.date).getTime()) ? new Date(item.date).getFullYear() : 0;
       const authors = (item.authors || []).map(name => ({ name }));
       const res = await fetch('/api/literature/cite', {
         method: 'POST',

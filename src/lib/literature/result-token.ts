@@ -6,6 +6,9 @@ const HMAC_SECRET_ENV = 'LITERATURE_HMAC_SECRET';
 export const MAX_LITERATURE_RESULT_TOKEN_LENGTH = 512_000;
 
 function getSecret(): string {
+  if ((process.env.NODE_ENV === 'production' || process.env.APP_RUNTIME_ENV === 'production') && !process.env[HMAC_SECRET_ENV]) {
+    throw new Error('LITERATURE_HMAC_SECRET is required in production');
+  }
   return process.env[HMAC_SECRET_ENV] || 'dev-literature-hmac-secret-change-in-prod';
 }
 
@@ -36,6 +39,9 @@ const signedPayloadSchema: z.ZodType<SignedPayload> = z.object({
   source: z.enum(LITERATURE_PROVIDER_IDS),
   provider: z.string().trim().min(1).max(200),
   evidenceScope: z.enum(['abstract', 'metadata', 'fulltext']),
+  publicationType: z.string().max(200).optional(),
+  affiliations: z.array(z.string().max(300)).max(30).optional(),
+  citedByCount: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
   retrievedAt: z.string().datetime({ offset: true }),
   oaLocations: z.array(z.object({
     url: z.string().trim().max(8_192),
@@ -58,6 +64,9 @@ export function signLiteratureResult(paper: LiteraturePaper): string {
     source: paper.source,
     provider: paper.provider,
     evidenceScope: paper.evidenceScope,
+    publicationType: paper.publicationType,
+    affiliations: paper.affiliations,
+    citedByCount: paper.citedByCount,
     retrievedAt: new Date().toISOString(),
     oaLocations: paper.oaLocations,
   };

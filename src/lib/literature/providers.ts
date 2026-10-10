@@ -28,12 +28,14 @@ async function fetchText(url: string): Promise<string> {
 // ─── Crossref ───────────────────────────────────────────────
 
 async function searchCrossref(query: string, limit: number): Promise<LiteraturePaper[]> {
-  const url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=${limit}&select=DOI,title,author,published-print,published-online,container-title,abstract,URL`;
+  const url = `https://api.crossref.org/works?query=${encodeURIComponent(query)}&rows=${limit}&select=DOI,title,author,published-print,published-online,container-title,abstract,URL,type,is-referenced-by-count`;
   const data = await fetchJson(url) as {
     message: { items: Array<{
       DOI?: string;
       title?: string[];
-      author?: Array<{ given?: string; family?: string; name?: string }>;
+      author?: Array<{ given?: string; family?: string; name?: string; affiliation?: Array<{ name?: string }> }>;
+      type?: string;
+      'is-referenced-by-count'?: number;
       'published-print'?: { 'date-parts'?: number[][] };
       'published-online'?: { 'date-parts'?: number[][] };
       'container-title'?: string[];
@@ -58,7 +60,10 @@ async function searchCrossref(query: string, limit: number): Promise<LiteratureP
       url: item.URL || (item.DOI ? `https://doi.org/${item.DOI}` : ''),
       source: 'crossref' as LiteratureProviderId,
       provider: 'Crossref',
-      evidenceScope: 'abstract' as const,
+      evidenceScope: item.abstract?.replace(/<[^>]+>/g, '').trim() ? 'abstract' as const : 'metadata' as const,
+      publicationType: item.type,
+      affiliations: [...new Set((item.author || []).flatMap(author => (author.affiliation || []).flatMap(affiliation => typeof affiliation.name === 'string' && affiliation.name.trim() ? [affiliation.name.trim().slice(0, 300)] : [])))].slice(0, 30),
+      citedByCount: typeof item['is-referenced-by-count'] === 'number' && Number.isSafeInteger(item['is-referenced-by-count']) && item['is-referenced-by-count'] >= 0 ? item['is-referenced-by-count'] : undefined,
     };
   }).filter(p => p.title);
 }
@@ -173,7 +178,9 @@ async function searchOpenAlex(query: string, limit: number): Promise<LiteratureP
   const data = await fetchJson(url) as {
     results: Array<{
       title?: string;
-      authorships?: Array<{ author: { display_name: string } }>;
+      authorships?: Array<{ author: { display_name: string }; institutions?: Array<{ display_name?: string }> }>;
+      type?: string;
+      cited_by_count?: number;
       publication_year?: number;
       doi?: string;
       abstract_inverted_index?: Record<string, number[]>;
@@ -222,6 +229,9 @@ async function searchOpenAlex(query: string, limit: number): Promise<LiteratureP
       url: item.doi || item.id || '',
       source: 'openalex' as LiteratureProviderId,
       provider: 'OpenAlex',
+      publicationType: item.type,
+      affiliations: [...new Set((item.authorships || []).flatMap(author => (author.institutions || []).flatMap(institution => typeof institution.display_name === 'string' && institution.display_name.trim() ? [institution.display_name.trim().slice(0, 300)] : [])))].slice(0, 30),
+      citedByCount: typeof item.cited_by_count === 'number' && Number.isSafeInteger(item.cited_by_count) && item.cited_by_count >= 0 ? item.cited_by_count : undefined,
       evidenceScope: abstract ? 'abstract' as const : 'metadata' as const,
       oaLocations: oaLocations.length > 0 ? oaLocations : undefined,
     };

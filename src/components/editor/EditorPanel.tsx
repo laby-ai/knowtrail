@@ -25,6 +25,7 @@ import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { useApp } from '@/contexts/AppContext';
 import type { ChatMessage } from '@/types';
+import { InlineResearchCitations } from '@/components/research/InlineResearchCitations';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -705,6 +706,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQues
 
 // Message item
 function MessageItem({ message, isExpanded, onToggleExpand, isStreaming }: { message: ChatMessage; isExpanded: boolean; onToggleExpand: () => void; isStreaming: boolean }) {
+  const { revealPaper } = useApp();
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const streamContainerRef = useRef<HTMLDivElement>(null);
@@ -755,7 +757,7 @@ function MessageItem({ message, isExpanded, onToggleExpand, isStreaming }: { mes
             : 'ai-bubble-gradient text-[var(--text-primary)]'
         }`}>
           <div ref={streamContainerRef}>
-            {renderFormattedText(message.content)}
+            {renderFormattedText(message.content, isUser ? [] : message.citations || [])}
             {isStreaming && <span className="wave-cursor active" />}
           </div>
         </div>
@@ -794,6 +796,7 @@ function MessageItem({ message, isExpanded, onToggleExpand, isStreaming }: { mes
                   <div key={idx} className="bg-black/5 rounded-xl px-4 py-3 border-l-2 border-[var(--accent-blue)]/40">
                     <div className="text-[11px] text-[var(--accent-blue)] font-semibold mb-1">{citation.paperShortName}</div>
                     {citation.excerpt && <p className="text-[11px] text-[var(--text-secondary)] italic leading-relaxed">&ldquo;{citation.excerpt}&rdquo;</p>}
+                    <button type="button" className="mt-2 text-xs text-[var(--accent-blue)]" onClick={() => revealPaper(citation.paperId, citation)}>定位原文片段</button>
                   </div>
                 ))}
               </div>
@@ -824,20 +827,20 @@ function preprocessReferences(content: string): string {
 }
 
 // Render markdown text with LaTeX math support
-function renderFormattedText(content: string) {
+function renderFormattedText(content: string, citations: NonNullable<ChatMessage['citations']> = []) {
   const processed = preprocessReferences(content);
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkMath]}
       rehypePlugins={[rehypeKatex]}
       components={{
-        p: ({ children }) => <p className="mb-2 last:mb-0 text-[15px] leading-relaxed">{children}</p>,
+        p: ({ children }) => <p className="mb-2 last:mb-0 text-[15px] leading-relaxed"><InlineResearchCitations citations={citations}>{children}</InlineResearchCitations></p>,
         h1: ({ children }) => <h1 className="text-xl font-bold text-[var(--text-primary)] mb-2 mt-3">{children}</h1>,
         h2: ({ children }) => <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2 mt-3">{children}</h2>,
         h3: ({ children }) => <h3 className="text-[15px] font-bold text-[var(--text-primary)] mb-1 mt-2">{children}</h3>,
         ul: ({ children }) => <ul className="list-disc list-outside ml-4 mb-2 space-y-0.5">{children}</ul>,
         ol: ({ children }) => <ol className="list-decimal list-outside ml-4 mb-2 space-y-1">{children}</ol>,
-        li: ({ children }) => <li className="text-[15px] leading-relaxed">{children}</li>,
+        li: ({ children }) => <li className="text-[15px] leading-relaxed"><InlineResearchCitations citations={citations}>{children}</InlineResearchCitations></li>,
         strong: ({ children }) => <strong className="text-[var(--text-primary)] font-semibold">{children}</strong>,
         em: ({ children }) => <em className="text-[var(--text-secondary)]">{children}</em>,
         blockquote: ({ children }) => <blockquote className="border-l-2 border-[var(--accent-blue)]/40 pl-3 my-2 text-[var(--text-secondary)] italic">{children}</blockquote>,
@@ -851,7 +854,7 @@ function renderFormattedText(content: string) {
         a: ({ children, href }) => <a href={href} className="text-[var(--accent-blue)] underline hover:opacity-80" target="_blank" rel="noopener noreferrer">{children}</a>,
         table: ({ children }) => <table className="w-full border-collapse my-2 text-xs">{children}</table>,
         th: ({ children }) => <th className="border border-[var(--border-subtle)] px-2 py-1 bg-[var(--glass-subtle)] text-left font-semibold">{children}</th>,
-        td: ({ children }) => <td className="border border-[var(--border-subtle)] px-2 py-1">{children}</td>,
+        td: ({ children }) => <td className="border border-[var(--border-subtle)] px-2 py-1"><InlineResearchCitations citations={citations}>{children}</InlineResearchCitations></td>,
         sup: ({ children }) => <sup className="citation-sup ml-0.5 text-[var(--accent-blue)]">{children}</sup>,
       }}
     >

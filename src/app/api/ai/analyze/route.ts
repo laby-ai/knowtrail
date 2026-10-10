@@ -8,8 +8,8 @@ const isImageType = (ext: string) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].inclu
 function fallbackAnalysis(fileName: string, fileContent: string, abstract = 'AI分析暂时不可用，请稍后重试') {
   return {
     title: fileName.replace(/\.[^.]+$/, '') || '未解析文档',
-    authors: ['未解析作者'],
-    year: new Date().getFullYear(),
+    authors: [],
+    year: 0,
     keywords: ['原始数据'],
     abstract,
     content: fileContent ? fileContent.slice(0, 2000) : abstract,
@@ -167,8 +167,8 @@ function parseJsonFromResponse(response: string, fileName: string): Record<strin
   } catch {
     return {
       title: fileName.replace(/\.[^.]+$/, '') || '未解析文档',
-      authors: ['未解析作者'],
-      year: new Date().getFullYear(),
+      authors: [],
+      year: 0,
       keywords: ['原始数据'],
       abstract: response.slice(0, 200),
       content: response,

@@ -7,12 +7,8 @@ import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-read
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Presentation,
-  BookOpen,
   ImageIcon,
-  Layout,
-  Lightbulb,
   Sparkles,
-  Cpu,
   Download,
   Check,
 } from 'lucide-react';
@@ -34,7 +30,6 @@ export function StructuredPresentationPanel() {
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
-  const [progressStep, setProgressStep] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [pptxUrl, setPptxUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,16 +61,7 @@ export function StructuredPresentationPanel() {
     setOutlineConfirmed(false);
   }, [suggestedOutline]);
 
-  // User-facing generation stages.
-  const PIPELINE_STAGES: StudioJobProgressStage[] = [
-    { key: 'discourse', label: '论证分析', icon: BookOpen },
-    { key: 'figures', label: '图表匹配', icon: ImageIcon },
-    { key: 'planning', label: '大纲规划', icon: Layout },
-    { key: 'critic', label: '质量审查', icon: Lightbulb },
-    { key: 'refine', label: '优化改进', icon: Sparkles },
-    { key: 'building', label: '构建PPTX', icon: Cpu },
-    { key: 'exporting', label: '导出文件', icon: Download },
-  ];
+  const PIPELINE_STAGES: StudioJobProgressStage[] = [{ key: 'waiting', label: '等待生成结果', icon: Presentation }];
 
   const handleGenerate = async () => {
     if (!generationReadiness.ready) {
@@ -98,7 +84,6 @@ export function StructuredPresentationPanel() {
     setPptxUrl(null);
     setElapsedSeconds(0);
     setProgressMsg('正在准备结构化简报生成...');
-    setProgressStep('discourse');
     abortControllerRef.current?.abort();
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -144,7 +129,7 @@ export function StructuredPresentationPanel() {
     if (totalFigures > 0) {
       setMineruStatus(`已提取 ${totalFigures} 张资料图表，将插入 PPT`);
     } else {
-      setMineruStatus('正在通过 MinerU 提取资料图表，请稍候...');
+      setMineruStatus('暂未读取到可用资料图表，是否提取成功以生成结果为准。');
     }
 
     const timers: number[] = [];
@@ -153,15 +138,7 @@ export function StructuredPresentationPanel() {
         setElapsedSeconds(seconds => seconds + 1);
       }, 1000));
 
-      // Simulate progress steps for UX while the backend runs the real long task.
-      timers.push(
-        window.setTimeout(() => { setProgressStep('figures'); setProgressMsg('正在匹配资料图表与论证结构...'); }, 4000),
-        window.setTimeout(() => { setProgressStep('planning'); setProgressMsg('正在规划资料简报大纲...'); }, 8000),
-        window.setTimeout(() => { setProgressStep('critic'); setProgressMsg('正在审查报告质量...'); }, 16000),
-        window.setTimeout(() => { setProgressStep('refine'); setProgressMsg('正在优化幻灯片结构...'); }, 22000),
-        window.setTimeout(() => { setProgressStep('building'); setProgressMsg('正在构建 PPTX 文件...'); }, 28000),
-        window.setTimeout(() => { setProgressStep('exporting'); setProgressMsg('正在导出文件...'); }, 34000),
-      );
+      setProgressMsg('请求已提交，正在等待服务端生成结果；不显示未经服务端确认的阶段。');
 
       const res = await clientApiRequest('/api/ai/ppt-v2', {
         method: 'POST',
@@ -216,7 +193,6 @@ export function StructuredPresentationPanel() {
       setPptxUrl(url);
       setMineruStatus('');
       setProgressMsg('');
-      setProgressStep('');
     } catch (e: unknown) {
       const aborted = abortController.signal.aborted || (e instanceof DOMException && e.name === 'AbortError');
       const timedOut = e instanceof ClientRequestError && e.code === 'timeout';
@@ -228,7 +204,6 @@ export function StructuredPresentationPanel() {
       setQualityWarning(null);
       setQualitySummary(null);
       setProgressMsg('');
-      setProgressStep('');
     } finally {
       timers.forEach(clearTimeout);
       if (abortControllerRef.current === abortController) abortControllerRef.current = null;
@@ -439,7 +414,7 @@ export function StructuredPresentationPanel() {
             title="结构化 PPT 生成中"
             message={progressMsg || '正在整理资料并构建演示文稿...'}
             stages={PIPELINE_STAGES}
-            currentStageKey={progressStep || 'discourse'}
+            currentStageKey='waiting'
             elapsedSeconds={elapsedSeconds}
             hint={longTaskHint}
             onCancel={handleCancelGenerate}

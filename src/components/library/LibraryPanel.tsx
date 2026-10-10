@@ -32,6 +32,8 @@ import { resolveLibraryUploadTarget } from '@/lib/library-upload-target';
 import { uploadDiscoveredSourceFiles } from '@/lib/discovered-source-upload';
 import { buildDataTablePreviewForPaper, buildDataTablePreviewFromText } from '@/lib/data-table-preview';
 import { buildSourceMatrixFacets } from '@/lib/source-matrix';
+import { HighlightedEvidence } from '@/components/research/HighlightedEvidence';
+import { SourceProvenance } from '@/components/research/SourceProvenance';
 import type { DataColumnSummary } from '@/lib/data-table-preview';
 import type { SourceMatrixFacet } from '@/lib/source-matrix';
 import type { Paper, FileType } from '@/types';
@@ -647,9 +649,9 @@ export function LibraryPanel({
         addPaper(importFolderId, {
           id: detail.id,
           title: detail.title || detail.fileName,
-          authors: ['已入库来源'],
-          year: new Date(detail.createdAt || detail.updatedAt || Date.now()).getFullYear(),
-          keywords: ['持久来源'],
+          authors: [],
+          year: 0,
+          keywords: [],
           abstract: rawContent.slice(0, 240) || `${detail.title || detail.fileName} 已完成来源摄取。`,
           content: rawContent || `${detail.title || detail.fileName} 已完成来源摄取。`,
           rawContent,
@@ -669,9 +671,9 @@ export function LibraryPanel({
         knownPapers.set(detail.id, {
           id: detail.id,
           title: detail.title || detail.fileName,
-          authors: ['已入库来源'],
-          year: new Date().getFullYear(),
-          keywords: ['持久来源'],
+          authors: [],
+          year: 0,
+          keywords: [],
           abstract: rawContent.slice(0, 240),
           content: rawContent,
           rawContent,
@@ -1350,8 +1352,9 @@ export function LibraryPanel({
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] break-words font-medium text-[var(--text-primary)] leading-tight">{paper.title}</p>
                         <p className="text-xs text-[var(--text-secondary)] mt-1 truncate">
-                          {paper.authors.join(', ') || '未知作者'} · {paper.literature ? paper.literature.year || '年份未知' : paper.year}
+                          {paper.authors.join(', ') || '未知作者'} · {paper.literature ? paper.literature.year || '年份未知' : paper.year || '年份未知'}
                         </p>
+                        <SourceProvenance paper={paper} />
                         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                           {paper.literature && (
                             <span className="text-[11px] px-1.5 py-0.5 rounded" style={{ color: '#1d4ed8', backgroundColor: '#eff6ff' }}>
@@ -1431,7 +1434,7 @@ export function LibraryPanel({
                                   <span>{citationContext.snippet.locator}</span>
                                 </div>
                                 <p className="mt-1 text-[var(--text-secondary)]">
-                                  &ldquo;{truncateEvidenceText(citationContext.snippet.text, 180)}&rdquo;
+                                  <HighlightedEvidence text={citationContext.snippet.text} quote={citationFocus.citation.excerpt || ''} />
                                 </p>
                               </div>
                             )}

@@ -36,6 +36,9 @@ export interface LiteraturePaper {
   source: LiteratureProviderId;
   provider: string;
   evidenceScope: 'abstract' | 'metadata' | 'fulltext';
+  publicationType?: string;
+  affiliations?: string[];
+  citedByCount?: number;
   oaLocations?: OALocation[];
   fullText?: string;
 }

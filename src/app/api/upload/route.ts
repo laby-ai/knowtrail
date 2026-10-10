@@ -485,7 +485,7 @@ export async function POST(request: NextRequest) {
 
         const title = analysis?.title || baseName;
         const authors = Array.isArray(analysis?.authors) ? analysis.authors : ['未解析作者'];
-        const year = typeof analysis?.year === 'number' ? analysis.year : new Date().getFullYear();
+        const year = typeof analysis?.year === 'number' && Number.isInteger(analysis.year) && analysis.year >= 1000 && analysis.year <= 9999 ? analysis.year : 0;
         const keywords = Array.isArray(analysis?.keywords) ? analysis.keywords : ['原始数据'];
         const abstract = typeof analysis?.abstract === 'string' ? analysis.abstract : `该文件包含了关于${title}的原始资料与数据记录。`;
         const content = typeof analysis?.content === 'string' ? analysis.content : abstract;
