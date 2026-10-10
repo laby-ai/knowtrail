@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import CSL from "citeproc";
+import { cslRichText } from "./csl-rich-text";
 import {
   CSL_STYLES,
   type CslStyleId,
@@ -86,16 +87,22 @@ export async function formatCslReferences(
     return {
       markers: group,
       text: engine.makeCitationCluster(ids.map((id) => ({ id }))),
+      superscript: /vertical-align="sup"/.test(
+        xml.match(/<citation\b[\s\S]*?<\/citation>/)?.[0] || "",
+      ),
     };
   });
   const bibliography = engine.makeBibliography();
   if (!bibliography) throw new Error("CSL 样式没有参考文献输出");
+  engine.setOutputFormat("html");
+  const rich = engine.makeBibliography();
   return {
     styleId,
     groups,
     entries: bibliography[1].map((text, index) => ({
       sourceId: bibliography[0].entry_ids[index][0],
       text: text.trim(),
+      runs: cslRichText(rich ? rich[1][index] : "", text.trim()),
     })),
   };
 }

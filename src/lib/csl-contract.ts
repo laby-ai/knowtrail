@@ -19,10 +19,17 @@ export const CSL_STYLES = [
   { id: "cell", label: "Cell", file: "cell" },
 ] as const;
 export type CslStyleId = (typeof CSL_STYLES)[number]["id"];
+export interface CslRun {
+  text: string;
+  italic?: boolean;
+  bold?: boolean;
+  superscript?: boolean;
+  smallCaps?: boolean;
+}
 export interface FormattedReferences {
   styleId: CslStyleId;
-  entries: Array<{ sourceId: string; text: string }>;
-  groups: Array<{ markers: number[]; text: string }>;
+  entries: Array<{ sourceId: string; text: string; runs?: CslRun[] }>;
+  groups: Array<{ markers: number[]; text: string; superscript?: boolean }>;
 }
 export function markedParagraph(text: string, markers: number[]) {
   return (
@@ -68,6 +75,36 @@ export function applyCitationStyle(
         JSON.stringify(
           Array.from(match.matchAll(/\[(\d+)\]/g), (item) => Number(item[1])),
         ),
-      ) || match.trim()) + (match.endsWith(" ") ? " " : ""),
+      ) || match.trim()) + (match.match(/\s*$/)?.[0] || ""),
   );
+}
+export function citationRuns(
+  text: string,
+  markers: number[],
+  formatted: FormattedReferences,
+): CslRun[] {
+  const content = markedParagraph(text, markers),
+    result: CslRun[] = [];
+  let offset = 0;
+  const groups = new Map(
+    formatted.groups.map((group) => [JSON.stringify(group.markers), group]),
+  );
+  for (const match of content.matchAll(groupsPattern)) {
+    if (match.index > offset)
+      result.push({ text: content.slice(offset, match.index) });
+    const group = groups.get(
+      JSON.stringify(
+        Array.from(match[0].matchAll(/\[(\d+)\]/g), (item) => Number(item[1])),
+      ),
+    );
+    result.push({
+      text: group?.text || match[0].trim(),
+      superscript: group?.superscript,
+    });
+    const whitespace = match[0].match(/\s*$/)?.[0];
+    if (whitespace) result.push({ text: whitespace });
+    offset = match.index + match[0].length;
+  }
+  if (offset < content.length) result.push({ text: content.slice(offset) });
+  return result;
 }

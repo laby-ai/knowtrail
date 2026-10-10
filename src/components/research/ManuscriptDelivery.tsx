@@ -18,9 +18,11 @@ import type { ReferenceMetadata } from "@/lib/reference-metadata";
 import { CitationVerificationPanel } from "./CitationVerificationPanel";
 import {
   applyCitationStyle,
+  citationRuns,
   citationGroups,
   type FormattedReferences,
 } from "@/lib/csl-contract";
+import { CslFormattedText } from "./CslFormattedText";
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -41,6 +43,7 @@ export function ManuscriptDelivery({
   citations: Citation[];
 }) {
   const [layout, setLayout] = useState<ManuscriptLayout>("single");
+  const [mode, setMode] = useState<"audit" | "manuscript">("audit");
   const [preview, setPreview] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -65,14 +68,13 @@ export function ManuscriptDelivery({
     setError("");
     setBusy(true);
     try {
-      const bytes = await exportDocx(
-        draft,
-        citations,
+      const bytes = await exportDocx(draft, citations, {
         layout,
         template,
         references,
         formatted,
-      );
+        mode,
+      });
       download(
         new Blob([new Uint8Array(bytes).buffer], {
           type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -105,6 +107,25 @@ export function ManuscriptDelivery({
           <option value="double">通用学术稿 · A4 双栏</option>
         </select>
       </label>
+      <label className="block text-xs">
+        导出内容
+        <select
+          aria-label="导出内容"
+          className="liquid-glass-input mt-1"
+          value={mode}
+          onChange={(event) =>
+            setMode(event.target.value as "audit" | "manuscript")
+          }
+        >
+          <option value="audit">核验稿 · 保留证据与作者清单</option>
+          <option value="manuscript">论文正文 · 仅正文与参考文献</option>
+        </select>
+      </label>
+      {mode === "manuscript" && !formatted && (
+        <p className="text-xs text-amber-700">
+          请先应用期刊引用格式，再导出论文正文。
+        </p>
+      )}
       <p className="text-[11px] text-[var(--text-tertiary)]">
         通用排版方案；目标期刊的篇幅、引用规范和官方模板需另外核对。LaTeX 使用
         XeLaTeX 编译，保留中文与证据编号。
@@ -112,7 +133,9 @@ export function ManuscriptDelivery({
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={busy || templateBusy}
+          disabled={
+            busy || templateBusy || (mode === "manuscript" && !formatted)
+          }
           onClick={() => void word()}
           className="liquid-glass-btn px-3 py-2 text-xs"
           data-testid="manuscript-docx"
@@ -124,7 +147,14 @@ export function ManuscriptDelivery({
           onClick={() =>
             download(
               new Blob(
-                [exportLatex(draft, citations, layout, references, formatted)],
+                [
+                  exportLatex(draft, citations, {
+                    layout,
+                    references,
+                    formatted,
+                    mode,
+                  }),
+                ],
                 {
                   type: "text/plain;charset=utf-8",
                 },
@@ -134,6 +164,7 @@ export function ManuscriptDelivery({
           }
           className="liquid-glass-btn px-3 py-2 text-xs"
           data-testid="manuscript-latex"
+          disabled={mode === "manuscript" && !formatted}
         >
           下载 LaTeX
         </button>
@@ -203,15 +234,29 @@ export function ManuscriptDelivery({
           >
             {draft.paragraphs.map((item, index) => (
               <p key={index} className="mb-3 text-justify">
-                {applyCitationStyle(item.text, item.evidenceMarkers, formatted)}
+                {formatted ? (
+                  <CslFormattedText
+                    runs={citationRuns(
+                      item.text,
+                      item.evidenceMarkers,
+                      formatted,
+                    )}
+                  />
+                ) : (
+                  applyCitationStyle(item.text, item.evidenceMarkers)
+                )}
               </p>
             ))}
-            <h5 className="font-bold">引用证据索引</h5>
-            {evidenceEntries(citations).map((item) => (
-              <p key={item.number} className="mb-2 break-words">
-                [{item.number}] {item.title} {item.locator}
-              </p>
-            ))}
+            {mode === "audit" && (
+              <>
+                <h5 className="font-bold">引用证据索引</h5>
+                {evidenceEntries(citations).map((item) => (
+                  <p key={item.number} className="mb-2 break-words">
+                    [{item.number}] {item.title} {item.locator}
+                  </p>
+                ))}
+              </>
+            )}
           </div>
           <p className="mt-4 text-[10px] text-gray-500">
             网页预览用于检查结构；Word 与 LaTeX 的实际分页由各自排版引擎决定。
@@ -221,7 +266,7 @@ export function ManuscriptDelivery({
               <h5 className="font-bold">参考文献</h5>
               {formatted.entries.map((item) => (
                 <p key={item.sourceId} className="break-words text-xs">
-                  {item.text}
+                  <CslFormattedText runs={item.runs || [{ text: item.text }]} />
                 </p>
               ))}
             </section>

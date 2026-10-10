@@ -42,7 +42,10 @@ async function main() {
   );
   assert.equal(template.columns, 2);
   assert.equal(template.titleStyle, "Title");
-  const out = await exportDocx(draft, citations, "single", template);
+  const out = await exportDocx(draft, citations, {
+    layout: "single",
+    template,
+  });
   const zip = await JSZip.loadAsync(out);
   const xml = await zip.file("word/document.xml")!.async("text");
   assert(xml.includes('w:num="2"'));
@@ -88,7 +91,10 @@ async function main() {
     assert.equal(official.titleStyle, "PaperTitle");
     assert.equal(official.bodyStyle, "PARA");
     assert.equal(official.columns, 2);
-    const output = await exportDocx(draft, citations, "single", official);
+    const output = await exportDocx(draft, citations, {
+      layout: "single",
+      template: official,
+    });
     const applied = await JSZip.loadAsync(output);
     const body = await applied.file("word/document.xml")!.async("text");
     assert(body.includes('w:w="11520"'));

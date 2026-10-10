@@ -2,13 +2,25 @@ import JSZip from "jszip";
 import type { AcademicWritingDraft } from "./academic-writing-contract";
 import type { Citation } from "@/types";
 import type { JournalWordTemplate } from "./journal-word-template";
-import { applyCitationStyle, type FormattedReferences } from "./csl-contract";
+import {
+  applyCitationStyle,
+  citationRuns,
+  type CslRun,
+  type FormattedReferences,
+} from "./csl-contract";
 import {
   referencePlainText,
   type ReferenceMetadata,
 } from "./reference-metadata";
 
 export type ManuscriptLayout = "single" | "double";
+export interface ManuscriptExportOptions {
+  layout: ManuscriptLayout;
+  template?: JournalWordTemplate | null;
+  references?: ReferenceMetadata[];
+  formatted?: FormattedReferences | null;
+  mode?: "audit" | "manuscript";
+}
 const xml = (value: string) =>
   value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").replace(
     /[&<>"']/g,
@@ -64,10 +76,29 @@ export function evidenceEntries(citations: Citation[], english = false) {
 export function exportLatex(
   draft: AcademicWritingDraft,
   citations: Citation[],
-  layout: ManuscriptLayout,
-  references: ReferenceMetadata[] = [],
-  formatted?: FormattedReferences | null,
+  options: ManuscriptLayout | ManuscriptExportOptions,
 ): string {
+  const {
+    layout,
+    references = [],
+    formatted,
+    mode = "audit",
+  } = typeof options === "string" ? { layout: options } : options;
+  if (mode === "manuscript" && !formatted)
+    throw new Error("论文正文模式需先应用引用格式。");
+  const appendix =
+    mode === "audit"
+      ? `\\section*{引用证据索引}\n% 下列编号是检索片段索引，不是经过核验的完整书目。\n${evidenceEntries(
+          citations,
+        )
+          .map(
+            (item) =>
+              `\\noindent [${item.number}] ${texEscape(item.title)} ${texEscape(item.locator)}\\par\n${texEscape(item.excerpt)}\\par`,
+          )
+          .join(
+            "\n",
+          )}\n\\section*{作者核验事项}\n${[...draft.limitations, ...draft.revisionChecklist].map(texEscape).join("\n\n")}\n${references.length ? "\\section*{参考文献题录}\n" + references.map((item, index) => `\\noindent [R${index + 1}] ${texEscape(referencePlainText(item))}\\par\n${texEscape(item.warnings.join("; "))}\\par`).join("\n") : ""}`
+      : "";
   return `\\documentclass[UTF8,a4paper${layout === "double" ? ",twocolumn" : ""}]{ctexart}
 \\usepackage[margin=2.5cm]{geometry}
 \\usepackage{hyperref}
@@ -76,20 +107,18 @@ export function exportLatex(
 \\date{}
 \\begin{document}
 \\maketitle
-${draft.paragraphs.map((item) => texEscape(applyCitationStyle(item.text, item.evidenceMarkers, formatted))).join("\n\n")}
-\\section*{引用证据索引}
-% 下列编号是检索片段索引，不是经过核验的完整书目。
-${evidenceEntries(citations)
-  .map(
-    (item) =>
-      `\\noindent [${item.number}] ${texEscape(item.title)} ${texEscape(item.locator)}\\par\n${texEscape(item.excerpt)}\\par`,
-  )
-  .join("\n")}
-\\section*{作者核验事项}
-${[...draft.limitations, ...draft.revisionChecklist].map(texEscape).join("\n\n")}
-${references.length ? "\\section*{参考文献题录}\n" + references.map((item, index) => `\\noindent [R${index + 1}] ${texEscape(referencePlainText(item))}\\par\n${texEscape(item.warnings.join("; "))}\\par`).join("\n") : ""}
-${formatted ? "\\section*{参考文献}\n" + formatted.entries.map((item) => `\\noindent ${texEscape(item.text)}\\par`).join("\n") : ""}
+${draft.paragraphs.map((item) => (formatted ? citationRuns(item.text, item.evidenceMarkers, formatted).map(styledTex).join("") : texEscape(applyCitationStyle(item.text, item.evidenceMarkers)))).join("\n\n")}
+${appendix}
+${formatted ? "\\section*{参考文献}\n" + formatted.entries.map((item) => `\\noindent ${(item.runs || [{ text: item.text }]).map(styledTex).join("")}\\par`).join("\n") : ""}
 \\end{document}\n`;
+}
+function styledTex(run: CslRun): string {
+  let text = texEscape(run.text);
+  if (run.italic) text = `\\textit{${text}}`;
+  if (run.bold) text = `\\textbf{${text}}`;
+  if (run.smallCaps) text = `\\textsc{${text}}`;
+  if (run.superscript) text = `\\textsuperscript{${text}}`;
+  return text;
 }
 
 function wordParagraph(
@@ -97,12 +126,18 @@ function wordParagraph(
   style?: string,
   templateSpacing = false,
   superscript = true,
+  richRuns?: CslRun[],
 ) {
-  const runs = text
-    .split(/(\[\d+\])/g)
+  const parts: CslRun[] =
+    richRuns ||
+    text.split(/(\[\d+\])/g).map((part) => ({
+      text: part,
+      superscript: superscript && /^\[\d+\]$/.test(part),
+    }));
+  const runs = parts
     .map(
       (part) =>
-        `<w:r>${superscript && /^\[\d+\]$/.test(part) ? '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>' : ""}<w:t xml:space="preserve">${xml(part)}</w:t></w:r>`,
+        `<w:r><w:rPr>${part.superscript ? '<w:vertAlign w:val="superscript"/>' : ""}${part.italic ? "<w:i/>" : ""}${part.bold ? "<w:b/>" : ""}${part.smallCaps ? "<w:smallCaps/>" : ""}</w:rPr><w:t xml:space="preserve">${xml(part.text)}</w:t></w:r>`,
     )
     .join("");
   return `<w:p><w:pPr>${style ? `<w:pStyle w:val="${xml(style)}"/>` : ""}${templateSpacing ? "" : '<w:spacing w:after="160" w:line="300" w:lineRule="auto"/>'}</w:pPr>${runs}</w:p>`;
@@ -110,11 +145,17 @@ function wordParagraph(
 export async function exportDocx(
   draft: AcademicWritingDraft,
   citations: Citation[],
-  layout: ManuscriptLayout,
-  template?: JournalWordTemplate | null,
-  references: ReferenceMetadata[] = [],
-  formatted?: FormattedReferences | null,
+  options: ManuscriptLayout | ManuscriptExportOptions,
 ): Promise<Uint8Array> {
+  const {
+    layout,
+    template,
+    references = [],
+    formatted,
+    mode = "audit",
+  } = typeof options === "string" ? { layout: options } : options;
+  if (mode === "manuscript" && !formatted)
+    throw new Error("论文正文模式需先应用引用格式。");
   const english = !/[\u3400-\u9fff]/.test(
     draft.title + draft.paragraphs.map((item) => item.text).join(""),
   );
@@ -197,39 +238,47 @@ export async function exportDocx(
         template?.bodyStyle,
         Boolean(template),
         !formatted,
+        formatted
+          ? citationRuns(item.text, item.evidenceMarkers, formatted)
+          : undefined,
       ),
     ),
-    p(english ? "Evidence index" : "引用证据索引", true),
-    p(
-      english
-        ? "Numbers identify retrieved excerpts. The author must verify the complete references and original sources."
-        : "编号对应检索片段；完整参考文献与引用真实性需由作者核验。",
-    ),
-    ...evidenceEntries(citations, english).flatMap((item) => [
-      p(`[${item.number}] ${item.title} ${item.locator}`),
-      p(item.excerpt),
-    ]),
-    p(english ? "Author verification checklist" : "作者核验事项", true),
-    ...[...draft.limitations, ...draft.revisionChecklist].map((item) =>
-      p(item),
-    ),
-    ...(references.length
+    ...(mode === "audit"
       ? [
-          p(english ? "Bibliographic metadata" : "参考文献题录", true),
-          ...references.flatMap((item, index) => [
-            p(`[R${index + 1}] ${referencePlainText(item)}`),
-            p(
-              (english ? "Evidence markers: " : "对应证据编号：") +
-                citations
-                  .flatMap((citation, number) =>
-                    (citation.sourceId || citation.paperId) === item.sourceId
-                      ? [`[${number + 1}]`]
-                      : [],
-                  )
-                  .join(", "),
-            ),
-            ...item.warnings.map((warning) => p(warning)),
+          p(english ? "Evidence index" : "引用证据索引", true),
+          p(
+            english
+              ? "Numbers identify retrieved excerpts. The author must verify the complete references and original sources."
+              : "编号对应检索片段；完整参考文献与引用真实性需由作者核验。",
+          ),
+          ...evidenceEntries(citations, english).flatMap((item) => [
+            p(`[${item.number}] ${item.title} ${item.locator}`),
+            p(item.excerpt),
           ]),
+          p(english ? "Author verification checklist" : "作者核验事项", true),
+          ...[...draft.limitations, ...draft.revisionChecklist].map((item) =>
+            p(item),
+          ),
+          ...(references.length
+            ? [
+                p(english ? "Bibliographic metadata" : "参考文献题录", true),
+                ...references.flatMap((item, index) => [
+                  p(`[R${index + 1}] ${referencePlainText(item)}`),
+                  p(
+                    (english ? "Evidence markers: " : "对应证据编号：") +
+                      citations
+                        .flatMap((citation, number) =>
+                          (citation.sourceId || citation.paperId) ===
+                          item.sourceId
+                            ? [`[${number + 1}]`]
+                            : [],
+                        )
+                        .join(", "),
+                  ),
+                  ...item.warnings.map((warning) => p(warning)),
+                ]),
+              ]
+            : []),
         ]
       : []),
     ...(formatted
@@ -241,6 +290,7 @@ export async function exportDocx(
               template?.bodyStyle,
               Boolean(template),
               false,
+              item.runs,
             ),
           ),
         ]

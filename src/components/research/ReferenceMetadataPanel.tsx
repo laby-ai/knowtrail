@@ -16,6 +16,7 @@ import {
   type FormattedReferences,
 } from "@/lib/csl-contract";
 import type { AcademicWritingDraft } from "@/lib/academic-writing-contract";
+import { CslFormattedText } from "./CslFormattedText";
 
 export function ReferenceMetadataPanel({
   citations,
@@ -204,12 +205,14 @@ export function ReferenceMetadataPanel({
         >
           <p>
             已应用：
-            {CSL_STYLES.find((style) => style.id === formatted.styleId)?.label}{" "}
+            {
+              CSL_STYLES.find((style) => style.id === formatted.styleId)?.label
+            }{" "}
             · 正文引文与参考文献将写入 Word / LaTeX。
           </p>
           {formatted.entries.map((item) => (
             <p key={item.sourceId} className="break-words">
-              {item.text}
+              <CslFormattedText runs={item.runs || [{ text: item.text }]} />
             </p>
           ))}
         </div>

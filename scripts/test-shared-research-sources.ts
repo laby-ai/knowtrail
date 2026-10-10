@@ -39,7 +39,7 @@ async function main() {
       });
     };
     const { POST } = await import("../src/app/api/research/documents/route");
-    const { GET } = await import(
+    const { GET, POST: shareSources } = await import(
       "../src/app/api/research/shared-sources/route"
     );
     const post = (token: string, body: unknown) =>
@@ -93,6 +93,14 @@ async function main() {
         sources: [
           source,
           { ...source, id: "foreign-source", ownerMemberId: "foreign-owner" },
+          {
+            ...source,
+            id: "editor-source",
+            ownerMemberId: "source-editor",
+            notebookId: "editor-book",
+            title: "编辑成员贡献的文献",
+            storageKey: "/uploads/editor.txt",
+          },
         ],
       }),
     );
@@ -166,6 +174,81 @@ async function main() {
     );
     assert.equal(response.status, 200);
     assert.equal(await response.text(), "真实原文件验收内容");
+    await writeFile(
+      path.join(root, "public/uploads/editor.txt"),
+      "编辑成员的实际原文件",
+    );
+    const contribute = (token: string, body: unknown) =>
+      shareSources(
+        new NextRequest("http://localhost/api/research/shared-sources", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+    assert.equal(
+      (
+        await contribute("source-viewer", {
+          action: "add",
+          documentId: id,
+          notebookId: "editor-book",
+          sourceIds: ["editor-source"],
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await contribute("source-editor", {
+          action: "add",
+          documentId: id,
+          notebookId: "source-book",
+          sourceIds: [source.id],
+        })
+      ).status,
+      404,
+    );
+    response = await contribute("source-editor", {
+      action: "add",
+      documentId: id,
+      notebookId: "editor-book",
+      sourceIds: ["editor-source"],
+    });
+    assert.equal(response.status, 200);
+    data = (await response.json()) as { document: ResearchDocument };
+    assert.equal(data.document.sharedSourceIds?.length, 2);
+    const contributed = await get(
+      "source-viewer",
+      id,
+      "&sourceId=editor-source&download=1",
+    );
+    assert.equal(contributed.status, 200);
+    assert.equal(await contributed.text(), "编辑成员的实际原文件");
+    assert.equal(
+      (
+        await contribute("source-viewer", {
+          action: "remove",
+          documentId: id,
+          sourceId: "editor-source",
+        })
+      ).status,
+      403,
+    );
+    response = await contribute("source-editor", {
+      action: "remove",
+      documentId: id,
+      sourceId: "editor-source",
+    });
+    assert.equal(response.status, 200);
+    data = (await response.json()) as { document: ResearchDocument };
+    assert.equal(
+      (await get("source-viewer", id, "&sourceId=editor-source&download=1"))
+        .status,
+      404,
+    );
     response = await post("source-owner", {
       action: "sources",
       id,

@@ -101,7 +101,10 @@ async function checkExports() {
       warnings: [],
     },
   ];
-  const bytes = await exportDocx(draft, citations, "single", null, references);
+  const bytes = await exportDocx(draft, citations, {
+    layout: "single",
+    references,
+  });
   const zip = await JSZip.loadAsync(bytes),
     document = await zip.file("word/document.xml")!.async("text");
   assert(document.includes("[R1]"));
@@ -110,7 +113,7 @@ async function checkExports() {
   assert(document.includes("Test &amp; {escaped}"));
   assert(document.includes("对应证据编号："));
   assert(document.includes("第 2 页"));
-  const tex = exportLatex(draft, citations, "single", references);
+  const tex = exportLatex(draft, citations, { layout: "single", references });
   assert(tex.includes("[R1]"));
   assert(tex.includes("Test \\& \\{escaped\\}"));
   assert(tex.includes("10.1234/example"));
