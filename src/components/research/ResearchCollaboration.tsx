@@ -233,6 +233,7 @@ export function ResearchCollaboration({
                   key={document.id}
                   document={document}
                   onText={setContent}
+                  onAccessLost={() => setRole("viewer")}
                   onSync={(data) => {
                     setTitle((current) =>
                       current === document.title ? data.title : current,

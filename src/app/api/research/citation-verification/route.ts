@@ -7,7 +7,8 @@ import {
   auditPrompt,
   applySemanticAudit,
 } from "@/lib/fulltext-citation-audit";
-import { resolveRequestRuntimeAIConfigResult } from "@/lib/bailian-provider-profile";
+import { bailianProfileErrorResponse } from "@/lib/bailian-provider-profile";
+import { resolveCitationReviewConfig } from "@/lib/citation-review-config";
 import { llmInvoke } from "@/lib/ai-service";
 import { reserveAIUsage } from "@/lib/account-ai-billing";
 import { createUsageReservationFinalizer } from "@/lib/grounded-task-lifecycle";
@@ -126,8 +127,21 @@ export async function POST(request: NextRequest) {
       { report },
       { headers: { "Cache-Control": "private, no-store" } },
     );
-  const config = await resolveRequestRuntimeAIConfigResult(request);
-  if (config instanceof Response) return config;
+  let config: Awaited<ReturnType<typeof resolveCitationReviewConfig>>;
+  try {
+    config = await resolveCitationReviewConfig(request);
+  } catch (caught) {
+    const problem = bailianProfileErrorResponse(caught);
+    return Response.json(
+      {
+        error: problem
+          ? "请先在设置中配置账号百炼模型，原文匹配报告已保留。"
+          : "账号模型配置暂不可用，原文匹配报告已保留。",
+        report,
+      },
+      { status: problem?.status || 503 },
+    );
+  }
   const prompt = auditPrompt(report);
   if (prompt.length > 45000)
     return Response.json(
@@ -141,6 +155,7 @@ export async function POST(request: NextRequest) {
       modelName: config.model || "account-model",
       inputText: prompt,
       memberId: session.member.id,
+      tenantId: session.tenant_id,
       idempotencyKey: request.headers.get("idempotency-key") || undefined,
     });
   } catch {

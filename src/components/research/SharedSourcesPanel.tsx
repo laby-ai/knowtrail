@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { clientApiRequest } from "@/lib/client-api";
+import { clientApiFetch, clientApiDownloadBlob } from "@/lib/client-api";
 import { accountAuthHeaders } from "@/lib/account-session-browser";
 import type { ResearchDocument } from "@/lib/research-collaboration-store";
 import { useApp } from "@/contexts/AppContext";
@@ -46,62 +46,69 @@ export function SharedSourcesPanel({
     }
   }
   async function list(choose: boolean) {
-    const response = await clientApiRequest(
+    const data = await clientApiFetch<{ sources: SourceSummary[] }>(
       choose
         ? `/api/ingestion/sources?notebookId=${encodeURIComponent(ownNotebookId)}`
         : base,
       { headers: accountAuthHeaders() },
     );
-    const data = (await response.json()) as { sources: SourceSummary[] };
     setSources(data.sources);
     setChoosing(choose);
     setSelection([]);
     setPreview(null);
   }
   async function save() {
-    const response = await clientApiRequest("/api/research/shared-sources", {
-      method: "POST",
-      headers: { ...accountAuthHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "add",
-        documentId: document.id,
-        notebookId: ownNotebookId,
-        sourceIds: selection,
-      }),
-    });
-    const data = (await response.json()) as { document: ResearchDocument };
+    const data = await clientApiFetch<{ document: ResearchDocument }>(
+      "/api/research/shared-sources",
+      {
+        method: "POST",
+        headers: {
+          ...accountAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "add",
+          documentId: document.id,
+          notebookId: ownNotebookId,
+          sourceIds: selection,
+        }),
+      },
+    );
     onUpdated(data.document);
     await list(false);
   }
   async function remove(source: SourceSummary) {
-    const response = await clientApiRequest("/api/research/shared-sources", {
-      method: "POST",
-      headers: { ...accountAuthHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "remove",
-        documentId: document.id,
-        sourceId: source.id,
-      }),
-    });
-    const data = (await response.json()) as { document: ResearchDocument };
+    const data = await clientApiFetch<{ document: ResearchDocument }>(
+      "/api/research/shared-sources",
+      {
+        method: "POST",
+        headers: {
+          ...accountAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "remove",
+          documentId: document.id,
+          sourceId: source.id,
+        }),
+      },
+    );
     onUpdated(data.document);
     await list(false);
   }
   async function view(source: SourceSummary) {
-    const response = await clientApiRequest(
+    const data = await clientApiFetch<{ source: SourcePreview }>(
       `${base}&sourceId=${encodeURIComponent(source.id)}`,
       { headers: accountAuthHeaders() },
     );
-    const data = (await response.json()) as { source: SourcePreview };
     setPreview(data.source);
   }
   async function download(source: SourceSummary) {
-    const response = await clientApiRequest(
+    const blob = await clientApiDownloadBlob(
       `${base}&sourceId=${encodeURIComponent(source.id)}&download=1`,
       { headers: accountAuthHeaders(), timeoutMs: 60000 },
     );
-    const blob = await response.blob(),
-      url = URL.createObjectURL(blob),
+    const url = URL.createObjectURL(blob),
       anchor = window.document.createElement("a");
     anchor.href = url;
     anchor.download = source.fileName;

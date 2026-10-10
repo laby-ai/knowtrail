@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { clientApiRequest } from "@/lib/client-api";
+import { clientApiFetch } from "@/lib/client-api";
+import { useApp } from "@/contexts/AppContext";
 import { accountAuthHeaders } from "@/lib/account-session-browser";
 import type { ResearchDocument } from "@/lib/research-collaboration-store";
 import {
@@ -11,11 +12,14 @@ export function CollaborativeDocumentEditor({
   document,
   onText,
   onSync,
+  onAccessLost,
 }: {
   document: ResearchDocument;
   onText: (text: string) => void;
   onSync: (data: Reply) => void;
+  onAccessLost?: () => void;
 }) {
+  const { storageScopeKey } = useApp();
   const {
     text,
     role,
@@ -30,13 +34,20 @@ export function CollaborativeDocumentEditor({
     syncNow,
     compositionStart,
     compositionEnd,
-  } = useCollaborativeDocument(document, onText, onSync);
+    localBackup,
+  } = useCollaborativeDocument(
+    document,
+    onText,
+    onSync,
+    storageScopeKey,
+    onAccessLost,
+  );
   const [comment, setComment] = useState(""),
     [quote, setQuote] = useState("");
   async function commentAction(body: unknown) {
     try {
       await saveSnapshot();
-      await clientApiRequest("/api/research/documents", {
+      await clientApiFetch("/api/research/documents", {
         method: "POST",
         headers: {
           ...accountAuthHeaders(),
@@ -53,7 +64,7 @@ export function CollaborativeDocumentEditor({
   }
   function recover() {
     const url = URL.createObjectURL(
-      new Blob([text], { type: "text/plain;charset=utf-8" }),
+      new Blob([localBackup() || text], { type: "text/plain;charset=utf-8" }),
     );
     const anchor = globalThis.document.createElement("a");
     anchor.href = url;
@@ -111,6 +122,26 @@ export function CollaborativeDocumentEditor({
           className="liquid-glass-btn px-3 py-2"
         >
           导出本地备份
+        </button>
+        <button
+          type="button"
+          className="liquid-glass-btn px-3 py-2"
+          disabled={!ready || role === "viewer"}
+          onClick={() => {
+            const backup = localBackup();
+            if (!backup) {
+              setStatus("暂无未同步的本地备份。");
+              return;
+            }
+            if (
+              window.confirm(
+                "使用本地备份替换当前正文并同步给协作者？请先核对版本。",
+              )
+            )
+              change(backup);
+          }}
+        >
+          恢复本地备份
         </button>
       </div>
       <p className="text-xs" data-testid="collaboration-presence">

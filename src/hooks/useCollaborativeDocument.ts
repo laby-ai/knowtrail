@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { accountAuthHeaders } from "@/lib/account-session-browser";
-import { clientApiRequest, ClientRequestError } from "@/lib/client-api";
+import { clientApiFetch, ClientRequestError } from "@/lib/client-api";
 import { encodeCrdtBytes, decodeCrdtBytes } from "@/lib/crdt-browser-bytes";
 import { replaceSharedText } from "@/lib/crdt-text";
 import type { ResearchDocument } from "@/lib/research-collaboration-store";
@@ -22,6 +22,8 @@ export function useCollaborativeDocument(
   document: ResearchDocument,
   onText: (text: string) => void,
   onSync: (data: Reply) => void,
+  draftScope: string,
+  onAccessLost?: () => void,
 ) {
   const [text, setText] = useState(document.content),
     [role, setRole] = useState<Reply["role"]>("viewer"),
@@ -33,10 +35,10 @@ export function useCollaborativeDocument(
     crdt = useRef<Y.Doc | null>(null),
     sync = useRef<(checkpoint?: boolean) => Promise<void>>(async () => {}),
     composing = useRef(false),
-    callbacks = useRef({ onText, onSync });
+    callbacks = useRef({ onText, onSync, onAccessLost });
   useEffect(() => {
-    callbacks.current = { onText, onSync };
-  }, [onText, onSync]);
+    callbacks.current = { onText, onSync, onAccessLost };
+  }, [onText, onSync, onAccessLost]);
   useEffect(() => {
     const doc = new Y.Doc(),
       shared = doc.getText("content"),
@@ -52,6 +54,8 @@ export function useCollaborativeDocument(
       blocked = false;
     let active: Promise<void> | null = null;
     const abort = new AbortController();
+    const backupKey =
+      "knowtrail:collaboration-draft:" + draftScope + ":" + document.id;
     const observe = () => {
       if (!stopped) {
         const value = shared.toString();
@@ -63,6 +67,9 @@ export function useCollaborativeDocument(
     const update = (_bytes: Uint8Array, origin: unknown) => {
       if (origin === "local") {
         changed = true;
+        try {
+          sessionStorage.setItem(backupKey, shared.toString());
+        } catch {}
         setStatus("本地修改等待同步…");
       }
     };
@@ -82,7 +89,7 @@ export function useCollaborativeDocument(
         historyRevision,
       };
       try {
-        const response = await clientApiRequest(
+        const data = await clientApiFetch<Reply>(
           "/api/research/collaboration" +
             (send
               ? ""
@@ -115,7 +122,6 @@ export function useCollaborativeDocument(
             timeoutMs: 15000,
           },
         );
-        const data = (await response.json()) as Reply;
         if (stopped) return;
         if (composing.current) {
           changed = changed || send;
@@ -133,6 +139,14 @@ export function useCollaborativeDocument(
         vector = data.vector;
         initialized = true;
         currentRole = data.role;
+        if (currentRole === "viewer") {
+          setText(data.content);
+          callbacks.current.onText(data.content);
+        } else changed = changed || shared.toString() !== data.content;
+        if (!changed && shared.toString() === data.content)
+          try {
+            sessionStorage.removeItem(backupKey);
+          } catch {}
         setReady(true);
         setRole(data.role);
         setPeers(data.peers);
@@ -171,8 +185,10 @@ export function useCollaborativeDocument(
             caught instanceof ClientRequestError &&
             [401, 403, 404].includes(caught.status || 0)
           ) {
-            blocked = true;
+            blocked = caught.status !== 403;
+            currentRole = "viewer";
             setRole("viewer");
+            callbacks.current.onAccessLost?.();
           }
         }
       } finally {
@@ -199,7 +215,7 @@ export function useCollaborativeDocument(
       doc.destroy();
       crdt.current = null;
     };
-  }, [document.id]);
+  }, [document.id, draftScope]);
   function change(next: string) {
     const doc = crdt.current;
     if (!doc || role === "viewer") return;
@@ -215,6 +231,15 @@ export function useCollaborativeDocument(
     comments,
     textarea,
     change,
+    localBackup: () => {
+      try {
+        return sessionStorage.getItem(
+          "knowtrail:collaboration-draft:" + draftScope + ":" + document.id,
+        );
+      } catch {
+        return null;
+      }
+    },
     saveSnapshot: () => sync.current(true),
     syncNow: () => sync.current(),
     compositionStart: () => {

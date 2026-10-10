@@ -11,6 +11,7 @@ type AIUsageReservationOptions = {
   inputText?: string;
   promptContext?: string;
   memberId?: string;
+  tenantId?: string;
   idempotencyKey?: string;
 };
 
@@ -39,10 +40,10 @@ function createAccountClient(): AccountEntitlementClient | null {
   });
 }
 
-export function isAccountBillingConfigured(memberId?: string): boolean {
+export function isAccountBillingConfigured(memberId?: string, tenantId?: string): boolean {
   return Boolean(
     envValue('ACCOUNT_CENTER_API_BASE') &&
-    envValue('ACCOUNT_CENTER_TENANT_ID') &&
+    (tenantId || envValue('ACCOUNT_CENTER_TENANT_ID')) &&
     (memberId || envValue('ACCOUNT_CENTER_DEFAULT_MEMBER_ID')) &&
     envValue('ACCOUNT_CENTER_APP_KEY') &&
     envValue('ACCOUNT_CENTER_CREDENTIAL_KEY') &&
@@ -61,10 +62,10 @@ export function accountUsageErrorMessage(error: unknown, fallback: string) {
 }
 
 export async function reserveAIUsage(options: AIUsageReservationOptions): Promise<AIUsageReservation | null> {
-  if (!isAccountBillingConfigured(options.memberId)) return null;
+  if (!isAccountBillingConfigured(options.memberId, options.tenantId)) return null;
 
   const client = createAccountClient();
-  const tenantId = envValue('ACCOUNT_CENTER_TENANT_ID');
+  const tenantId = options.tenantId || envValue('ACCOUNT_CENTER_TENANT_ID');
   const memberId = options.memberId || envValue('ACCOUNT_CENTER_DEFAULT_MEMBER_ID');
   if (!client || !tenantId || !memberId) return null;
 
