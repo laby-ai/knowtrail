@@ -21,12 +21,18 @@ export function documentCrdt(
 export { replaceSharedText } from "./crdt-text";
 export function serializedCrdt(doc: Y.Doc): string {
   const text = doc.getText("content");
+  const delta: unknown[] = text.toDelta();
   if (
     doc.share.size !== 1 ||
     text.length > 100000 ||
-    text
-      .toDelta()
-      .some((item) => typeof item.insert !== "string" || !!item.attributes)
+    delta.some(
+      (item) =>
+        !item ||
+        typeof item !== "object" ||
+        !("insert" in item) ||
+        typeof item.insert !== "string" ||
+        ("attributes" in item && !!item.attributes),
+    )
   )
     throw new Error("协作文档只能包含最多 100000 字符的纯文本。");
   const state = Y.encodeStateAsUpdate(doc);
