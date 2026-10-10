@@ -174,6 +174,7 @@ async function main() {
     '<div><i>Journal</i><a href="javascript:bad()">link</a><sup>2</sup></div>',
     "fallback",
   );
+  assert.equal(cslRichText('<i>1.5 degrees</i>', '1.5 degrees').map((run) => run.text).join(''), '1.5 degrees');
   assert(runs.some((run) => run.italic && run.text === "Journal"));
   assert(runs.some((run) => run.superscript));
   assert(!JSON.stringify(runs).includes("javascript"));

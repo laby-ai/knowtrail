@@ -105,7 +105,11 @@ export async function formatCslReferences(
     entries: bibliography[1].map((text, index) => ({
       sourceId: bibliography[0].entry_ids[index][0],
       text: text.trim(),
-      runs: cslRichText(rich ? rich[1][index] : "", text.trim()),
+      runs: cslRichText(
+        rich ? rich[1][index] : "",
+        text.trim(),
+        Boolean(bibliography[0]["second-field-align"]),
+      ),
     })),
   };
 }

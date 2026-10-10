@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import type { CslRun } from "./csl-contract";
-export function cslRichText(html: string, fallback: string): CslRun[] {
+export function cslRichText(html: string, fallback: string, labelled = false): CslRun[] {
   if (/<!DOCTYPE|<!ENTITY/i.test(html) || html.length > 100000)
     return [{ text: fallback }];
   try {
@@ -58,7 +58,9 @@ export function cslRichText(html: string, fallback: string): CslRun[] {
       runs[0].text = runs[0].text.trimStart();
       runs[runs.length - 1].text = runs[runs.length - 1].text.trimEnd();
       // Some CSL entries use inline labels rather than csl-left-margin blocks.
-      const label = runs.map((run) => run.text).join("").match(/^(\[\d+\]|\d+\.)(?=\S)/)?.[1];
+      const label = labelled
+        ? runs.map((run) => run.text).join("").match(/^(\[\d+\]|\d+\.)(?=\S)/)?.[1]
+        : undefined;
       if (label) {
         let offset = 0;
         for (const run of runs) {
