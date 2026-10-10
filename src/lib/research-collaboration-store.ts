@@ -1,11 +1,18 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import * as Y from "yjs";
+import {
+  documentCrdt,
+  replaceSharedText,
+  serializedCrdt,
+} from "./collaboration-crdt";
 
 export interface CollaborationActor {
   id: string;
   email: string;
   tenantId: string;
+  displayName?: string;
 }
 export interface ResearchDocument {
   id: string;
@@ -18,6 +25,16 @@ export interface ResearchDocument {
   updatedAt: string;
   members: Array<{ email: string; role: "viewer" | "editor" }>;
   sharedSourceIds?: string[];
+  crdtState?: string;
+  comments?: Array<{
+    id: string;
+    authorId: string;
+    authorName: string;
+    text: string;
+    quote: string;
+    resolved: boolean;
+    at: string;
+  }>;
   history: Array<{
     revision: number;
     actorId: string;
@@ -81,6 +98,16 @@ export async function listResearchDocuments(actor: CollaborationActor) {
   );
 }
 export type DocumentMutation =
+  | { action: "collaborate"; id: string; update: string; checkpoint?: boolean }
+  | { action: "rename"; id: string; revision: number; title: string }
+  | { action: "restore"; id: string; revision: number; restoreRevision: number }
+  | { action: "comment"; id: string; text: string; quote: string }
+  | {
+      action: "resolve-comment";
+      id: string;
+      commentId: string;
+      resolved: boolean;
+    }
   | { action: "create"; notebookId: string; title: string; content: string }
   | {
       action: "save";
@@ -120,6 +147,9 @@ export async function mutateResearchDocument(
         history: [],
       };
       documents.push(document);
+      const crdt = documentCrdt(document);
+      document.crdtState = serializedCrdt(crdt);
+      crdt.destroy();
     } else {
       const existing = documents.find((item) => item.id === mutation.id);
       if (!existing || !documentRole(existing, actor))
@@ -131,34 +161,109 @@ export async function mutateResearchDocument(
           role !== "owner")
       )
         throw new CollaborationError("没有修改权限。", 403);
-      if (existing.revision !== mutation.revision)
+      if ("revision" in mutation && existing.revision !== mutation.revision)
         throw new CollaborationError(
           "文档已被其他成员修改。请先刷新版本，保留并合并你的修改后再保存。",
           409,
         );
       document = existing;
-      if (mutation.action === "save") {
-        document.title = mutation.title;
-        document.content = mutation.content;
-      } else if (mutation.action === "members")
-        document.members = mutation.members.map((member) => ({
-          email: email(member.email),
-          role: member.role,
-        }));
-      else document.sharedSourceIds = [...new Set(mutation.sourceIds)];
+      const crdt = documentCrdt(document);
+      try {
+        if (mutation.action === "save") {
+          document.title = mutation.title;
+          document.content = mutation.content;
+          replaceSharedText(crdt, mutation.content);
+        } else if (mutation.action === "collaborate") {
+          try {
+            Y.applyUpdate(crdt, Buffer.from(mutation.update, "base64"));
+            document.crdtState = serializedCrdt(crdt);
+          } catch {
+            throw new CollaborationError(
+              "协作更新无效或文档超过容量限制。",
+              422,
+            );
+          }
+          document.content = crdt.getText("content").toString();
+        } else if (mutation.action === "rename")
+          document.title = mutation.title;
+        else if (mutation.action === "restore") {
+          const saved = document.history.find(
+            (item) => item.revision === mutation.restoreRevision,
+          );
+          if (!saved)
+            throw new CollaborationError("历史版本已超出保留范围。", 404);
+          if (
+            !document.history.some(
+              (item) => item.revision === document.revision,
+            )
+          )
+            document.history.push({
+              revision: document.revision,
+              actorId: actor.id,
+              action: "before-restore",
+              at,
+              title: document.title,
+              content: document.content,
+            });
+          document.title = saved.title;
+          document.content = saved.content;
+          replaceSharedText(crdt, saved.content);
+        } else if (mutation.action === "comment") {
+          if (mutation.quote && !document.content.includes(mutation.quote))
+            throw new CollaborationError(
+              "批注锚点原文已变化，请重新选择或清除锚点。",
+              409,
+            );
+          if ((document.comments?.length || 0) >= 200)
+            throw new CollaborationError("评论已达 200 条上限。", 409);
+          document.comments = [
+            ...(document.comments || []),
+            {
+              id: randomUUID(),
+              authorId: actor.id,
+              authorName: actor.displayName || actor.email,
+              text: mutation.text,
+              quote: mutation.quote,
+              resolved: false,
+              at,
+            },
+          ];
+        } else if (mutation.action === "resolve-comment") {
+          const comment = document.comments?.find(
+            (item) => item.id === mutation.commentId,
+          );
+          if (!comment) throw new CollaborationError("评论不存在。", 404);
+          comment.resolved = mutation.resolved;
+        } else if (mutation.action === "members")
+          document.members = mutation.members.map((member) => ({
+            email: email(member.email),
+            role: member.role,
+          }));
+        else document.sharedSourceIds = [...new Set(mutation.sourceIds)];
+        document.crdtState = serializedCrdt(crdt);
+      } finally {
+        crdt.destroy();
+      }
       document.revision++;
       document.updatedAt = at;
     }
-    document.history.push({
-      revision: document.revision,
-      actorId: actor.id,
-      action: mutation.action,
-      at,
-      title: document.title,
-      content: document.content,
-      members: document.members.map((member) => ({ ...member })),
-      sharedSourceIds: [...(document.sharedSourceIds || [])],
-    });
+    const lastSnapshot = document.history.at(-1);
+    if (
+      mutation.action !== "collaborate" ||
+      mutation.checkpoint ||
+      !lastSnapshot ||
+      Date.parse(at) - Date.parse(lastSnapshot.at) >= 30000
+    )
+      document.history.push({
+        revision: document.revision,
+        actorId: actor.id,
+        action: mutation.action,
+        at,
+        title: document.title,
+        content: document.content,
+        members: document.members.map((member) => ({ ...member })),
+        sharedSourceIds: [...(document.sharedSourceIds || [])],
+      });
     // Retain the most recent 20 revisions; UI exposes this retention boundary.
     document.history = document.history.slice(-20);
     const serialized = JSON.stringify(documents);

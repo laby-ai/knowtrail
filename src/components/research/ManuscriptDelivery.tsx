@@ -15,6 +15,7 @@ import { JournalTemplatePicker } from "./JournalTemplatePicker";
 import { ReferenceMetadataPanel } from "./ReferenceMetadataPanel";
 import type { JournalWordTemplate } from "@/lib/journal-word-template";
 import type { ReferenceMetadata } from "@/lib/reference-metadata";
+import { CitationVerificationPanel } from "./CitationVerificationPanel";
 import {
   applyCitationStyle,
   citationGroups,
@@ -150,6 +151,11 @@ export function ManuscriptDelivery({
         </p>
       )}
       <JournalDiscovery initialQuery={draft.title} />
+      <CitationVerificationPanel
+        key={JSON.stringify(draft.paragraphs)}
+        draft={draft}
+        citations={citations}
+      />
       <ReferenceMetadataPanel
         key={referenceKey}
         citations={citations}

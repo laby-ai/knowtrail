@@ -16,6 +16,38 @@ const fields = {
 const schema = z.discriminatedUnion("action", [
   z
     .object({
+      action: z.literal("rename"),
+      id: z.string().uuid(),
+      revision: z.number().int().positive(),
+      title: fields.title,
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("restore"),
+      id: z.string().uuid(),
+      revision: z.number().int().positive(),
+      restoreRevision: z.number().int().positive(),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("comment"),
+      id: z.string().uuid(),
+      text: z.string().trim().min(1).max(2000),
+      quote: z.string().max(500),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal("resolve-comment"),
+      id: z.string().uuid(),
+      commentId: z.string().uuid(),
+      resolved: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
       action: z.literal("create"),
       notebookId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/),
       ...fields,
@@ -64,6 +96,7 @@ async function actorFromRequest(
         id: session.member.id,
         email: session.member.email,
         tenantId: session.tenant_id,
+        displayName: session.member.display_name,
       }
     : null;
 }

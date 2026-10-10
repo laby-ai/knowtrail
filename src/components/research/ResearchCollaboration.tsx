@@ -13,6 +13,7 @@ import { useApp } from "@/contexts/AppContext";
 import { notebookIdFromStorageScopeKey } from "@/lib/notebook-scope";
 import type { ResearchDocument } from "@/lib/research-collaboration-store";
 import { SharedSourcesPanel } from "./SharedSourcesPanel";
+import { CollaborativeDocumentEditor } from "./CollaborativeDocumentEditor";
 type Summary = Pick<
   ResearchDocument,
   "id" | "title" | "notebookId" | "revision"
@@ -89,11 +90,10 @@ export function ResearchCollaboration({
       "",
       document
         ? {
-            action: "save",
+            action: "rename",
             id: document.id,
             revision: document.revision,
             title,
-            content,
           }
         : {
             action: "create",
@@ -148,8 +148,9 @@ export function ResearchCollaboration({
         >
           <DialogTitle>课题组共享研究文档</DialogTitle>
           <DialogDescription>
-            同一账号组织内按邮箱授予权限，共享正文与其中的证据摘录。原始文献文件由所有者单独选择共享，个人聊天不会自动共享。保存时检查版本，保留最近
-            20 次修改。
+            同一组织内按邮箱授予权限。正文每 2
+            秒合并协作修改，支持在线状态、批注和版本恢复；原文件单独授权共享。自动每
+            30 秒留存快照，可手动保存，保留最近 20 个版本。
           </DialogDescription>
           {error && (
             <p
@@ -216,16 +217,42 @@ export function ResearchCollaboration({
                   maxLength={160}
                 />
               </label>
-              <label className="block text-xs">
-                研究正文 / 实验日志
-                <textarea
-                  className="liquid-glass-input mt-1 min-h-64 w-full"
-                  value={content}
-                  onChange={(event) => setContent(event.target.value)}
-                  disabled={busy || role === "viewer"}
-                  maxLength={100000}
+              {!document ? (
+                <label className="block text-xs">
+                  研究正文 / 实验日志
+                  <textarea
+                    className="liquid-glass-input mt-1 min-h-64 w-full"
+                    value={content}
+                    onChange={(event) => setContent(event.target.value)}
+                    disabled={busy || role === "viewer"}
+                    maxLength={100000}
+                  />
+                </label>
+              ) : (
+                <CollaborativeDocumentEditor
+                  key={document.id}
+                  document={document}
+                  onText={setContent}
+                  onSync={(data) => {
+                    setTitle((current) =>
+                      current === document.title ? data.title : current,
+                    );
+                    setDocument((current) =>
+                      current?.id === document.id
+                        ? {
+                            ...current,
+                            title: data.title,
+                            content: data.content,
+                            revision: data.revision,
+                            comments: data.comments,
+                            history: data.history || current.history,
+                          }
+                        : current,
+                    );
+                    setRole(data.role);
+                  }}
                 />
-              </label>
+              )}
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -233,7 +260,7 @@ export function ResearchCollaboration({
                   onClick={() => void run(save)}
                   className="liquid-glass-btn px-3 py-2 text-xs"
                 >
-                  {busy ? "正在同步…" : "保存到服务器"}
+                  {busy ? "正在同步…" : document ? "保存标题" : "保存到服务器"}
                 </button>
                 {document && (
                   <button
@@ -362,6 +389,31 @@ export function ResearchCollaboration({
                           {"\n\n"}
                           {item.content}
                         </pre>
+                        {role !== "viewer" && (
+                          <button
+                            type="button"
+                            className="mt-2 liquid-glass-btn px-3 py-2"
+                            disabled={busy}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  "恢复将更新共享正文；当前版本会先保存在历史中。请确认本地修改已同步。",
+                                )
+                              )
+                                void run(async () => {
+                                  await api("", {
+                                    action: "restore",
+                                    id: document.id,
+                                    revision: document.revision,
+                                    restoreRevision: item.revision,
+                                  });
+                                  await load(document.id);
+                                });
+                            }}
+                          >
+                            恢复此版本
+                          </button>
+                        )}
                       </details>
                     ))}
                   </details>
