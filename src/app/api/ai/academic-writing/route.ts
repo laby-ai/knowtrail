@@ -17,6 +17,7 @@ import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
 import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import type { RuntimeAIConfig } from '@/types';
+import { researchWritingContext } from '@/lib/research-writing-context';
 
 type AcademicWritingRequest = {
   writingGoal?: string;
@@ -26,6 +27,7 @@ type AcademicWritingRequest = {
   papers?: RagSourceInput[];
   notebookId?: string;
   aiConfig?: Partial<RuntimeAIConfig>;
+  researchArtifactIds?: string[];
 };
 
 const SYSTEM_PROMPT = `你是一位严谨的学术章节写作助手。
@@ -65,6 +67,12 @@ export async function POST(request: NextRequest) {
     loginMessage: '请先登录账号，再生成学术写作草稿。',
   });
   if (!scope.ok) return scope.response;
+  let context: Awaited<ReturnType<typeof researchWritingContext>> = { records: [], text: '' };
+  if (input.researchArtifactIds?.length) {
+    if (!scope.ownerMemberId || !scope.tenantId || !scope.notebookId) return jsonError('请登录并选择文献本后使用研究记录。', 'research_context_login_required', 401);
+    try { context = await researchWritingContext({ tenantId: scope.tenantId, memberId: scope.ownerMemberId, notebookId: scope.notebookId }, input.researchArtifactIds); }
+    catch (error) { return jsonError(error instanceof Error ? error.message : '研究记录无法读取。', 'research_context_invalid', 422); }
+  }
 
   const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
   if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
@@ -92,7 +100,7 @@ export async function POST(request: NextRequest) {
     audience,
     requirements,
     sourceCount: papers.length,
-    evidenceContext: grounded.promptContext,
+    evidenceContext: grounded.promptContext + (context.text ? '\n\n' + context.text : ''),
   });
 
   let reservation = null;
@@ -101,8 +109,9 @@ export async function POST(request: NextRequest) {
       route: 'academic-writing',
       modelName,
       inputText: writingGoal,
-      promptContext: grounded.promptContext,
+      promptContext: grounded.promptContext + context.text,
       memberId: scope.ownerMemberId,
+      tenantId: scope.tenantId,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {
@@ -133,6 +142,7 @@ export async function POST(request: NextRequest) {
           progress: { stage: 'evidence-ready', progress: 30, message: `已匹配 ${grounded.citations.length} 条证据，正在建立章节大纲与主张边界。` },
           citations: grounded.citations,
           retrieval,
+          researchRecords: context.records,
           billing: reservation ? { status: 'reserved', estimatedUnits: reservation.estimatedUnits } : undefined,
         });
         emit({ progress: { stage: 'drafting', progress: 58, message: '正在按段落角色组织草稿和 Claim-Evidence 映射。' } });

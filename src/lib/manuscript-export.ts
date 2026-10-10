@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import type { AcademicWritingDraft } from "./academic-writing-contract";
 import type { Citation } from "@/types";
 import type { JournalWordTemplate } from "./journal-word-template";
+import type { ResearchArtifact } from "./research-workspace-contract";
 import {
   applyCitationStyle,
   citationRuns,
@@ -20,6 +21,10 @@ export interface ManuscriptExportOptions {
   references?: ReferenceMetadata[];
   formatted?: FormattedReferences | null;
   mode?: "audit" | "manuscript";
+  researchRecords?: ResearchArtifact[];
+}
+function recordReference(record: ResearchArtifact, index: number) {
+  return `[研究记录${index + 1}] ${record.title}；记录 ID：${record.id}；${record.analysis ? `真实统计执行结果；分析 ID：${record.analysis.id}；原文件 SHA-256：${record.analysis.sourceFileSha256}` : "用户研究记录，未作科学真实性认证"}`;
 }
 const xml = (value: string) =>
   value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").replace(
@@ -83,6 +88,7 @@ export function exportLatex(
     references = [],
     formatted,
     mode = "audit",
+    researchRecords = [],
   } = typeof options === "string" ? { layout: options } : options;
   if (mode === "manuscript" && !formatted)
     throw new Error("论文正文模式需先应用引用格式。");
@@ -110,6 +116,7 @@ export function exportLatex(
 ${draft.paragraphs.map((item) => (formatted ? citationRuns(item.text, item.evidenceMarkers, formatted).map(styledTex).join("") : texEscape(applyCitationStyle(item.text, item.evidenceMarkers)))).join("\n\n")}
 ${appendix}
 ${formatted ? "\\section*{参考文献}\n" + formatted.entries.map((item) => `${formatted.hangingIndent ? "\\hangindent=1.27cm\\hangafter=1 " : ""}\\noindent ${(item.runs || [{ text: item.text }]).map(styledTex).join("")}\\par`).join("\n") : ""}
+${researchRecords.length ? "\\section*{研究记录与数据结果来源}\n" + researchRecords.map((record, index) => "\\noindent " + texEscape(recordReference(record, index)) + "\\par").join("\n") : ""}
 \\end{document}\n`;
 }
 function styledTex(run: CslRun): string {
@@ -154,6 +161,7 @@ export async function exportDocx(
     references = [],
     formatted,
     mode = "audit",
+    researchRecords = [],
   } = typeof options === "string" ? { layout: options } : options;
   if (mode === "manuscript" && !formatted)
     throw new Error("论文正文模式需先应用引用格式。");
@@ -297,6 +305,7 @@ export async function exportDocx(
           ),
         ]
       : []),
+    ...(researchRecords.length ? [p("研究记录与数据结果来源", true), ...researchRecords.map((record, index) => p(recordReference(record, index)))] : []),
   ].join("");
   zip.file(
     "word/document.xml",

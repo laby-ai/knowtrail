@@ -22,6 +22,7 @@ interface StudioJobProgressProps {
   onCancel?: () => void;
   cancelLabel?: string;
   testId?: string;
+  indeterminate?: boolean;
 }
 
 export function StudioJobProgress({
@@ -37,6 +38,7 @@ export function StudioJobProgress({
   onCancel,
   cancelLabel = '取消生成',
   testId = 'studio-job-progress',
+  indeterminate = false,
 }: StudioJobProgressProps) {
   const currentStageIndex = Math.max(0, stages.findIndex(stage => stage.key === currentStageKey));
   const activeStageIndex = currentStageIndex === -1 ? 0 : currentStageIndex;
@@ -63,7 +65,7 @@ export function StudioJobProgress({
           <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">{message}</p>
         </div>
         <div className="shrink-0 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-card)] px-2 py-1 text-[10px] font-medium text-[var(--text-tertiary)]">
-          {elapsedSeconds > 0 ? `${elapsedSeconds}s` : `${progressPercent}%`}
+          {elapsedSeconds > 0 ? `${elapsedSeconds}s` : indeterminate && status === 'running' ? '等待结果' : `${progressPercent}%`}
         </div>
       </div>
 
@@ -72,7 +74,12 @@ export function StudioJobProgress({
           className={`h-full rounded-full transition-all duration-500 ${
             status === 'failed' ? 'bg-rose-400' : status === 'succeeded' ? 'bg-emerald-400' : 'bg-blue-500'
           }`}
-          style={{ width: `${progressPercent}%` }}
+          style={{ width: indeterminate && status === 'running' ? '40%' : `${progressPercent}%` }}
+          role="progressbar"
+          aria-label={indeterminate ? '等待服务端结果，暂无完成百分比' : message}
+          aria-valuenow={indeterminate && status === 'running' ? undefined : progressPercent}
+          aria-valuemin={0}
+          aria-valuemax={100}
         />
       </div>
 

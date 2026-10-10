@@ -3,7 +3,9 @@ import { useState } from "react";
 import { clientApiRequest } from "@/lib/client-api";
 import { accountAuthHeaders } from "@/lib/account-session-browser";
 import type { JournalCandidate } from "@/lib/journal-discovery";
-export function JournalDiscovery({ initialQuery }: { initialQuery: string }) {
+import { SaveResearchArtifact } from "./SaveResearchArtifact";
+export function JournalDiscovery({ initialQuery, defaultOpen = false }: { initialQuery: string; defaultOpen?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultOpen);
   const [query, setQuery] = useState(initialQuery),
     [items, setItems] = useState<JournalCandidate[]>([]),
     [busy, setBusy] = useState(false),
@@ -36,6 +38,8 @@ export function JournalDiscovery({ initialQuery }: { initialQuery: string }) {
   }
   return (
     <details
+      open={expanded}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}
       className="rounded-lg border p-3 text-xs"
       data-testid="journal-discovery"
     >
@@ -93,6 +97,7 @@ export function JournalDiscovery({ initialQuery }: { initialQuery: string }) {
                 </li>
               ))}
             </ul>
+            <div className="mt-2"><SaveResearchArtifact artifact={{ stage: "journal", title: item.title.slice(0, 160), content: `期刊候选（Crossref 主题检索，需作者核对投稿范围）\n期刊：${item.title}\n出版社：${item.publisher}\nISSN：${item.issn.join(" / ")}\n样本 DOI：${item.matchedWorks.map((work) => work.doi).join("；")}\n影响因子：未取得，暂无授权数据。`, sourceIds: [] }} /></div>
           </article>
         ))}
         <div className="border-t pt-3">
@@ -106,7 +111,7 @@ export function JournalDiscovery({ initialQuery }: { initialQuery: string }) {
             IEEE 官方 Word / LaTeX 模板选择器
           </a>
           <p className="mt-1 text-[var(--text-tertiary)]">
-            官方模板需按具体刊物选择；通用导出未适配 IEEE 官方格式。
+            官方模板需按具体刊物选择。论文导出区已提供 IEEE Access 官方样式，并支持导入你取得的期刊 Word 模板；不代表已满足刊物全部投稿要求。
           </p>
         </div>
       </div>

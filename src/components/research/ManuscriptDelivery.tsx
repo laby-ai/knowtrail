@@ -11,6 +11,8 @@ import {
 import type { Citation } from "@/types";
 import { JournalDiscovery } from "./JournalDiscovery";
 import { ResearchCollaboration } from "./ResearchCollaboration";
+import { SaveResearchArtifact } from "./SaveResearchArtifact";
+import type { ResearchArtifact } from "@/lib/research-workspace-contract";
 import { JournalTemplatePicker } from "./JournalTemplatePicker";
 import { ReferenceMetadataPanel } from "./ReferenceMetadataPanel";
 import type { JournalWordTemplate } from "@/lib/journal-word-template";
@@ -38,9 +40,11 @@ function download(blob: Blob, name: string) {
 export function ManuscriptDelivery({
   draft,
   citations,
+  researchRecords = [],
 }: {
   draft: AcademicWritingDraft;
   citations: Citation[];
+  researchRecords?: ResearchArtifact[];
 }) {
   const [layout, setLayout] = useState<ManuscriptLayout>("single");
   const [mode, setMode] = useState<"audit" | "manuscript">("audit");
@@ -74,6 +78,7 @@ export function ManuscriptDelivery({
         references,
         formatted,
         mode,
+        researchRecords,
       });
       download(
         new Blob([new Uint8Array(bytes).buffer], {
@@ -153,6 +158,7 @@ export function ManuscriptDelivery({
                     references,
                     formatted,
                     mode,
+                    researchRecords,
                   }),
                 ],
                 {
@@ -217,6 +223,8 @@ export function ManuscriptDelivery({
             .join("\n\n")
         }
       />
+      <SaveResearchArtifact artifact={{ stage: 'writing', title: draft.title.slice(0, 160), content: draft.paragraphs.map((item) => item.text).join('\n\n'), sourceIds: [...new Set(citations.map((citation) => citation.sourceId || citation.paperId))] }} />
+      {researchRecords.length > 0 && <section className="space-y-2 rounded-lg border p-3 text-xs"><h5 className="font-semibold">研究记录与数据结果来源</h5>{researchRecords.map((record, index) => <p key={record.id} className="break-words">[研究记录{index + 1}] {record.title} · 记录 ID {record.id}{record.analysis ? ` · 统计分析 ${record.analysis.id} · 原文件 SHA-256 ${record.analysis.sourceFileSha256}` : ' · 用户记录（待核验）'}</p>)}<p className="text-[var(--text-secondary)]">这些来源将写入导出文件，不作为已发表论文题录。</p></section>}
       {preview && (
         <article
           className="rounded-lg border bg-white p-5 text-black"

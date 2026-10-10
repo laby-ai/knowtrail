@@ -31,6 +31,7 @@ import {
 } from '@/lib/chat-generation-lifecycle';
 
 import type { ChatSkillId } from '@/lib/chat-skills';
+import { useCloudResearchHistory } from '@/hooks/useCloudResearchHistory';
 
 export type CitationReveal = Pick<Citation, 'chunkId' | 'chunkIndex' | 'page' | 'excerpt' | 'sourceTitle' | 'paperShortName'>;
 
@@ -88,6 +89,8 @@ interface AppState {
 }
 
 interface AppContextType extends AppState {
+  cloudHistoryStatus: string;
+  reloadCloudHistory: () => Promise<void> | undefined;
   // 左侧文献库操作
   addFolder: (name: string) => string;
   deleteFolder: (folderId: string) => void;
@@ -247,6 +250,10 @@ export function AppProvider({
     try { window.localStorage.setItem(`knowtrail:folders:${encodeURIComponent(storageScopeKey)}`, JSON.stringify(state.folders)); } catch { /* Server sources remain available. */ }
   }, [foldersLoaded, state.folders, storageScopeKey]);
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+  const hydrateCloudHistory = useCallback((update: (current: ChatMessage[]) => ChatMessage[]) => {
+    setState(previous => ({ ...previous, chatMessages: update(previous.chatMessages) }));
+  }, []);
+  const cloudHistory = useCloudResearchHistory(storageScopeKey, state.chatMessages, chatHistoryLoaded, hydrateCloudHistory);
 
   React.useEffect(() => {
     let messages: ChatMessage[] = [];
@@ -429,8 +436,8 @@ export function AppProvider({
   }, []);
 
   const clearChat = useCallback(() => {
-    setState(prev => ({ ...prev, chatMessages: [] }));
-  }, []);
+    void cloudHistory.clear().catch(() => undefined);
+  }, [cloudHistory.clear]);
 
   const setCurrentReport = useCallback((report: Report | null) => {
     setState(prev => ({ ...prev, currentReport: report }));
@@ -686,6 +693,8 @@ export function AppProvider({
 
   const contextValue: AppContextType = {
     ...state,
+    cloudHistoryStatus: cloudHistory.status,
+    reloadCloudHistory: cloudHistory.reload,
     addFolder,
     deleteFolder,
     addPaper,

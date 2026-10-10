@@ -12,6 +12,8 @@ import type { Citation, Paper, RetrievalMetadata } from '@/types';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
 import { EvidenceText } from '@/components/research/EvidenceText';
 import { ManuscriptDelivery } from '@/components/research/ManuscriptDelivery';
+import { ResearchContextSelector } from '@/components/research/ResearchContextSelector';
+import type { ResearchArtifact } from '@/lib/research-workspace-contract';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 import {
   Select,
@@ -84,6 +86,8 @@ export function AcademicWritingPanel() {
   const [audience, setAudience] = useState('');
   const [requirements, setRequirements] = useState('');
   const [draft, setDraft] = useState<AcademicWritingDraft | null>(null);
+  const [researchArtifactIds, setResearchArtifactIds] = useState<string[]>([]);
+  const [researchRecords, setResearchRecords] = useState<ResearchArtifact[]>([]);
   const [artifactMarkdown, setArtifactMarkdown] = useState('');
   const [artifactFileName, setArtifactFileName] = useState('academic-section-draft.md');
   const [citations, setCitations] = useState<Citation[]>([]);
@@ -107,6 +111,7 @@ export function AcademicWritingPanel() {
     const controller = new AbortController();
     abortRef.current = controller;
     setDraft(null);
+    setResearchRecords([]);
     setArtifactMarkdown('');
     setCitations([]);
     setRetrieval(null);
@@ -130,6 +135,7 @@ export function AcademicWritingPanel() {
           requirements: requirements.trim(),
           papers: papers.map(toPaperRequest),
           notebookId,
+          researchArtifactIds,
         }),
         signal: controller.signal,
       });
@@ -154,6 +160,7 @@ export function AcademicWritingPanel() {
           const payload = JSON.parse(raw) as {
             progress?: { stage?: string; progress?: number; message?: string };
             citations?: Citation[];
+            researchRecords?: ResearchArtifact[];
             retrieval?: RetrievalMetadata;
             draft?: AcademicWritingDraft;
             artifactMarkdown?: string;
@@ -169,6 +176,7 @@ export function AcademicWritingPanel() {
           if (payload.citations) setCitations(payload.citations);
           if (payload.retrieval) setRetrieval(payload.retrieval);
           if (payload.draft) { finalDraft = payload.draft; setDraft(payload.draft); }
+          if (payload.researchRecords) setResearchRecords(payload.researchRecords);
           if (payload.artifactMarkdown) setArtifactMarkdown(payload.artifactMarkdown);
           if (payload.artifactFileName) setArtifactFileName(payload.artifactFileName);
           if (payload.writingStatus) { finalStatus = payload.writingStatus; setWritingStatus(payload.writingStatus); }
@@ -193,10 +201,11 @@ export function AcademicWritingPanel() {
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [audience, formReady, getSelectedPapers, notebookId, requirements, status, targetSection, writingGoal]);
+  }, [audience, formReady, getSelectedPapers, notebookId, requirements, status, targetSection, writingGoal, researchArtifactIds]);
 
   return (
     <div className="space-y-4" data-testid="academic-writing-panel">
+      <ResearchContextSelector value={researchArtifactIds} onChange={setResearchArtifactIds} disabled={status === 'running'} />
       <div>
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
           <BookOpenText className="h-4 w-4 text-indigo-500" />
@@ -263,7 +272,7 @@ export function AcademicWritingPanel() {
             <div className="mt-2 space-y-2">{draft.claimEvidenceMap.map((item, index) => <div key={index} className="rounded-lg bg-[var(--glass-subtle)] p-2.5 text-[11px] leading-relaxed"><div className="font-medium text-[var(--text-primary)]">{item.claim}</div><div className="mt-1 text-[var(--text-secondary)]">{item.evidence}</div><div className="mt-1 text-[var(--text-tertiary)]">{item.evidenceMarkers.map(marker => `[${marker}]`).join('、') || '待补证据'} · {item.status}</div></div>)}</div>
           </section>
           <StudioEvidenceStatusPanel citations={citations} retrieval={retrieval} />
-          <ManuscriptDelivery draft={draft} citations={citations} />
+          <ManuscriptDelivery draft={draft} citations={citations} researchRecords={researchRecords} />
           {(writingStatus?.retrievalLimits || []).length > 0 && <div className="rounded-lg border border-amber-400/25 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">{writingStatus?.retrievalLimits?.map(item => <div key={item}>• {item}</div>)}</div>}
         </div>
       )}

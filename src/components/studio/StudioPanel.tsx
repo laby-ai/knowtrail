@@ -28,6 +28,15 @@ import {
 export function StudioPanel() {
   const [activeTab, setActiveTab] = useState<StudioTab | null>(null);
   useEffect(() => {
+    const openTool = (event: Event) => {
+      const detail: unknown = (event as CustomEvent<unknown>).detail;
+      const item = STUDIO_NAV.find((entry) => entry.id === detail);
+      if (item) setActiveTab(item.id);
+    };
+    window.addEventListener('lingbi:open-studio-tool', openTool);
+    return () => window.removeEventListener('lingbi:open-studio-tool', openTool);
+  }, []);
+  useEffect(() => {
     const open = () => setActiveTab('data-processing');
     window.addEventListener('lingbi:open-data-analysis', open);
     return () => window.removeEventListener('lingbi:open-data-analysis', open);

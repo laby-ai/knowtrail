@@ -5,6 +5,7 @@ import { clientApiRequest, clientApiDownloadBlob } from '@/lib/client-api';
 import type { DataColumnSummary } from '@/lib/data-table-preview';
 import type { DataAnalysisMethod, StoredDataAnalysis } from '@/lib/data-analysis-contract';
 import type { Paper } from '@/types';
+import { SaveResearchArtifact } from '@/components/research/SaveResearchArtifact';
 
 const METHODS: Array<{ id: DataAnalysisMethod; label: string }> = [
   { id: 'auto', label: '根据分组数量推荐' }, { id: 'descriptive', label: '描述统计' }, { id: 'welch-t', label: 'Welch 独立样本 t 检验' },
@@ -70,6 +71,7 @@ export function DataExecutionPanel({ source, columns, question, sampleUnit, note
       <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr>{['分组', 'n', '均值', 'SD', '95% CI'].map(label => <th key={label} className="p-2">{label}</th>)}</tr></thead><tbody>{result.summaries.map(row => <tr key={row.group}><td className="p-2">{row.group}</td><td className="p-2">{row.n}</td><td className="p-2">{format(row.mean)}</td><td className="p-2">{format(row.sd)}</td><td className="p-2">{format(row.ciLow)} — {format(row.ciHigh)}</td></tr>)}</tbody></table></div>
       {result.test && <p className="text-xs">{result.test.name} · 统计量 {format(result.test.statistic)} · p {result.test.pValue === 0 ? '<1e-300' : format(result.test.pValue)}</p>}
       <h4 className="text-xs font-semibold">Results 草稿</h4><p className="whitespace-pre-wrap text-xs leading-relaxed">{result.resultsDraft}</p>
+      <SaveResearchArtifact artifact={{ stage: 'analysis', title: result.request.question.slice(0, 160), content: '', sourceIds: [], analysisId: result.id }} />
       <ul className="list-disc space-y-1 pl-4 text-xs text-[var(--text-secondary)]">{result.notes.map(note => <li key={note}>{note}</li>)}</ul>
       <div className="grid grid-cols-2 gap-2">{[
         ['figure', 'statistical-figure.svg', '论文图表 SVG'], ['summary', 'statistical-summary.csv', '统计结果 CSV'],

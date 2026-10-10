@@ -53,7 +53,6 @@ export function EditorPanel() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
-  const _msgSeq = useRef(0);
   const messageQueue = useRef<string[]>([]);
   const [queueCount, setQueueCount] = useState(0);
   const [queueBubbleVisible, setQueueBubbleVisible] = useState(false);
@@ -95,11 +94,11 @@ export function EditorPanel() {
 
     const selectedPapers = getSelectedPapers();
     if (selectedPapers.length === 0) {
-      addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: '请先在左侧文献库中选择要分析的文献资料。', timestamp: new Date().toISOString() });
+      addChatMessage({ id: `msg-${crypto.randomUUID()}`, role: 'assistant', content: '请先在左侧文献库中选择要分析的文献资料。', timestamp: new Date().toISOString() });
       return;
     }
 
-    const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
+    const userMsgId = `msg-${crypto.randomUUID()}`;
     addChatMessage({ id: userMsgId, role: 'user', content: question, timestamp: new Date().toISOString() });
     setIsGenerating(true);
 
@@ -124,7 +123,7 @@ export function EditorPanel() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
-      const assistantMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
+      const assistantMsgId = `msg-${crypto.randomUUID()}`;
       addChatMessage({ id: assistantMsgId, role: 'assistant', content: '', timestamp: new Date().toISOString() });
 
       if (reader) {
@@ -168,7 +167,7 @@ export function EditorPanel() {
         updateChatMessage(assistantMsgId, { content: '抱歉，未能获取到 AI 回答，请重试。' });
       }
     } catch {
-      addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: '抱歉，AI 服务暂时不可用，请稍后重试。', timestamp: new Date().toISOString() });
+      addChatMessage({ id: `msg-${crypto.randomUUID()}`, role: 'assistant', content: '抱歉，AI 服务暂时不可用，请稍后重试。', timestamp: new Date().toISOString() });
     } finally {
       setIsGenerating(false);
     }
@@ -198,7 +197,7 @@ export function EditorPanel() {
       ? `请为《${selectedPapers[0].title}》生成文献综述报告`
       : `请为以下 ${selectedPapers.length} 篇文献生成研究荟萃综述报告`;
 
-    const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
+    const userMsgId = `msg-${crypto.randomUUID()}`;
     addChatMessage({ id: userMsgId, role: 'user', content: reportTitle, timestamp: new Date().toISOString() });
 
     try {
@@ -223,7 +222,7 @@ export function EditorPanel() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let reportText = '';
-      const assistantMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
+      const assistantMsgId = `msg-${crypto.randomUUID()}`;
       addChatMessage({ id: assistantMsgId, role: 'assistant', content: '', timestamp: new Date().toISOString() });
 
       if (reader) {
@@ -267,7 +266,7 @@ export function EditorPanel() {
         updateChatMessage(assistantMsgId, { content: '抱歉，报告生成失败，请重试。' });
       }
     } catch {
-      addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: '抱歉，报告生成服务暂时不可用，请稍后重试。', timestamp: new Date().toISOString() });
+      addChatMessage({ id: `msg-${crypto.randomUUID()}`, role: 'assistant', content: '抱歉，报告生成服务暂时不可用，请稍后重试。', timestamp: new Date().toISOString() });
     } finally {
       setIsGenerating(false);
     }

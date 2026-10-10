@@ -127,7 +127,7 @@ export function StructuredPresentationPanel() {
 
     // Show MinerU status
     if (totalFigures > 0) {
-      setMineruStatus(`已提取 ${totalFigures} 张资料图表，将插入 PPT`);
+      setMineruStatus(`已读取 ${totalFigures} 张缓存资料图表，实际使用以生成结果为准。`);
     } else {
       setMineruStatus('暂未读取到可用资料图表，是否提取成功以生成结果为准。');
     }
@@ -138,7 +138,7 @@ export function StructuredPresentationPanel() {
         setElapsedSeconds(seconds => seconds + 1);
       }, 1000));
 
-      setProgressMsg('请求已提交，正在等待服务端生成结果；不显示未经服务端确认的阶段。');
+      setProgressMsg('正在请求生成并等待服务端结果，不显示未经确认的阶段或完成百分比。');
 
       const res = await clientApiRequest('/api/ai/ppt-v2', {
         method: 'POST',
@@ -197,7 +197,7 @@ export function StructuredPresentationPanel() {
       const aborted = abortController.signal.aborted || (e instanceof DOMException && e.name === 'AbortError');
       const timedOut = e instanceof ClientRequestError && e.code === 'timeout';
       setError(aborted
-        ? '已取消生成，可以调整设置后重新开始。'
+        ? '已停止等待；服务端可能仍在处理。请确认任务状态后再重新生成。'
         : timedOut
           ? 'PPT 生成等待已超过 10 分钟，暂未收到文件。请稍后重试，或减少所选资料后重新生成。'
           : e instanceof Error ? e.message : '生成失败');
@@ -415,6 +415,8 @@ export function StructuredPresentationPanel() {
             message={progressMsg || '正在整理资料并构建演示文稿...'}
             stages={PIPELINE_STAGES}
             currentStageKey='waiting'
+            indeterminate
+            cancelLabel="停止等待"
             elapsedSeconds={elapsedSeconds}
             hint={longTaskHint}
             onCancel={handleCancelGenerate}
