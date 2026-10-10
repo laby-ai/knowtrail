@@ -9,18 +9,73 @@ import {
   type ReferenceMetadata,
 } from "@/lib/reference-metadata";
 import type { Citation } from "@/types";
+import {
+  CSL_STYLES,
+  citationGroups,
+  type CslStyleId,
+  type FormattedReferences,
+} from "@/lib/csl-contract";
+import type { AcademicWritingDraft } from "@/lib/academic-writing-contract";
 
 export function ReferenceMetadataPanel({
   citations,
   onLoaded,
+  draft,
+  onFormatted,
 }: {
   citations: Citation[];
   onLoaded: (items: ReferenceMetadata[]) => void;
+  draft: AcademicWritingDraft;
+  onFormatted: (value: FormattedReferences | null) => void;
 }) {
   const { storageScopeKey } = useApp();
   const [items, setItems] = useState<ReferenceMetadata[]>([]);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [styleId, setStyleId] = useState<CslStyleId>("ieee");
+  const [formatted, setFormatted] = useState<FormattedReferences | null>(null);
+  async function format() {
+    setBusy(true);
+    setError("");
+    try {
+      const response = await clientApiRequest(
+        "/api/research/reference-format",
+        {
+          method: "POST",
+          headers: {
+            ...accountAuthHeaders(),
+            "Content-Type": "application/json",
+          },
+          timeoutMs: 65000,
+          body: JSON.stringify({
+            notebookId: notebookIdFromStorageScopeKey(storageScopeKey),
+            sourceIds,
+            citationSourceIds: citations.map(
+              (item) => item.sourceId || item.paperId,
+            ),
+            groups: citationGroups(draft),
+            styleId,
+            enrich: true,
+          }),
+        },
+      );
+      const payload = (await response.json()) as {
+        items?: ReferenceMetadata[];
+        formatted?: FormattedReferences;
+        error?: string;
+      };
+      if (!response.ok || !payload.items || !payload.formatted)
+        throw new Error(payload.error || "引用格式处理失败");
+      setItems(payload.items);
+      onLoaded(payload.items);
+      setFormatted(payload.formatted);
+      onFormatted(payload.formatted);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "引用格式处理失败");
+    } finally {
+      setBusy(false);
+    }
+  }
   const sourceIds = [
     ...new Set(
       citations.map((item) => item.sourceId || item.paperId).filter(Boolean),
@@ -51,6 +106,8 @@ export function ReferenceMetadataPanel({
         throw new Error(payload.error || "参考文献读取失败。");
       setItems(payload.items);
       onLoaded(payload.items);
+      setFormatted(null);
+      onFormatted(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "参考文献读取失败。");
     } finally {
@@ -110,6 +167,70 @@ export function ReferenceMetadataPanel({
           </button>
         )}
       </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <label>
+          期刊引用样式
+          <select
+            aria-label="期刊引用样式"
+            value={styleId}
+            disabled={busy}
+            onChange={(event) => {
+              setStyleId(event.target.value as CslStyleId);
+              setFormatted(null);
+              onFormatted(null);
+            }}
+            className="liquid-glass-input mt-1 block"
+          >
+            {CSL_STYLES.map((style) => (
+              <option key={style.id} value={style.id}>
+                {style.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={busy || !sourceIds.length || sourceIds.length > 20}
+          onClick={() => void format()}
+          className="liquid-glass-btn px-3 py-2"
+        >
+          应用期刊引用格式
+        </button>
+      </div>
+      {formatted && (
+        <div
+          className="space-y-2 rounded border p-2"
+          data-testid="formatted-bibliography"
+        >
+          <p>
+            已应用：
+            {CSL_STYLES.find((style) => style.id === formatted.styleId)?.label}{" "}
+            · 正文引文与参考文献将写入 Word / LaTeX。
+          </p>
+          {formatted.entries.map((item) => (
+            <p key={item.sourceId} className="break-words">
+              {item.text}
+            </p>
+          ))}
+        </div>
+      )}
+      <p className="text-[var(--text-tertiary)]">
+        <a
+          href="https://github.com/Juris-M/citeproc-js"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          citeproc-js © Frank Bennett（CPAL）
+        </a>{" "}
+        ·{" "}
+        <a
+          href="https://github.com/citation-style-language/styles"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          CSL 样式来源（CC BY-SA）
+        </a>
+      </p>
       {sourceIds.length > 20 && <p>本次引用超过 20 个来源，请分批整理题录。</p>}
       {error && (
         <p role="alert" className="text-red-600">

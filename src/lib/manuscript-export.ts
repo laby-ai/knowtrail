@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import type { AcademicWritingDraft } from "./academic-writing-contract";
 import type { Citation } from "@/types";
 import type { JournalWordTemplate } from "./journal-word-template";
+import { applyCitationStyle, type FormattedReferences } from "./csl-contract";
 import {
   referencePlainText,
   type ReferenceMetadata,
@@ -37,15 +38,6 @@ export const texEscape = (value: string) =>
         "^": "\\textasciicircum{}",
       })[char]!,
   );
-function paragraphText(text: string, markers: number[]) {
-  return (
-    text +
-    markers
-      .filter((number) => !text.includes(`[${number}]`))
-      .map((number) => `[${number}]`)
-      .join("")
-  );
-}
 export function evidenceEntries(citations: Citation[], english = false) {
   return citations.map((item, index) => ({
     number: index + 1,
@@ -74,6 +66,7 @@ export function exportLatex(
   citations: Citation[],
   layout: ManuscriptLayout,
   references: ReferenceMetadata[] = [],
+  formatted?: FormattedReferences | null,
 ): string {
   return `\\documentclass[UTF8,a4paper${layout === "double" ? ",twocolumn" : ""}]{ctexart}
 \\usepackage[margin=2.5cm]{geometry}
@@ -83,7 +76,7 @@ export function exportLatex(
 \\date{}
 \\begin{document}
 \\maketitle
-${draft.paragraphs.map((item) => texEscape(paragraphText(item.text, item.evidenceMarkers))).join("\n\n")}
+${draft.paragraphs.map((item) => texEscape(applyCitationStyle(item.text, item.evidenceMarkers, formatted))).join("\n\n")}
 \\section*{引用证据索引}
 % 下列编号是检索片段索引，不是经过核验的完整书目。
 ${evidenceEntries(citations)
@@ -95,15 +88,21 @@ ${evidenceEntries(citations)
 \\section*{作者核验事项}
 ${[...draft.limitations, ...draft.revisionChecklist].map(texEscape).join("\n\n")}
 ${references.length ? "\\section*{参考文献题录}\n" + references.map((item, index) => `\\noindent [R${index + 1}] ${texEscape(referencePlainText(item))}\\par\n${texEscape(item.warnings.join("; "))}\\par`).join("\n") : ""}
+${formatted ? "\\section*{参考文献}\n" + formatted.entries.map((item) => `\\noindent ${texEscape(item.text)}\\par`).join("\n") : ""}
 \\end{document}\n`;
 }
 
-function wordParagraph(text: string, style?: string, templateSpacing = false) {
+function wordParagraph(
+  text: string,
+  style?: string,
+  templateSpacing = false,
+  superscript = true,
+) {
   const runs = text
     .split(/(\[\d+\])/g)
     .map(
       (part) =>
-        `<w:r>${/^\[\d+\]$/.test(part) ? '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>' : ""}<w:t xml:space="preserve">${xml(part)}</w:t></w:r>`,
+        `<w:r>${superscript && /^\[\d+\]$/.test(part) ? '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr>' : ""}<w:t xml:space="preserve">${xml(part)}</w:t></w:r>`,
     )
     .join("");
   return `<w:p><w:pPr>${style ? `<w:pStyle w:val="${xml(style)}"/>` : ""}${templateSpacing ? "" : '<w:spacing w:after="160" w:line="300" w:lineRule="auto"/>'}</w:pPr>${runs}</w:p>`;
@@ -114,6 +113,7 @@ export async function exportDocx(
   layout: ManuscriptLayout,
   template?: JournalWordTemplate | null,
   references: ReferenceMetadata[] = [],
+  formatted?: FormattedReferences | null,
 ): Promise<Uint8Array> {
   const english = !/[\u3400-\u9fff]/.test(
     draft.title + draft.paragraphs.map((item) => item.text).join(""),
@@ -192,7 +192,12 @@ export async function exportDocx(
   const body = [
     title,
     ...draft.paragraphs.map((item) =>
-      p(paragraphText(item.text, item.evidenceMarkers)),
+      wordParagraph(
+        applyCitationStyle(item.text, item.evidenceMarkers, formatted),
+        template?.bodyStyle,
+        Boolean(template),
+        !formatted,
+      ),
     ),
     p(english ? "Evidence index" : "引用证据索引", true),
     p(
@@ -225,6 +230,19 @@ export async function exportDocx(
             ),
             ...item.warnings.map((warning) => p(warning)),
           ]),
+        ]
+      : []),
+    ...(formatted
+      ? [
+          p(english ? "References" : "参考文献", true),
+          ...formatted.entries.map((item) =>
+            wordParagraph(
+              item.text,
+              template?.bodyStyle,
+              Boolean(template),
+              false,
+            ),
+          ),
         ]
       : []),
   ].join("");

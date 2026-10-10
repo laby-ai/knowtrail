@@ -153,6 +153,7 @@
     "@supabase/supabase-js": "2.95.3",
     "@zvec/zvec": "0.5.0",
     "axios": "^1.15.2",
+    "citeproc": "2.4.63",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -190,6 +191,7 @@
     "vaul": "^1.1.2",
     "ws": "8.19.0",
     "xlsx": "^0.18.5",
+    "yjs": "13.6.33",
     "zod": "^4.3.5"
   },
   "devDependencies": {

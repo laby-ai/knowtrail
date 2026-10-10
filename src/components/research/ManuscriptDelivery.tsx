@@ -15,6 +15,11 @@ import { JournalTemplatePicker } from "./JournalTemplatePicker";
 import { ReferenceMetadataPanel } from "./ReferenceMetadataPanel";
 import type { JournalWordTemplate } from "@/lib/journal-word-template";
 import type { ReferenceMetadata } from "@/lib/reference-metadata";
+import {
+  applyCitationStyle,
+  citationGroups,
+  type FormattedReferences,
+} from "@/lib/csl-contract";
 
 function download(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -42,13 +47,19 @@ export function ManuscriptDelivery({
   const [templateBusy, setTemplateBusy] = useState(false);
   const referenceKey =
     draft.title +
-    JSON.stringify(citations.map((item) => item.sourceId || item.paperId));
+    JSON.stringify(citations.map((item) => item.sourceId || item.paperId)) +
+    JSON.stringify(citationGroups(draft));
   const [bibliography, setBibliography] = useState<{
     key: string;
     items: ReferenceMetadata[];
   } | null>(null);
   const references =
     bibliography?.key === referenceKey ? bibliography.items : [];
+  const [style, setStyle] = useState<{
+    key: string;
+    value: FormattedReferences;
+  } | null>(null);
+  const formatted = style?.key === referenceKey ? style.value : null;
   async function word() {
     setError("");
     setBusy(true);
@@ -59,6 +70,7 @@ export function ManuscriptDelivery({
         layout,
         template,
         references,
+        formatted,
       );
       download(
         new Blob([new Uint8Array(bytes).buffer], {
@@ -110,9 +122,12 @@ export function ManuscriptDelivery({
           type="button"
           onClick={() =>
             download(
-              new Blob([exportLatex(draft, citations, layout, references)], {
-                type: "text/plain;charset=utf-8",
-              }),
+              new Blob(
+                [exportLatex(draft, citations, layout, references, formatted)],
+                {
+                  type: "text/plain;charset=utf-8",
+                },
+              ),
               "manuscript.tex",
             )
           }
@@ -138,6 +153,10 @@ export function ManuscriptDelivery({
       <ReferenceMetadataPanel
         key={referenceKey}
         citations={citations}
+        draft={draft}
+        onFormatted={(value) =>
+          setStyle(value ? { key: referenceKey, value } : null)
+        }
         onLoaded={(items) => setBibliography({ key: referenceKey, items })}
       />
       <JournalTemplatePicker
@@ -178,12 +197,7 @@ export function ManuscriptDelivery({
           >
             {draft.paragraphs.map((item, index) => (
               <p key={index} className="mb-3 text-justify">
-                {item.text}
-                {item.evidenceMarkers
-                  .filter((marker) => !item.text.includes(`[${marker}]`))
-                  .map((marker) => (
-                    <sup key={marker}>[{marker}]</sup>
-                  ))}
+                {applyCitationStyle(item.text, item.evidenceMarkers, formatted)}
               </p>
             ))}
             <h5 className="font-bold">引用证据索引</h5>
@@ -196,6 +210,16 @@ export function ManuscriptDelivery({
           <p className="mt-4 text-[10px] text-gray-500">
             网页预览用于检查结构；Word 与 LaTeX 的实际分页由各自排版引擎决定。
           </p>
+          {formatted && (
+            <section className="mt-3 space-y-2">
+              <h5 className="font-bold">参考文献</h5>
+              {formatted.entries.map((item) => (
+                <p key={item.sourceId} className="break-words text-xs">
+                  {item.text}
+                </p>
+              ))}
+            </section>
+          )}
         </article>
       )}
     </section>
