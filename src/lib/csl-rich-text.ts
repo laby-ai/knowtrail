@@ -57,6 +57,19 @@ export function cslRichText(html: string, fallback: string): CslRun[] {
     if (runs.length) {
       runs[0].text = runs[0].text.trimStart();
       runs[runs.length - 1].text = runs[runs.length - 1].text.trimEnd();
+      // Some CSL entries use inline labels rather than csl-left-margin blocks.
+      const label = runs.map((run) => run.text).join("").match(/^(\[\d+\]|\d+\.)(?=\S)/)?.[1];
+      if (label) {
+        let offset = 0;
+        for (const run of runs) {
+          if (offset + run.text.length >= label.length) {
+            const at = label.length - offset;
+            run.text = run.text.slice(0, at) + " " + run.text.slice(at);
+            break;
+          }
+          offset += run.text.length;
+        }
+      }
     }
     return runs.length && runs.length <= 2000 ? runs : [{ text: fallback }];
   } catch {

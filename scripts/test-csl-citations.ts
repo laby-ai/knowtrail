@@ -102,6 +102,7 @@ async function main() {
     assert(!formatted.entries.some((item) => item.sourceId === "unused"));
     assert(formatted.entries.every((item) => item.runs?.length));
     assert(formatted.entries.every((item) => !/^\s/.test(item.runs!.map((run) => run.text).join(""))));
+    assert(formatted.entries.every((item) => !/^(\[\d+\]|\d+\.)(?=\S)/.test(item.runs!.map((run) => run.text).join(""))));
     const body = applyCitationStyle(
       draft.paragraphs[0].text,
       [1, 2],
