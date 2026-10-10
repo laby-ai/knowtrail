@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import type { RuntimeAIConfig } from "@/types";
+import { resolveAccountSessionFromRequest } from "./account-session";
 import {
   resolveMemberBailianProfile,
   BailianProfileRequiredError,
@@ -7,8 +8,20 @@ import {
 export async function resolveCitationReviewConfig(
   request: NextRequest,
 ): Promise<Partial<RuntimeAIConfig>> {
+  const session = await resolveAccountSessionFromRequest(request);
+  if (!session) throw new BailianProfileRequiredError();
   const profile = await resolveMemberBailianProfile(request);
-  if (!profile.api_key?.trim() || !profile.text_model?.trim())
+  if (
+    profile.tenant_id !== session.tenant_id ||
+    profile.member_id !== session.member.id
+  )
+    throw new Error("provider_profile_scope_mismatch");
+  if (
+    !profile.api_key?.trim() ||
+    !profile.text_model?.trim() ||
+    !profile.workspace_id?.trim() ||
+    profile.region !== "cn-beijing"
+  )
     throw new BailianProfileRequiredError();
   return {
     apiBase: "https://dashscope.aliyuncs.com/compatible-mode/v1",

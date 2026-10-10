@@ -14,6 +14,10 @@ export type Reply = {
   revision: number;
   content: string;
   title: string;
+  updatedAt: string;
+  members: ResearchDocument["members"];
+  sharedSourceIds: string[];
+  sharedSourceScopes?: ResearchDocument["sharedSourceScopes"];
   comments: NonNullable<ResearchDocument["comments"]>;
   history?: ResearchDocument["history"];
   peers: CollaborationPresence[];

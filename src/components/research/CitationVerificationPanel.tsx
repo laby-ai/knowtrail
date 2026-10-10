@@ -143,7 +143,7 @@ export function CitationVerificationPanel({
                 }
               >
                 {claim.findings.join("；") ||
-                  "引用片段及位置与解析原文匹配；尚不能据此判断主张得到支持。"}
+                  "引用片段已在解析原文中找到；主张支持程度仍需语义评审。"}
               </p>
               {claim.semantic && (
                 <p

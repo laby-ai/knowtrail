@@ -92,6 +92,10 @@ async function handle(request: NextRequest, write: boolean) {
           revision: document.revision,
           content: document.content,
           title: document.title,
+          updatedAt: document.updatedAt,
+          members: document.members,
+          sharedSourceIds: document.sharedSourceIds || [],
+          sharedSourceScopes: document.sharedSourceScopes,
           comments: document.comments || [],
           ...(data.historyRevision !== document.history.at(-1)?.revision
             ? { history: document.history }

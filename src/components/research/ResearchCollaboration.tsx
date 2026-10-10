@@ -235,16 +235,22 @@ export function ResearchCollaboration({
                   onText={setContent}
                   onAccessLost={() => setRole("viewer")}
                   onSync={(data) => {
+                    if (data.revision < document.revision) return;
                     setTitle((current) =>
                       current === document.title ? data.title : current,
                     );
                     setDocument((current) =>
-                      current?.id === document.id
+                      current?.id === document.id &&
+                      data.revision >= current.revision
                         ? {
                             ...current,
                             title: data.title,
                             content: data.content,
                             revision: data.revision,
+                            updatedAt: data.updatedAt,
+                            members: data.members,
+                            sharedSourceIds: data.sharedSourceIds,
+                            sharedSourceScopes: data.sharedSourceScopes,
                             comments: data.comments,
                             history: data.history || current.history,
                           }

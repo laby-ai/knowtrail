@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { clientApiFetch, clientApiDownloadBlob } from "@/lib/client-api";
 import { accountAuthHeaders } from "@/lib/account-session-browser";
 import type { ResearchDocument } from "@/lib/research-collaboration-store";
@@ -34,6 +34,23 @@ export function SharedSourcesPanel({
     [error, setError] = useState("");
   const [preview, setPreview] = useState<SourcePreview | null>(null);
   const base = `/api/research/shared-sources?documentId=${encodeURIComponent(document.id)}`;
+  const grantsKey = JSON.stringify(document.sharedSourceIds || []);
+  useEffect(() => {
+    if (choosing) return;
+    const controller = new AbortController();
+    void clientApiFetch<{ sources: SourceSummary[] }>(
+      `/api/research/shared-sources?documentId=${encodeURIComponent(document.id)}`,
+      { headers: accountAuthHeaders(), signal: controller.signal },
+    )
+      .then((data) => setSources(data.sources))
+      .catch((caught) => {
+        if (!controller.signal.aborted)
+          setError(
+            caught instanceof Error ? caught.message : "共享来源读取失败",
+          );
+      });
+    return () => controller.abort();
+  }, [document.id, grantsKey, choosing]);
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError("");
