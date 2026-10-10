@@ -3,6 +3,8 @@ import { useState } from "react";
 import { clientApiRequest } from "@/lib/client-api";
 import { accountAuthHeaders } from "@/lib/account-session-browser";
 import type { ResearchDocument } from "@/lib/research-collaboration-store";
+import { useApp } from "@/contexts/AppContext";
+import { notebookIdFromStorageScopeKey } from "@/lib/notebook-scope";
 interface SourceSummary {
   id: string;
   title: string;
@@ -15,13 +17,16 @@ interface SourcePreview {
 }
 export function SharedSourcesPanel({
   document,
-  owner,
+  canEdit,
   onUpdated,
 }: {
   document: ResearchDocument;
-  owner: boolean;
+  canEdit: boolean;
   onUpdated: (document: ResearchDocument) => void;
 }) {
+  const { storageScopeKey } = useApp();
+  const ownNotebookId =
+    notebookIdFromStorageScopeKey(storageScopeKey) || "default-workspace";
   const [sources, setSources] = useState<SourceSummary[]>([]),
     [selection, setSelection] = useState<string[]>([]),
     [choosing, setChoosing] = useState(false),
@@ -43,33 +48,44 @@ export function SharedSourcesPanel({
   async function list(choose: boolean) {
     const response = await clientApiRequest(
       choose
-        ? `/api/ingestion/sources?notebookId=${encodeURIComponent(document.notebookId)}`
+        ? `/api/ingestion/sources?notebookId=${encodeURIComponent(ownNotebookId)}`
         : base,
       { headers: accountAuthHeaders() },
     );
     const data = (await response.json()) as { sources: SourceSummary[] };
     setSources(data.sources);
     setChoosing(choose);
-    setSelection(document.sharedSourceIds || []);
+    setSelection([]);
     setPreview(null);
   }
   async function save() {
-    const response = await clientApiRequest("/api/research/documents", {
+    const response = await clientApiRequest("/api/research/shared-sources", {
       method: "POST",
       headers: { ...accountAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({
-        action: "sources",
-        id: document.id,
-        revision: document.revision,
+        action: "add",
+        documentId: document.id,
+        notebookId: ownNotebookId,
         sourceIds: selection,
       }),
     });
     const data = (await response.json()) as { document: ResearchDocument };
     onUpdated(data.document);
-    setChoosing(false);
-    setSources((current) =>
-      current.filter((source) => selection.includes(source.id)),
-    );
+    await list(false);
+  }
+  async function remove(source: SourceSummary) {
+    const response = await clientApiRequest("/api/research/shared-sources", {
+      method: "POST",
+      headers: { ...accountAuthHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "remove",
+        documentId: document.id,
+        sourceId: source.id,
+      }),
+    });
+    const data = (await response.json()) as { document: ResearchDocument };
+    onUpdated(data.document);
+    await list(false);
   }
   async function view(source: SourceSummary) {
     const response = await clientApiRequest(
@@ -100,7 +116,7 @@ export function SharedSourcesPanel({
         共享文献来源（{document.sharedSourceIds?.length || 0}）
       </h4>
       <p className="text-[var(--text-tertiary)]">
-        所有者明确选择的来源才向文档成员开放；移除来源或撤销成员权限后，后续读取和下载将被拒绝。
+        所有者与编辑成员可从自己的当前文献本贡献来源，共同维护共享文献库。勾选共享后成员可读取原文件；移除只取消本项目的共享，不删除上传者的原文件。撤销成员权限后，后续读取和下载将被拒绝。
       </p>
       <div className="flex flex-wrap gap-2">
         <button
@@ -111,14 +127,14 @@ export function SharedSourcesPanel({
         >
           查看共享来源
         </button>
-        {owner && (
+        {canEdit && (
           <button
             type="button"
             disabled={busy}
             className="liquid-glass-btn px-3 py-2"
             onClick={() => void run(() => list(true))}
           >
-            选择文献本来源
+            从我的文献本添加
           </button>
         )}
       </div>
@@ -158,6 +174,22 @@ export function SharedSourcesPanel({
               >
                 查看原文片段
               </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "从共享文献库移除此来源？上传者的原文件仍会保留。",
+                      )
+                    )
+                      void run(() => remove(source));
+                  }}
+                >
+                  移出共享文献库
+                </button>
+              )}
               <button
                 type="button"
                 disabled={busy}
@@ -172,11 +204,11 @@ export function SharedSourcesPanel({
       {choosing && (
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !selection.length}
           className="liquid-glass-btn px-3 py-2"
           onClick={() => void run(save)}
         >
-          保存共享范围
+          添加选定来源
         </button>
       )}
       {preview && (

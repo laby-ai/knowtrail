@@ -368,7 +368,7 @@ export function ResearchCollaboration({
                   <SharedSourcesPanel
                     key={document.id}
                     document={document}
-                    owner={role === "owner"}
+                    canEdit={role !== "viewer"}
                     onUpdated={setDocument}
                   />
                   <details className="text-xs">

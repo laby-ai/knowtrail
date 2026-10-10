@@ -25,6 +25,11 @@ export interface ResearchDocument {
   updatedAt: string;
   members: Array<{ email: string; role: "viewer" | "editor" }>;
   sharedSourceIds?: string[];
+  sharedSourceScopes?: Array<{
+    sourceId: string;
+    ownerMemberId: string;
+    notebookId: string;
+  }>;
   crdtState?: string;
   comments?: Array<{
     id: string;
@@ -98,6 +103,12 @@ export async function listResearchDocuments(actor: CollaborationActor) {
   );
 }
 export type DocumentMutation =
+  | {
+      action: "add-shared-sources";
+      id: string;
+      sources: NonNullable<ResearchDocument["sharedSourceScopes"]>;
+    }
+  | { action: "remove-shared-source"; id: string; sourceId: string }
   | { action: "collaborate"; id: string; update: string; checkpoint?: boolean }
   | { action: "rename"; id: string; revision: number; title: string }
   | { action: "restore"; id: string; revision: number; restoreRevision: number }
@@ -239,7 +250,48 @@ export async function mutateResearchDocument(
             email: email(member.email),
             role: member.role,
           }));
-        else document.sharedSourceIds = [...new Set(mutation.sourceIds)];
+        else if (mutation.action === "add-shared-sources") {
+          if (
+            mutation.sources.some((source) => source.ownerMemberId !== actor.id)
+          )
+            throw new CollaborationError("只能主动共享自己的原始来源。", 403);
+          const grants = new Map(
+            documentSharedSourceScopes(document).map((source) => [
+              source.sourceId,
+              source,
+            ]),
+          );
+          for (const source of mutation.sources)
+            grants.set(source.sourceId, source);
+          if (grants.size > 100)
+            throw new CollaborationError(
+              "共享文献库达到 100 个来源上限。",
+              409,
+            );
+          document.sharedSourceScopes = [...grants.values()];
+          document.sharedSourceIds = [...grants.keys()];
+        } else if (mutation.action === "remove-shared-source") {
+          document.sharedSourceScopes = documentSharedSourceScopes(
+            document,
+          ).filter((source) => source.sourceId !== mutation.sourceId);
+          document.sharedSourceIds = document.sharedSourceScopes.map(
+            (source) => source.sourceId,
+          );
+        } else {
+          document.sharedSourceScopes = [
+            ...documentSharedSourceScopes(document).filter(
+              (source) => source.ownerMemberId !== document.ownerId,
+            ),
+            ...[...new Set(mutation.sourceIds)].map((sourceId) => ({
+              sourceId,
+              ownerMemberId: document.ownerId,
+              notebookId: document.notebookId,
+            })),
+          ];
+          document.sharedSourceIds = document.sharedSourceScopes.map(
+            (source) => source.sourceId,
+          );
+        }
         document.crdtState = serializedCrdt(crdt);
       } finally {
         crdt.destroy();
@@ -281,4 +333,16 @@ export async function mutateResearchDocument(
   });
   queue = job.catch(() => undefined);
   return job;
+}
+export function documentSharedSourceScopes(
+  document: ResearchDocument,
+): NonNullable<ResearchDocument["sharedSourceScopes"]> {
+  return (
+    document.sharedSourceScopes ||
+    (document.sharedSourceIds || []).map((sourceId) => ({
+      sourceId,
+      ownerMemberId: document.ownerId,
+      notebookId: document.notebookId,
+    }))
+  );
 }
