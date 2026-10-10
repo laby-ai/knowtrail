@@ -98,7 +98,9 @@ export async function formatCslReferences(
   const rich = engine.makeBibliography();
   return {
     styleId,
-    hangingIndent: Boolean(bibliography[0].hangingindent || bibliography[0]["second-field-align"]),
+    hangingIndent: Boolean(
+      bibliography[0].hangingindent || bibliography[0]["second-field-align"],
+    ),
     groups,
     entries: bibliography[1].map((text, index) => ({
       sourceId: bibliography[0].entry_ids[index][0],

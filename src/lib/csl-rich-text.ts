@@ -45,7 +45,8 @@ export function cslRichText(html: string, fallback: string): CslRun[] {
             if (
               typeof attrs.class === "string" &&
               attrs.class.split(/\s+/).includes("csl-left-margin")
-            ) runs.push({ text: " " });
+            )
+              runs.push({ text: " " });
           }
         }
       }

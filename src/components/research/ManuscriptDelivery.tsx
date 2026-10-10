@@ -265,7 +265,13 @@ export function ManuscriptDelivery({
             <section className="mt-3 space-y-2">
               <h5 className="font-bold">参考文献</h5>
               {formatted.entries.map((item) => (
-                <p key={item.sourceId} className="break-words text-xs" style={formatted.hangingIndent ? { paddingLeft: "2em", textIndent: "-2em" } : undefined}>
+                <p
+                  key={item.sourceId}
+                  className="break-words text-xs"
+                  style={formatted.hangingIndent
+                    ? { paddingLeft: "2em", textIndent: "-2em" }
+                    : undefined}
+                >
                   <CslFormattedText runs={item.runs || [{ text: item.text }]} />
                 </p>
               ))}

@@ -7,7 +7,7 @@ declare module "citeproc" {
     issued?: { "date-parts": number[][] };
     [key: string]: unknown;
   }
-  class Engine {
+  export class Engine {
     constructor(
       sys: {
         retrieveLocale: (language: string) => string;
@@ -19,7 +19,14 @@ declare module "citeproc" {
     updateItems(ids: string[]): void;
     setOutputFormat(format: "text" | "html"): void;
     makeCitationCluster(items: Array<{ id: string }>): string;
-    makeBibliography(): [{ entry_ids: string[][]; hangingindent?: boolean; "second-field-align"?: string }, string[]] | false;
+    makeBibliography(): [
+      {
+        entry_ids: string[][];
+        hangingindent?: boolean;
+        "second-field-align"?: string;
+      },
+      string[],
+    ] | false;
   }
   const CSL: { Engine: typeof Engine };
   export default CSL;

@@ -47,8 +47,12 @@ function formattedGroupText(
   offset: number,
   group: FormattedReferences["groups"][number],
 ) {
-  const space = !group.superscript && /^[([]/.test(group.text) &&
-    /[A-Za-z0-9%)]/.test(content[offset - 1] || "") ? " " : "";
+  const space =
+    !group.superscript &&
+    /^[([]/.test(group.text) &&
+    /[A-Za-z0-9%)]/.test(content[offset - 1] || "")
+      ? " "
+      : "";
   return space + group.text;
 }
 export function citationGroups(draft: AcademicWritingDraft): number[][] {
@@ -86,8 +90,10 @@ export function applyCitationStyle(
           Array.from(match.matchAll(/\[(\d+)\]/g), (item) => Number(item[1])),
         ),
       );
-      return (group ? formattedGroupText(content, offset, group) : match.trim()) +
-        (match.match(/\s*$/)?.[0] || "");
+      return (
+        (group ? formattedGroupText(content, offset, group) : match.trim()) +
+        (match.match(/\s*$/)?.[0] || "")
+      );
     },
   );
 }
@@ -111,7 +117,9 @@ export function citationRuns(
       ),
     );
     result.push({
-      text: group ? formattedGroupText(content, match.index, group) : match[0].trim(),
+      text: group
+        ? formattedGroupText(content, match.index, group)
+        : match[0].trim(),
       superscript: group?.superscript,
     });
     const whitespace = match[0].match(/\s*$/)?.[0];
