@@ -17,6 +17,8 @@ import {
 } from "@/lib/csl-contract";
 import type { AcademicWritingDraft } from "@/lib/academic-writing-contract";
 import { CslFormattedText } from "./CslFormattedText";
+import { useResearchPreferences } from "./ResearchPreferencesProvider";
+import { RESEARCH_DISCIPLINES } from "@/lib/research-preferences";
 
 export function ReferenceMetadataPanel({
   citations,
@@ -33,7 +35,19 @@ export function ReferenceMetadataPanel({
   const [items, setItems] = useState<ReferenceMetadata[]>([]);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  const [styleId, setStyleId] = useState<CslStyleId>("ieee");
+  const { preferences } = useResearchPreferences();
+  const disciplineStyle = RESEARCH_DISCIPLINES.find(
+    (discipline) => discipline.id === preferences.disciplines[0],
+  )?.citationStyle;
+  const [styleId, setStyleId] = useState<CslStyleId>(
+    disciplineStyle === "apa"
+      ? "apa"
+      : disciplineStyle === "vancouver"
+        ? "vancouver"
+        : disciplineStyle === "GB/T 7714"
+          ? "gbt2015"
+          : "ieee",
+  );
   const [formatted, setFormatted] = useState<FormattedReferences | null>(null);
   async function format() {
     setBusy(true);
