@@ -28,6 +28,7 @@ export interface CslRun {
 }
 export interface FormattedReferences {
   styleId: CslStyleId;
+  hangingIndent?: boolean;
   entries: Array<{ sourceId: string; text: string; runs?: CslRun[] }>;
   groups: Array<{ markers: number[]; text: string; superscript?: boolean }>;
 }
@@ -41,6 +42,15 @@ export function markedParagraph(text: string, markers: number[]) {
   );
 }
 const groupsPattern = /(?:\[\d+\]\s*)+/g;
+function formattedGroupText(
+  content: string,
+  offset: number,
+  group: FormattedReferences["groups"][number],
+) {
+  const space = !group.superscript && /^[([]/.test(group.text) &&
+    /[A-Za-z0-9%)]/.test(content[offset - 1] || "") ? " " : "";
+  return space + group.text;
+}
 export function citationGroups(draft: AcademicWritingDraft): number[][] {
   const groups = draft.paragraphs.flatMap((item) =>
     Array.from(
@@ -65,17 +75,20 @@ export function applyCitationStyle(
   const groups = new Map(
     formatted.groups.map((group) => [
       JSON.stringify(group.markers),
-      group.text,
+      group,
     ]),
   );
   return content.replace(
     groupsPattern,
-    (match) =>
-      (groups.get(
+    (match, offset: number) => {
+      const group = groups.get(
         JSON.stringify(
           Array.from(match.matchAll(/\[(\d+)\]/g), (item) => Number(item[1])),
         ),
-      ) || match.trim()) + (match.match(/\s*$/)?.[0] || ""),
+      );
+      return (group ? formattedGroupText(content, offset, group) : match.trim()) +
+        (match.match(/\s*$/)?.[0] || "");
+    },
   );
 }
 export function citationRuns(
@@ -98,7 +111,7 @@ export function citationRuns(
       ),
     );
     result.push({
-      text: group?.text || match[0].trim(),
+      text: group ? formattedGroupText(content, match.index, group) : match[0].trim(),
       superscript: group?.superscript,
     });
     const whitespace = match[0].match(/\s*$/)?.[0];

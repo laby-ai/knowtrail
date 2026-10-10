@@ -40,11 +40,23 @@ export function cslRichText(html: string, fallback: string): CslRun[] {
                 /font-variant:\s*small-caps/i.test(attrs.style)),
           };
           if (tag === "br") runs.push({ ...flags, text: " " });
-          else walk(children, next, depth + 1);
+          else {
+            walk(children, next, depth + 1);
+            if (
+              typeof attrs.class === "string" &&
+              attrs.class.split(/\s+/).includes("csl-left-margin")
+            ) runs.push({ text: " " });
+          }
         }
       }
     }
     walk(parsed, {}, 0);
+    while (runs.length && !runs[0].text.trim()) runs.shift();
+    while (runs.length && !runs[runs.length - 1].text.trim()) runs.pop();
+    if (runs.length) {
+      runs[0].text = runs[0].text.trimStart();
+      runs[runs.length - 1].text = runs[runs.length - 1].text.trimEnd();
+    }
     return runs.length && runs.length <= 2000 ? runs : [{ text: fallback }];
   } catch {
     return [{ text: fallback }];

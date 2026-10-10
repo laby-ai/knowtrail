@@ -101,6 +101,7 @@ async function main() {
     assert.equal(formatted.entries.length, 2);
     assert(!formatted.entries.some((item) => item.sourceId === "unused"));
     assert(formatted.entries.every((item) => item.runs?.length));
+    assert(formatted.entries.every((item) => !/^\s/.test(item.runs!.map((run) => run.text).join(""))));
     const body = applyCitationStyle(
       draft.paragraphs[0].text,
       [1, 2],
@@ -113,6 +114,8 @@ async function main() {
       assert.equal(formatted.groups[1].text, "[1]");
       assert(formatted.entries[0].text.includes("J. Smith"));
       assert(!formatted.entries[0].text.includes("J. S. Smith"));
+      assert(formatted.entries[0].runs!.map((run) => run.text).join("").includes("[1] J. Smith"));
+      assert(body.includes("unchanged [1]"));
       assert(
         formatted.entries.some((item) => item.runs?.some((run) => run.italic)),
       );
@@ -121,6 +124,8 @@ async function main() {
       assert.equal(formatted.entries[0].sourceId, "a");
       assert(formatted.groups[0].text.includes("Smith"));
       assert(formatted.groups[0].text.includes("2020"));
+      assert(formatted.hangingIndent);
+      assert(body.includes("unchanged (Smith"));
     }
     if (style.id === "nature" || style.id === "gbt2015")
       assert(formatted.groups[0].superscript);
@@ -137,6 +142,7 @@ async function main() {
     assert(!document.includes("QA only."));
     assert(document.includes("50%"));
     assert(document.includes("&lt;0.05"));
+    if (formatted.hangingIndent) assert(document.includes('w:hanging="720"'));
     if (style.id === "ieee") {
       assert(document.includes("<w:i/>"));
       assert(!document.includes("w:vertAlign"));
@@ -149,6 +155,7 @@ async function main() {
     });
     assert(!tex.includes("引用证据索引"));
     assert(tex.includes("50\\%"));
+    if (formatted.hangingIndent) assert(tex.includes("\\hangindent=1.27cm"));
     if (style.id === "ieee") assert(tex.includes("\\textit{"));
     if (
       process.argv[2] &&

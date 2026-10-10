@@ -225,7 +225,7 @@ export function ReferenceMetadataPanel({
             · 正文引文与参考文献将写入 Word / LaTeX。
           </p>
           {formatted.entries.map((item) => (
-            <p key={item.sourceId} className="break-words">
+            <p key={item.sourceId} className="break-words" style={formatted.hangingIndent ? { paddingLeft: "2em", textIndent: "-2em" } : undefined}>
               <CslFormattedText runs={item.runs || [{ text: item.text }]} />
             </p>
           ))}

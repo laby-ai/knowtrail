@@ -109,7 +109,7 @@ export function exportLatex(
 \\maketitle
 ${draft.paragraphs.map((item) => (formatted ? citationRuns(item.text, item.evidenceMarkers, formatted).map(styledTex).join("") : texEscape(applyCitationStyle(item.text, item.evidenceMarkers)))).join("\n\n")}
 ${appendix}
-${formatted ? "\\section*{参考文献}\n" + formatted.entries.map((item) => `\\noindent ${(item.runs || [{ text: item.text }]).map(styledTex).join("")}\\par`).join("\n") : ""}
+${formatted ? "\\section*{参考文献}\n" + formatted.entries.map((item) => `${formatted.hangingIndent ? "\\hangindent=1.27cm\\hangafter=1 " : ""}\\noindent ${(item.runs || [{ text: item.text }]).map(styledTex).join("")}\\par`).join("\n") : ""}
 \\end{document}\n`;
 }
 function styledTex(run: CslRun): string {
@@ -127,6 +127,7 @@ function wordParagraph(
   templateSpacing = false,
   superscript = true,
   richRuns?: CslRun[],
+  hangingIndent = false,
 ) {
   const parts: CslRun[] =
     richRuns ||
@@ -140,7 +141,7 @@ function wordParagraph(
         `<w:r><w:rPr>${part.superscript ? '<w:vertAlign w:val="superscript"/>' : ""}${part.italic ? "<w:i/>" : ""}${part.bold ? "<w:b/>" : ""}${part.smallCaps ? "<w:smallCaps/>" : ""}</w:rPr><w:t xml:space="preserve">${xml(part.text)}</w:t></w:r>`,
     )
     .join("");
-  return `<w:p><w:pPr>${style ? `<w:pStyle w:val="${xml(style)}"/>` : ""}${templateSpacing ? "" : '<w:spacing w:after="160" w:line="300" w:lineRule="auto"/>'}</w:pPr>${runs}</w:p>`;
+  return `<w:p><w:pPr>${style ? `<w:pStyle w:val="${xml(style)}"/>` : ""}${hangingIndent ? '<w:ind w:left="720" w:hanging="720"/>' : ""}${templateSpacing ? "" : '<w:spacing w:after="160" w:line="300" w:lineRule="auto"/>'}</w:pPr>${runs}</w:p>`;
 }
 export async function exportDocx(
   draft: AcademicWritingDraft,
@@ -291,6 +292,7 @@ export async function exportDocx(
               Boolean(template),
               false,
               item.runs,
+              formatted.hangingIndent,
             ),
           ),
         ]
