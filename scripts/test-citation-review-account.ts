@@ -60,9 +60,9 @@ async function main() {
         api_key: emptyKey ? "" : "fixture-member-not-real",
       });
     }
-    if (pathname.endsWith("/reserve")) {
-      reservedTenant = body.tenant_id;
-      assert.equal(body.member_id, "correct-member");
+    if (pathname.endsWith("/usage-reservations")) {
+      assert.equal(pathname, '/v1/tenants/correct-tenant/members/correct-member/usage-reservations');
+      reservedTenant = pathname.split('/')[3];
       return Response.json({
         reservation: { id: "fixture-reservation", status: "reserved" },
       });
