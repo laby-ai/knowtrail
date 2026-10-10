@@ -11,7 +11,7 @@ async function main() {
   assert(!evidenceWindow(text, "1").matched);
   const originalFetch = globalThis.fetch;
   const originalKey = process.env.LITERATURE_HMAC_SECRET;
-  const originalMode = process.env.NODE_ENV;
+  const originalMode = process.env.APP_RUNTIME_ENV;
   try {
     process.env.LITERATURE_HMAC_SECRET = "isolated-provenance-test-key";
     globalThis.fetch = async (input) => {
@@ -35,12 +35,12 @@ async function main() {
     assert.equal(openalex.publicationType, "review");
     assert.deepEqual(openalex.affiliations, ["Institution fixture"]);
     delete process.env.LITERATURE_HMAC_SECRET;
-    process.env.NODE_ENV = "production";
+    process.env.APP_RUNTIME_ENV = "production";
     assert.throws(() => signLiteratureResult(crossref), /required in production/);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalKey === undefined) delete process.env.LITERATURE_HMAC_SECRET; else process.env.LITERATURE_HMAC_SECRET = originalKey;
-    if (originalMode === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = originalMode;
+    if (originalMode === undefined) delete process.env.APP_RUNTIME_ENV; else process.env.APP_RUNTIME_ENV = originalMode;
   }
   console.log("PASS: original evidence alignment preserves facts and whitespace; real provider fields survive signed imports; absent abstracts remain metadata; production signing has no public fallback key");
 }

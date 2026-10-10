@@ -71,7 +71,7 @@ export function StudioJobProgress({
 
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--border-subtle)]">
         <div
-          className={`h-full rounded-full transition-all duration-500 ${
+          className={`h-full rounded-full transition-all duration-500 ${indeterminate && status === 'running' ? 'animate-pulse' : ''} ${
             status === 'failed' ? 'bg-rose-400' : status === 'succeeded' ? 'bg-emerald-400' : 'bg-blue-500'
           }`}
           style={{ width: indeterminate && status === 'running' ? '40%' : `${progressPercent}%` }}

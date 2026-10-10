@@ -38,7 +38,7 @@ export function ResearchWorkspacePanel() {
   return <>
     <button type="button" className="liquid-glass-btn inline-flex items-center gap-1.5 px-3 py-2 text-xs" aria-label="研究记录与科研流程" onClick={() => setOpen(true)}><ClipboardList className="h-4 w-4" /><span className="hidden sm:inline">研究记录</span></button>
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl" data-testid="research-workspace-panel">
+      <DialogContent style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }} className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl" data-testid="research-workspace-panel">
         <DialogTitle>研究记录与科研流程</DialogTitle>
         <DialogDescription>按当前账号和文献本长期保存对话、实验记录、研究灵感与阶段成果。保存成果不代表科研阶段已通过核验；私人记录不自动向团队共享。</DialogDescription>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">{RESEARCH_STAGES.map((key) => <button type="button" key={key} className="liquid-glass-btn p-3 text-left text-xs" onClick={() => setStage(key)} aria-pressed={key === stage}><strong className="block">{STAGE_LABELS[key]}</strong><span className="mt-1 block">已保存 {items.filter((item) => item.stage === key).length} 项成果</span></button>)}</div>

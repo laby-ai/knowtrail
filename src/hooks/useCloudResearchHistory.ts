@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { clientApiFetch } from "@/lib/client-api";
+import { clientApiFetch, ClientRequestError } from "@/lib/client-api";
 import { readStoredAccountSession } from "@/lib/account-session-browser";
 import { notebookIdFromStorageScopeKey } from "@/lib/notebook-scope";
 import { chatPayload, type WorkspaceReply, type StoredChat } from "@/lib/research-workspace-contract";
@@ -24,6 +24,7 @@ export function useCloudResearchHistory(scope: string, messages: ChatMessage[], 
     }
     let stopped = false;
     let working = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const controller = new AbortController();
     const key = "lingbi:cloud-chat-baseline:" + encodeURIComponent(session.tenant_id + ":" + scope);
     base.current = new Map(); blocked.current = false; setReady(false);
@@ -75,7 +76,12 @@ export function useCloudResearchHistory(scope: string, messages: ChatMessage[], 
         apply(data, new Map(changes.map((change) => [change.message.id, change.message])));
         if (!stopped) setStatus("记录已同步到账号云端。");
       } catch (error) {
-        if (!stopped) { blocked.current = true; setStatus((error instanceof Error ? error.message : "云端同步失败。") + " 本地内容仍保留，可导出后读取云端版本。"); }
+        if (!stopped) {
+          const transient = error instanceof ClientRequestError && (error.code === "network" || error.code === "timeout" || (error.status || 0) >= 500);
+          blocked.current = !transient;
+          setStatus((error instanceof Error ? error.message : "云端同步失败。") + (transient ? " 本地内容仍保留，将重试同步。" : " 本地内容仍保留，可导出后读取云端版本。"));
+          if (transient) { clearTimeout(retry); retry = setTimeout(() => void sync(), 5000); }
+        }
       } finally { working = false; }
     };
     tasks.current = {
@@ -95,7 +101,7 @@ export function useCloudResearchHistory(scope: string, messages: ChatMessage[], 
     void reload();
     const online = () => { if (!blocked.current) void reload(); };
     window.addEventListener("online", online); window.addEventListener("focus", online);
-    return () => { stopped = true; controller.abort(); tasks.current = null; window.removeEventListener("online", online); window.removeEventListener("focus", online); };
+    return () => { stopped = true; clearTimeout(retry); controller.abort(); tasks.current = null; window.removeEventListener("online", online); window.removeEventListener("focus", online); };
   }, [scope, loaded]);
   useEffect(() => {
     if (!ready || blocked.current) return;
