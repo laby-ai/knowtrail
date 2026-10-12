@@ -4,9 +4,11 @@ case "$account_root" in /opt/account-entitlement/releases/*) ;; *) exit 1 ;; esa
 backup=/opt/account-entitlement/password-reset-code-backup-20261012
 mkdir -m 700 "$backup"
 cp "$account_root/password_reset.py" "$account_root/server.py" "$backup/"
+if test -f "$account_root/password_reset_codes.py"; then cp "$account_root/password_reset_codes.py" "$backup/"; fi
 rollback() {
  cp "$backup/password_reset.py" "$backup/server.py" "$account_root/"
- rm -f -- "$account_root/password_reset_codes.py" /etc/systemd/system/account-entitlement.service.d/password-reset-code.conf
+ if test -f "$backup/password_reset_codes.py"; then cp "$backup/password_reset_codes.py" "$account_root/"; else rm -f -- "$account_root/password_reset_codes.py"; fi
+ rm -f -- /etc/systemd/system/account-entitlement.service.d/password-reset-code.conf
  systemctl daemon-reload
  systemctl restart account-entitlement
 }
@@ -28,9 +30,10 @@ p=Path(sys.argv[1])/'server.py'
 s=p.read_text()
 a='hash_secret(str(data.get("token") or ""))'
 b='hash_secret(str(data.get("token") or data.get("challengeId") or ""))'
-assert s.count(a)==1
-p.write_text(s.replace(a,b))
-compile(s.replace(a,b),str(p),'exec')
+assert s.count(a)==1 or b in s
+s=s.replace(a,b)
+compile(s,str(p),'exec')
+p.write_text(s)
 PY
 printf '[Service]\nEnvironmentFile=/opt/account-entitlement/password-reset-code.env\n' > /etc/systemd/system/account-entitlement.service.d/password-reset-code.conf
 cd "$account_root"
