@@ -110,8 +110,8 @@ async function main() {
   checked: [
     'English query terms use normalized lexical matching',
     'English plural candidates match the original lexical form',
-      'AI-only overlap remains partial instead of pretending full relevance',
-      'Chinese phrase overlap scores both short and long terms',
+      'AI-only overlap is excluded when the core fusion topic is absent',
+      'Chinese query concepts match topic evidence',
       'low-relevance candidates are kept out of accepted results',
       'all-irrelevant and empty searches return explicit no-results statuses',
       'discover route runs the relevance gate before the UI receives results',
