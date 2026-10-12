@@ -50,8 +50,12 @@ const schema = z.discriminatedUnion("action", [
     .object({
       action: z.literal("create"),
       notebookId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$/),
+      sharedNotebookId: z.string().uuid().optional(),
       ...fields,
     })
+    .strict(),
+  z
+    .object({ action: z.literal("share-notebook"), id: z.string().uuid(), revision: z.number().int().positive(), enabled: z.boolean() })
     .strict(),
   z
     .object({
@@ -151,7 +155,7 @@ async function handle(request: NextRequest, write: boolean) {
       }
       const document = await mutateResearchDocument(actor, mutation);
       return Response.json(
-        { document, role: documentRole(document, actor) },
+        { document, role: documentRole(document, actor, await listResearchDocuments(actor)) },
         { headers: { "Cache-Control": "private, no-store" } },
       );
     }
@@ -165,20 +169,22 @@ async function handle(request: NextRequest, write: boolean) {
           { status: 404 },
         );
       return Response.json(
-        { document, role: documentRole(document, actor) },
+        { document, role: documentRole(document, actor, documents) },
         { headers: { "Cache-Control": "private, no-store" } },
       );
     }
     return Response.json(
       {
         documents: documents.map(
-          ({ id, title, notebookId, updatedAt, revision, ownerId }) => ({
+          ({ id, title, notebookId, updatedAt, revision, ownerId, shareWholeNotebook, sharedNotebookId }) => ({
             id,
             title,
             notebookId,
             updatedAt,
             revision,
             ownerId,
+            shareWholeNotebook,
+            sharedNotebookId,
           }),
         ),
       },

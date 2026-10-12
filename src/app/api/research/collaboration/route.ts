@@ -60,7 +60,8 @@ async function handle(request: NextRequest, write: boolean) {
         ),
       };
     const data = schema.parse(raw);
-    let document = (await listResearchDocuments(actor)).find(
+    const documents = await listResearchDocuments(actor);
+    let document = documents.find(
       (item) => item.id === data.id,
     );
     if (!document)
@@ -88,7 +89,9 @@ async function handle(request: NextRequest, write: boolean) {
         {
           update: Buffer.from(update).toString("base64"),
           vector: Buffer.from(Y.encodeStateVector(doc)).toString("base64"),
-          role: documentRole(document, actor),
+          role: documentRole(document, actor, documents),
+          shareWholeNotebook: document.shareWholeNotebook,
+          sharedNotebookId: document.sharedNotebookId,
           revision: document.revision,
           content: document.content,
           title: document.title,

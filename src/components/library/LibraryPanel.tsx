@@ -31,7 +31,7 @@ import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { resolveLibraryUploadTarget } from '@/lib/library-upload-target';
 import { uploadDiscoveredSourceFiles } from '@/lib/discovered-source-upload';
 import { buildDataTablePreviewForPaper, buildDataTablePreviewFromText } from '@/lib/data-table-preview';
-import { buildSourceMatrixFacets } from '@/lib/source-matrix';
+import { LiteratureComparisonDialog } from '@/components/research/LiteratureComparisonDialog';
 import { HighlightedEvidence } from '@/components/research/HighlightedEvidence';
 import { SourceProvenance } from '@/components/research/SourceProvenance';
 import type { DataColumnSummary } from '@/lib/data-table-preview';
@@ -284,16 +284,6 @@ function buildSourceDataPreview(paper: Paper, source?: IngestionSourceDetail) {
     || (source?.chunks || []).map(chunk => chunk.text || '').filter(Boolean).join('\n');
 
   return sourceText.trim() ? buildDataTablePreviewFromText(sourceText) : null;
-}
-
-function sourceMatrixEvidenceStatus(paper: Paper): string {
-  const parts: string[] = [];
-  if (paper.ingestionChunkCount) parts.push(`${paper.ingestionChunkCount} 个片段`);
-  if (paper.vectorIndex?.status === 'succeeded') parts.push(`索引 ${paper.vectorIndex.count || 0} 条`);
-  if (paper.mineru?.figureCount) parts.push(`${paper.mineru.figureCount} 张图表`);
-  if (paper.ingestionStatus === 'failed') return '解析失败，需重新上传或检查格式';
-  if (parts.length === 0) return '仅有基础元数据';
-  return parts.join(' · ');
 }
 
 function findCitationContextSnippet(
@@ -1572,129 +1562,7 @@ export function LibraryPanel({
         </div>
       )}
 
-      {/* Source matrix preview */}
-      {isSourceMatrixOpen && (
-        <div
-          className="absolute inset-0 z-[75] flex items-center justify-center bg-[var(--bg-primary)]/65 p-4 backdrop-blur-sm animate-fade-in"
-          onClick={() => setIsSourceMatrixOpen(false)}
-        >
-          <div
-            data-testid="library-source-matrix-panel"
-            className="liquid-glass-card flex max-h-[82vh] w-full max-w-[520px] flex-col p-0 animate-scale-in"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-4 py-3.5">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-                  <FileSpreadsheet className="h-4 w-4 text-teal-400" />
-                  <span>文献矩阵</span>
-                </div>
-                <p className="mt-1 text-xs text-[var(--text-secondary)]">基于已选来源的本地字段对比</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSourceMatrixOpen(false)}
-                className="rounded-lg p-1.5 text-[var(--text-tertiary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]"
-                aria-label="关闭文献矩阵"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              {selectedSourceRows.length < 2 ? (
-                <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
-                  至少选择 2 个文献来源后，可查看标题、分组、关键词和证据状态的并排对比。
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div
-                    data-testid="library-source-matrix-note"
-                    className="rounded-xl border border-teal-400/20 bg-teal-500/10 px-3 py-2 text-xs leading-relaxed text-teal-100"
-                  >
-                    自动从已入库文本中抽取方法、数据、结果和局限线索，作为跨文献比较前的证据表；不会生成未在来源中出现的结论。
-                  </div>
-                  <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
-                    <div className="min-w-[720px] divide-y divide-[var(--border-subtle)]">
-                      <div className="grid grid-cols-[150px_repeat(4,minmax(130px,1fr))] bg-[var(--glass-subtle)] text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
-                        <div className="px-3 py-2">来源</div>
-                        <div className="px-3 py-2">方法</div>
-                        <div className="px-3 py-2">数据</div>
-                        <div className="px-3 py-2">结果</div>
-                        <div className="px-3 py-2">局限</div>
-                      </div>
-                      {selectedSourceRows.map(({ folderName, paper }, index) => {
-                        const facets = buildSourceMatrixFacets(paper);
-                        return (
-                          <div
-                            key={paper.id}
-                            data-testid="library-source-matrix-row"
-                            className="grid grid-cols-[150px_repeat(4,minmax(130px,1fr))] bg-[var(--bg-elevated)] text-xs"
-                          >
-                            <div className="border-r border-[var(--border-subtle)] px-3 py-3">
-                              <div className="mb-1 flex items-center gap-1.5 font-semibold text-teal-300">
-                                <span>来源 {index + 1}</span>
-                                <span className="text-teal-300/45">·</span>
-                                <span className="truncate">{folderName}</span>
-                              </div>
-                              <div className="line-clamp-2 font-semibold text-[var(--text-primary)]">{paper.title}</div>
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${fileTypeBadgeStyle(paper.fileType)}`}>
-                                  {paper.fileType.toUpperCase()}
-                                </span>
-                                <span className="rounded-full border border-[var(--border-subtle)] px-2 py-0.5 text-[11px] text-[var(--text-tertiary)]">
-                                  {sourceMatrixEvidenceStatus(paper)}
-                                </span>
-                              </div>
-                              <div className="mt-2 text-[11px] text-[var(--text-tertiary)]">
-                                [{paper.shortName}]
-                                {paper.year ? ` · ${paper.year}` : ''}
-                              </div>
-                            </div>
-                            {facets.map(facet => (
-                              <div
-                                key={facet.key}
-                                data-testid={`library-source-matrix-${facet.key}`}
-                                className="border-r border-[var(--border-subtle)] px-3 py-3 last:border-r-0"
-                              >
-                                <div className={`mb-1 text-[11px] font-medium ${facet.extracted ? 'text-emerald-300' : 'text-amber-300'}`}>
-                                  {facet.evidenceLabel}
-                                </div>
-                                {facet.extracted ? (
-                                  <button
-                                    type="button"
-                                    data-testid={`library-source-matrix-${facet.key}-jump`}
-                                    className="block w-full rounded-lg text-left leading-relaxed text-[var(--text-secondary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-300/60"
-                                    title="打开来源片段并核验这条矩阵线索"
-                                    onClick={() => {
-                                      setIsSourceMatrixOpen(false);
-                                      void openSourcePreview(paper, {
-                                        key: facet.key,
-                                        label: facet.label,
-                                        excerpt: facet.excerpt,
-                                      });
-                                    }}
-                                  >
-                                    {facet.excerpt}
-                                  </button>
-                                ) : (
-                                  <p className="leading-relaxed text-[var(--text-tertiary)]">
-                                    {facet.emptyHint}
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <LiteratureComparisonDialog open={isSourceMatrixOpen} onOpenChange={setIsSourceMatrixOpen} notebookId={notebookId || undefined} sourceIds={selectedSourceRows.map(row => row.paper.id)} />
 
       {/* Source chunks detail */}
       {sourcePreview && (

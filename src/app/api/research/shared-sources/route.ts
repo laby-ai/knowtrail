@@ -1,18 +1,13 @@
 import { NextRequest } from "next/server";
 import { resolveAccountSessionFromRequest } from "@/lib/account-session";
 import {
-  listResearchDocuments,
-  documentSharedSourceScopes,
   documentRole,
   mutateResearchDocument,
   CollaborationError,
 } from "@/lib/research-collaboration-store";
 import { z } from "zod";
-import {
-  getIngestionSource,
-  listIngestionSources,
-  listIngestionSourcesByScopes,
-} from "@/lib/ingestion-store";
+import { listIngestionSources } from "@/lib/ingestion-store";
+import { sharedNotebookSources } from "@/lib/shared-notebook-sources";
 import { retrieveFileBuffer } from "@/lib/storage";
 
 export async function GET(request: NextRequest) {
@@ -26,27 +21,16 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "请登录后查看共享来源。" }, { status: 401 });
   try {
     const id = request.nextUrl.searchParams.get("documentId");
-    const document = (
-      await listResearchDocuments({
+    const { sources } = await sharedNotebookSources({
         id: session.member.id,
         email: session.member.email,
         tenantId: session.tenant_id,
-      })
-    ).find((item) => item.id === id);
-    if (!document)
-      return Response.json(
-        { error: "共享文档不存在或权限已撤销。" },
-        { status: 404 },
-      );
-    const grants = documentSharedSourceScopes(document);
+      }, id || "");
     const sourceId = request.nextUrl.searchParams.get("sourceId");
     const headers = { "Cache-Control": "private, no-store" };
     if (sourceId) {
-      const grant = grants.find((item) => item.sourceId === sourceId);
-      if (!grant)
-        return Response.json({ error: "此来源未共享。" }, { status: 404 });
-      const source = await getIngestionSource(sourceId, grant);
-      if (!source || source.ownerMemberId !== grant.ownerMemberId)
+      const source = sources.find(item => item.id === sourceId);
+      if (!source)
         return Response.json({ error: "共享来源已移除。" }, { status: 404 });
       if (request.nextUrl.searchParams.get("download") === "1") {
         if (
@@ -86,15 +70,6 @@ export async function GET(request: NextRequest) {
         { headers },
       );
     }
-    const sources = (await listIngestionSourcesByScopes(grants)).filter(
-      (source) =>
-        grants.some(
-          (grant) =>
-            grant.sourceId === source.id &&
-            grant.ownerMemberId === source.ownerMemberId &&
-            grant.notebookId === source.notebookId,
-        ),
-    );
     return Response.json(
       {
         sources: sources.map((source) => ({
@@ -106,10 +81,10 @@ export async function GET(request: NextRequest) {
       },
       { headers },
     );
-  } catch {
+  } catch (caught) {
     return Response.json(
       { error: "共享来源读取失败，请重试。" },
-      { status: 500 },
+      { status: caught instanceof CollaborationError ? caught.status : 500 },
     );
   }
 }
@@ -152,16 +127,14 @@ export async function POST(request: NextRequest) {
     const parsed = mutationSchema.safeParse(await request.json());
     if (!parsed.success)
       return Response.json({ error: "共享来源设置无效。" }, { status: 400 });
-    const data = parsed.data,
-      document = (await listResearchDocuments(actor)).find(
-        (item) => item.id === data.documentId,
-      );
+    const data = parsed.data;
+    const { document, root, documents } = await sharedNotebookSources(actor, data.documentId);
     if (!document)
       return Response.json(
         { error: "文档不存在或权限已撤销。" },
         { status: 404 },
       );
-    if (documentRole(document, actor) === "viewer")
+    if (documentRole(document, actor, documents) === "viewer")
       return Response.json(
         { error: "查看者不能维护共享文献库。" },
         { status: 403 },
@@ -186,7 +159,7 @@ export async function POST(request: NextRequest) {
         );
       updated = await mutateResearchDocument(actor, {
         action: "add-shared-sources",
-        id: document.id,
+        id: root.id,
         sources: [...new Set(data.sourceIds)].map((sourceId) => ({
           sourceId,
           ownerMemberId: actor.id,
@@ -196,11 +169,11 @@ export async function POST(request: NextRequest) {
     } else
       updated = await mutateResearchDocument(actor, {
         action: "remove-shared-source",
-        id: document.id,
+        id: root.id,
         sourceId: data.sourceId,
       });
     return Response.json(
-      { document: updated },
+      { document: updated.id === document.id ? updated : document },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (caught) {

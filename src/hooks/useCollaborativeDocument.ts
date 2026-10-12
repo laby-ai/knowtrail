@@ -17,6 +17,8 @@ export type Reply = {
   updatedAt: string;
   members: ResearchDocument["members"];
   sharedSourceIds: string[];
+  shareWholeNotebook?: boolean;
+  sharedNotebookId?: string;
   sharedSourceScopes?: ResearchDocument["sharedSourceScopes"];
   comments: NonNullable<ResearchDocument["comments"]>;
   history?: ResearchDocument["history"];

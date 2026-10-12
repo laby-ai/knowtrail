@@ -16,14 +16,16 @@ import { SharedSourcesPanel } from "./SharedSourcesPanel";
 import { CollaborativeDocumentEditor } from "./CollaborativeDocumentEditor";
 type Summary = Pick<
   ResearchDocument,
-  "id" | "title" | "notebookId" | "revision"
+  "id" | "title" | "notebookId" | "revision" | "shareWholeNotebook" | "sharedNotebookId"
 >;
 export function ResearchCollaboration({
   initialContent,
   initialTitle,
+  sharedOnly = false,
 }: {
   initialContent?: string;
   initialTitle?: string;
+  sharedOnly?: boolean;
 }) {
   const { storageScopeKey } = useApp();
   const [open, setOpen] = useState(false),
@@ -36,6 +38,7 @@ export function ResearchCollaboration({
     [memberRole, setMemberRole] = useState<"viewer" | "editor">("viewer"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [sharedParent, setSharedParent] = useState<string | undefined>();
   async function api(path = "", body?: unknown) {
     const response = await clientApiRequest(`/api/research/documents${path}`, {
       ...(body ? { method: "POST", body: JSON.stringify(body) } : {}),
@@ -63,7 +66,7 @@ export function ResearchCollaboration({
   }
   const reloadList = async () => {
     const data = await api();
-    setDocuments(data.documents || []);
+    setDocuments((data.documents || []).filter(item => !sharedOnly || item.shareWholeNotebook || item.sharedNotebookId));
   };
   function canReplaceDraft() {
     const dirty = document
@@ -102,6 +105,7 @@ export function ResearchCollaboration({
               "default-workspace",
             title,
             content,
+            ...(sharedParent ? { sharedNotebookId: sharedParent } : {}),
           },
     );
     if (data.document) {
@@ -146,7 +150,7 @@ export function ResearchCollaboration({
           className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl"
           data-testid="research-collaboration-dialog"
         >
-          <DialogTitle>课题组共享研究文档</DialogTitle>
+          <DialogTitle>共享文献本与研究文档</DialogTitle>
           <DialogDescription>
             同一组织内按邮箱授予权限。正文每 2
             秒合并协作修改，支持在线状态、批注和版本恢复；原文件单独授权共享。自动每
@@ -162,20 +166,21 @@ export function ResearchCollaboration({
           )}
           <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
             <aside className="space-y-2">
-              <button
+              {!sharedOnly && <button
                 type="button"
                 disabled={busy}
                 className="liquid-glass-btn w-full p-2 text-xs"
                 onClick={() => {
                   if (!canReplaceDraft()) return;
                   setDocument(null);
+                  setSharedParent(undefined);
                   setTitle(initialTitle || "");
                   setContent(initialContent || "");
                   setRole("owner");
                 }}
               >
                 新建研究文档
-              </button>
+              </button>}
               <button
                 type="button"
                 disabled={busy}
@@ -199,7 +204,7 @@ export function ResearchCollaboration({
                     if (canReplaceDraft()) void run(() => load(item.id));
                   }}
                 >
-                  {item.title}
+                  {item.shareWholeNotebook ? "共享文献本 · " : item.sharedNotebookId ? "共享文档 · " : ""}{item.title}
                   <span className="mt-1 block text-[var(--text-tertiary)]">
                     版本 {item.revision}
                   </span>
@@ -251,6 +256,8 @@ export function ResearchCollaboration({
                             members: data.members,
                             sharedSourceIds: data.sharedSourceIds,
                             sharedSourceScopes: data.sharedSourceScopes,
+                            shareWholeNotebook: data.shareWholeNotebook,
+                            sharedNotebookId: data.sharedNotebookId,
                             comments: data.comments,
                             history: data.history || current.history,
                           }
@@ -263,7 +270,7 @@ export function ResearchCollaboration({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  disabled={busy || role === "viewer" || !title.trim()}
+                  disabled={busy || role === "viewer" || !title.trim() || (sharedOnly && !document && !sharedParent)}
                   onClick={() => void run(save)}
                   className="liquid-glass-btn px-3 py-2 text-xs"
                 >
@@ -298,8 +305,20 @@ export function ResearchCollaboration({
                         : "仅查看"}{" "}
                     · 版本 {document.revision}
                   </p>
-                  {role === "owner" && (
+                  {role !== "viewer" && (document.shareWholeNotebook || document.sharedNotebookId) && <button type="button" className="liquid-glass-btn px-3 py-2 text-xs" disabled={busy} onClick={() => {
+                    if (!canReplaceDraft()) return;
+                    setSharedParent(document.shareWholeNotebook ? document.id : document.sharedNotebookId);
+                    setDocument(null); setTitle(""); setContent(""); setRole("editor");
+                  }}>在共享文献本中新建研究文档</button>}
+                  {document.sharedNotebookId && <p className="text-xs">本研究文档继承共享文献本成员权限。请在列表中的共享文献本入口管理成员。</p>}
+                  {role === "owner" && !document.sharedNotebookId && (
                     <section className="space-y-2 rounded-lg border p-3 text-xs">
+                      <button type="button" className="liquid-glass-btn px-3 py-2" disabled={busy} onClick={() => {
+                        const enabled = !document.shareWholeNotebook;
+                        if (!window.confirm(enabled ? "共享当前文献本内所有研究文档、所有文献来源及后续新增内容？被移出共享库的来源除外。私人对话和个人科研记录不共享。成员可读取原文件，请确认共享范围。" : "停止整个文献本共享？继承权限的文档将不可访问；本入口原有的单文档授权及其他明确授权仍保留。")) return;
+                        void run(async () => { const data = await api("", { action: "share-notebook", id: document.id, revision: document.revision, enabled }); if (data.document) setDocument(data.document); await reloadList(); });
+                      }}>{document.shareWholeNotebook ? "停止整个文献本共享" : "共享整个文献本"}</button>
+                      {document.shareWholeNotebook && <p>本入口的成员权限同时应用于整个文献本。现有单文档独立授权仍按其授权生效。</p>}
                       <h4 className="font-semibold">成员权限</h4>
                       <input
                         className="liquid-glass-input w-full"

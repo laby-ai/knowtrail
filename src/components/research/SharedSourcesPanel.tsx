@@ -5,6 +5,7 @@ import { accountAuthHeaders } from "@/lib/account-session-browser";
 import type { ResearchDocument } from "@/lib/research-collaboration-store";
 import { useApp } from "@/contexts/AppContext";
 import { notebookIdFromStorageScopeKey } from "@/lib/notebook-scope";
+import { LiteratureComparisonDialog } from "./LiteratureComparisonDialog";
 interface SourceSummary {
   id: string;
   title: string;
@@ -33,24 +34,27 @@ export function SharedSourcesPanel({
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const [preview, setPreview] = useState<SourcePreview | null>(null);
+  const [comparisonIds, setComparisonIds] = useState<string[]>([]), [comparisonOpen, setComparisonOpen] = useState(false);
   const base = `/api/research/shared-sources?documentId=${encodeURIComponent(document.id)}`;
   const grantsKey = JSON.stringify(document.sharedSourceIds || []);
   useEffect(() => {
     if (choosing) return;
     const controller = new AbortController();
-    void clientApiFetch<{ sources: SourceSummary[] }>(
+    const load = () => void clientApiFetch<{ sources: SourceSummary[] }>(
       `/api/research/shared-sources?documentId=${encodeURIComponent(document.id)}`,
       { headers: accountAuthHeaders(), signal: controller.signal },
     )
-      .then((data) => setSources(data.sources))
+      .then((data) => { setSources(data.sources); setError(""); })
       .catch((caught) => {
         if (!controller.signal.aborted)
           setError(
             caught instanceof Error ? caught.message : "共享来源读取失败",
           );
       });
-    return () => controller.abort();
-  }, [document.id, grantsKey, choosing]);
+    load();
+    const timer = setInterval(load, 5000);
+    return () => { controller.abort(); clearInterval(timer); };
+  }, [document.id, grantsKey, choosing, document.shareWholeNotebook]);
   async function run(action: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -137,12 +141,14 @@ export function SharedSourcesPanel({
   return (
     <section className="space-y-2 rounded-lg border p-3 text-xs">
       <h4 className="font-semibold">
-        共享文献来源（{document.sharedSourceIds?.length || 0}）
+        共享文献来源（{choosing ? "选择中" : sources.length}）
       </h4>
       <p className="text-[var(--text-tertiary)]">
         所有者与编辑成员可从自己的当前文献本贡献来源，共同维护共享文献库。勾选共享后成员可读取原文件；移除只取消本项目的共享，不删除上传者的原文件。撤销成员权限后，后续读取和下载将被拒绝。
       </p>
+      {(document.shareWholeNotebook || document.sharedNotebookId) && <p>整个文献本共享时自动包含所有者当前及后续新增的来源，每 5 秒更新列表。移出共享库只取消共享，不删除原文件。</p>}
       <div className="flex flex-wrap gap-2">
+        <button type="button" className="liquid-glass-btn px-3 py-2" disabled={choosing || comparisonIds.length < 2 || comparisonIds.length > 30} onClick={() => setComparisonOpen(true)}>文献矩阵与演化时间线（已选 {comparisonIds.length}）</button>
         <button
           type="button"
           disabled={busy}
@@ -172,6 +178,7 @@ export function SharedSourcesPanel({
           key={source.id}
           className="flex flex-wrap items-center gap-2 rounded-lg border p-2"
         >
+          {!choosing && <input type="checkbox" aria-label={`比较 ${source.title}`} checked={comparisonIds.includes(source.id)} onChange={event => setComparisonIds(current => event.target.checked ? [...current, source.id] : current.filter(id => id !== source.id))} />}
           {choosing && (
             <input
               aria-label={`共享 ${source.title}`}
@@ -254,6 +261,7 @@ export function SharedSourcesPanel({
           ))}
         </div>
       )}
+      <LiteratureComparisonDialog open={comparisonOpen} onOpenChange={setComparisonOpen} sharedDocumentId={document.id} sourceIds={comparisonIds} />
     </section>
   );
 }

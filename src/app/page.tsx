@@ -262,6 +262,11 @@ export default function HomePage() {
           />
         )}
         {view === 'notebooks' && notebookError && <div role="alert" className="p-4 text-red-600">{notebookError}<button className="ml-3 underline" onClick={() => setReloadNotebooks(value => value + 1)}>重试</button></div>}
+        {view === 'notebooks' && accountSession && <div className="px-6 pt-4">
+          <AppProvider key={`shared-entry:${accountSession.tenant_id}:${accountSession.member.id}`} storageScopeKey={`${accountSession.member.id}:shared-entry`} initialFolders={[]}>
+            <ResearchCollaboration sharedOnly />
+          </AppProvider>
+        </div>}
         {view === 'notebooks' && (
           <NotebookHome
             notebooks={notebooks}

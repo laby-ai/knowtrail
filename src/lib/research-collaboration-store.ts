@@ -25,6 +25,9 @@ export interface ResearchDocument {
   updatedAt: string;
   members: Array<{ email: string; role: "viewer" | "editor" }>;
   sharedSourceIds?: string[];
+  shareWholeNotebook?: boolean;
+  sharedNotebookId?: string;
+  excludedSourceIds?: string[];
   sharedSourceScopes?: Array<{
     sourceId: string;
     ownerMemberId: string;
@@ -59,7 +62,10 @@ export class CollaborationError extends Error {
     super(message);
   }
 }
-let queue: Promise<unknown> = Promise.resolve();
+// Next may bundle this store into multiple route modules in the same process.
+// They must serialize writes through one shared queue, not overwrite each other.
+const processStore = globalThis as typeof globalThis & { lingbiResearchDocumentQueue?: Promise<unknown> };
+processStore.lingbiResearchDocumentQueue ||= Promise.resolve();
 const root = () =>
   process.env.RESEARCH_DOCUMENT_STORE_PATH ||
   path.join(
@@ -90,16 +96,27 @@ async function read(tenantId: string): Promise<ResearchDocument[]> {
 export function documentRole(
   document: ResearchDocument,
   actor: CollaborationActor,
+  documents: ResearchDocument[] = [],
 ): "owner" | "viewer" | "editor" | undefined {
   if (document.tenantId !== actor.tenantId) return;
   if (document.ownerId === actor.id) return "owner";
   if (!actor.email.trim()) return;
-  return document.members.find((member) => member.email === email(actor.email))
-    ?.role;
+  const shared = sharedNotebookRoot(document, documents);
+  if (document.sharedNotebookId)
+    return shared?.members.find(member => member.email === email(actor.email))?.role;
+  return document.members.find((member) => member.email === email(actor.email))?.role
+    || shared?.members.find(member => member.email === email(actor.email))?.role;
+}
+export function sharedNotebookRoot(document: ResearchDocument, documents: ResearchDocument[]) {
+  return documents.find(item => item.shareWholeNotebook && !item.sharedNotebookId
+    && item.tenantId === document.tenantId && item.ownerId === document.ownerId
+    && item.notebookId === document.notebookId
+    && (document.sharedNotebookId ? item.id === document.sharedNotebookId : true));
 }
 export async function listResearchDocuments(actor: CollaborationActor) {
-  return (await read(actor.tenantId)).filter((document) =>
-    documentRole(document, actor),
+  const documents = await read(actor.tenantId);
+  return documents.filter((document) =>
+    documentRole(document, actor, documents),
   );
 }
 export type DocumentMutation =
@@ -119,7 +136,8 @@ export type DocumentMutation =
       commentId: string;
       resolved: boolean;
     }
-  | { action: "create"; notebookId: string; title: string; content: string }
+  | { action: "create"; notebookId: string; title: string; content: string; sharedNotebookId?: string }
+  | { action: "share-notebook"; id: string; revision: number; enabled: boolean }
   | {
       action: "save";
       id: string;
@@ -138,19 +156,23 @@ export async function mutateResearchDocument(
   actor: CollaborationActor,
   mutation: DocumentMutation,
 ): Promise<ResearchDocument> {
-  const job = queue.then(async () => {
+  const job = processStore.lingbiResearchDocumentQueue!.then(async () => {
     const documents = await read(actor.tenantId);
     const at = new Date().toISOString();
     let document: ResearchDocument;
     if (mutation.action === "create") {
-      if (documents.filter((item) => item.ownerId === actor.id).length >= 200)
+      const shared = mutation.sharedNotebookId ? documents.find(item => item.id === mutation.sharedNotebookId && item.shareWholeNotebook && !item.sharedNotebookId) : undefined;
+      if (mutation.sharedNotebookId && (!shared || !["owner", "editor"].includes(documentRole(shared, actor, documents) || "")))
+        throw new CollaborationError("共享文献本不存在或没有新建权限。", 403);
+      if (documents.filter((item) => item.ownerId === (shared?.ownerId || actor.id)).length >= 200)
         throw new CollaborationError("研究文档数量已达上限。", 409);
       document = {
         id: randomUUID(),
-        notebookId: mutation.notebookId,
+        notebookId: shared?.notebookId || mutation.notebookId,
         title: mutation.title,
         content: mutation.content,
-        ownerId: actor.id,
+        ownerId: shared?.ownerId || actor.id,
+        ...(shared ? { sharedNotebookId: shared.id } : {}),
         tenantId: actor.tenantId,
         revision: 1,
         updatedAt: at,
@@ -163,12 +185,12 @@ export async function mutateResearchDocument(
       crdt.destroy();
     } else {
       const existing = documents.find((item) => item.id === mutation.id);
-      if (!existing || !documentRole(existing, actor))
+      if (!existing || !documentRole(existing, actor, documents))
         throw new CollaborationError("研究文档不存在或无权访问。", 404);
-      const role = documentRole(existing, actor);
+      const role = documentRole(existing, actor, documents);
       if (
         role === "viewer" ||
-        ((mutation.action === "members" || mutation.action === "sources") &&
+        ((mutation.action === "members" || mutation.action === "sources" || mutation.action === "share-notebook") &&
           role !== "owner")
       )
         throw new CollaborationError("没有修改权限。", 403);
@@ -178,6 +200,8 @@ export async function mutateResearchDocument(
           409,
         );
       document = existing;
+      if (document.sharedNotebookId && (mutation.action === "members" || mutation.action === "share-notebook"))
+        throw new CollaborationError("子文档继承共享文献本成员权限，请在文献本入口管理。", 403);
       const crdt = documentCrdt(document);
       try {
         if (mutation.action === "save") {
@@ -245,6 +269,10 @@ export async function mutateResearchDocument(
           );
           if (!comment) throw new CollaborationError("评论不存在。", 404);
           comment.resolved = mutation.resolved;
+        } else if (mutation.action === "share-notebook") {
+          if (mutation.enabled && documents.some(item => item.id !== document.id && item.ownerId === document.ownerId && item.notebookId === document.notebookId && item.shareWholeNotebook))
+            throw new CollaborationError("当前文献本已有共享入口，请使用已有入口管理成员。", 409);
+          document.shareWholeNotebook = mutation.enabled;
         } else if (mutation.action === "members")
           document.members = mutation.members.map((member) => ({
             email: email(member.email),
@@ -270,7 +298,9 @@ export async function mutateResearchDocument(
             );
           document.sharedSourceScopes = [...grants.values()];
           document.sharedSourceIds = [...grants.keys()];
+          document.excludedSourceIds = (document.excludedSourceIds || []).filter(id => !mutation.sources.some(source => source.sourceId === id));
         } else if (mutation.action === "remove-shared-source") {
+          if (document.shareWholeNotebook) document.excludedSourceIds = [...new Set([...(document.excludedSourceIds || []), mutation.sourceId])];
           document.sharedSourceScopes = documentSharedSourceScopes(
             document,
           ).filter((source) => source.sourceId !== mutation.sourceId);
@@ -331,7 +361,7 @@ export async function mutateResearchDocument(
     await rename(temporary, target);
     return document;
   });
-  queue = job.catch(() => undefined);
+  processStore.lingbiResearchDocumentQueue = job.catch(() => undefined);
   return job;
 }
 export function documentSharedSourceScopes(

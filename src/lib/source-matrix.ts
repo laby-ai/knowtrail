@@ -11,7 +11,7 @@ export interface SourceMatrixFacet {
   extracted: boolean;
 }
 
-const FACET_CONFIG: Array<{
+export const SOURCE_MATRIX_FACETS: Array<{
   key: SourceMatrixFacetKey;
   label: string;
   emptyHint: string;
@@ -96,7 +96,7 @@ function findFacetExcerpt(sentences: string[], patterns: RegExp[]): string {
 export function buildSourceMatrixFacets(paper: Paper): SourceMatrixFacet[] {
   const sentences = splitEvidenceSentences(sourceTextForMatrix(paper));
 
-  return FACET_CONFIG.map(config => {
+  return SOURCE_MATRIX_FACETS.map(config => {
     const excerpt = findFacetExcerpt(sentences, config.patterns);
     return {
       key: config.key,
