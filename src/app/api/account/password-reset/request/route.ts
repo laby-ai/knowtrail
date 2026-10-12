@@ -14,13 +14,17 @@ function isValidEmail(value: string): boolean {
 }
 
 function successMessage(delivery?: string): string {
-  if (delivery === 'email') return '如果这个邮箱已注册，重置指引会发送到邮箱。';
+  if (delivery === 'email') return '如果这个邮箱已注册，重置链接会发送到邮箱，15 分钟内有效。';
   return '找回请求已提交；如果这个邮箱已注册，服务方会继续处理。';
 }
 
 function publicError(message: string): { status: number; error: string } {
+  if (/too_many_requests/i.test(message)) return { status: 429, error: '申请次数过多，请 15 分钟后重试。' };
   if (/not_configured/i.test(message)) {
     return { status: 503, error: '当前暂未开启自助找回，请联系服务方处理。' };
+  }
+  if (/delivery_failed/i.test(message)) {
+    return { status: 503, error: '重置邮件暂时无法发送，请稍后重新申请。' };
   }
   return { status: 502, error: '暂时无法提交找回请求，请稍后再试。' };
 }

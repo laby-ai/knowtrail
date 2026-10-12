@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ArrowRight, BookOpen, FileText, Loader2, LogIn, Mail, Quote, Sparkles } from 'lucide-react';
 import Link from 'next/link';
+import { clientApiRequest } from '@/lib/client-api';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { clearAccountSession, readStoredAccountSession, saveAccountSession } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
@@ -151,7 +152,8 @@ export default function AccountPage() {
     setResetMessage('');
     setIsResetSubmitting(true);
     try {
-      const response = await fetch('/api/account/password-reset/request', {
+      const response = await clientApiRequest('/api/account/password-reset/request', {
+        skipAuth: true, redirectOnUnauthorized: false, timeoutMs: 40_000,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail || email }),

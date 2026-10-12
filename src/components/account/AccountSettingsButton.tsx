@@ -6,6 +6,7 @@ import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { BailianProviderSettings } from '@/components/account/BailianProviderSettings';
+import { clientApiRequest } from '@/lib/client-api';
 
 function SecuritySettings({ session, onSignOut }: { session: AccountAuthSession; onSignOut: () => void }) {
   const [email, setEmail] = useState(session.member.email || '');
@@ -20,8 +21,9 @@ function SecuritySettings({ session, onSignOut }: { session: AccountAuthSession;
     setMessage('');
     setError('');
     try {
-      const response = await fetch('/api/account/password-reset/request', {
+      const response = await clientApiRequest('/api/account/password-reset/request', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
+        skipAuth: true, redirectOnUnauthorized: false, timeoutMs: 40_000,
         body: JSON.stringify({ email: email.trim() }),
       });
       const result = await response.json() as { message?: string; error?: string };

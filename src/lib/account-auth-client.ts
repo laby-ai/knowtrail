@@ -111,6 +111,7 @@ export async function requestAccountPasswordReset(input: { email: string; tenant
   if (!baseUrl) throw new Error('account_api_not_configured');
   const response = await fetch(getPasswordResetEndpoint(baseUrl), {
     method: 'POST',
+    signal: AbortSignal.timeout(35_000),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       email: input.email,
