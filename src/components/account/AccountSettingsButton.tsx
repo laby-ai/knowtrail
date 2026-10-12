@@ -93,7 +93,7 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
           <Settings className="h-5 w-5" /><span>设置</span>
         </button>
       </DialogTrigger>
-      <DialogContent data-testid="account-settings-dialog" className="max-h-[calc(100dvh-2rem)] gap-6 overflow-y-auto p-5 sm:max-w-xl sm:p-7" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      <DialogContent data-testid="account-settings-dialog" className="grid max-h-[calc(100dvh-2rem)] gap-6 overflow-y-auto p-5 sm:max-w-xl sm:p-7" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
         <DialogHeader className="space-y-3 text-left">
           <DialogTitle>设置</DialogTitle>
           <DialogDescription className="leading-6">管理账号、安全和百炼模型配置。</DialogDescription>
