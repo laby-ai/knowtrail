@@ -1,3 +1,4 @@
+import { assessSearchTopics, queryTopics } from './search-topic-relevance';
 import type { DiscoveredSource } from './discover-search-provider';
 
 export type DiscoverRelevanceVerdict = 'relevant' | 'partially_relevant' | 'irrelevant' | 'unassessed';
@@ -37,66 +38,8 @@ export interface DiscoverRelevanceStageResult extends DiscoverRelevanceStageSumm
   results: ScoredDiscoveredSource[];
 }
 
-const ENGLISH_STOP_TERMS = new Set([
-  'a', 'an', 'and', 'are', 'as', 'at', 'for', 'how', 'in', 'is', 'of', 'on',
-  'or', 'that', 'the', 'their', 'this', 'to', 'with', 'what', 'when', 'why',
-]);
-
-const CHINESE_FUNCTION_TERMS = new Set([
-  '方法', '机制', '应用', '研究', '技术', '现状', '综述',
-]);
-
-const RELEVANT_THRESHOLD = 0.55;
-const PARTIAL_THRESHOLD = 0.28;
-
-function normalizeText(value: string): string {
-  return value.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-}
-
-function isHan(value: string): boolean {
-  return /[\u3400-\u9fff\uf900-\ufaff]/.test(value);
-}
-
-function extractBinaryTerms(segment: string): string[] {
-  if (segment.length < 2) return [segment];
-  return Array.from({ length: segment.length - 1 }, (_, index) => segment.slice(index, index + 2));
-}
-
 export function extractRelevanceQueryTerms(query: string): string[] {
-  const normalized = normalizeText(query);
-  const terms = new Set<string>();
-  for (const token of normalized.split(/\s+/).filter(Boolean)) {
-    if (isHan(token)) {
-      for (const term of extractBinaryTerms(token)) {
-        if (!CHINESE_FUNCTION_TERMS.has(term)) terms.add(term);
-      }
-      terms.add(token);
-    } else if (token.length >= 2 && !ENGLISH_STOP_TERMS.has(token)) {
-      terms.add(token);
-    }
-  }
-  return [...terms];
-}
-
-function matchRate(terms: string[], text: string): { matched: string[]; ratio: number } {
-  if (!terms.length) return { matched: [], ratio: 0 };
-  const normalizedText = normalizeText(text);
-  const matched = terms.filter(term => normalizedText.includes(term));
-  return {
-    matched,
-    ratio: terms.length ? matched.length / terms.length : 0,
-  };
-}
-
-function describeConfidence(verdict: DiscoverRelevanceVerdict, matches: string[], missing: string[]): string {
-  const label = verdict === 'relevant'
-    ? '核心查询主题对应'
-    : verdict === 'partially_relevant'
-      ? '部分查询内容对应'
-      : '核心查询内容未对应';
-  return matches.length
-    ? `${label}: ${matches.join('、')}`
-    : `${label}${missing.length ? `, 缺少 ${missing.join('、')}` : ''}`;
+  return queryTopics(query).map(group => group.label);
 }
 
 export function scoreDiscoveredSourceRelevance(
@@ -116,27 +59,15 @@ export function scoreDiscoveredSourceRelevance(
       },
     };
   }
-  const titleMatch = matchRate(queryTerms, source.title);
-  const summaryParts = [source.snippet || '', source.content || ''];
-  const summaryMatch = matchRate(queryTerms, summaryParts.join(' '));
-  const matched = [...new Set([...titleMatch.matched, ...summaryMatch.matched])];
-  const missing = queryTerms.filter(term => !matched.includes(term));
-  const phrase = normalizeText(query);
-  const fullPhraseMatch = phrase.length >= 4 && [
-    normalizeText(source.title),
-    normalizeText(summaryParts.join(' ')),
-  ].some(text => text.includes(phrase));
-
-  const score = titleMatch.ratio * 0.55
-    + summaryMatch.ratio * 0.30
-    + (titleMatch.matched.length > 0 ? 0.10 : 0)
-    + (fullPhraseMatch ? 0.10 : 0);
-  const confidence = Math.max(0, Math.min(1, score));
-  const verdict: DiscoverRelevanceVerdict = confidence >= RELEVANT_THRESHOLD
-    ? 'relevant'
-    : confidence >= PARTIAL_THRESHOLD
-      ? 'partially_relevant'
-      : 'irrelevant';
+  const groups = queryTopics(query);
+  const summary = source.snippet || (source.content || '').slice(0, 6000);
+  const titleMatch = assessSearchTopics(query, source.title, groups);
+  const summaryMatch = assessSearchTopics(query, summary, groups);
+  const assessment = assessSearchTopics(query, [source.title, summary, ...source.authors, source.date].join(' '), groups);
+  const matched = assessment.matched;
+  const missing = assessment.missing;
+  const confidence = Math.min(1, titleMatch.coverage * 0.55 + summaryMatch.coverage * 0.45);
+  const verdict: DiscoverRelevanceVerdict = assessment.accepted ? 'relevant' : 'irrelevant';
 
   return {
     ...source,
@@ -145,7 +76,7 @@ export function scoreDiscoveredSourceRelevance(
       confidence: Number(confidence.toFixed(3)),
       matchedTerms: matched,
       missingTerms: missing,
-      reason: describeConfidence(verdict, matched, missing),
+      reason: assessment.accepted ? `核心主题已覆盖：${matched.join('、')}` : `已排除：缺少核心主题 ${missing.join('、')}`, 
     },
   };
 }
@@ -190,7 +121,7 @@ export function applyDiscoverRelevanceStage(
     return {
       ...baseSummary,
       status: 'no-query-terms',
-      reason: '无法提取查询主题词，已保留全部候选并要求人工核验。',
+      reason: '查询包含特殊检索语法或缺少核心主题词，已保留搜索源结果，请人工核验。',
       acceptedCount: scoredSources.length,
       relevantCount: 0,
       partiallyRelevantCount: 0,
@@ -222,7 +153,7 @@ export function applyDiscoverRelevanceStage(
   return {
     ...baseSummary,
     status: 'filtered-low-relevance',
-    reason: `已过滤 ${irrelevant.length} 条低相关候选。`,
+    reason: `已过滤 ${irrelevant.length} 条未覆盖核心主题的候选。`,
     results: accepted,
   };
 }

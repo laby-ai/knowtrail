@@ -47,7 +47,7 @@ async function main() {
       snippet: 'The policy study compares health systems in two regions.',
     }),
   );
-  assert.equal(partial.relevance.verdict, 'partially_relevant');
+  assert.equal(partial.relevance.verdict, 'irrelevant');
   assert.deepEqual(partial.relevance.matchedTerms, ['ai']);
   assert.deepEqual(partial.relevance.missingTerms, ['fusion']);
 
@@ -69,7 +69,7 @@ async function main() {
     }),
   );
   assert.equal(chinese.relevance.verdict, 'relevant');
-  assert.ok(chinese.relevance.matchedTerms.includes('模态'));
+  assert.ok(chinese.relevance.matchedTerms.includes('多模态'));
 
   const filtered = applyDiscoverRelevanceStage('multimodal evaluation effectiveness', [
     source({ title: 'Multimodal evaluation measures effectiveness of reports' }),

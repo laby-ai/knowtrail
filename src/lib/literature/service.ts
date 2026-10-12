@@ -1,3 +1,4 @@
+import { assessSearchTopics, queryTopics } from '../search-topic-relevance';
 import { searchLiterature, SOURCE_DISPLAY_NAMES } from './providers';
 import { deduplicateResults, getAlsoFoundIn } from './dedupe';
 import { signLiteratureResult } from './result-token';
@@ -12,29 +13,6 @@ export interface SearchOptions {
   userId?: string;
   yearFrom?: number;
   yearTo?: number;
-}
-
-function extractKeywords(query: string): string[] {
-  const stopwords = new Set(['the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'from', 'as', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'its', 'our', 'their', 'what', 'which', 'who', 'whom', 'when', 'where', 'why', 'how', 'not', 'no', 'nor', 'but', 'if', 'then', 'else', 'so', 'such', 'too', 'very', 'just', 'about', 'above', 'after', 'again', 'all', 'also', 'am', 'any', 'because', 'before', 'between', 'both', 'during', 'each', 'few', 'further', 'get', 'got', 'here', 'into', 'more', 'most', 'myself', 'once', 'only', 'other', 'others', 'out', 'over', 'own', 'same', 'some', 'still', 'there', 'through', 'under', 'up', 'while']);
-  return query
-    .toLowerCase()
-    .replace(/[^\w\s\u4e00-\u9fff]/g, ' ')
-    .split(/\s+/)
-    .filter(w => w.length > 1 && !stopwords.has(w));
-}
-
-function calculateRelevanceScore(paper: LiteraturePaper, keywords: string[]): number {
-  if (keywords.length === 0) return 1;
-  const title = (paper.title || '').toLowerCase();
-  const abstract = (paper.abstract || '').toLowerCase();
-  const venue = (paper.venue || '').toLowerCase();
-  let score = 0;
-  for (const kw of keywords) {
-    if (title.includes(kw)) score += 3;
-    if (abstract.includes(kw)) score += 1;
-    if (venue.includes(kw)) score += 2;
-  }
-  return score / keywords.length;
 }
 
 export async function searchAllSources(options: SearchOptions): Promise<LiteratureResult[]> {
@@ -68,15 +46,16 @@ export async function searchAllSources(options: SearchOptions): Promise<Literatu
     authors: paper.authors.map(author => ({ name: author.name.trim() })).filter(author => author.name),
   })));
 
-  const keywords = extractKeywords(query);
+  const topics = queryTopics(query);
 
   const filtered = deduped.filter(paper => {
     const year = typeof paper.year === 'string' ? parseInt(paper.year, 10) : paper.year;
+    if ((yearFrom || yearTo) && (!Number.isFinite(year) || year < 1900)) return false;
     if (yearFrom && year < yearFrom) return false;
     if (yearTo && year > yearTo) return false;
-    const score = calculateRelevanceScore(paper, keywords);
-    if (score < 1) return false;
-    return true;
+    const identifier = query.trim().toLowerCase().replace(/^https?:\/\/(?:dx\.)?doi\.org\//, '').replace(/^doi:\s*/, '');
+    if (/^10\.\d{4,9}\/\S+$/.test(identifier)) return paper.doi?.toLowerCase() === identifier;
+    return assessSearchTopics(query, [paper.title, paper.abstract, ...paper.authors.map(author => author.name), paper.doi || '', paper.arxivId || '', Number.isFinite(year) && year > 0 ? String(year) : ''].join(' '), topics).accepted;
   });
 
   return filtered.map(paper => {
