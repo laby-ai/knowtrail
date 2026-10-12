@@ -6,6 +6,7 @@ import JSZip from "jszip";
 import { exportDocx, exportLatex } from "../src/lib/manuscript-export";
 import { groupJournalWorks } from "../src/lib/journal-discovery";
 import type { AcademicWritingDraft } from "../src/lib/academic-writing-contract";
+import type { ResearchArtifact } from "../src/lib/research-workspace-contract";
 
 async function main() {
   const root = await mkdtemp(path.join(tmpdir(), "lingbi-manuscript-test-"));
@@ -137,17 +138,28 @@ async function main() {
       },
     ];
     for (const layout of ["single", "double"] as const) {
-      const bytes = await exportDocx(draft, citations, layout);
+      const researchRecords: ResearchArtifact[] = [{
+        id: "00000000-0000-4000-8000-000000000001", authorId: "owner",
+        stage: "analysis", title: "实验数据 A&B <0.05", content: "真实统计执行结果",
+        createdAt: "2026-01-01T00:00:00Z", sourceIds: ["test-source"],
+        analysis: { id: "00000000-0000-4000-8000-000000000002", sourceId: "test-source", sourceFileSha256: "a".repeat(64), method: "welch-t" },
+      }];
+      const bytes = await exportDocx(draft, citations, { layout, researchRecords });
       const zip = await JSZip.loadAsync(bytes);
       const xml = await zip.file("word/document.xml")!.async("text");
       assert(xml.includes("A&amp;B &lt;0.05"));
       assert(xml.includes('w:vertAlign w:val="superscript"'));
       assert(xml.includes("第 3 页"));
       assert(xml.includes(`w:num="${layout === "double" ? 2 : 1}"`));
-      const tex = exportLatex(draft, citations, layout);
+      assert(xml.includes("研究记录与数据结果来源"));
+      assert(xml.includes(researchRecords[0].id));
+      assert(xml.includes(researchRecords[0].analysis!.sourceFileSha256));
+      const tex = exportLatex(draft, citations, { layout, researchRecords });
       assert(tex.includes("50\\%\\_value"));
       assert(tex.includes("中文来源与定位"));
       assert(!tex.includes("\\write18"));
+      assert(tex.includes("实验数据 A\\&B <0.05"));
+      assert(tex.includes(researchRecords[0].analysis!.id));
       if (process.argv[2])
         await writeFile(
           path.join(process.argv[2], `manuscript-${layout}.docx`),
