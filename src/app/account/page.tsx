@@ -1,9 +1,9 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { ArrowRight, BookOpen, FileText, Loader2, LogIn, Mail, Quote, Sparkles } from 'lucide-react';
+import { ArrowRight, BookOpen, FileText, Loader2, LogIn, Quote, Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { clientApiRequest } from '@/lib/client-api';
+import { PasswordResetCodeForm } from '@/components/account/PasswordResetCodeForm';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { clearAccountSession, readStoredAccountSession, saveAccountSession } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
@@ -59,10 +59,6 @@ export default function AccountPage() {
   const [target, setTarget] = useState(NOTEBOOK_HOME_HREF);
   const [error, setError] = useState('');
   const [resetOpen, setResetOpen] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetMessage, setResetMessage] = useState('');
-  const [resetError, setResetError] = useState('');
-  const [isResetSubmitting, setIsResetSubmitting] = useState(false);
   const redirectTimerRef = useRef<number | null>(null);
 
   const cancelRedirect = () => {
@@ -146,28 +142,6 @@ export default function AccountPage() {
     }
   }
 
-  async function submitPasswordReset() {
-    if (isResetSubmitting || !hydrated || sessionGate === 'checking') return;
-    setResetError('');
-    setResetMessage('');
-    setIsResetSubmitting(true);
-    try {
-      const response = await clientApiRequest('/api/account/password-reset/request', {
-        skipAuth: true, redirectOnUnauthorized: false, timeoutMs: 40_000,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail || email }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(String(payload.error || '暂时无法提交找回请求，请稍后再试。'));
-      setResetMessage(String(payload.message || '如果这个邮箱已注册，重置指引会发送到邮箱。'));
-    } catch (err) {
-      setResetError(err instanceof Error ? err.message : '暂时无法提交找回请求，请稍后再试。');
-    } finally {
-      setIsResetSubmitting(false);
-    }
-  }
-
   const switchToGuestLogin = () => {
     cancelRedirect();
     clearAccountSession();
@@ -180,15 +154,10 @@ export default function AccountPage() {
     setMode(nextMode);
     setError('');
     setResetOpen(false);
-    setResetError('');
-    setResetMessage('');
   };
 
   const openPasswordReset = () => {
-    setResetEmail((current) => current || email);
     setResetOpen(true);
-    setResetError('');
-    setResetMessage('');
   };
 
   return (
@@ -374,46 +343,10 @@ export default function AccountPage() {
                     </label>
 
                     {mode === 'login' && resetOpen && (
-                      <div className="rounded-3xl border border-blue-100 bg-white px-4 py-4 shadow-[0_14px_34px_rgba(37,99,235,0.08)]" data-testid="account-password-reset-panel">
-                        <div className="flex items-start gap-3">
-                          <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                            <Mail className="h-4 w-4" />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-semibold text-slate-950">找回密码</div>
-                            <p className="mt-1 text-sm leading-6 text-slate-500">输入注册邮箱，我们会提交找回请求。</p>
-                            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                              <input
-                                value={resetEmail}
-                                onChange={(event) => setResetEmail(event.target.value)}
-                                onKeyDown={(event) => {
-                                  if (event.key === 'Enter') {
-                                    event.preventDefault();
-                                    void submitPasswordReset();
-                                  }
-                                }}
-                                className="h-11 min-w-0 flex-1 rounded-full border border-slate-200 bg-[#f8fbff] px-4 text-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-                                placeholder="你的邮箱"
-                                type="email"
-                                autoComplete="email"
-                                data-testid="account-reset-email"
-                              />
-                              <button
-                                type="button"
-                                onClick={submitPasswordReset}
-                                disabled={isResetSubmitting}
-                                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-slate-950 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                data-testid="account-reset-submit"
-                              >
-                                {isResetSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                提交
-                              </button>
-                            </div>
-                            {resetMessage && <p className="mt-3 text-sm leading-6 text-emerald-700">{resetMessage}</p>}
-                            {resetError && <p className="mt-3 text-sm leading-6 text-rose-700">{resetError}</p>}
-                          </div>
-                        </div>
-                      </div>
+                      <section className="space-y-4 rounded-3xl border border-blue-100 bg-white p-4" data-testid="account-password-reset-panel">
+                        <h2 className="text-sm font-semibold text-slate-950">找回密码</h2>
+                        <PasswordResetCodeForm initialEmail={email} />
+                      </section>
                     )}
 
                     {error && (

@@ -20,6 +20,9 @@ export type AccountAuthContext = Omit<AccountAuthSession, 'token' | 'expires_at'
 
 export type AccountPasswordResetResult = {
   status: string;
+  mode?: string;
+  challengeId?: string;
+  expiresInSeconds?: number;
   delivery?: 'email' | 'manual_follow_up' | string;
   message?: string;
 };
@@ -106,7 +109,7 @@ export async function logoutAccountUser(token: string): Promise<void> {
   await readAccountResponse<{ status: string }>(response);
 }
 
-export async function requestAccountPasswordReset(input: { email: string; tenantId?: string }): Promise<AccountPasswordResetResult> {
+export async function requestAccountPasswordReset(input: { email: string; tenantId?: string; mode?: 'email_code' }): Promise<AccountPasswordResetResult> {
   const baseUrl = getAccountApiBase();
   if (!baseUrl) throw new Error('account_api_not_configured');
   const response = await fetch(getPasswordResetEndpoint(baseUrl), {
@@ -115,6 +118,7 @@ export async function requestAccountPasswordReset(input: { email: string; tenant
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       email: input.email,
+      ...(input.mode ? { mode: input.mode } : {}),
       tenant_id: input.tenantId || envValue('ACCOUNT_CENTER_TENANT_ID') || 'tenant_acme',
     }),
   });

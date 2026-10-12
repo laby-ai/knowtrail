@@ -3,6 +3,7 @@ import { requestAccountPasswordReset } from '@/lib/account-auth-client';
 
 type PasswordResetPayload = {
   email?: string;
+  mode?: string;
 };
 
 function cleanEmail(value: unknown): string {
@@ -19,6 +20,7 @@ function successMessage(delivery?: string): string {
 }
 
 function publicError(message: string): { status: number; error: string } {
+  if (/code_resend_too_soon/i.test(message)) return { status: 429, error: '请等待 60 秒后重新发送验证码。' };
   if (/too_many_requests/i.test(message)) return { status: 429, error: '申请次数过多，请 15 分钟后重试。' };
   if (/not_configured/i.test(message)) {
     return { status: 503, error: '当前暂未开启自助找回，请联系服务方处理。' };
@@ -40,9 +42,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await requestAccountPasswordReset({ email });
+    const result = await requestAccountPasswordReset({ email, mode: payload.mode === 'email_code' ? 'email_code' : undefined });
     return NextResponse.json(
-      { status: 'ok', delivery: result.delivery, message: successMessage(result.delivery) },
+      { status: 'ok', delivery: result.delivery, mode: result.mode, challengeId: result.challengeId, expiresInSeconds: result.expiresInSeconds, message: result.mode === 'email_code' ? '如果此邮箱已注册，验证码将发送到邮箱，10 分钟内有效。请在当前页面输入验证码和新密码。' : successMessage(result.delivery) },
       { status: 202, headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {

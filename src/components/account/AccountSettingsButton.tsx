@@ -6,46 +6,15 @@ import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { BailianProviderSettings } from '@/components/account/BailianProviderSettings';
-import { clientApiRequest } from '@/lib/client-api';
+import { PasswordResetCodeForm } from '@/components/account/PasswordResetCodeForm';
 
 function SecuritySettings({ session, onSignOut }: { session: AccountAuthSession; onSignOut: () => void }) {
-  const [email, setEmail] = useState(session.member.email || '');
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  async function requestReset(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    setMessage('');
-    setError('');
-    try {
-      const response = await clientApiRequest('/api/account/password-reset/request', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        skipAuth: true, redirectOnUnauthorized: false, timeoutMs: 40_000,
-        body: JSON.stringify({ email: email.trim() }),
-      });
-      const result = await response.json() as { message?: string; error?: string };
-      if (!response.ok) throw new Error(result.error || '暂时无法提交重置请求。');
-      setMessage(result.message || '重置请求已提交，请查看邮箱。');
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : '暂时无法提交重置请求。');
-    } finally { setBusy(false); }
-  }
-
   return (
     <div className="space-y-6">
-      <form onSubmit={event => void requestReset(event)} className="space-y-3">
+      <section className="space-y-3">
         <h3 className="text-sm font-semibold">密码重置</h3>
-        <p className="text-sm text-[var(--text-secondary)]">通过注册邮箱接收重置指引，设置新的登录密码。</p>
-        <label className="block text-sm">注册邮箱
-          <input type="email" required maxLength={160} value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" className="liquid-glass-input mt-2 h-10 w-full rounded-lg px-3" />
-        </label>
-        <button type="submit" disabled={busy} className="liquid-glass-btn px-4 py-2 text-sm disabled:opacity-50">{busy ? '正在提交…' : '发送重置指引'}</button>
-        {message && <p role="status" className="text-sm text-emerald-600">{message}</p>}
-        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-      </form>
+        <PasswordResetCodeForm initialEmail={session.member.email} />
+      </section>
       <div className="border-t border-[var(--border-subtle)] pt-5">
         <h3 className="mb-3 text-sm font-semibold">登录会话</h3>
         <button type="button" onClick={onSignOut} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-500/10"><LogOut className="h-4 w-4" />退出当前账号</button>
