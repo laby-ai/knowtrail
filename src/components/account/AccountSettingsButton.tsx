@@ -93,31 +93,31 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
           <Settings className="h-5 w-5" /><span>设置</span>
         </button>
       </DialogTrigger>
-      <DialogContent data-testid="account-settings-dialog" className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-xl" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-        <DialogHeader>
+      <DialogContent data-testid="account-settings-dialog" className="max-h-[calc(100dvh-2rem)] gap-6 overflow-y-auto p-5 sm:max-w-xl sm:p-7" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+        <DialogHeader className="space-y-3 text-left">
           <DialogTitle>设置</DialogTitle>
-          <DialogDescription>管理账号、安全和百炼模型配置。</DialogDescription>
+          <DialogDescription className="leading-6">管理账号、安全和百炼模型配置。</DialogDescription>
         </DialogHeader>
         {profileError ? <div className="mt-5 space-y-3">
           <p role="alert" className="text-sm text-red-600">{profileError}</p>
           <button type="button" onClick={() => setRefresh(value => value + 1)} className="liquid-glass-btn px-3 py-2 text-sm">重新加载</button>
           <button type="button" onClick={() => { setOpen(false); onSignOut(); }} className="ml-3 text-sm text-red-600">退出账号</button>
         </div> : !account ? <p role="status" className="mt-5 text-sm text-[var(--text-secondary)]">正在同步账号信息…</p> : <Tabs defaultValue="account" className="mt-5">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid h-12 w-full grid-cols-3 gap-1">
             <TabsTrigger value="account"><UserRound className="h-4 w-4" />账号</TabsTrigger>
             <TabsTrigger value="security"><ShieldCheck className="h-4 w-4" />安全</TabsTrigger>
             <TabsTrigger value="bailian"><KeyRound className="h-4 w-4" />百炼</TabsTrigger>
           </TabsList>
-          <TabsContent value="account" className="pt-4">
+          <TabsContent value="account" className="min-w-0 pt-5 leading-6">
             <h3 className="mb-4 text-sm font-semibold">账号信息</h3>
-            <dl className="space-y-4 text-sm">
+            <dl className="space-y-5 text-sm">
               <div><dt className="text-[var(--text-secondary)]">显示名称</dt><dd className="mt-1 break-words">{account.member.display_name || '未设置'}</dd></div>
               <div><dt className="text-[var(--text-secondary)]">邮箱</dt><dd className="mt-1 break-all">{account.member.email || '账号系统未提供邮箱'}</dd></div>
               {account.tenant_name && <div><dt className="text-[var(--text-secondary)]">所属组织</dt><dd className="mt-1 break-words">{account.tenant_name}</dd></div>}
             </dl>
           </TabsContent>
-          <TabsContent value="security" className="pt-4"><SecuritySettings session={account} onSignOut={() => { setOpen(false); onSignOut(); }} /></TabsContent>
-          <TabsContent value="bailian" className="pt-4"><BailianProviderSettings session={account} /></TabsContent>
+          <TabsContent value="security" className="min-w-0 pt-5 leading-6"><SecuritySettings session={account} onSignOut={() => { setOpen(false); onSignOut(); }} /></TabsContent>
+          <TabsContent value="bailian" className="min-w-0 pt-5 leading-6"><BailianProviderSettings session={account} /></TabsContent>
         </Tabs>}
       </DialogContent>
     </Dialog>
