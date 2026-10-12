@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
-  Plus,
   Search,
   UserRound,
 } from 'lucide-react';
@@ -27,6 +26,7 @@ type NotebookHomeProps = {
   accountStatus: AccountCenterStatus | null;
   accountSession: AccountAuthSession | null;
   notebooksReady: boolean;
+  sharingEntry?: ReactNode;
   onCreate: () => void;
   onOpen: (id: string) => void;
   onShowLanding: () => void;
@@ -67,6 +67,7 @@ export function NotebookHome({
   accountStatus,
   accountSession,
   notebooksReady,
+  sharingEntry,
   onCreate,
   onOpen,
   onShowLanding,
@@ -79,7 +80,7 @@ export function NotebookHome({
   return (
     <div className="notebook-home-page min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-black/20 px-4 py-3 backdrop-blur-xl sm:px-5">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
           <button
             type="button"
             onClick={onShowLanding}
@@ -103,18 +104,7 @@ export function NotebookHome({
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <AccountArea accountStatus={accountStatus} accountSession={accountSession} onSignOut={onSignOut} />
-            <button
-              type="button"
-              onClick={onCreate}
-              disabled={!notebooksReady}
-              className="liquid-glass-btn inline-flex h-10 w-10 items-center justify-center gap-2 rounded-lg text-sm font-semibold text-white shadow-sm transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-4"
-              style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(139, 92, 246, 0.9) 100%)' }}
-              data-testid="notebook-home-create"
-              aria-label="新建文献本"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">新建文献本</span>
-            </button>
+            {sharingEntry}
           </div>
         </div>
       </header>
