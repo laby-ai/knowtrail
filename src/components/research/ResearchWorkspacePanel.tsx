@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ClipboardList } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { notebookIdFromStorageScopeKey } from "@/lib/notebook-scope";
@@ -17,15 +17,15 @@ export function ResearchWorkspacePanel() {
   const [open, setOpen] = useState(false), [items, setItems] = useState<ResearchArtifact[]>([]);
   const [stage, setStage] = useState<ArtifactInput["stage"]>("literature"), [title, setTitle] = useState(""), [content, setContent] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
-  async function load() {
+  const load = useCallback(async () => {
     try { const data = await clientApiFetch<{ artifacts: ResearchArtifact[] }>(`/api/research/workspace?notebookId=${encodeURIComponent(notebookId || "")}&view=artifacts`); setItems(data.artifacts); setError(""); }
     catch (failure) { setError(failure instanceof Error ? failure.message : "研究记录读取失败。"); }
-  }
+  }, [notebookId]);
   useEffect(() => {
     if (!open) return;
     void load(); const saved = () => void load(); window.addEventListener("lingbi:research-artifact-saved", saved);
     return () => window.removeEventListener("lingbi:research-artifact-saved", saved);
-  }, [open, notebookId]);
+  }, [open, load]);
   async function save() {
     setBusy(true); setError("");
     try {
