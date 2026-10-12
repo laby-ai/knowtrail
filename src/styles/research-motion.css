@@ -4,6 +4,7 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  translate: none;
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 .home-motion-card.research-spotlight {
@@ -33,7 +34,8 @@
   background: radial-gradient(240px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(83, 119, 189, 0.09), transparent 72%);
 }
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .research-spotlight:not(:disabled):hover {
+  .research-spotlight:not(:disabled):hover,
+  [data-theme="light"] .research-spotlight:not(:disabled):hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 22px -14px rgba(82, 114, 178, 0.3);
   }
@@ -41,7 +43,8 @@
 }
 .research-spotlight:focus-visible::after { opacity: 1; }
 .research-spotlight:focus-visible { outline: 2px solid var(--accent-blue, #5377bd); outline-offset: 3px; }
-.research-spotlight:not(:disabled):active { transform: translateY(0); }
+.research-spotlight:not(:disabled):active,
+[data-theme="light"] .research-spotlight:not(:disabled):active { transform: translateY(0); }
 
 /* Keep reading surfaces solid. Animate only the short opening transition. */
 [data-slot="dialog-content"][data-state="open"] {
@@ -59,7 +62,8 @@
   to { opacity: 0; }
 }
 @media (hover: none), (pointer: coarse) {
-  .research-spotlight:not(:disabled):hover { transform: none; }
+  .research-spotlight:not(:disabled):hover,
+  [data-theme="light"] .research-spotlight:not(:disabled):hover { transform: none; }
   .research-spotlight::after { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
