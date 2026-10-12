@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const result = await searchDiscoveredSources({ query, scope: searchScope, size, withContent, signal: request.signal });
     console.log(`[Discover] "${query.slice(0, 40)}" provider=${result.provider} scope=${searchScope} -> ${result.results.length} 条`);
     const { results, ...relevanceStage } = applyDiscoverRelevanceStage(query, result.results);
-    return NextResponse.json({ success: true, query, scope: searchScope, ...result, results, relevanceStage });
+    return NextResponse.json({ success: true, query, scope: searchScope, ...result, results, total: results.length, providerTotal: result.total, relevanceStage });
   } catch (err) {
     const status = err instanceof DiscoverSearchProviderError ? err.status : 502;
     const message = err instanceof DiscoverSearchProviderError
