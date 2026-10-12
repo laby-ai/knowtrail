@@ -31,7 +31,7 @@ async function main() {
   const source = (id: string, year?: number): StoredSourceRecord => ({
     id, ownerMemberId: owner.id, notebookId: "book", title: `${id} 方法结果测试文献`, shortName: id,
     fileName: id + ".txt", fileType: "txt", status: "succeeded", createdAt: "2026-10-12T00:00:00Z", updatedAt: "2026-10-12T00:00:00Z",
-    stages: [], chunkCount: 1, tokenEstimate: 20, vectorIndex: { status: "pending", updatedAt: "2026-10-12T00:00:00Z" },
+    stages: [], chunkCount: 1, tokenEstimate: 20, vectorIndex: { status: "not_configured", updatedAt: "2026-10-12T00:00:00Z" },
     chunks: [{ id: id + "-chunk", sourceId: id, sourceIndex: 0, chunkIndex: 2, page: 4, paperShortName: id, sourceTitle: id, text: "我们采用回归方法研究样本。数据来自 50 名参与者。结果显示提升 1.5%，仍存在样本局限。", tokenEstimate: 20 }],
     ...(year ? { literature: { title: id, authors: [], year, abstract: "", venue: "Fixture Journal", url: "", source: "crossref", provider: "Crossref", evidenceScope: "fulltext", retrievedAt: "2026-10-12T00:00:00Z" } } : {}),
   });
