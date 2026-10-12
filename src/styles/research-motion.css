@@ -6,6 +6,15 @@
   overflow: hidden;
   transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
+.home-motion-card.research-spotlight {
+  animation-name: researchCardEnter;
+  animation-duration: 440ms;
+  animation-fill-mode: backwards;
+}
+@keyframes researchCardEnter {
+  from { opacity: 0.4; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
 .spotlight-glass-card.research-spotlight::after,
 .liquid-glass-card.research-spotlight::after {
   content: '';
