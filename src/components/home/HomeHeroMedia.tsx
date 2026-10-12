@@ -45,7 +45,7 @@ export function HomeHeroMedia() {
         <source src="assets/home/lingbi-hero-loop.mp4" type="video/mp4" />
       </video>
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(0,0,0,0.3),rgba(0,0,0,0.10)_42%,transparent_76%)]" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(0,0,0,0.3),rgba(0,0,0,0.10)_42%,transparent_76%)]" />
       {sourceTiles.map((tile, index) => {
         const Icon = tile.icon;
         return (

@@ -50,8 +50,8 @@
   to { opacity: 0; }
 }
 @media (hover: none), (pointer: coarse) {
-  .research-spotlight:hover { transform: none; }
-  .research-spotlight::after { display: none; }
+  .research-spotlight:not(:disabled):hover { transform: none; }
+  .research-spotlight::after { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
