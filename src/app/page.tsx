@@ -136,7 +136,13 @@ export default function HomePage() {
     // Restoring a session must not skip the public home page.
     setView(viewParam === 'workspace' || viewParam === 'notebooks' ? viewParam : 'landing');
     setSessionReady(true);
-    const refreshSession = () => setAccountSession(readStoredAccountSession());
+    const refreshSession = (event: Event) => {
+      if (event instanceof StorageEvent && event.key !== null
+        && event.key !== 'knowtrail-account-session'
+        && event.key !== 'account_entitlement_token') return;
+      const next = readStoredAccountSession();
+      setAccountSession(current => JSON.stringify(current) === JSON.stringify(next) ? current : next);
+    };
     window.addEventListener('knowtrail-account-session-changed', refreshSession);
     window.addEventListener('storage', refreshSession);
     return () => { window.removeEventListener('knowtrail-account-session-changed', refreshSession); window.removeEventListener('storage', refreshSession); };
