@@ -1,0 +1,66 @@
+/* Visual adaptation of React Bits SpotlightCard / AnimatedContent.
+   See THIRD_PARTY_NOTICES/react-bits/ for pinned upstream sources and license. */
+.research-spotlight {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+.spotlight-glass-card.research-spotlight::after,
+.liquid-glass-card.research-spotlight::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(240px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(116, 153, 230, 0.13), transparent 72%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  z-index: -1;
+}
+[data-theme="light"] .liquid-glass-card.research-spotlight::after,
+[data-theme="light"] .spotlight-glass-card.research-spotlight::after {
+  display: block;
+  background: radial-gradient(240px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(83, 119, 189, 0.09), transparent 72%);
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .research-spotlight:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 22px -14px rgba(82, 114, 178, 0.3);
+  }
+  .research-spotlight:not(:disabled):hover::after { opacity: 1; }
+}
+.research-spotlight:focus-visible::after { opacity: 1; }
+.research-spotlight:focus-visible { outline: 2px solid var(--accent-blue, #5377bd); outline-offset: 3px; }
+.research-spotlight:not(:disabled):active { transform: translateY(0); }
+
+/* Keep reading surfaces solid. Animate only the short opening transition. */
+[data-slot="dialog-content"][data-state="open"] {
+  animation: researchDialogEnter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+[data-slot="dialog-content"][data-state="closed"] {
+  animation: researchDialogExit 110ms ease both;
+}
+@keyframes researchDialogEnter {
+  from { opacity: 0.5; transform: translateY(4px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes researchDialogExit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@media (hover: none), (pointer: coarse) {
+  .research-spotlight:hover { transform: none; }
+  .research-spotlight::after { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  [data-slot="dialog-content"], [data-slot="dialog-overlay"] { animation: none !important; }
+  .research-spotlight:hover, .research-spotlight:active { transform: none !important; }
+  .research-spotlight::after { display: none !important; }
+}

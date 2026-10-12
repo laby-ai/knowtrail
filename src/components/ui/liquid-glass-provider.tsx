@@ -14,6 +14,8 @@ export function LiquidGlassProvider({ children }: { children: React.ReactNode })
 
   // Mouse tracking for hover-light — throttled with requestAnimationFrame
   const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
     lastMouseRef.current = { x: e.clientX, y: e.clientY };
 
     if (rafRef.current !== null) return;
@@ -36,7 +38,7 @@ export function LiquidGlassProvider({ children }: { children: React.ReactNode })
 
       // Find closest glass element
       const glassElement = target.closest(
-        '.liquid-glass-card, .liquid-glass-panel, .liquid-glass-static, .liquid-glass-btn, .liquid-glass-chip, .liquid-glass-input, [data-liquid-glass]'
+        '.research-spotlight, .liquid-glass-card, .liquid-glass-panel, .liquid-glass-static, .liquid-glass-btn, .liquid-glass-chip, .liquid-glass-input, [data-liquid-glass]'
       );
 
       if (glassElement) {

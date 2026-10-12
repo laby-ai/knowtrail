@@ -11,7 +11,7 @@ export function CreateNotebookCard({ disabled, onCreate }: { disabled: boolean; 
       type="button"
       onClick={onCreate}
       disabled={disabled}
-      className="home-motion-card liquid-glass-card flex min-h-[184px] flex-col items-center justify-center rounded-xl p-5 text-center transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+      className="home-motion-card liquid-glass-card research-spotlight flex min-h-[184px] flex-col items-center justify-center rounded-xl p-5 text-center transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       data-testid="notebook-home-create-card"
     >
       <span className="flex h-12 w-12 items-center justify-center rounded-lg text-blue-300" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)' }}>
@@ -38,7 +38,7 @@ export function NotebookCard({
       type="button"
       onClick={onOpen}
       disabled={disabled}
-      className={`home-motion-card liquid-glass-card group flex min-h-[184px] flex-col justify-between rounded-xl p-5 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+      className={`home-motion-card liquid-glass-card research-spotlight group flex min-h-[184px] flex-col justify-between rounded-xl p-5 text-left transition hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
         active
           ? 'ring-2 ring-blue-400/50'
           : ''

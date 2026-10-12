@@ -314,7 +314,7 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
       <main id="overview">
         <section className="px-5 pb-12 pt-8 md:pt-14">
           <div className="liquid-glass-card mx-auto max-w-[1560px] rounded-[34px] px-5 pb-6 pt-16 md:px-8 md:pt-28">
-            <div className="mx-auto max-w-5xl text-center">
+            <MotionReveal className="mx-auto max-w-5xl text-center" y={8}>
               <h1 className="text-5xl font-normal leading-[1.08] tracking-[-0.03em] text-white md:text-7xl">
                 读懂<span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">每篇文献</span>
               </h1>
@@ -332,7 +332,7 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
                   开启科研模式
                 </Link>
               </div>
-            </div>
+            </MotionReveal>
             <div className="mt-10 md:mt-12">
               <HomeHeroMedia />
             </div>
