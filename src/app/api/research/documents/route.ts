@@ -4,6 +4,7 @@ import { resolveAccountSessionFromRequest } from "@/lib/account-session";
 import {
   CollaborationError,
   documentRole,
+  sharedNotebookParentId,
   listResearchDocuments,
   mutateResearchDocument,
   type CollaborationActor,
@@ -169,22 +170,22 @@ async function handle(request: NextRequest, write: boolean) {
           { status: 404 },
         );
       return Response.json(
-        { document, role: documentRole(document, actor, documents) },
+        { document: { ...document, sharedNotebookId: sharedNotebookParentId(document, documents) }, role: documentRole(document, actor, documents) },
         { headers: { "Cache-Control": "private, no-store" } },
       );
     }
     return Response.json(
       {
         documents: documents.map(
-          ({ id, title, notebookId, updatedAt, revision, ownerId, shareWholeNotebook, sharedNotebookId }) => ({
-            id,
-            title,
-            notebookId,
-            updatedAt,
-            revision,
-            ownerId,
-            shareWholeNotebook,
-            sharedNotebookId,
+          (document) => ({
+            id: document.id,
+            title: document.title,
+            notebookId: document.notebookId,
+            updatedAt: document.updatedAt,
+            revision: document.revision,
+            ownerId: document.ownerId,
+            shareWholeNotebook: document.shareWholeNotebook,
+            sharedNotebookId: sharedNotebookParentId(document, documents),
           }),
         ),
       },

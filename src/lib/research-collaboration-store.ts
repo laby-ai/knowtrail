@@ -52,6 +52,7 @@ export interface ResearchDocument {
     content: string;
     members?: ResearchDocument["members"];
     sharedSourceIds?: string[];
+    shareWholeNotebook?: boolean;
   }>;
 }
 export class CollaborationError extends Error {
@@ -112,6 +113,10 @@ export function sharedNotebookRoot(document: ResearchDocument, documents: Resear
     && item.tenantId === document.tenantId && item.ownerId === document.ownerId
     && item.notebookId === document.notebookId
     && (document.sharedNotebookId ? item.id === document.sharedNotebookId : true));
+}
+export function sharedNotebookParentId(document: ResearchDocument, documents: ResearchDocument[]) {
+  const root = sharedNotebookRoot(document, documents);
+  return document.sharedNotebookId || (root?.id !== document.id ? root?.id : undefined);
 }
 export async function listResearchDocuments(actor: CollaborationActor) {
   const documents = await read(actor.tenantId);
@@ -345,6 +350,7 @@ export async function mutateResearchDocument(
         content: document.content,
         members: document.members.map((member) => ({ ...member })),
         sharedSourceIds: [...(document.sharedSourceIds || [])],
+        shareWholeNotebook: document.shareWholeNotebook,
       });
     // Retain the most recent 20 revisions; UI exposes this retention boundary.
     document.history = document.history.slice(-20);

@@ -19,6 +19,7 @@ export function updatePresence(
   actor: CollaborationActor,
   clientId: string,
   cursor: number,
+  documents: ResearchDocument[] = [],
 ): CollaborationPresence[] {
   const now = Date.now();
   for (const [id, room] of rooms) {
@@ -26,7 +27,7 @@ export function updatePresence(
       if (now - value.peer.updatedAt > 30000) room.delete(key);
     if (!room.size) rooms.delete(id);
   }
-  const role = documentRole(document, actor);
+  const role = documentRole(document, actor, documents);
   if (!role) return [];
   if (!rooms.has(document.id)) {
     if (rooms.size >= 256) rooms.delete(rooms.keys().next().value!);
@@ -46,7 +47,7 @@ export function updatePresence(
       },
     });
   return [...room.values()].flatMap((value) => {
-    const currentRole = documentRole(document, value.actor);
+    const currentRole = documentRole(document, value.actor, documents);
     return currentRole ? [{ ...value.peer, role: currentRole }] : [];
   });
 }

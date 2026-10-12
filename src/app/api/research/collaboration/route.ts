@@ -5,6 +5,7 @@ import { resolveAccountSessionFromRequest } from "@/lib/account-session";
 import {
   listResearchDocuments,
   documentRole,
+  sharedNotebookParentId,
   mutateResearchDocument,
   CollaborationError,
   type CollaborationActor,
@@ -91,7 +92,7 @@ async function handle(request: NextRequest, write: boolean) {
           vector: Buffer.from(Y.encodeStateVector(doc)).toString("base64"),
           role: documentRole(document, actor, documents),
           shareWholeNotebook: document.shareWholeNotebook,
-          sharedNotebookId: document.sharedNotebookId,
+          sharedNotebookId: sharedNotebookParentId(document, documents),
           revision: document.revision,
           content: document.content,
           title: document.title,
@@ -103,7 +104,7 @@ async function handle(request: NextRequest, write: boolean) {
           ...(data.historyRevision !== document.history.at(-1)?.revision
             ? { history: document.history }
             : {}),
-          peers: updatePresence(document, actor, data.clientId, data.cursor),
+          peers: updatePresence(document, actor, data.clientId, data.cursor, documents),
         },
         { headers: { "Cache-Control": "private, no-store" } },
       );
