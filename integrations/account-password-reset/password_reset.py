@@ -54,7 +54,7 @@ def mail_settings():
     return host, int(os.getenv("SMTP_PORT", "465")), sender, reset_url
 
 
-def deliver(email: str, token: str):
+def deliver(email: str, token: str, *, send: bool = True):
     host, port, sender, reset_url = mail_settings()
     message = EmailMessage()
     message["From"] = sender
@@ -69,7 +69,8 @@ def deliver(email: str, token: str):
         username = os.getenv("SMTP_USER", "")
         if username:
             smtp.login(username, os.getenv("SMTP_PASSWORD", ""))
-        smtp.send_message(message)
+        if send:
+            smtp.send_message(message)
 
 
 def request_reset(data: dict) -> dict:
@@ -104,13 +105,14 @@ def request_reset(data: dict) -> dict:
             conn.execute("UPDATE local_auth_password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL", (timestamp.isoformat(), user["id"]))
             conn.execute("INSERT INTO local_auth_password_resets(token_hash,user_id,tenant_id,created_at,expires_at) VALUES(?,?,?,?,?)", (digest, user["id"], tenant_id, timestamp.isoformat(), (timestamp + timedelta(minutes=15)).isoformat()))
             audit_event(conn, tenant_id=tenant_id, member_id=user["member_id"], event_type="local_auth.password_reset_requested", actor_type="anonymous", actor_id="password_reset", payload={"email_sha256": hashlib.sha256(email.encode()).hexdigest()})
-    if user:
-        try:
-            deliver(email, token)
-        except Exception:
+    try:
+        # Validate the transport for unknown emails too, without sending a message.
+        deliver(email, token, send=bool(user))
+    except Exception:
+        if user:
             with connect() as conn:
                 conn.execute("UPDATE local_auth_password_resets SET used_at = ? WHERE token_hash = ?", (datetime.now(timezone.utc).isoformat(), digest))
-            raise AuthError(503, "password_reset_delivery_failed") from None
+        raise AuthError(503, "password_reset_delivery_failed") from None
     return {"status": "accepted", "delivery": "email"}
 
 

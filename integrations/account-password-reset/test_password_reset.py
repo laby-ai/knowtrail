@@ -81,6 +81,12 @@ class PasswordRecoveryTests(unittest.TestCase):
         with self.assertRaises(auth.AuthError) as caught: self.request()
         self.assertEqual(caught.exception.status, 429)
 
+    def test_transport_failure_does_not_reveal_registration(self):
+        with patch.object(reset.smtplib, "SMTP_SSL", side_effect=OSError("isolated connection failure")):
+            for email in ["recovery@example.invalid", "unknown@example.invalid"]:
+                with self.assertRaises(auth.AuthError) as caught: reset.request_reset({"email": email})
+                self.assertEqual(caught.exception.status, 503)
+
     def test_transport_failure_invalidates_token(self):
         CaptureSMTP.fail = True
         with self.assertRaises(auth.AuthError) as caught: self.request()
