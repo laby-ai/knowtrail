@@ -74,7 +74,7 @@ export function ResearchPreferencesProvider({ ownerId, children }: { ownerId?: s
       {shortcutMessage && <p role="status" className="fixed bottom-4 left-1/2 z-[100] max-w-[90vw] -translate-x-1/2 rounded-lg border bg-[var(--bg-primary)] px-4 py-3 text-sm shadow-lg">{shortcutMessage}</p>}
     </div>
     <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value); }}>
-      <DialogContent className="sm:max-w-lg" data-testid="research-preferences-dialog">
+      <DialogContent style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }} className="sm:max-w-lg" data-testid="research-preferences-dialog">
         <DialogHeader><DialogTitle>选择研究领域</DialogTitle><DialogDescription>可多选。第一项领域决定配色与默认检索源、引用格式，之后可随时修改。</DialogDescription></DialogHeader>
         <fieldset disabled={busy} className="space-y-3"><legend className="mb-2 text-sm font-medium">研究领域</legend>
           <div className="grid grid-cols-2 gap-3">{RESEARCH_DISCIPLINES.map(item => <label key={item.id} className="flex items-center gap-2 rounded-lg border p-3 text-sm">
