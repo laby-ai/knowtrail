@@ -55,7 +55,9 @@ export async function searchAllSources(options: SearchOptions): Promise<Literatu
     if (yearTo && year > yearTo) return false;
     const identifier = query.trim().toLowerCase().replace(/^https?:\/\/(?:dx\.)?doi\.org\//, '').replace(/^doi:\s*/, '');
     if (/^10\.\d{4,9}\/\S+$/.test(identifier)) return paper.doi?.toLowerCase() === identifier;
-    return assessSearchTopics(query, [paper.title, paper.abstract, ...paper.authors.map(author => author.name), paper.doi || '', paper.arxivId || '', Number.isFinite(year) && year > 0 ? String(year) : ''].join(' '), topics).accepted;
+    const arxivQuery = identifier.replace(/^arxiv:\s*/, '').replace(/v\d+$/, '');
+    if (/^\d{4}\.\d{4,5}$/.test(arxivQuery)) return paper.arxivId?.replace(/v\d+$/, '') === arxivQuery;
+    return assessSearchTopics(query, [paper.title, paper.abstract, Number.isFinite(year) && year > 0 ? String(year) : ''].join(' '), topics).accepted;
   });
 
   return filtered.map(paper => {

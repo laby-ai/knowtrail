@@ -63,7 +63,7 @@ export function scoreDiscoveredSourceRelevance(
   const summary = source.snippet || (source.content || '').slice(0, 6000);
   const titleMatch = assessSearchTopics(query, source.title, groups);
   const summaryMatch = assessSearchTopics(query, summary, groups);
-  const assessment = assessSearchTopics(query, [source.title, summary, ...source.authors, source.date].join(' '), groups);
+  const assessment = assessSearchTopics(query, [source.title, summary, source.date].join(' '), groups);
   const matched = assessment.matched;
   const missing = assessment.missing;
   const confidence = Math.min(1, titleMatch.coverage * 0.55 + summaryMatch.coverage * 0.45);

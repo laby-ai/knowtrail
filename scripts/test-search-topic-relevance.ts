@@ -14,4 +14,5 @@ assert.equal(assessSearchTopics('cancer OR tumor', 'Source Boolean query').accep
 const candidate = { title: 'AI-based health policy', link: 'https://example.invalid/paper', snippet: 'National health policy research', content: 'Navigation links: AI fusion quantum sensors', date: '', authors: [], provider: 'metaso' as const, verificationStatus: 'candidate' as const };
 assert.equal(applyDiscoverRelevanceStage('AI fusion', [candidate]).results.length, 0, 'Off-topic summaries cannot pass through body navigation keywords');
 assert.equal(applyDiscoverRelevanceStage('AI fusion', [{ ...candidate, title: 'AI sensor fusion', snippet: '' }]).results.length, 1);
+assert.equal(applyDiscoverRelevanceStage('AI', [{ ...candidate, title: 'Weather measurements', snippet: 'Rainfall weather', authors: ['Ai'] }]).acceptedCount, 0, 'An author name cannot stand in for the research topic');
 console.log('Search topic regression checks passed');

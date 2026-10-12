@@ -1,5 +1,5 @@
 /** Deterministic relevance gate; lexical evidence, not an AI confidence score. */
-const STOP = new Set('a an and are as at by for from how in is of on or that the this to what when where why with about research researches study studies paper papers article articles find search please 方法 机制 应用 研究 技术 现状 综述 文献 论文 搜索 检索 查找 关于 有关 相关 请 帮 我 帮我 一下 的 与 和 在 对 是 有'.split(' '));
+const STOP = new Set('a an and are as at by for from how in is of on or that the this to what when where why with about research researches study studies paper papers article articles method methods mechanism mechanisms technique techniques approach approaches review reviews overview application applications find search please 方法 机制 应用 研究 技术 现状 综述 文献 论文 搜索 检索 查找 关于 有关 相关 请 帮 我 帮我 一下 的 与 和 在 对 是 有'.split(' '));
 const ALIASES: string[][] = [
   ['图神经网络', 'graph neural network', 'graph neural networks', 'gnn', 'gnns'],
   ['大语言模型', 'large language model', 'large language models', 'llm', 'llms'],
