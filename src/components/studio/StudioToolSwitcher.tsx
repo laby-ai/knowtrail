@@ -68,7 +68,7 @@ export function StudioToolSwitcher({
         aria-haspopup="dialog"
         type="button"
         onClick={() => onSelect(item.id)}
-        className={`spotlight-glass-card research-spotlight rounded-xl border px-3 py-2.5 text-left transition-all ${
+        className={`spotlight-glass-card rounded-xl border px-3 py-2.5 text-left transition-all ${
           isActive
             ? 'border-blue-400/50 bg-blue-500/10'
             : 'border-[var(--glass-border)] bg-[var(--glass-subtle)] hover:border-[var(--border-hover)]'

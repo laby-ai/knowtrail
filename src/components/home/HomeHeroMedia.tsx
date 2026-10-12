@@ -2,7 +2,6 @@
 
 import { BookOpen, FileText, Globe2, Headphones, Presentation, Sparkles } from 'lucide-react';
 import { BrandMark } from '@/components/brand/BrandMark';
-import { useEffect, useRef } from 'react';
 
 const sourceTiles = [
   { label: '网页资料', icon: Globe2, className: 'left-[8%] top-[16%] border-emerald-400/30 bg-emerald-500/20 text-emerald-200' },
@@ -12,28 +11,12 @@ const sourceTiles = [
 ];
 
 export function HomeHeroMedia() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let visible = false;
-    const update = () => {
-      if (!visible || document.hidden || reduced.matches) video.pause();
-      else void video.play().catch(() => undefined);
-    };
-    const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); update(); }, { threshold: 0.15 });
-    observer.observe(video);
-    reduced.addEventListener('change', update);
-    document.addEventListener('visibilitychange', update);
-    return () => { observer.disconnect(); video.pause(); reduced.removeEventListener('change', update); document.removeEventListener('visibilitychange', update); };
-  }, []);
   return (
     <div className="home-motion-stage relative mx-auto h-[420px] w-full max-w-6xl overflow-hidden rounded-[34px] border border-white/18 bg-black/40 shadow-[0_26px_90px_rgba(0,0,0,0.4)] backdrop-blur-xl md:h-[520px]">
       <video
-        ref={videoRef}
         className="absolute inset-x-0 bottom-0 h-full w-full object-cover opacity-95"
         controls
+        autoPlay
         muted
         loop
         playsInline
@@ -45,7 +28,7 @@ export function HomeHeroMedia() {
         <source src="assets/home/lingbi-hero-loop.mp4" type="video/mp4" />
       </video>
 
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(0,0,0,0.3),rgba(0,0,0,0.10)_42%,transparent_76%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(0,0,0,0.3),rgba(0,0,0,0.10)_42%,transparent_76%)]" />
       {sourceTiles.map((tile, index) => {
         const Icon = tile.icon;
         return (
