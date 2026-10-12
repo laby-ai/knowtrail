@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
     const payload = await request.json() as AuthPayload;
     const mode = payload.mode === 'register' ? 'register' : 'login';
     const email = cleanEmail(payload.email);
-    const password = cleanText(payload.password);
+    // Passwords must be passed verbatim, including intentional whitespace.
+    const password = typeof payload.password === 'string' ? payload.password : '';
     const displayName = cleanText(payload.displayName);
 
     if (!email || !password) {

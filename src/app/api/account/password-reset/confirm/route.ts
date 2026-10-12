@@ -17,8 +17,10 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ token, password }), signal: AbortSignal.timeout(20_000), cache: 'no-store',
     });
     if (!upstream.ok) {
+      const result = await upstream.json().catch(() => ({})) as { error?: string };
       const status = upstream.status === 429 ? 429 : upstream.status === 400 ? 400 : 502;
-      return NextResponse.json({ error: status === 429 ? '尝试次数过多，请稍后重试。' : status === 400 ? '链接已过期、已使用或无效，请重新申请找回密码。' : '暂时无法重置密码，请稍后重试。' }, { status, headers });
+      const passwordError = result.error === 'password_too_short' || result.error === 'password_too_long';
+      return NextResponse.json({ error: status === 429 ? '尝试次数过多，请稍后重试。' : passwordError ? '新密码需要 8–128 位。' : status === 400 ? '链接已过期、已使用或无效，请重新申请找回密码。' : '暂时无法重置密码，请稍后重试。' }, { status, headers });
     }
     return NextResponse.json({ status: 'ok', message: '密码已重置，请使用新密码重新登录。' }, { headers });
   } catch {
