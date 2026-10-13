@@ -54,7 +54,7 @@ export function MembershipPanel({ memberId }: { memberId: string }) {
     </section>
     <section className="space-y-3"><h3 className="font-semibold">购买科研点数</h3><select aria-label="支付方式" className="liquid-glass-input" value={provider} onChange={event => setProvider(event.target.value)}><option value="alipay">支付宝</option><option value="wechat">微信支付</option>{membership.kind === 'team' && <option value="bank">对公转账</option>}</select><div className="flex flex-wrap gap-3">{catalog.pointPacks.map(pack => <button key={pack.id} disabled={busy || !ready || membership.role !== 'admin'} className="liquid-glass-btn" onClick={() => void purchase(pack.id)}>¥{pack.amountFen / 100} · {pack.points} 点</button>)}</div><p>¥1＝100 点。价格与点数由账号服务确定，首发手动续费。</p></section>
     {payment && <div className="space-y-3 rounded-xl border p-4">{payment.payment_url && /^https:\/\/openapi\.alipay\.com\//.test(payment.payment_url) && <a href={payment.payment_url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent-blue)]">打开支付宝付款</a>}{payment.qrImage && <img src={payment.qrImage} alt="微信支付二维码" width={220} height={220} />}{payment.bankInstructions && <p className="whitespace-pre-wrap">{payment.bankInstructions}</p>}<p>付款后点击刷新核验到账；打开支付页面不代表支付成功。</p><button className="liquid-glass-btn" onClick={() => void load().catch(() => setError('到账核验失败，请重试'))}>刷新会员与余额</button></div>}
-    <CommerceTeam membership={membership} busy={busy} action={action} />
+    <CommerceTeam purchase={purchase} membership={membership} busy={busy} action={action} />
     <CommerceHistory membership={membership} busy={busy} action={action} />
   </div>;
 }

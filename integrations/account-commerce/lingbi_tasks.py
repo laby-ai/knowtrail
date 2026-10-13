@@ -24,6 +24,13 @@ def model_points(resources, price_book):
         price = price_book.get(resource["rateKey"])
         if not price:
             raise ValueError("model_not_priced")
+        cached = resource.get("cachedInputTokens", 0)
+        if type(cached) != int or not 0 <= cached <= resource.get("inputTokens", 0):
+            raise ValueError("invalid_cached_usage")
+        if cached:
+            if "cachedInputPerMillionCny" not in price:
+                raise ValueError("cached_input_not_priced")
+            cost += Decimal(str(price["cachedInputPerMillionCny"])) * cached / 1000000
         for quantity, price_name in (("inputTokens", "inputPerMillionCny"), ("outputTokens", "outputPerMillionCny"), ("images", "imageCny"), ("queries", "queryCny")):
             count = resource.get(quantity, 0)
             if type(count) != int or not 0 <= count <= 10000000:
@@ -34,7 +41,7 @@ def model_points(resources, price_book):
                 unit = Decimal(str(price[price_name]))
                 if not unit.is_finite() or unit < 0:
                     raise ValueError("invalid_price")
-                cost += unit * count / (1000000 if "Tokens" in quantity else 1)
+                cost += unit * (count - cached if quantity == "inputTokens" else count) / (1000000 if "Tokens" in quantity else 1)
     return int((cost * 300).to_integral_value(rounding=ROUND_CEILING))
 
 
@@ -78,18 +85,27 @@ def save_task(conn, task_id, status, data):
     conn.execute("UPDATE lingbi_tasks SET status=?,data_json=? WHERE id=?", (status, json.dumps(data), task_id))
 
 
-def reserve(tenant, member, account, task_id, digest):
+def reserve(tenant, member, account, task_id, digest, operation=None, source=None):
     if os.getenv("LINGBI_COMMERCE_MODE", "observe") != "enforced":
         raise PermissionError("charging_not_enabled")
     with locked(account, tenant, member) as (conn, state):
         row, data = task(conn, task_id, account, member)
         if data["inputHash"] != digest:
             raise ValueError("quote_payload_changed")
+        if (operation and data["operation"] != operation) or (source and not any(item["source"] == source for item in data["resources"])):
+            raise ValueError("quote_operation_or_source_mismatch")
         if row["status"] != "quoted":
             raise ValueError("quote_already_consumed")
         if data["expiresAt"] <= utcnow().isoformat():
             raise ValueError("quote_expired")
         plan = active_plan(state)
+        if state["kind"] == "team":
+            if plan != "team":
+                raise PermissionError("active_team_subscription_required")
+            seats = PLANS[plan]["seats"] + sum(1 for item in state["seats"] if item["end"] > utcnow().isoformat())
+            members = [state["owner"]] + [item for item in state["members"] if item != state["owner"]]
+            if members.index(member) >= seats:
+                raise PermissionError("active_team_seat_required")
         if data["operation"] in PREMIUM and plan == "free":
             raise PermissionError("paid_membership_required")
         running = conn.execute("SELECT COUNT(*) AS count FROM lingbi_tasks WHERE account_id=? AND status IN ('reserved','reconcile')", (account,)).fetchone()["count"]
@@ -154,12 +170,16 @@ def record_usage(tenant, member, account, data):
     safe = {key: data.get(key) for key in ("operation", "resources", "delivered", "reliable", "durationMs", "outcome", "requestId")}
     if not isinstance(safe["resources"], list) or len(safe["resources"]) > 100:
         raise ValueError("invalid_usage")
-    allowed = {"rateKey", "source", "inputTokens", "outputTokens", "images", "queries", "usageMissing", "retry", "status"}
+    allowed = {"rateKey", "source", "inputTokens", "outputTokens", "cachedInputTokens", "images", "queries", "usageMissing", "retry", "status"}
     safe["resources"] = [{key: value for key, value in item.items() if key in allowed} for item in safe["resources"]]
     try:
         safe["modelPoints"] = model_points(safe["resources"], rates()) if safe["reliable"] else None
     except ValueError:
         safe["modelPoints"] = None
-    with locked(account, tenant, member, internal=True) as (conn, _):
-        conn.execute("INSERT INTO lingbi_usage(id,account_id,member_id,created_at,data_json) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING", (safe["requestId"], account, member, utcnow().isoformat(), json.dumps(safe)))
+    if (tenant, member, account) == ("anonymous", "anonymous", "anonymous-platform"):
+        with connect() as conn:
+            conn.execute("INSERT INTO lingbi_usage(id,account_id,member_id,created_at,data_json) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING", (safe["requestId"], account, member, utcnow().isoformat(), json.dumps(safe)))
+    else:
+        with locked(account, tenant, member, internal=True) as (conn, _):
+            conn.execute("INSERT INTO lingbi_usage(id,account_id,member_id,created_at,data_json) VALUES(?,?,?,?,?) ON CONFLICT(id) DO NOTHING", (safe["requestId"], account, member, utcnow().isoformat(), json.dumps(safe)))
     return dict(status="recorded")

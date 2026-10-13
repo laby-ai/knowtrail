@@ -55,9 +55,10 @@ def dispatch(handler, method):
             tenant, member = internal_data.get("tenantId"), internal_data.get("memberId")
             with connect() as conn:
                 principal = conn.execute("SELECT email,status FROM tenant_members WHERE id=? AND tenant_id=?", (member, tenant)).fetchone()
-            if not principal or (principal["status"] != "active" and path not in ("internal/finalize", "internal/usage")):
+            anonymous_usage = path == "internal/usage" and (tenant, member, internal_data.get("accountId")) == ("anonymous", "anonymous", "anonymous-platform")
+            if not anonymous_usage and (not principal or (principal["status"] != "active" and path not in ("internal/finalize", "internal/usage"))):
                 raise AuthError(403, "invalid_internal_member")
-            email = principal["email"]
+            email = principal["email"] if principal else ""
         else:
             tenant, member, email = identity(handler.headers)
         if method == "GET":
@@ -93,10 +94,14 @@ def dispatch(handler, method):
             elif path == "internal/provider":
                 from server_member_provider_keys import resolve_profile
                 result = resolve_profile(connect, tenant, member, "knowtrail")
+            elif path == "internal/capacity":
+                from lingbi_capacity import capacity
+                ensure_personal(tenant, member)
+                result = capacity(tenant, member, account, data)
             elif path == "internal/reserve":
                 if not readiness()["chargingReady"]:
                     raise AuthError(503, "commercial_acceptance_pending")
-                result = reserve(tenant, member, account, data.get("quoteId"), data.get("inputHash"))
+                result = reserve(tenant, member, account, data.get("quoteId"), data.get("inputHash"), data.get("operation"), data.get("source"))
             elif path == "internal/finalize":
                 result = finalize(tenant, member, account, data.get("quoteId"), data.get("resources", []), data.get("delivered", 0), reliable=data.get("reliable", False))
             elif path == "internal/usage":

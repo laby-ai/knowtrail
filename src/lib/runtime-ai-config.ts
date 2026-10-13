@@ -1,4 +1,4 @@
-import { trustedRequestKey } from '@/lib/commerce/context';
+import { trustedRequestKey, requestProviderConfig } from '@/lib/commerce/context';
 import type { RuntimeAIConfig } from '@/types';
 
 export function sanitizeRuntimeAIConfig(value: unknown): Partial<RuntimeAIConfig> | undefined {
@@ -105,6 +105,8 @@ export function serverRuntimeAIConfigFromEnv(): Partial<RuntimeAIConfig> {
 
 export function resolveServerRuntimeAIConfig(input?: Partial<RuntimeAIConfig>): Partial<RuntimeAIConfig> {
   if (hasRuntimeAIProvider(input) && (trustedRequestKey(input.apiKey) || allowRequestRuntimeAIConfig())) return input;
+  const resolved = requestProviderConfig();
+  if (hasRuntimeAIProvider(resolved)) return resolved;
   return serverRuntimeAIConfigFromEnv();
 }
 

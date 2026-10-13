@@ -1,3 +1,4 @@
+import { drainCommerceOutbox } from './lib/commerce/outbox';
 import { createServer } from 'http';
 import { request as httpRequest } from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
@@ -13,6 +14,11 @@ import {
   resolveClassroomProxyTarget,
   shouldProxyMissingClassroomAsset,
 } from './lib/virtual-classroom/proxy-target';
+
+if (process.env.LINGBI_COMMERCE_MODE) {
+  void drainCommerceOutbox();
+  setInterval(() => { void drainCommerceOutbox(); }, 30_000).unref();
+}
 
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const dev = runtimeEnv !== 'production';

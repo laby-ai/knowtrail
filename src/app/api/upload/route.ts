@@ -1,3 +1,4 @@
+import { reserveCapacity } from '@/lib/commerce/capacity';
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
@@ -304,6 +305,7 @@ async function readFileContent(filePath: string, ext: string): Promise<string> {
 // ─── 上传处理 ─────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  let releaseCapacity: (() => Promise<void>) | undefined;
   try {
     let ownerMemberId: string | undefined;
     try {
@@ -335,6 +337,7 @@ export async function POST(request: NextRequest) {
       }, { status: 413 });
     }
 
+    releaseCapacity = await reserveCapacity(request, files.reduce((sum, file) => sum + file.size, 0), notebookId ? [notebookId] : []);
     const results = [];
     const isProd = isProduction();
     const maxBytes = maxUploadBytes();
@@ -574,5 +577,7 @@ export async function POST(request: NextRequest) {
     const msg = error instanceof Error ? error.message : '上传处理失败';
     console.error('[Upload API Error]', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
+  } finally {
+    await releaseCapacity?.().catch(() => undefined);
   }
 }

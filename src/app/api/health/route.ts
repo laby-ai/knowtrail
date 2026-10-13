@@ -65,6 +65,7 @@ export async function GET() {
       scientificIllustrationStore,
       explainerVideoProvider: resolveExplainerVideoProviderConfig().publicStatus,
       accountCenter: getAccountCenterStatus(),
+      commerce: { mode: process.env.LINGBI_COMMERCE_MODE || 'disabled', signedAccountTransport: Boolean(process.env.LINGBI_COMMERCE_INTERNAL_SECRET), asset: 'lingbi.research-points.v1', automaticRenewal: false },
       virtualClassroom: {
         publicOrigin: publicClassroomOrigin() || null,
         internalOriginConfigured: Boolean(internalClassroomOrigin()),

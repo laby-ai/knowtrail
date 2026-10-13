@@ -5,6 +5,7 @@ import { commerceAccount, CommerceError } from './account-client';
 import { commerceContext, type BillingContext } from './context';
 import { installMeteredFetch } from './metered-fetch';
 import { enqueueCommerce, drainCommerceOutbox } from './outbox';
+import { resolveRequestRuntimeAIConfig } from '@/lib/bailian-provider-profile';
 import type { CommerceMembership, CommerceQuote } from './contracts';
 
 export function inputHash(text: string) { return createHash('sha256').update(text).digest('hex'); }
@@ -15,34 +16,31 @@ export async function runCommerceTask(request: NextRequest, operation: string, e
   const enforcing = process.env.LINGBI_COMMERCE_MODE === 'enforced';
   try {
     const session = await resolveAccountSessionFromRequest(request);
-    if (!session) {
-      if (enforcing) throw new CommerceError(401, 'account_login_required');
-      return execute();
-    }
+    if (!session && enforcing) throw new CommerceError(401, 'account_login_required');
     const token = bearerTokenFromRequest(request);
     const requestedAccount = request.headers.get('X-Lingbi-Payer');
-    const membership = await commerceAccount<CommerceMembership>(`membership${requestedAccount ? `?accountId=${encodeURIComponent(requestedAccount)}` : ''}`, { token });
+    const membership = session ? await commerceAccount<CommerceMembership>(`membership${requestedAccount ? `?accountId=${encodeURIComponent(requestedAccount)}` : ''}`, { token }) : null;
     const selected = request.headers.get('X-Lingbi-Model-Source');
-    const source = selected === 'byok' || selected === 'platform' ? selected : membership.modelSource;
-    const context: BillingContext = { requestId: randomUUID(), operation, accountId: membership.accountId, tenantId: session.tenant_id, memberId: session.member.id, source, providers: new Map(), resources: [], calls: new Set(), enforcing, startedAt: Date.now() };
+    const source = !session ? 'platform' : selected === 'byok' || selected === 'platform' ? selected : membership!.modelSource;
+    const context: BillingContext = { requestId: randomUUID(), operation, accountId: membership?.accountId || 'anonymous-platform', tenantId: session?.tenant_id || 'anonymous', memberId: session?.member.id || 'anonymous', source, providers: new Map(), resources: [], calls: new Set(), enforcing, startedAt: Date.now() };
     if (enforcing) {
       const quoteId = request.headers.get('X-Lingbi-Quote');
-      if (!quoteId || !membership.readiness.chargingReady) throw new CommerceError(402, 'confirmed_quote_required');
+      if (!quoteId || !membership?.readiness.chargingReady) throw new CommerceError(402, 'confirmed_quote_required');
       const digest = inputHash(await request.clone().text());
-      context.quote = await commerceAccount<CommerceQuote>('internal/reserve', { internal: true, body: { tenantId: context.tenantId, memberId: context.memberId, accountId: context.accountId, quoteId, inputHash: digest } });
-      if (context.quote.operation !== operation || !context.quote.resources.some(item => item.source === source)) throw new CommerceError(400, 'quote_operation_or_source_mismatch');
+      context.quote = await commerceAccount<CommerceQuote>('internal/reserve', { internal: true, body: { tenantId: context.tenantId, memberId: context.memberId, accountId: context.accountId, quoteId, inputHash: digest, operation, source } });
     }
     return await commerceContext.run(context, async () => {
+      context.config = await resolveRequestRuntimeAIConfig(request);
       let finalized = false;
       async function finish(delivered: number, outcome: string) {
         if (finalized) return;
         finalized = true;
         const resources = context.resources.filter(item => item.status && item.status >= 200 && item.status < 300 && !item.retry);
         const reliable = resources.length > 0 && resources.every(item => !item.usageMissing);
-        const body = { tenantId: context.tenantId, memberId: context.memberId, accountId: context.accountId, requestId: context.requestId, operation, resources, delivered, reliable, outcome, durationMs: Date.now() - context.startedAt };
+        const body = { tenantId: context.tenantId, memberId: context.memberId, accountId: context.accountId, requestId: context.requestId, operation, resources: context.resources, delivered, reliable, outcome, durationMs: Date.now() - context.startedAt };
         // Persist work before contacting account service; no wallet lives in this outbox.
         await enqueueCommerce({ route: 'usage', body });
-        if (context.quote) await enqueueCommerce({ route: 'finalize', body: { ...body, quoteId: request.headers.get('X-Lingbi-Quote') } });
+        if (context.quote) await enqueueCommerce({ route: 'finalize', body: { ...body, resources, quoteId: request.headers.get('X-Lingbi-Quote') } });
       }
       try {
         const response = await execute();

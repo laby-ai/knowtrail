@@ -2,7 +2,7 @@ import { commerceContext, keyHash } from './context';
 import { CommerceError } from './account-client';
 import type { CommerceResource } from './contracts';
 
-type ProviderPayload = { usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number }; data?: { url?: string; b64_json?: string }[]; output?: { choices?: { message?: { content?: { image?: string }[] } }[]; results?: { url?: string }[] } };
+type ProviderPayload = { usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } }; data?: { url?: string; b64_json?: string }[]; output?: { choices?: { message?: { content?: { image?: string }[] } }[]; results?: { url?: string }[] } };
 function applyPayload(resource: CommerceResource, data: ProviderPayload) {
   const usage = data.usage;
   if (usage) {
@@ -10,6 +10,8 @@ function applyPayload(resource: CommerceResource, data: ProviderPayload) {
     const output = usage.completion_tokens ?? usage.output_tokens;
     if (Number.isSafeInteger(input) && Number.isSafeInteger(output) && input! >= 0 && output! >= 0) {
       resource.inputTokens = input; resource.outputTokens = output; resource.usageMissing = false;
+      const cached = usage.prompt_tokens_details?.cached_tokens;
+      if (Number.isSafeInteger(cached) && cached! >= 0 && cached! <= input!) resource.cachedInputTokens = cached;
     }
   }
   const images = (data.data || []).filter(item => item.url || item.b64_json).length +
@@ -38,12 +40,29 @@ export function installMeteredFetch() {
     context.calls.add(callHash);
     if (context.enforcing && !context.quote?.resources.some(item => item.rateKey === rateKey && item.source === source)) throw new CommerceError(402, 'resource_not_in_confirmed_quote');
     context.resources.push(resource);
+    let requestBody: typeof body & { max_tokens?: number } = body;
+    if (context.enforcing) {
+      const budget = context.quote!.resources.filter(item => item.rateKey === rateKey && item.source === source).reduce((sum, item) => ({ input: sum.input + (item.inputTokens || 0), output: sum.output + (item.outputTokens || 0), images: sum.images + (item.images || 0), queries: sum.queries + (item.queries || 0) }), { input: 0, output: 0, images: 0, queries: 0 });
+      const previous = context.resources.filter(item => item !== resource && item.rateKey === rateKey && item.source === source && !item.retry && (item.status === undefined || (item.status >= 200 && item.status < 300)));
+      const used = previous.reduce((sum, item) => ({ input: sum.input + (item.inputTokens ?? item.boundedInputTokens ?? 0), output: sum.output + (item.outputTokens ?? item.boundedOutputTokens ?? 0), images: sum.images + (item.images ?? item.requestedImages ?? 0), queries: sum.queries + (item.queries || 0) }), { input: 0, output: 0, images: 0, queries: 0 });
+      if (previous.some(item => item.status !== undefined && item.usageMissing)) throw new CommerceError(402, 'previous_provider_usage_unverified');
+      if (/\/chat\/completions/.test(address.pathname)) {
+        if (Buffer.byteLength(init.body) + used.input > budget.input || used.output >= budget.output) throw new CommerceError(402, 'confirmed_usage_limit_reached');
+        requestBody = { ...body, max_tokens: Math.min(8000, budget.output - used.output) };
+        resource.boundedInputTokens = Buffer.byteLength(init.body); resource.boundedOutputTokens = requestBody.max_tokens;
+      } else if (/\/images\/|\/aigc\//.test(address.pathname)) {
+        resource.requestedImages = 1;
+        if (used.images + resource.requestedImages > budget.images) throw new CommerceError(402, 'confirmed_image_limit_reached');
+      }
+      else if (/\/api\/v1\/search/.test(address.pathname) && used.queries >= budget.queries) throw new CommerceError(402, 'confirmed_search_limit_reached');
+    }
     const requestInit = body.stream && /\/chat\/completions/.test(address.pathname)
-      ? { ...init, body: JSON.stringify({ ...body, stream_options: { include_usage: true } }) } : init;
+      ? { ...init, body: JSON.stringify({ ...requestBody, stream_options: { include_usage: true } }) } : { ...init, body: JSON.stringify(requestBody) };
     let response: Response;
     try { response = await original(input, requestInit); } catch (error) { resource.status = 0; throw error; }
     resource.status = response.status;
     if (!response.ok || !response.body) return response;
+    if (/\/api\/v1\/search/.test(address.pathname)) { resource.queries = 1; resource.usageMissing = false; }
     if (!response.headers.get('content-type')?.includes('text/event-stream')) {
       try { applyPayload(resource, await response.clone().json() as ProviderPayload); } catch { /* No invented usage. */ }
       return response;

@@ -1,5 +1,5 @@
 'use client';
-import { commerceRequestHeaders } from '@/lib/commerce/client-confirmation';
+import { commerceRequestHeaders, selectedCommerceHeaders } from '@/lib/commerce/client-confirmation';
 
 const ACCOUNT_TOKEN_KEYS = ["knowtrail-account-session","account_entitlement_token"];
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -135,6 +135,7 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
     ...init
   } = options;
   const requestHeaders = new Headers(headers);
+  for (const [key, value] of Object.entries(selectedCommerceHeaders())) if (!requestHeaders.has(key)) requestHeaders.set(key, value);
   const token = skipAuth ? '' : getStoredAccountToken();
   if (token && !requestHeaders.has('Authorization')) requestHeaders.set('Authorization', `Bearer ${token}`);
   if (init.body && typeof init.body === 'string' && !requestHeaders.has('Content-Type')) {

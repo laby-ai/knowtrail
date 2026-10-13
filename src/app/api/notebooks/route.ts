@@ -1,3 +1,4 @@
+import { reserveCapacity } from '@/lib/commerce/capacity';
 import { NextRequest, NextResponse } from 'next/server';
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
 import { listNotebooks, saveNotebookMetadata } from '@/lib/notebook-store';
@@ -10,7 +11,9 @@ async function handle(request: NextRequest, write: boolean) {
     if (write) {
       const body = await request.json().catch(() => null);
       if (!body || !Array.isArray(body.notebooks) || body.notebooks.length > 500 || !body.notebooks.every((item: {id?: unknown; title?: unknown} | null) => item && normalizeNotebookId(item.id) === item.id && typeof item.title === 'string' && item.title.trim().length > 0 && item.title.length <= 80)) return NextResponse.json({ error: '文献本名称或编号无效。' }, { status: 400 });
-      await saveNotebookMetadata(owner, body.notebooks, body.onlyMissing === true);
+      const releaseCapacity = await reserveCapacity(request, 0, body.notebooks.map((item: { id: string }) => item.id));
+      try { await saveNotebookMetadata(owner, body.notebooks, body.onlyMissing === true); }
+      finally { await releaseCapacity?.().catch(() => undefined); }
     }
     return NextResponse.json({ notebooks: await listNotebooks(owner) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch { return NextResponse.json({ error: '无法同步文献本，请稍后重试。' }, { status: 500 }); }

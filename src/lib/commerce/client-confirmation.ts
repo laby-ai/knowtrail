@@ -2,6 +2,13 @@
 import { COMMERCE_OPERATIONS } from './contracts';
 export type QuoteConfirmation = { id: string; maxPoints: number; accountId: string; source: string; expiresAt: string; operation: string };
 export type ConfirmationEvent = { quote: QuoteConfirmation; resolve: (approved: boolean) => void };
+export function selectedCommerceHeaders(): Record<string, string> {
+  try {
+    const session = JSON.parse(window.localStorage.getItem('knowtrail-account-session') || '{}') as { member?: { id: string } };
+    const selected = JSON.parse(window.localStorage.getItem(`lingbi-commerce-selection:${session.member?.id}`) || '{}') as { accountId?: string; source?: string };
+    return { ...(selected.accountId ? { 'X-Lingbi-Payer': selected.accountId } : {}), ...(selected.source ? { 'X-Lingbi-Model-Source': selected.source } : {}) };
+  } catch { return {}; }
+}
 export async function commerceRequestHeaders(path: string, options: RequestInit, token: string): Promise<Record<string, string>> {
   if (options.method !== 'POST' || !COMMERCE_OPERATIONS[path] || typeof options.body !== 'string' || !token) return {};
   let selection: { accountId?: string; source?: string } = {};

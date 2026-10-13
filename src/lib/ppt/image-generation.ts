@@ -1,4 +1,4 @@
-import { trustedRequestKey, requestedModelSource } from '@/lib/commerce/context';
+import { trustedRequestKey, requestedModelSource, requestProviderConfig } from '@/lib/commerce/context';
 // Shared slide image generation helpers (SitianAI first, OpenAI-compatible
 // fallback). Extracted for reuse by slide revision; the original /api/ai/ppt
 // route keeps its local copy to stay untouched.
@@ -35,6 +35,8 @@ function envFirst(...names: string[]): string {
 
 export function resolveImageRuntimeConfig(input?: Partial<RuntimeAIConfig>): Partial<RuntimeAIConfig> {
   if (hasRuntimeAIProvider(input) && (trustedRequestKey(input.apiKey) || allowRequestRuntimeAIConfig())) return input;
+  const resolved = requestProviderConfig();
+  if (hasRuntimeAIProvider(resolved)) return resolved;
   return serverRuntimeAIConfigFromEnv();
 }
 
@@ -291,7 +293,7 @@ export async function generateSlideImage(prompt: string, options?: {
   runtimeConfig?: Partial<RuntimeAIConfig>;
   signal?: AbortSignal;
 }): Promise<string | null> {
-  const memberProfile = bailianProfileFromRuntimeConfig(options?.runtimeConfig || {});
+  const memberProfile = bailianProfileFromRuntimeConfig(options?.runtimeConfig || requestProviderConfig() || {});
   if (memberProfile) {
     const image = await generateBailianWanImage(prompt, memberProfile, {
       aspectRatio: options?.aspectRatio,

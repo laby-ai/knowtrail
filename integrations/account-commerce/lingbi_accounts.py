@@ -15,7 +15,7 @@ def summary(tenant, member, account=None):
         def rows(table):
             return [dict(id=row["id"], createdAt=row["created_at"], **({"status": row["status"], "amountFen": row["amount_fen"]} if table == "lingbi_orders" else {}), **json.loads(row["data_json"])) for row in conn.execute(f"SELECT * FROM {table} WHERE account_id=?{own_filter} ORDER BY created_at DESC LIMIT 50", params).fetchall()]
         return dict(asset=ASSET, accountId=selected, kind=state["kind"], role=role, plan=plan, planName=PLANS[plan]["name"], endsAt=state["end"],
-                    balance=balance(state), verified=state["verified"], modelSource=state["modelSource"], budget=state["budgets"].get(member),
+                    balance=balance(state), verified=state["verified"], modelSource=decode(conn.execute("SELECT state_json FROM lingbi_accounts WHERE id=?", (personal,)).fetchone())["modelSource"], budget=state["budgets"].get(member),
                     members=state["members"] if role == "admin" else None, budgets=state["budgets"] if role == "admin" else None,
                     limits=PLANS[plan], events=rows("lingbi_events"), orders=rows("lingbi_orders"), usage=rows("lingbi_usage"))
 

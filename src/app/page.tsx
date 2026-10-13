@@ -1,5 +1,6 @@
 'use client';
 
+import { clientApiRequest } from '@/lib/client-api';
 import { useState, useEffect, useCallback } from 'react';
 import { AppProvider } from '@/contexts/AppContext';
 import { ThreeColumnLayout } from '@/components/layout/ThreeColumnLayout';
@@ -158,7 +159,7 @@ export default function HomePage() {
       try {
         // Preserve locally created notebooks; never import bundled templates or a fabricated default.
         const legacy = (accountSession?.member.id === 'account-center-token' ? [] : loadNotebooks(accountSession)).filter(item => item.id !== 'default-workspace' && !item.id.startsWith('featured-'));
-        const response = await fetch('/api/notebooks', {
+        const response = await clientApiRequest('/api/notebooks', {
           method: legacy.length ? 'POST' : 'GET', signal: controller.signal, cache: 'no-store',
           headers: { ...accountAuthHeaders(), 'Content-Type': 'application/json' },
           ...(legacy.length ? { body: JSON.stringify({ notebooks: legacy.map(({id, title}) => ({id, title})), onlyMissing: true }) } : {}),
@@ -182,7 +183,7 @@ export default function HomePage() {
   }, [accountSession, sessionReady, view, reloadNotebooks]);
 
   const persistNotebooks = useCallback(async (next: WorkspaceNotebook[]) => {
-    const response = await fetch('/api/notebooks', { method: 'POST', headers: { ...accountAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ notebooks: next.map(({id, title}) => ({id, title})) }) });
+    const response = await clientApiRequest('/api/notebooks', { method: 'POST', headers: { ...accountAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ notebooks: next.map(({id, title}) => ({id, title})) }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || '保存文献本失败');
     setNotebooks(result.notebooks);

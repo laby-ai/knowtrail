@@ -86,7 +86,10 @@ def fulfill(order_id, *, provider, event_id, amount_fen):
             else:
                 start = now
                 state.update(plan=sku["plan"], start=start.isoformat(), grantPeriods=[])
+            previous_end = state["end"]
             state["end"] = month_after(start, sku["months"]).isoformat()
+            state.setdefault("subscriptions", []).append(dict(order=order_id, start=start.isoformat(), end=state["end"]))
+            detail.update(serviceStart=start.isoformat(), serviceEnd=state["end"], previousEnd=previous_end)
         else:
             state["seats"].append(dict(order=order_id, end=month_after(utcnow(), sku["months"]).isoformat()))
         detail.update(paidAt=utcnow().isoformat(), providerEventId=event_id)

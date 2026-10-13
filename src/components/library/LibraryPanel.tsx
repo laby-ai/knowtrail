@@ -1,5 +1,6 @@
 'use client';
 
+import { selectedCommerceHeaders } from '@/lib/commerce/client-confirmation';
 import { useState, useCallback, useRef, useEffect, DragEvent } from 'react';
 import {
   FolderPlus,
@@ -843,7 +844,7 @@ export function LibraryPanel({
       const data = await new Promise<{ results?: Array<Paper & { error?: string }> }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', '/api/upload');
-        Object.entries(accountAuthHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+        Object.entries({ ...accountAuthHeaders(), ...selectedCommerceHeaders() }).forEach(([key, value]) => xhr.setRequestHeader(key, value));
         xhr.upload.onprogress = (e) => {
           if (!e.lengthComputable) return;
           const pct = Math.min(100, Math.round((e.loaded / e.total) * 100));

@@ -1,4 +1,5 @@
 """Isolated asset-account regression; no production users, payments or emails."""
+import atexit
 import concurrent.futures
 import json
 import os
@@ -21,13 +22,45 @@ class TestConnection(sqlite3.Connection):
         self.close()
         return result
 
+postgres_url = os.getenv("COMMERCE_TEST_DATABASE_URL")
+schema = None
+if postgres_url:
+    import psycopg
+    from psycopg import sql
+    from psycopg.rows import dict_row
+    import uuid
+    schema = "lingbi_commerce_qa_" + uuid.uuid4().hex[:12]
+    setup = psycopg.connect(postgres_url, autocommit=True)
+    setup.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+    def cleanup():
+        setup.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
+        setup.close()
+    atexit.register(cleanup)
+
+class PostgresTestConnection:
+    def __init__(self):
+        self.conn = psycopg.connect(postgres_url, row_factory=dict_row)
+        self.conn.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
+        assert self.conn.execute("SELECT current_schema() AS name").fetchone()["name"] == schema
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc, tb):
+        self.conn.rollback() if exc_type else self.conn.commit()
+        self.conn.close()
+    def execute(self, query, args=()): return self.conn.execute(query.replace("?", "%s"), args)
+    def executescript(self, script):
+        for statement in script.split(";"):
+            if statement.strip(): self.execute(statement)
+    def executemany(self, query, values):
+        with self.conn.cursor() as cursor: cursor.executemany(query.replace("?", "%s"), values)
+
 def connect():
+    if postgres_url: return PostgresTestConnection()
     connection = sqlite3.connect(database, timeout=30, factory=TestConnection)
     connection.row_factory = sqlite3.Row
     return connection
 
 sys.modules["db"] = types.SimpleNamespace(connect=connect)
-sys.modules["config"] = types.SimpleNamespace(DB_ENGINE="sqlite")
+sys.modules["config"] = types.SimpleNamespace(DB_ENGINE="postgres" if postgres_url else "sqlite")
 sys.modules["auth"] = types.SimpleNamespace(AuthError=Exception, local_session_from_headers=lambda _: None)
 import lingbi_catalog as policy
 import lingbi_store as store
@@ -35,11 +68,17 @@ import lingbi_accounts as accounts
 import lingbi_orders as orders
 import lingbi_tasks as tasks
 import lingbi_verification as verification
+import lingbi_capacity as capacity
+import lingbi_finance as finance
 
 
 class CommerceTests(unittest.TestCase):
     def setUp(self):
-        database.unlink(missing_ok=True)
+        if postgres_url:
+            with connect() as conn:
+                conn.execute("DROP TABLE IF EXISTS lingbi_accounts,lingbi_events,lingbi_orders,lingbi_tasks,lingbi_usage,lingbi_email_codes,lingbi_verified_emails,tenant_members")
+        else:
+            database.unlink(missing_ok=True)
         store.migrate()
         with connect() as conn:
             conn.execute("CREATE TABLE tenant_members(id TEXT PRIMARY KEY,tenant_id TEXT,email TEXT,status TEXT)")
@@ -142,6 +181,45 @@ class CommerceTests(unittest.TestCase):
             verification.confirm("org", "owner", "owner@example.invalid", code)
         self.assertEqual(accounts.summary("org", "owner")["balance"]["gifted"], 100)
         with self.assertRaises(ValueError): verification.confirm("org", "owner", "owner@example.invalid", code)
+
+    def test_five_wrong_verification_attempts_commit(self):
+        with patch.object(verification, "send_code") as sender:
+            verification.request_code("org", "owner", "owner@example.invalid")
+            correct = sender.call_args.args[1]
+        wrong = "000000" if correct != "000000" else "111111"
+        for _ in range(5):
+            with self.assertRaises(ValueError): verification.confirm("org", "owner", "owner@example.invalid", wrong)
+        with self.assertRaises(ValueError): verification.confirm("org", "owner", "owner@example.invalid", correct)
+        self.assertEqual(accounts.summary("org", "owner")["balance"]["gifted"], 0)
+
+    def test_capacity_lease_prevents_parallel_overflow(self):
+        request = dict(action="reserve", usedBytes=0, usedNotebooks=0, addBytes=600000000, addNotebooks=1)
+        first = capacity.capacity("org", "owner", self.account, request)
+        with self.assertRaises(ValueError): capacity.capacity("org", "owner", self.account, request)
+        capacity.capacity("org", "owner", self.account, dict(action="release", leaseId=first["leaseId"]))
+        self.assertIn("leaseId", capacity.capacity("org", "owner", self.account, request))
+
+    def test_refund_traces_purchase_and_freezes_original_batch(self):
+        order = orders.create_order("org", "owner", self.account, dict(productId="points.20", provider="alipay", idempotencyKey="refund-001"))
+        orders.fulfill(order["id"], provider="alipay", event_id="paid-refund", amount_fen=2000)
+        orders.refund_review("org", "owner", self.account, order["id"])
+        refund = finance.prepare_refund(order["id"])
+        self.assertEqual(refund["amountFen"], 2000)
+        self.assertEqual(accounts.summary("org", "owner")["balance"]["purchased"], 10000)
+        with self.assertRaises(ValueError): finance.finish_refund(order["id"], provider_refund_id="fixture-refund", amount_fen=1)
+        finance.finish_refund(order["id"], provider_refund_id="fixture-refund", amount_fen=2000)
+        self.assertEqual(accounts.summary("org", "owner")["balance"]["purchased"], 10000)
+        self.assertEqual(finance.finish_refund(order["id"], provider_refund_id="fixture-refund", amount_fen=2000)["status"], "refunded")
+
+    def test_annual_grants_once_each_service_month(self):
+        order = orders.create_order("org", "owner", self.account, dict(productId="pro.annual", provider="alipay", idempotencyKey="grant-001"))
+        orders.fulfill(order["id"], provider="alipay", event_id="grant-payment", amount_fen=79000)
+        accounts.summary("org", "owner")
+        with store.locked(self.account, "org", "owner") as (_, state):
+            next_month = policy.month_after(__import__("datetime").datetime.fromisoformat(state["start"])) + timedelta(seconds=1)
+        with patch.object(store, "utcnow", return_value=next_month):
+            self.assertEqual(accounts.summary("org", "owner")["balance"]["gifted"], 2500)
+            self.assertEqual(accounts.summary("org", "owner")["balance"]["gifted"], 2500)
 
 
 if __name__ == "__main__": unittest.main()

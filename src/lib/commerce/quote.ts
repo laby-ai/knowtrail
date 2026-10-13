@@ -6,7 +6,7 @@ import { bearerTokenFromRequest, resolveAccountSessionFromRequest } from '@/lib/
 import { commerceAccount, CommerceError } from './account-client';
 import { commerceContext } from './context';
 import { inputHash } from './task';
-import { COMMERCE_OPERATIONS, type CommerceMembership, type CommerceQuote, type CommerceResource } from './contracts';
+import { COMMERCE_OPERATIONS, type CommerceMembership, type CommerceQuote, type CommerceResource, type ModelSource } from './contracts';
 
 export async function prepareCommerceQuote(request: NextRequest) {
   const body = await request.json() as { path?: string; body?: string; accountId?: string; source?: string; idempotencyKey?: string };
@@ -18,7 +18,7 @@ export async function prepareCommerceQuote(request: NextRequest) {
   const membership = await commerceAccount<CommerceMembership>(`membership${body.accountId ? `?accountId=${encodeURIComponent(body.accountId)}` : ''}`, { token });
   const source = body.source === 'byok' ? 'byok' : body.source === 'platform' ? 'platform' : membership.modelSource;
   if (!membership.readiness.chargingReady) return { mode: 'observe', requiresConfirmation: false, maxPoints: null, source, accountId: membership.accountId, message: '当前仅采集用量，不扣科研点数。' };
-  const context = { requestId: randomUUID(), operation, accountId: membership.accountId, tenantId: session.tenant_id, memberId: session.member.id, source, providers: new Map(), resources: [], calls: new Set<string>(), enforcing: false, startedAt: Date.now() };
+  const context = { requestId: randomUUID(), operation, accountId: membership.accountId, tenantId: session.tenant_id, memberId: session.member.id, source, providers: new Map<string, ModelSource>(), resources: [], calls: new Set<string>(), enforcing: false, startedAt: Date.now() };
   const config = await commerceContext.run(context, () => resolveRequestRuntimeAIConfig(request));
   const platform = serverRuntimeAIConfigFromEnv();
   const host = (base?: string) => { try { return new URL(base || '').hostname; } catch { throw new CommerceError(503, 'provider_not_configured'); } };

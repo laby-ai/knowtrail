@@ -81,7 +81,8 @@ def refresh(state):
         if key >= state["end"] or period > utcnow():
             break
         if key not in state["grantPeriods"]:
-            batch(state, PLANS[state["plan"]]["points"], "membership", expires=end, key="grant:" + state["start"] + ":" + str(index))
+            origin = next((item["order"] for item in state.get("subscriptions", []) if item["start"] <= key < item["end"]), None)
+            batch(state, PLANS[state["plan"]]["points"], "membership", expires=end, order=origin, key="grant:" + state["start"] + ":" + str(index))
             state["grantPeriods"].append(key)
 
 
