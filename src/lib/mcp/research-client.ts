@@ -108,11 +108,12 @@ function bibliographicResult(result: Record<string, unknown>): Record<string, un
     const record = parsed.data;
     if (record.audit_status === '已核验') record.audit_status = '题录匹配';
     if (Array.isArray(record.candidates)) {
-      record.candidates = record.candidates.map(candidate => {
+      const candidates = record.candidates.map(candidate => {
         const entry = z.record(z.string(), z.unknown()).safeParse(candidate);
         return entry.success && entry.data.audit_status === '已核验' ? { ...entry.data, audit_status: '题录匹配' } : candidate;
       });
-      if (record.candidates.length === 0 && typeof record.failed_requests === 'number' && record.failed_requests > 0) record.audit_status = '接口受限，待核对';
+      record.candidates = candidates;
+      if (candidates.length === 0 && typeof record.failed_requests === 'number' && record.failed_requests > 0) record.audit_status = '接口受限，待核对';
     }
     return record;
   };
@@ -131,6 +132,7 @@ export async function executeResearchTool(id: ResearchMcpId, toolName: string, a
   const tool = (await tools(id)).find(item => item.name === toolName);
   if (!tool) throw new ResearchMcpError('此科研工具尚未开放。', 400);
   const key = `${id}:${scope}`;
+  if (pending.size >= 6) throw new ResearchMcpError('科研服务繁忙，请稍后再试。', 429);
   if (pending.has(key)) throw new ResearchMcpError('当前科研任务正在执行，请等待结果。', 409);
   pending.add(key);
   try {
@@ -150,6 +152,7 @@ export async function uploadCitationFile(scope: string, file: File): Promise<{ p
   const extension = file.name.split('.').pop()?.toLowerCase();
   if (!extension || !['pdf', 'docx', 'txt', 'md'].includes(extension) || file.size === 0 || file.size > 6 * 1024 * 1024) throw new ResearchMcpError('请上传不超过 6MB 的 PDF、DOCX 或文本文件。', 400);
   const key = `papercheck:${scope}`;
+  if (pending.size >= 6) throw new ResearchMcpError('科研服务繁忙，请稍后再试。', 429);
   if (pending.has(key)) throw new ResearchMcpError('当前论文核验任务正在执行，请稍后上传。', 409);
   pending.add(key);
   try {
