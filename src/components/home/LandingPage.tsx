@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ResearchNetwork } from '@/components/ui/research-motif';
 import {
   BarChart3,
   BookOpen,
@@ -300,7 +301,7 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
   const accountLinkClick = openNotebookHomeFromLink;
 
   return (
-    <div className="landing-page-root min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <div className="landing-page-root relative isolate min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       <nav className="sticky top-0 z-50 border-b border-white/10 bg-black/20 px-5 py-4 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3">
@@ -311,7 +312,8 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
         </div>
       </nav>
 
-      <main id="overview">
+      <ResearchNetwork />
+      <main className="relative" id="overview">
         <section className="px-5 pb-12 pt-8 md:pt-14">
           <div className="liquid-glass-card mx-auto max-w-[1560px] rounded-[34px] px-5 pb-6 pt-16 md:px-8 md:pt-28">
             <div className="mx-auto max-w-5xl text-center">

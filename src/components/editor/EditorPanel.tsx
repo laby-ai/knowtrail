@@ -1,4 +1,5 @@
 'use client';
+import { ResearchWorkflow } from '@/components/ui/research-motif';
 import { clientApiRequest } from '@/lib/client-api';
 
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
@@ -526,9 +527,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQues
         <div className="space-y-6">
           {messages.length === 0 ? (
             <div className="text-center py-16">
-              <div className="w-16 h-16 rounded-2xl liquid-glass-inset flex items-center justify-center mx-auto mb-5">
-                <MessageSquare className="h-7 w-7 text-[var(--text-tertiary)]" />
-              </div>
+              <ResearchWorkflow />
               <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">开始学术问答</h3>
               <p className="text-sm text-[var(--text-tertiary)] max-w-xs mx-auto">选择左侧文献库中的论文，基于文献内容进行学术问答与对比分析</p>
               <div className="mt-8 grid grid-cols-4 gap-2 max-w-lg mx-auto">

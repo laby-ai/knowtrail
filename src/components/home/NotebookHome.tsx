@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { ResearchNetwork } from '@/components/ui/research-motif';
 import {
   Search,
   UserRound,
@@ -78,7 +79,7 @@ export function NotebookHome({
   const filteredNotebooks = notebooks.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
 
   return (
-    <div className="notebook-home-page min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <div className="notebook-home-page relative isolate min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       <header className="sticky top-0 z-40 border-b border-white/10 bg-black/20 px-4 py-3 backdrop-blur-xl sm:px-5">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
           <button
@@ -109,7 +110,8 @@ export function NotebookHome({
         </div>
       </header>
 
-      <main className="pb-16">
+      <ResearchNetwork />
+      <main className="relative pb-16">
         <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-5 md:hidden">
           <label className="block w-full">
             <input
