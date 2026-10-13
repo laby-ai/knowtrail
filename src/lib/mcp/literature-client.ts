@@ -1,6 +1,6 @@
 import type { LiteratureProviderId } from '../literature/types';
 
-const LITERATURE_TOOLS: Record<LiteratureProviderId, string> = {
+const LITERATURE_TOOLS: Record<Exclude<LiteratureProviderId, 'giiisp'>, string> = {
   crossref: 'search_crossref',
   europepmc: 'search_europepmc',
   'semantic-scholar': 'search_semantic_scholar',
@@ -11,6 +11,7 @@ const LITERATURE_TOOLS: Record<LiteratureProviderId, string> = {
 };
 
 export function getLiteratureToolName(providerId: LiteratureProviderId): string {
+  if (providerId === 'giiisp') throw new Error('集思谱必须通过已鉴权的科研检索接口调用。');
   return LITERATURE_TOOLS[providerId];
 }
 
