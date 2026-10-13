@@ -147,15 +147,19 @@ export function ResearchCollaboration({
             background: "var(--bg-primary)",
             color: "var(--text-primary)",
           }}
-          className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl"
+          className="grid max-h-[90dvh] gap-6 overflow-y-auto p-5 sm:max-w-6xl sm:p-8"
           data-testid="research-collaboration-dialog"
         >
-          <DialogTitle>共享文献本与研究文档</DialogTitle>
-          <DialogDescription>
-            同一组织内按邮箱授予权限。正文每 2
-            秒合并协作修改，支持在线状态、批注和版本恢复；原文件单独授权共享。自动每
-            30 秒留存快照，可手动保存，保留最近 20 个版本。
+          <div className="space-y-2 pr-8">
+          <DialogTitle>课题组共享</DialogTitle>
+          <DialogDescription className="leading-6">
+            管理共享文献本、协作研究文档和成员权限。
           </DialogDescription>
+          <details className="text-xs leading-6 text-[var(--text-tertiary)]">
+            <summary className="cursor-pointer">共享与协作说明</summary>
+            <p className="mt-2 max-w-3xl">同一组织内按邮箱授予权限。正文每 2 秒合并协作修改，支持在线状态、批注和版本恢复；原文件单独授权共享。自动每 30 秒留存快照，可手动保存，保留最近 20 个版本。</p>
+          </details>
+          </div>
           {error && (
             <p
               role="alert"
@@ -164,8 +168,9 @@ export function ResearchCollaboration({
               {error}
             </p>
           )}
-          <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
-            <aside className="space-y-2">
+          <div className="grid min-w-0 gap-6 md:grid-cols-[240px_minmax(0,1fr)]">
+            <aside className="min-w-0 space-y-3 rounded-2xl border p-4 md:self-start">
+              <h3 className="text-sm font-semibold">文献本与文档</h3>
               {!sharedOnly && <button
                 type="button"
                 disabled={busy}
@@ -199,23 +204,26 @@ export function ResearchCollaboration({
                   key={item.id}
                   type="button"
                   disabled={busy}
-                  className="liquid-glass-btn w-full break-words p-2 text-left text-xs"
+                  className="liquid-glass-btn w-full min-w-0 break-words text-left text-xs"
+                  style={{ flexDirection: "column", alignItems: "flex-start", background: document?.id === item.id ? "var(--bg-secondary)" : undefined }}
+                  aria-pressed={document?.id === item.id}
                   onClick={() => {
                     if (canReplaceDraft()) void run(() => load(item.id));
                   }}
                 >
                   {item.shareWholeNotebook ? "共享文献本 · " : item.sharedNotebookId ? "共享文档 · " : ""}{item.title}
-                  <span className="mt-1 block text-[var(--text-tertiary)]">
+                  <span className="block text-[var(--text-tertiary)]">
                     版本 {item.revision}
                   </span>
                 </button>
               ))}
             </aside>
-            <div className="space-y-3">
-              <label className="block text-xs">
+            <div className="min-w-0 space-y-6">
+              <h3 className="text-sm font-semibold">研究文档</h3>
+              <label className="block text-sm leading-6">
                 文档标题
                 <input
-                  className="liquid-glass-input mt-1 w-full"
+                  className="liquid-glass-input mt-2 w-full"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   disabled={busy || role === "viewer"}
@@ -223,10 +231,10 @@ export function ResearchCollaboration({
                 />
               </label>
               {!document ? (
-                <label className="block text-xs">
+                <label className="block text-sm leading-6">
                   研究正文 / 实验日志
                   <textarea
-                    className="liquid-glass-input mt-1 min-h-64 w-full"
+                    className="liquid-glass-input mt-2 min-h-64 w-full leading-7"
                     value={content}
                     onChange={(event) => setContent(event.target.value)}
                     disabled={busy || role === "viewer"}
@@ -267,7 +275,7 @@ export function ResearchCollaboration({
                   }}
                 />
               )}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
                   disabled={busy || role === "viewer" || !title.trim() || (sharedOnly && !document && !sharedParent)}
@@ -312,16 +320,17 @@ export function ResearchCollaboration({
                   }}>在共享文献本中新建研究文档</button>}
                   {document.sharedNotebookId && <p className="text-xs">本研究文档继承共享文献本成员权限。请在列表中的共享文献本入口管理成员。</p>}
                   {role === "owner" && !document.sharedNotebookId && (
-                    <section className="space-y-2 rounded-lg border p-3 text-xs">
+                    <section className="grid gap-4 rounded-2xl border p-5 text-sm leading-6">
                       <button type="button" className="liquid-glass-btn px-3 py-2" disabled={busy} onClick={() => {
                         const enabled = !document.shareWholeNotebook;
                         if (!window.confirm(enabled ? "共享当前文献本内所有研究文档、所有文献来源及后续新增内容？被移出共享库的来源除外。私人对话和个人科研记录不共享。成员可读取原文件，请确认共享范围。" : "停止整个文献本共享？继承权限的文档将不可访问；本入口原有的单文档授权及其他明确授权仍保留。")) return;
                         void run(async () => { const data = await api("", { action: "share-notebook", id: document.id, revision: document.revision, enabled }); if (data.document) setDocument(data.document); await reloadList(); });
                       }}>{document.shareWholeNotebook ? "停止整个文献本共享" : "共享整个文献本"}</button>
                       {document.shareWholeNotebook && <p>本入口的成员权限同时应用于整个文献本。现有单文档独立授权仍按其授权生效。</p>}
-                      <h4 className="font-semibold">成员权限</h4>
+                      <h4 className="border-t pt-4 font-semibold">成员权限</h4>
+                      <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_130px]">
                       <input
-                        className="liquid-glass-input w-full"
+                        className="liquid-glass-input min-w-0 w-full"
                         aria-label="协作成员邮箱"
                         placeholder="同一组织成员的账号邮箱"
                         value={memberEmail}
@@ -330,6 +339,7 @@ export function ResearchCollaboration({
                       />
                       <select
                         className="liquid-glass-input w-full"
+                        aria-label="成员访问权限"
                         value={memberRole}
                         onChange={(event) =>
                           setMemberRole(
@@ -340,6 +350,7 @@ export function ResearchCollaboration({
                         <option value="viewer">仅查看</option>
                         <option value="editor">可编辑</option>
                       </select>
+                      </div>
                       <button
                         disabled={busy || !memberEmail.includes("@")}
                         type="button"
@@ -366,9 +377,9 @@ export function ResearchCollaboration({
                       {document.members.map((member) => (
                         <div
                           key={member.email}
-                          className="flex items-center justify-between gap-2"
+                          className="flex flex-wrap items-center justify-between gap-3 border-t pt-3"
                         >
-                          <span>
+                          <span className="min-w-0 break-all">
                             {member.email} ·{" "}
                             {member.role === "editor" ? "可编辑" : "仅查看"}
                           </span>
@@ -397,16 +408,16 @@ export function ResearchCollaboration({
                     canEdit={role !== "viewer"}
                     onUpdated={setDocument}
                   />
-                  <details className="text-xs">
+                  <details className="rounded-2xl border p-5 text-sm leading-6">
                     <summary className="cursor-pointer">
                       版本与修改记录（最近 20 次）
                     </summary>
                     {[...document.history].reverse().map((item) => (
                       <details
                         key={item.revision}
-                        className="mt-2 rounded-lg border p-2"
+                        className="mt-3 rounded-xl border p-3"
                       >
-                        <summary>
+                        <summary className="cursor-pointer break-words">
                           版本 {item.revision} · {item.action} · {item.at} ·{" "}
                           {item.actorId}
                         </summary>
