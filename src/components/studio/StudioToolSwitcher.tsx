@@ -1,4 +1,5 @@
 'use client';
+import { CardSpotlight } from '@/components/ui/card-spotlight';
 
 import type { ElementType } from 'react';
 import {
@@ -61,8 +62,8 @@ export function StudioToolSwitcher({
     const isActive = activeTab === item.id;
 
     return (
+      <CardSpotlight key={item.id}>
       <button
-        key={item.id}
         data-testid={`studio-nav-${item.id}`}
         aria-pressed={isActive}
         aria-haspopup="dialog"
@@ -85,6 +86,7 @@ export function StudioToolSwitcher({
           </span>
         </span>
       </button>
+      </CardSpotlight>
     );
   };
 

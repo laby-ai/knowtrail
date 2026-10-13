@@ -58,7 +58,7 @@ export function ResearchWorkspacePanel() {
         <section className="min-w-0 space-y-3" aria-label="已保存的研究记录">
           <h3 className="text-base font-semibold">已保存的记录</h3>
           {!items.some((item) => item.stage === stage) && <p className="rounded-2xl border border-dashed border-[var(--border-subtle)] px-5 py-8 text-sm leading-7 text-[var(--text-secondary)]">当前阶段还没有记录。填写标题和内容后保存，记录会显示在这里。</p>}
-          {items.filter((item) => item.stage === stage).slice().reverse().map((item) => <details key={item.id} className="min-w-0 rounded-2xl border border-[var(--border-subtle)] p-4 text-sm leading-7">
+          {items.filter((item) => item.stage === stage).slice().reverse().map((item) => <details key={item.id} className="research-record-entry min-w-0 rounded-2xl border border-[var(--border-subtle)] p-4 text-sm leading-7">
           <summary className="cursor-pointer break-words pr-2 font-semibold leading-7">{item.title}</summary>
           <p className="mt-2 text-[var(--text-secondary)]">保存时间 <time dateTime={item.createdAt} className="break-all">{item.createdAt.replace("T", " ").replace(/\.\d{3}Z$/, " UTC")}</time><span className="block">{item.sourceIds.length} 个关联来源</span></p>
           <pre className="mt-4 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-[var(--bg-secondary)] p-4 font-sans text-sm leading-7 [overflow-wrap:anywhere]">{item.content}</pre>

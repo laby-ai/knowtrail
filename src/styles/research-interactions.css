@@ -1,0 +1,18 @@
+.lingbi-card-spotlight { position: relative; min-width: 0; border-radius: 12px; }
+.lingbi-card-spotlight > button { width: 100%; height: 100%; }
+.lingbi-card-spotlight-light {
+  position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none; opacity: 0; transition: opacity 180ms ease;
+  background: radial-gradient(220px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%), rgba(99, 102, 241, .20), rgba(56, 189, 248, .08) 48%, transparent 75%);
+  box-shadow: inset 0 0 0 1px rgba(129, 140, 248, .5);
+}
+.lingbi-card-spotlight:focus-within .lingbi-card-spotlight-light { opacity: .65; }
+@media (hover: hover) and (pointer: fine) {
+  .lingbi-card-spotlight:has(> button:not(:disabled)):hover .lingbi-card-spotlight-light { opacity: 1; }
+}
+.research-record-entry { animation: research-record-enter 240ms ease-out both; }
+@keyframes research-record-enter { from { opacity: .65; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .research-record-entry { animation: none; }
+  .lingbi-card-spotlight-light { transition: none; background: none; }
+}

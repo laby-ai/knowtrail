@@ -1,5 +1,6 @@
 'use client';
 
+import { CardSpotlight } from '@/components/ui/card-spotlight';
 import { ArrowUpRight, Clock3, FileText, Plus } from 'lucide-react';
 import {
   formatNotebookDate,
@@ -7,6 +8,7 @@ import {
 } from '@/components/home/workspace-types';
 export function CreateNotebookCard({ disabled, onCreate }: { disabled: boolean; onCreate: () => void }) {
   return (
+    <CardSpotlight>
     <button
       type="button"
       onClick={onCreate}
@@ -19,6 +21,7 @@ export function CreateNotebookCard({ disabled, onCreate }: { disabled: boolean; 
       </span>
       <span className="mt-4 block text-base font-semibold tracking-tight text-white">新建文献本</span>
     </button>
+    </CardSpotlight>
   );
 }
 
@@ -34,6 +37,7 @@ export function NotebookCard({
   onOpen: () => void;
 }) {
   return (
+    <CardSpotlight>
     <button
       type="button"
       onClick={onOpen}
@@ -66,5 +70,6 @@ export function NotebookCard({
         </span>
       </div>
     </button>
+    </CardSpotlight>
   );
 }
