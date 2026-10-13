@@ -1,4 +1,5 @@
 'use client';
+import { clientApiRequest } from '@/lib/client-api';
 
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import {
@@ -103,7 +104,7 @@ export function EditorPanel() {
     setIsGenerating(true);
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await clientApiRequest('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
@@ -207,7 +208,7 @@ export function EditorPanel() {
         shortName: p.shortName, keywords: p.keywords,
       }));
 
-      const response = await fetch('/api/ai/report', {
+      const response = await clientApiRequest('/api/ai/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({

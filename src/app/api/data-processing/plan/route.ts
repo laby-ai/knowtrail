@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest } from 'next/server';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import {
@@ -19,7 +20,7 @@ function response(code: number, msg: string, data: unknown, status = 200) {
   });
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   let body: PlanRequestBody;
   try {
     body = await request.json() as PlanRequestBody;
@@ -50,4 +51,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return response(42202, error instanceof Error ? error.message : '无法生成数据处理方案。', null, 422);
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'data-plan', () => executePOST(request));
 }

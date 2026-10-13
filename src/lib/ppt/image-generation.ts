@@ -1,3 +1,4 @@
+import { trustedRequestKey, requestedModelSource } from '@/lib/commerce/context';
 // Shared slide image generation helpers (SitianAI first, OpenAI-compatible
 // fallback). Extracted for reuse by slide revision; the original /api/ai/ppt
 // route keeps its local copy to stay untouched.
@@ -33,7 +34,7 @@ function envFirst(...names: string[]): string {
 }
 
 export function resolveImageRuntimeConfig(input?: Partial<RuntimeAIConfig>): Partial<RuntimeAIConfig> {
-  if (allowRequestRuntimeAIConfig() && hasRuntimeAIProvider(input)) return input;
+  if (hasRuntimeAIProvider(input) && (trustedRequestKey(input.apiKey) || allowRequestRuntimeAIConfig())) return input;
   return serverRuntimeAIConfigFromEnv();
 }
 
@@ -298,7 +299,7 @@ export async function generateSlideImage(prompt: string, options?: {
     });
     return image.toString('base64');
   }
-  if (SITIAN_API_TOKEN) {
+  if (SITIAN_API_TOKEN && !requestedModelSource()) {
     const result = await generateSitianImage(prompt, options);
     if (result) return result;
     console.log('[生图] 思坦AI失败,改用其他图片模型...');

@@ -1,3 +1,5 @@
+import { requestedModelSource, registerProvider } from '@/lib/commerce/context';
+import { commerceAccount } from '@/lib/commerce/account-client';
 import type { NextRequest } from 'next/server';
 import { getAccountApiBase } from '@/lib/account-auth-client';
 import {
@@ -40,6 +42,10 @@ function accountClient(): AccountEntitlementClient | null {
 export async function resolveMemberBailianProfile(request: NextRequest | Request): Promise<MemberProviderProfile> {
   const session = await resolveAccountSessionFromRequest(request);
   if (!session) throw new BailianProfileRequiredError();
+  if (process.env.LINGBI_COMMERCE_MODE) {
+    try { return await commerceAccount<MemberProviderProfile>('internal/provider', { internal: true, body: { tenantId: session.tenant_id, memberId: session.member.id } }); }
+    catch { throw new BailianProfileRequiredError(); }
+  }
   const client = accountClient();
   if (!client) throw new BailianProfileRequiredError();
   try {
@@ -60,6 +66,21 @@ export async function resolveRequestRuntimeAIConfig(
   request: NextRequest | Request,
   fallbackInput?: Partial<RuntimeAIConfig>,
 ): Promise<Partial<RuntimeAIConfig>> {
+  const requested = requestedModelSource();
+  if (requested === 'platform') {
+    const config = serverRuntimeAIConfigFromEnv();
+    registerProvider(config.apiKey || '', 'platform');
+    return config;
+  }
+  if (requested === 'byok') {
+    const token = request.headers.get('authorization') || '';
+    const response = await fetch(`${getAccountApiBase()}/v1/me/provider-key-profile`, { headers: { Authorization: token }, cache: 'no-store' });
+    if (!response.ok) throw new BailianProfileRequiredError();
+    // Public profile contains no key. The signed internal resolver owns decryption.
+    const profile = await resolveMemberBailianProfile(request);
+    registerProvider(profile.api_key, 'byok');
+    return { apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1', apiKey: profile.api_key, model: profile.text_model, visionModel: profile.text_model, providerId: profile.provider_id, workspaceId: profile.workspace_id, region: profile.region, imageModel: profile.image_model, ttsModel: profile.tts_model };
+  }
   try {
     const profile = await resolveMemberBailianProfile(request);
     const envConfig = serverRuntimeAIConfigFromEnv();

@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import type { NextRequest } from 'next/server';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -10,7 +11,7 @@ import { dataAnalysisRequestSchema } from '@/lib/data-analysis-contract';
 import { AnalysisRuntimeError, executeDataAnalysis } from '@/lib/data-analysis-runner';
 import { saveDataAnalysis } from '@/lib/data-analysis-store';
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   const parsed = dataAnalysisRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success || !normalizeNotebookId(parsed.data.notebookId)) return Response.json({ error: '请提供文献本、数据来源、研究问题、样本单位及目标列。' }, { status: 400 });
   const input = parsed.data;
@@ -40,4 +41,8 @@ export async function POST(request: NextRequest) {
     const known = error instanceof AnalysisRuntimeError;
     return Response.json({ error: known ? error.message : '统计分析暂时无法完成，请检查原文件或稍后重试。' }, { status: known ? error.status : 503 });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'data-execute', () => executePOST(request));
 }

@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { applyDiscoverRelevanceStage } from '@/lib/discover-relevance-stage';
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
@@ -13,7 +14,7 @@ interface DiscoverSearchRequest {
   notebookId?: string;
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   const body: DiscoverSearchRequest = await request.json();
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
@@ -44,4 +45,8 @@ export async function POST(request: NextRequest) {
     console.error('[Discover] error:', err);
     return NextResponse.json({ error: message }, { status });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'discover-search', () => executePOST(request));
 }

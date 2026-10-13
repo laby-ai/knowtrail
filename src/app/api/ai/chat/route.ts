@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest } from 'next/server';
 import { chatSkillInstructions } from '@/lib/chat-skills';
 import { llmStream, SYSTEM_PROMPTS } from '@/lib/ai-service';
@@ -15,7 +16,7 @@ import {
   studioGenerationUnavailablePayload,
 } from '@/lib/studio-generation-readiness';
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   try {
     const { message, papers, skills, researchMode = true, mode, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
       message?: string;
@@ -214,4 +215,8 @@ export async function POST(request: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
     });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'chat', () => executePOST(request));
 }

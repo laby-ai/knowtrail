@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest } from 'next/server';
 import { llmStream } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
@@ -46,7 +47,7 @@ function isTargetSection(value: unknown): value is AcademicWritingSection {
   return value === 'introduction' || value === 'related-work' || value === 'discussion';
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   let input: AcademicWritingRequest;
   try {
     input = await request.json() as AcademicWritingRequest;
@@ -210,4 +211,8 @@ export async function POST(request: NextRequest) {
         });
     },
   });
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'academic-writing', () => executePOST(request));
 }

@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest } from 'next/server';
 import { llmStream } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
@@ -43,7 +44,7 @@ function isPerspective(value: unknown): value is PeerReviewPerspective {
   return value === 'overall' || value === 'methodology' || value === 'evidence' || value === 'clarity';
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   let input: PeerReviewRequest;
   try {
     input = await request.json() as PeerReviewRequest;
@@ -211,4 +212,8 @@ export async function POST(request: NextRequest) {
         });
     },
   });
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'peer-review', () => executePOST(request));
 }

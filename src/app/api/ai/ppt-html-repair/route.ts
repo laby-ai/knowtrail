@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
 import type { RuntimeAIConfig } from '@/types';
@@ -33,7 +34,7 @@ interface HtmlRepairRequest {
   notebookId?: string;
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   const body: HtmlRepairRequest = await request.json();
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
@@ -83,4 +84,8 @@ export async function POST(request: NextRequest) {
     console.error('[PPT-HTML-Repair] error:', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'ppt-html-repair', () => executePOST(request));
 }

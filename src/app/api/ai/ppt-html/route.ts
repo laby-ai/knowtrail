@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
@@ -119,7 +120,7 @@ async function genSlidesParallel(
   return results;
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   const body: HtmlPptRequest = await request.json();
   const { papers, styleId, pageCount = 10, language = 'zh', aiConfig } = body;
   const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
@@ -249,4 +250,8 @@ export async function POST(request: NextRequest) {
       'Connection': 'keep-alive',
     },
   });
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'ppt-html', () => executePOST(request));
 }

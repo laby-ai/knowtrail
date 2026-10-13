@@ -1,0 +1,13 @@
+export type ModelSource = 'platform' | 'byok';
+export type CommerceResource = { rateKey: string; source: ModelSource; inputTokens?: number; outputTokens?: number; images?: number; queries?: number; usageMissing?: boolean; retry?: boolean; status?: number };
+export type CommerceReadiness = { mode: 'observe' | 'enforced'; chargingReady: boolean; blockers: string[] };
+export type CommercePlan = { name: string; monthly: number; annual: number; points: number; storage: number; notebooks: number | null; seats: number; concurrent: number };
+export type CommerceCatalog = { asset: string; version: string; plans: Record<string, CommercePlan>; pointPacks: { id: string; amountFen: number; points: number }[]; readiness: CommerceReadiness };
+export type CommerceQuote = { id: string; maxPoints: number; expiresAt: string; inputHash: string; operation: string; resources: CommerceResource[]; priceBook: Record<string, unknown>; version: string };
+export type CommerceEntry = { id: string; createdAt: string; type?: string; points?: number; operation?: string; modelPoints?: number | null; outcome?: string; amountFen?: number; productId?: string; status?: string; invoice?: { status: string }; refund?: { status: string } };
+export type CommerceMembership = { accountId: string; kind: 'personal' | 'team'; role: 'admin' | 'member'; plan: string; planName: string; endsAt: string | null; balance: { gifted: number; purchased: number; reserved: number }; verified: boolean; modelSource: ModelSource; accounts: { id: string; kind: string; role: string; plan: string }[]; members: Record<string, string> | null; budgets: Record<string, number> | null; budget: number | null; events: CommerceEntry[]; orders: CommerceEntry[]; usage: CommerceEntry[]; readiness: CommerceReadiness };
+export const COMMERCE_OPERATIONS: Record<string, string> = {
+  '/api/discover/search': 'discover-search', '/api/research/citation-verification': 'citation-verification',
+  '/api/data-processing/execute': 'data-execute', '/api/data-processing/plan': 'data-plan',
+  ...Object.fromEntries(['chat', 'text-polishing', 'hypothesis-generation', 'experiment-design', 'academic-writing', 'peer-review', 'report', 'analyze', 'analyze-pdf', 'knowledge-map', 'knowledge-cards', 'deep-research', 'scientific-illustration', 'ppt', 'ppt-html', 'ppt-v2', 'ppt-slide-revise', 'ppt-html-repair', 'podcast', 'tts'].map(name => [`/api/ai/${name}`, name])),
+};

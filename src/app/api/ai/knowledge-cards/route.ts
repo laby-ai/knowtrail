@@ -1,8 +1,9 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { buildKnowledgeCardsPayload, type KnowledgeCardRequestInput } from '@/lib/knowledge-card-service';
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   try {
     const body = await request.json() as KnowledgeCardRequestInput;
     const scope = await resolveAccountNotebookScope(request, {
@@ -24,4 +25,8 @@ export async function POST(request: NextRequest) {
     console.error('[knowledge-cards] Error:', msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'knowledge-cards', () => executePOST(request));
 }

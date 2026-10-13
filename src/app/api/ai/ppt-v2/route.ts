@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
 import { formatPptOutlineDraftForPrompt, sanitizePptOutlineDraft } from '@/lib/ppt/outline-draft';
@@ -117,7 +118,7 @@ Do NOT wrap in markdown code fences. Output ONLY the JSON array.`;
   );
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   // ── Clear LLM observability logs for this request ──
   resetLlmCallLogs();
 
@@ -327,4 +328,8 @@ export async function POST(request: NextRequest) {
     console.error('[PPT-V2] Error:', msg);
     return NextResponse.json({ error: `PPT生成失败: ${msg}` }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'ppt-v2', () => executePOST(request));
 }

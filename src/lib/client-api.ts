@@ -1,4 +1,5 @@
 'use client';
+import { commerceRequestHeaders } from '@/lib/commerce/client-confirmation';
 
 const ACCOUNT_TOKEN_KEYS = ["knowtrail-account-session","account_entitlement_token"];
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -140,6 +141,8 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
     requestHeaders.set('Content-Type', 'application/json');
   }
 
+  const commerceHeaders = await commerceRequestHeaders(path, { ...init, headers: requestHeaders, signal: callerSignal }, token);
+  for (const [name, value] of Object.entries(commerceHeaders)) requestHeaders.set(name, value);
   const controller = new AbortController();
   let timedOut = false;
   const abortFromCaller = () => controller.abort(callerSignal?.reason);

@@ -1,3 +1,5 @@
+import { requestedModelSource, registerProvider } from '@/lib/commerce/context';
+import { runCommerceTask } from '@/lib/commerce/task';
 import type { NextRequest } from 'next/server';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { accountUsageErrorMessage, reserveAIUsage, type AIUsageReservation } from '@/lib/account-ai-billing';
@@ -29,7 +31,7 @@ function imageBufferFromBase64(value: string): Buffer {
   return Buffer.from(normalized, 'base64');
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   let reservation: AIUsageReservation | null = null;
   let finalized = false;
   try {
@@ -47,8 +49,9 @@ export async function POST(request: NextRequest) {
     });
     if (!accountScope.ok) return accountScope.response;
 
-    const memberProfileRequired = accountAuthRequired();
+    const memberProfileRequired = requestedModelSource() === 'byok' || (!requestedModelSource() && accountAuthRequired());
     const providerProfile = memberProfileRequired ? await resolveMemberBailianProfile(request) : null;
+    if (providerProfile) registerProvider(providerProfile.api_key, 'byok');
     const runtimeConfig = providerProfile ? null : resolveImageRuntimeConfig();
     const modelName = providerProfile?.image_model || resolveImageModelName(runtimeConfig || undefined);
     try {
@@ -129,4 +132,8 @@ export async function POST(request: NextRequest) {
       timeout ? 504 : 500,
     );
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'scientific-illustration', () => executePOST(request));
 }

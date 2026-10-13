@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { resolveAccountSessionFromRequest } from "@/lib/account-session";
@@ -72,7 +73,7 @@ const reviewSchema = z
       .max(8),
   })
   .strict();
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   let session;
   try {
     session = await resolveAccountSessionFromRequest(request);
@@ -214,4 +215,8 @@ export async function POST(request: NextRequest) {
       { status: 502 },
     );
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'citation-verification', () => executePOST(request));
 }

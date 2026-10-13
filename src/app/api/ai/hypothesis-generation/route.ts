@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest } from 'next/server';
 import { llmStream } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
@@ -35,7 +36,7 @@ function jsonError(error: string, errorType: string, status: number, extra: Reco
   });
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   let input: HypothesisGenerationRequest;
   try {
     input = await request.json() as HypothesisGenerationRequest;
@@ -216,4 +217,8 @@ export async function POST(request: NextRequest) {
         });
     },
   });
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'hypothesis-generation', () => executePOST(request));
 }

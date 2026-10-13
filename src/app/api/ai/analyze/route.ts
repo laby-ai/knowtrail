@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
 import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
@@ -16,7 +17,7 @@ function fallbackAnalysis(fileName: string, fileContent: string, abstract = 'AIå
   };
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   try {
     const { fileContent, fileName, fileType, imageBase64, aiConfig } = await request.json() as {
       fileContent?: string;
@@ -174,4 +175,8 @@ function parseJsonFromResponse(response: string, fileName: string): Record<strin
       content: response,
     };
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'analyze', () => executePOST(request));
 }

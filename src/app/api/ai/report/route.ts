@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke, SYSTEM_PROMPTS } from '@/lib/ai-service';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
@@ -11,7 +12,7 @@ import {
   studioGenerationUnavailablePayload,
 } from '@/lib/studio-generation-readiness';
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   try {
     const { papers, outline, customOutline, aiConfig, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
       papers?: string | RagSourceInput[];
@@ -158,4 +159,8 @@ ${evidenceContext}
     const msg = error instanceof Error ? error.message : '服务错误';
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'report', () => executePOST(request));
 }

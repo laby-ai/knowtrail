@@ -1,4 +1,5 @@
 'use client';
+import { clientApiRequest } from '@/lib/client-api';
 
 // NotebookLM-style "discover sources": search the web from the library
 // panel, pick results, and ingest them as sources in one step.
@@ -137,7 +138,7 @@ export function DiscoverSourcesModal({
     setItemErrors({});
     setSelected(new Set());
     try {
-      const res = await fetch('/api/discover/search', {
+      const res = await clientApiRequest('/api/discover/search', {
         signal: controller.signal,
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },

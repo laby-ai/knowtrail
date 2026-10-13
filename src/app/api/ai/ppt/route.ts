@@ -1,3 +1,5 @@
+import { trustedRequestKey, requestedModelSource } from '@/lib/commerce/context';
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
@@ -63,7 +65,7 @@ function envFirst(...names: string[]): string {
 }
 
 function resolveServerRuntimeAIConfig(input?: Partial<RuntimeAIConfig>): Partial<RuntimeAIConfig> {
-  if (allowRequestRuntimeAIConfig() && hasRuntimeAIProvider(input)) return input;
+  if (hasRuntimeAIProvider(input) && (trustedRequestKey(input.apiKey) || allowRequestRuntimeAIConfig())) return input;
   return serverRuntimeAIConfigFromEnv();
 }
 
@@ -330,7 +332,7 @@ async function generateImage(prompt: string, options?: {
     return image.toString('base64');
   }
   // 1. 优先尝试思坦AI
-  if (SITIAN_API_TOKEN) {
+  if (SITIAN_API_TOKEN && !requestedModelSource()) {
     console.log('[生图] 尝试思坦AI...');
     const result = await generateSitianImage(prompt, options);
     if (result) return result;
@@ -790,7 +792,7 @@ ${pages.map((page, i) => {
 // ============================================================
 // Main POST handler — SSE streaming progress (5 stages)
 // ============================================================
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   const body: PPTRequest = await request.json();
   const {
     papers, style, pageCount = 8, templateStyle,
@@ -993,4 +995,8 @@ export async function POST(request: NextRequest) {
       'Connection': 'keep-alive',
     },
   });
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'ppt', () => executePOST(request));
 }

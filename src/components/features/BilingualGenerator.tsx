@@ -1,4 +1,5 @@
 'use client';
+import { clientApiRequest } from '@/lib/client-api';
 
 import { useState, useCallback } from 'react';
 import {
@@ -32,7 +33,7 @@ export function BilingualGenerator() {
     addChatMessage({ id: `msg-${Date.now()}-studio`, role: 'user', content: `请生成双语字幕和音频文本`, timestamp: new Date().toISOString() });
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await clientApiRequest('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

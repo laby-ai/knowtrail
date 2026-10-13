@@ -17,9 +17,9 @@ export type MemberProviderProfile = {
   provider_id: 'aliyun-bailian';
   workspace_id: string;
   region: 'cn-beijing';
-  text_model: 'qwen3.7-plus';
-  image_model: 'wan2.7-image-pro';
-  tts_model: 'qwen-audio-3.0-tts-plus';
+  text_model: string;
+  image_model: string;
+  tts_model: string;
   api_key: string;
 };
 

@@ -1,3 +1,4 @@
+import { commerceContext } from '@/lib/commerce/context';
 import { AccountEntitlementClient, AccountServiceError, estimateTextUnits } from '@/lib/account-entitlement-client';
 import { admitLongTask, resolveLongTaskIdempotencyKey } from '@/lib/long-task-admission';
 
@@ -62,6 +63,7 @@ export function accountUsageErrorMessage(error: unknown, fallback: string) {
 }
 
 export async function reserveAIUsage(options: AIUsageReservationOptions): Promise<AIUsageReservation | null> {
+  if (commerceContext.getStore()) return null; // New isolated asset owns this task; never double bill legacy credits.
   if (!isAccountBillingConfigured(options.memberId, options.tenantId)) return null;
 
   const client = createAccountClient();
@@ -115,7 +117,7 @@ export async function reserveAIUsage(options: AIUsageReservationOptions): Promis
         await client.settle({ tenantId, reservationId, requestId, actualUnits });
         admission.succeed();
       } catch (error) {
-        await client.release({ tenantId, reservationId, requestId }).catch(() => undefined);
+        // Preserve the hold for account reconciliation when generation succeeded.
         admission.fail();
         throw error;
       }

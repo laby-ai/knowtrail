@@ -1,3 +1,4 @@
+import { CommerceConfirmationHost } from '@/components/account/commerce/CommerceConfirmationHost';
 import type { Metadata } from 'next';
 import { ThemeScript } from '@/components/ThemeScript';
 import './globals.css';
@@ -48,6 +49,7 @@ export default function RootLayout({
       <body className="antialiased bg-[var(--bg-primary)] text-[var(--text-primary)]">
         <ThemeScript />
         {children}
+        <CommerceConfirmationHost />
       </body>
     </html>
   );

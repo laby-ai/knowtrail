@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { classifyPodcastGenerationError, getPodcastStatus } from '@/lib/ai-service';
 import { buildPodcastRetrievalPreview, getPodcastStudioJobResponse, submitPodcastJob } from '@/lib/studio-podcast-job';
@@ -8,7 +9,7 @@ import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-prof
 import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   try {
     const body = await request.json() as {
       text?: string;
@@ -127,4 +128,8 @@ export async function GET(request: NextRequest) {
     console.error('[Podcast Status API Error]', msg);
     return NextResponse.json({ error: msg, status: 'failed' }, { status: 502 });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'podcast', () => executePOST(request));
 }

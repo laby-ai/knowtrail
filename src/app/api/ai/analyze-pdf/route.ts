@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { execFile } from 'child_process';
 import { readFile, unlink, mkdir } from 'fs/promises';
@@ -14,7 +15,7 @@ const CONCURRENT_VISION = 3;
  * 将 PDF 页面渲染为图片后，用视觉模型识别内容（文字 + 图表）
  * POST { pdfBase64: string, fileName?: string, maxPages?: number }
  */
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   try {
     const { pdfBase64, fileName, maxPages, aiConfig } = await request.json() as {
       pdfBase64?: string;
@@ -164,4 +165,8 @@ export async function POST(request: NextRequest) {
     console.error('[Analyze PDF Error]', msg, stack);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'analyze-pdf', () => executePOST(request));
 }

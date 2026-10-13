@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { synthesizeBailianQwenTts } from '@/lib/bailian-qwen-tts';
 import { bailianProfileErrorResponse, resolveMemberBailianProfile } from '@/lib/bailian-provider-profile';
@@ -7,7 +8,7 @@ function safeErrorMessage(error: unknown) {
   return message.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]');
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   try {
     const { text, speaker } = await request.json() as {
       text?: unknown;
@@ -39,4 +40,8 @@ export async function POST(request: NextRequest) {
           : 502;
     return NextResponse.json({ error: message, provider: 'aliyun-bailian-qwen-audio-tts' }, { status });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'tts', () => executePOST(request));
 }

@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest } from 'next/server';
 import { llmStream } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
@@ -43,7 +44,7 @@ function isScene(value: unknown): value is PolishingScene {
   return value === 'paper' || value === 'proposal' || value === 'presentation';
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   let input: TextPolishingRequest;
   try {
     input = await request.json() as TextPolishingRequest;
@@ -182,4 +183,8 @@ export async function POST(request: NextRequest) {
       'X-Accel-Buffering': 'no',
     },
   });
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'text-polishing', () => executePOST(request));
 }

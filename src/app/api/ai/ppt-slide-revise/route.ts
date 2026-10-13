@@ -1,3 +1,4 @@
+import { runCommerceTask } from '@/lib/commerce/task';
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { generateSlideImage, resolveImageRuntimeConfig } from '@/lib/ppt/image-generation';
@@ -30,7 +31,7 @@ interface SlideReviseRequest {
   notebookId?: string;
 }
 
-export async function POST(request: NextRequest) {
+async function executePOST(request: NextRequest) {
   const body: SlideReviseRequest = await request.json();
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
@@ -92,4 +93,8 @@ ${body.styleDescription ? `- 整体视觉风格继续遵守:${body.styleDescript
       retryable: failure.retryable,
     }, { status: failure.status });
   }
+}
+
+export async function POST(request: NextRequest): Promise<Response> {
+  return runCommerceTask(request, 'ppt-slide-revise', () => executePOST(request));
 }
