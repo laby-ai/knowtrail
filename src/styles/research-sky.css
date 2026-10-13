@@ -11,28 +11,28 @@
 [data-theme='light'] .research-sky-planet { opacity: .34; }
 .research-sky-meteors { position: absolute; inset: 0 0 auto; height: 90px; overflow: hidden; }
 .research-sky-meteor {
-  position: absolute; width: 96px; height: 1.5px; opacity: 0;
+  position: absolute; width: 132px; height: 2px; opacity: 0;
   background: linear-gradient(to right, #dbeafe, rgba(165, 180, 252, .55) 25%, transparent);
-  border-radius: 999px; animation: research-meteor-pass 14s linear infinite;
-  animation-delay: 1s;
+  border-radius: 999px; animation: research-meteor-pass 9s linear infinite;
+  animation-delay: .5s;
 }
 .research-sky-meteor-first { top: 15px; right: 12%; }
-.research-sky-meteor-second { top: 9px; left: 22%; animation-duration: 21s; animation-delay: 7s; }
+.research-sky-meteor-second { top: 9px; left: 22%; animation-duration: 13s; animation-delay: 5s; }
 [data-theme='light'] .research-sky-meteor {
-  background: linear-gradient(to right, #818cf8, rgba(99, 102, 241, .3) 25%, transparent);
+  background: linear-gradient(to right, #6366f1, rgba(99, 102, 241, .45) 25%, transparent);
 }
 .research-sky[data-paused='true'] .research-sky-meteor { animation-play-state: paused; }
 @keyframes research-meteor-pass {
   0% { opacity: 0; transform: translate(0, 0) rotate(-25deg); }
-  4% { opacity: .7; }
-  17% { opacity: 0; transform: translate(-190px, 80px) rotate(-25deg); }
+  5% { opacity: .9; }
+  30% { opacity: 0; transform: translate(-190px, 80px) rotate(-25deg); }
   100% { opacity: 0; transform: translate(-190px, 80px) rotate(-25deg); }
 }
 @media (max-width: 767px) {
   .research-sky-planet { width: 100%; height: 380px; background-size: auto 380px; background-position: top right; opacity: .2; }
   [data-theme='light'] .research-sky-planet { opacity: .13; }
   .research-sky-meteors { height: 42px; }
-  .research-sky-meteor { width: 64px; animation-duration: 20s; }
+  .research-sky-meteor { width: 80px; animation-duration: 14s; }
   .research-sky-meteor-second { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .research-sky-meteor { animation: none; display: none; } }
