@@ -1531,6 +1531,7 @@ export function LibraryPanel({
 
       {/* Literature search dialog */}
       <LiteratureSearchDialog
+        notebookId={notebookId}
         key={storageScopeKey}
         open={isLiteratureSearchOpen}
         onOpenChange={setIsLiteratureSearchOpen}

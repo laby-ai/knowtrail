@@ -16,7 +16,7 @@ export interface SearchOptions {
 }
 
 export async function searchAllSources(options: SearchOptions): Promise<LiteratureResult[]> {
-  const { query, sources = [...LITERATURE_PROVIDER_IDS], limitPerSource = 10, userId = 'anonymous', yearFrom, yearTo } = options;
+  const { query, sources = LITERATURE_PROVIDER_IDS.filter(source => source !== 'giiisp'), limitPerSource = 10, userId = 'anonymous' } = options;
 
   const rateCheck = checkRateLimit(userId);
   if (!rateCheck.allowed) {
@@ -41,6 +41,11 @@ export async function searchAllSources(options: SearchOptions): Promise<Literatu
     allPapers.push(...batch);
   }
 
+  return prepareLiteratureResults(allPapers, options);
+}
+
+export function prepareLiteratureResults(allPapers: LiteraturePaper[], options: SearchOptions): LiteratureResult[] {
+  const { query, yearFrom, yearTo } = options;
   const deduped = deduplicateResults(allPapers.map(paper => ({
     ...paper,
     authors: paper.authors.map(author => ({ name: author.name.trim() })).filter(author => author.name),

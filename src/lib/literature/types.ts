@@ -5,7 +5,8 @@ export type LiteratureProviderId =
   | 'openalex'
   | 'arxiv'
   | 'pubmed'
-  | 'scite';
+  | 'scite'
+  | 'giiisp';
 
 export const LITERATURE_PROVIDER_IDS: readonly LiteratureProviderId[] = [
   'crossref',
@@ -15,6 +16,7 @@ export const LITERATURE_PROVIDER_IDS: readonly LiteratureProviderId[] = [
   'arxiv',
   'pubmed',
   'scite',
+  'giiisp',
 ];
 
 export interface OALocation {

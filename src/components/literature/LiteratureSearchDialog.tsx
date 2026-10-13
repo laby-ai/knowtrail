@@ -32,6 +32,7 @@ import {
 import type { LiteratureResult, LiteratureProviderId, CitationStyle, LiteratureMetadata, LiteratureImportFeedback } from '@/lib/literature/types';
 import { sameLiteratureEntry } from '@/lib/literature/library';
 import { copyTextWithFallback } from '@/lib/clipboard';
+import { clientApiRequest } from '@/lib/client-api';
 
 const SOURCE_LABELS: Record<LiteratureProviderId, string> = {
   crossref: 'Crossref',
@@ -41,6 +42,7 @@ const SOURCE_LABELS: Record<LiteratureProviderId, string> = {
   arxiv: 'arXiv',
   pubmed: 'PubMed',
   scite: 'Scite',
+  giiisp: '集思谱',
 };
 
 const SOURCE_COLORS: Record<LiteratureProviderId, string> = {
@@ -51,6 +53,7 @@ const SOURCE_COLORS: Record<LiteratureProviderId, string> = {
   arxiv: 'bg-red-500/10 text-red-400 border-red-500/20',
   pubmed: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
   scite: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  giiisp: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
 };
 
 const CITATION_STYLES: { value: CitationStyle; label: string }[] = [
@@ -79,11 +82,12 @@ interface LiteratureSearchDialogProps {
   existingLiterature?: LiteratureMetadata[];
   targetLabel?: string;
   addDisabledReason?: string;
+  notebookId?: string | null;
 }
 
 export function LiteratureSearchDialog({
   open, onOpenChange, onAddToLibrary,
-  existingLiterature = [], targetLabel, addDisabledReason,
+  existingLiterature = [], targetLabel, addDisabledReason, notebookId,
 }: LiteratureSearchDialogProps) {
   const [addingId, setAddingId] = useState<string | null>(null);
   const addingRef = useRef(false);
@@ -91,6 +95,8 @@ export function LiteratureSearchDialog({
   const [addErrors, setAddErrors] = useState<Record<string, string>>({});
   const [importFeedback, setImportFeedback] = useState<Record<string, LiteratureImportFeedback>>({});
   const [query, setQuery] = useState('');
+  const [engine, setEngine] = useState('standard');
+  const [mcpMode, setMcpMode] = useState('oa');
   const [selectedSources, setSelectedSources] = useState<Set<LiteratureProviderId>>(
     new Set(['crossref', 'europepmc', 'semantic-scholar', 'openalex', 'arxiv', 'pubmed', 'scite'])
   );
@@ -140,7 +146,8 @@ export function LiteratureSearchDialog({
     const yearTo = range?.to;
 
     try {
-      const res = await fetch('/api/literature/search', {
+      const res = await clientApiRequest(engine === 'giiisp' ? '/api/literature/mcp-search' : '/api/literature/search', {
+        timeoutMs: engine === 'giiisp' ? 110_000 : 30_000,
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -149,6 +156,7 @@ export function LiteratureSearchDialog({
           limitPerSource: 10,
           yearFrom,
           yearTo,
+          ...(engine === 'giiisp' ? { notebookId, mode: mcpMode } : {}),
         }),
       });
 
@@ -164,7 +172,7 @@ export function LiteratureSearchDialog({
     } finally {
       if (generation === searchGenerationRef.current) setLoading(false);
     }
-  }, [query, selectedSources, yearRange]);
+  }, [query, selectedSources, yearRange, engine, notebookId, mcpMode]);
 
   const handleAddToLibrary = async (result: LiteratureResult) => {
     if (!onAddToLibrary || addDisabledReason || addingRef.current) return;
@@ -269,6 +277,11 @@ export function LiteratureSearchDialog({
 
         <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="space-y-3 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant={engine === 'standard' ? 'default' : 'outline'} disabled={loading} onClick={() => { setEngine('standard'); setResults([]); }}>多库检索</Button>
+              <Button variant={engine === 'giiisp' ? 'default' : 'outline'} disabled={loading || !notebookId} onClick={() => { setEngine('giiisp'); setResults([]); }}>集思谱检索</Button>
+              {engine === 'giiisp' && <Select value={mcpMode} onValueChange={setMcpMode}><SelectTrigger className="w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="oa">开放论文</SelectItem><SelectItem value="arxiv-title">arXiv 题名</SelectItem><SelectItem value="arxiv-abstract">arXiv 摘要</SelectItem><SelectItem value="arxiv-id">arXiv 编号</SelectItem><SelectItem value="arxiv-multi">arXiv 多字段</SelectItem></SelectContent></Select>}
+            </div>
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <Input
@@ -286,9 +299,9 @@ export function LiteratureSearchDialog({
               </Button>
             </div>
 
-            <div className="space-y-1.5">
+            {engine === 'standard' && <div className="space-y-1.5">
               <div className="flex flex-wrap gap-1.5">
-                {(Object.keys(SOURCE_LABELS) as LiteratureProviderId[]).map(source => (
+                {(Object.keys(SOURCE_LABELS) as LiteratureProviderId[]).filter(source => source !== 'giiisp').map(source => (
                   <button
                     key={source}
                     onClick={() => toggleSource(source)}
@@ -303,7 +316,7 @@ export function LiteratureSearchDialog({
                 ))}
               </div>
               <p className="text-[10px] text-[var(--text-quaternary)]">点击切换数据源，选中后将从该数据库检索文献</p>
-            </div>
+            </div>}
 
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
