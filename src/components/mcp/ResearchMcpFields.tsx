@@ -15,7 +15,7 @@ export function mcpArguments(tool: ResearchMcpTool, fields: Record<string, strin
   return result;
 }
 export function ResearchMcpFields({ tool, fields, onChange }: { tool: ResearchMcpTool; fields: Record<string, string>; onChange: (key: string, value: string) => void }) {
-  return <div className="grid gap-4 sm:grid-cols-2">{Object.entries(tool.inputSchema.properties).map(([key, field]) => {
+  return <div className="grid gap-4 sm:grid-cols-2">{Object.entries(tool.inputSchema.properties).filter(([key]) => key !== 'workspace_file').map(([key, field]) => {
     const required = tool.inputSchema.required?.includes(key); const label = MCP_PARAMETER_LABELS[key] || field.description || key;
     const long = ['claim', 'reason', 'decisions', 'include_keywords', 'exclude_keywords', 'query'].includes(key);
     return <label key={key} className={`block min-w-0 space-y-2 text-sm ${long ? 'sm:col-span-2' : ''}`}><span className="font-medium">{label}{required ? ' *' : ''}</span>

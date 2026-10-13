@@ -23,6 +23,7 @@ export function ResearchMcpPanel() {
   const [error, setError] = useState('');
   const [result, setResult] = useState<unknown>();
   const [uploaded, setUploaded] = useState('');
+  const [uploadedName, setUploadedName] = useState('');
   const controller = useRef<AbortController | null>(null);
   const connection = connections.find(item => item.id === selected);
   const tool = connection?.tools.find(item => item.name === toolName);
@@ -58,7 +59,7 @@ export function ResearchMcpPanel() {
     try {
       const form = new FormData(); form.set('file', file); form.set('notebookId', notebookId);
       const response = await clientApiRequest('/api/mcp/research/upload', { method: 'POST', body: form, timeoutMs: 110_000, redirectOnUnauthorized: false, signal: abort.signal });
-      const data: { path: string } = await response.json(); setUploaded(data.path); setFields(previous => ({ ...previous, workspace_file: data.path }));
+      const data: { path: string } = await response.json(); setUploaded(data.path); setUploadedName(file.name); setFields(previous => ({ ...previous, workspace_file: data.path }));
     } catch (failure) { if (!abort.signal.aborted) setError(failure instanceof Error ? failure.message : '论文上传失败。'); }
     finally { if (!abort.signal.aborted) setBusy(false); }
   };
@@ -74,9 +75,9 @@ export function ResearchMcpPanel() {
           <fieldset disabled={busy || !connection?.available} className="space-y-4"><label className="block space-y-2 text-sm"><span className="font-medium">选择功能</span><select value={toolName} onChange={event => selectTool(event.target.value)} className="liquid-glass-input min-h-11 w-full rounded-lg px-3">{connection?.tools.map(item => <option key={item.name} value={item.name}>{MCP_TOOL_LABELS[item.name] || item.description}</option>)}</select></label>
             {selected === 'prisma' && <p className="rounded-xl bg-[var(--bg-secondary)] p-3 text-sm leading-6">先配置综述，再启动检索与关键词初筛；初筛结果仍需人工复核。使用“查看流程进度”检查任务，“生成流程图与报告”后可读取导出成果。</p>}
             {selected === 'labmate' && toolName === 'calculate_molarity' && <p className="text-sm text-[var(--text-secondary)]">填写已知量，未知量留空。例如填写物质的量与体积可计算摩尔浓度。</p>}
-            {selected === 'papercheck' && toolName === 'extract_citation_evidence' && <label className="block space-y-2 text-sm"><span className="font-medium">上传待核验论文（PDF、DOCX、TXT，最大 6MB）</span><input type="file" accept=".pdf,.docx,.txt,.md" className="block max-w-full" onChange={event => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ''; }} /><span className="block text-xs text-[var(--text-tertiary)]">每个文献本的核验工作区最多 50MB、30 个文件。</span>{uploaded && <span className="block text-xs text-emerald-600">论文已上传，可执行证据抽取。</span>}</label>}
+            {selected === 'papercheck' && toolName === 'extract_citation_evidence' && <label className="block space-y-2 text-sm"><span className="font-medium">上传待核验论文（PDF、DOCX、TXT，最大 6MB）</span><input type="file" accept=".pdf,.docx,.txt,.md" className="block max-w-full" onChange={event => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ''; }} /><span className="block text-xs text-[var(--text-tertiary)]">核验上传空间为 50MB、30 个文件；扫描 PDF 需先完成 OCR。</span>{uploaded && <span className="block break-words text-xs text-emerald-600">已上传：{uploadedName}，可执行证据抽取。</span>}</label>}
             <ResearchMcpFields tool={tool} fields={fields} onChange={(key, value) => setFields(previous => ({ ...previous, [key]: value }))} />
-            <button type="submit" disabled={!notebookId} className="liquid-glass-btn-primary inline-flex min-h-11 items-center gap-2 rounded-lg px-5 py-2 text-sm">{busy ? <><Loader2 className="h-4 w-4 animate-spin" />正在执行…</> : '执行所选功能'}</button>
+            <button type="submit" disabled={!notebookId || (toolName === 'extract_citation_evidence' && !fields.workspace_file)} className="liquid-glass-btn-primary inline-flex min-h-11 items-center gap-2 rounded-lg px-5 py-2 text-sm">{busy ? <><Loader2 className="h-4 w-4 animate-spin" />正在执行…</> : '执行所选功能'}</button>
           </fieldset>
         </form>}
         {error && <p role="alert" className="mt-4 rounded-xl border border-red-400/30 bg-red-500/5 p-3 text-sm leading-6 text-red-600">{error}</p>}

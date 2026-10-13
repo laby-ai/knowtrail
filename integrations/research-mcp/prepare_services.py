@@ -31,6 +31,7 @@ def main():
         raise RuntimeError("audited scientific MCP runtime is missing")
     config = Path("/opt/knowtrail/integrations")
     config.mkdir(mode=0o700, parents=True, exist_ok=True)
+    shutil.copy2(Path(__file__).with_name("runtime_adapter.py"), config / "runtime_adapter.py")
     app_env = config / "research-mcp.env"
     app_values = read_env(app_env) if app_env.exists() else {}
     token = app_values.setdefault("LINGBI_RESEARCH_MCP_SECRET", secrets.token_urlsafe(36))
@@ -79,12 +80,14 @@ Type=simple
 DynamicUser=true
 WorkingDirectory=/opt/sci-research-mcp
 EnvironmentFile=/opt/knowtrail/integrations/%i.env
-ExecStart=/opt/sci-research-mcp/.venv/bin/python -m sci_mcp --product %i --host 127.0.0.1
+ExecStart=/opt/sci-research-mcp/.venv/bin/python /opt/knowtrail/integrations/runtime_adapter.py %i
 StateDirectory=lingbi-research-%i
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
+MemoryMax=768M
+TasksMax=64
 Restart=on-failure
 RestartSec=5
 [Install]
