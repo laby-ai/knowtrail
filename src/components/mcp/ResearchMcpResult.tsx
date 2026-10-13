@@ -11,6 +11,8 @@ export function mcpValue(raw: unknown): Record<string, unknown> {
 export function mcpFailure(raw: unknown): string | undefined {
   const shell = object(raw); const value = mcpValue(raw);
   if (shell?.isError === true || value.ok === false || value.dry_run === true) return typeof value.message === 'string' ? value.message : typeof value.error === 'string' ? value.error : '工具未完成，请检查输入或上游服务状态。';
+  const body = object(value.data) || value; const nested = object(parsed(body.result)) || body;
+  if (typeof nested.error === 'string') return nested.error;
 }
 function paperLink(paper: Record<string, unknown>): string | undefined {
   if (typeof paper.url === 'string' && /^https:\/\//.test(paper.url)) return paper.url;
@@ -30,7 +32,7 @@ export function ResearchMcpResult({ raw }: { raw: unknown }) {
   const rawShell = object(raw);
   return <div className="space-y-4 break-words text-sm leading-7" data-testid="research-mcp-result">
     {rawShell?.claimSupport === 'not-verified' && <p className="rounded-xl border border-amber-300/30 bg-amber-500/5 p-3">这里核对的是候选题录。题名匹配不能证明正文主张成立，仍需全文证据核验。</p>}
-    {Array.isArray(papers) ? <div className="space-y-3">{papers.map((paper, index) => {
+    {Array.isArray(papers) ? <div className="space-y-3">{papers.length === 0 && <p className="rounded-xl border border-[var(--border-subtle)] p-4">{rawShell?.claimSupport === 'not-verified' ? '本次未获得可用的引用候选，不能据此判断正文主张是否成立。请检查检索状态、调整关键词或稍后重试。' : '本次未返回匹配文献，请调整检索词或筛选条件。'}</p>}{papers.map((paper, index) => {
       const row = object(paper) || {}; const link = paperLink(row);
       return <article key={typeof row.id === 'string' ? row.id : index} className="rounded-xl border border-[var(--border-subtle)] p-4"><h4 className="font-semibold">{typeof row.title === 'string' ? row.title.replace(/&lt;[^&]*&gt;|<[^>]+>/g, '') : '未返回题名'}</h4><p className="mt-2 text-[var(--text-secondary)]">{Array.isArray(row.authors) ? row.authors.filter(item => typeof item === 'string').slice(0, 4).join('、') : typeof row.authors === 'string' ? row.authors : '作者未返回'}{typeof row.year === 'string' || typeof row.year === 'number' ? ` · ${row.year}` : ''}</p>{typeof row.abstract_snippet === 'string' && <p className="mt-2">{row.abstract_snippet.replace(/<[^>]+>/g, '')}</p>}{link && <a href={link} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-blue-500 underline underline-offset-4">打开来源</a>}</article>;
     })}</div>

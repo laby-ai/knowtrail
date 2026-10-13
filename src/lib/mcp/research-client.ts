@@ -101,6 +101,31 @@ function publicResult(result: Record<string, unknown>): unknown {
   return JSON.parse(safe);
 }
 
+function bibliographicResult(result: Record<string, unknown>): Record<string, unknown> {
+  const normalize = (value: unknown): unknown => {
+    const parsed = z.record(z.string(), z.unknown()).safeParse(value);
+    if (!parsed.success) return value;
+    const record = parsed.data;
+    if (record.audit_status === '已核验') record.audit_status = '题录匹配';
+    if (Array.isArray(record.candidates)) {
+      record.candidates = record.candidates.map(candidate => {
+        const entry = z.record(z.string(), z.unknown()).safeParse(candidate);
+        return entry.success && entry.data.audit_status === '已核验' ? { ...entry.data, audit_status: '题录匹配' } : candidate;
+      });
+      if (record.candidates.length === 0 && typeof record.failed_requests === 'number' && record.failed_requests > 0) record.audit_status = '接口受限，待核对';
+    }
+    return record;
+  };
+  const normalized = z.record(z.string(), z.unknown()).parse(publicResult(result));
+  normalized.structuredContent = normalize(normalized.structuredContent);
+  if (Array.isArray(normalized.content)) normalized.content = normalized.content.map(item => {
+    const entry = z.record(z.string(), z.unknown()).safeParse(item);
+    if (!entry.success || entry.data.type !== 'text' || typeof entry.data.text !== 'string') return item;
+    try { return { ...entry.data, text: JSON.stringify(normalize(JSON.parse(entry.data.text))) }; } catch { return item; }
+  });
+  return { ...normalized, verificationScope: 'bibliographic-metadata', claimSupport: 'not-verified' };
+}
+
 export async function executeResearchTool(id: ResearchMcpId, toolName: string, args: Record<string, unknown>, scope: string): Promise<unknown> {
   if (process.env.LINGBI_COMMERCE_MODE === 'enforced' && (id === 'giiisp' || (id === 'papercheck' && toolName === 'audit_citation_candidates'))) throw new ResearchMcpError('此上游检索尚未完成科研点数定价验收，正式收费模式暂不开放。', 503);
   const tool = (await tools(id)).find(item => item.name === toolName);
@@ -114,8 +139,7 @@ export async function executeResearchTool(id: ResearchMcpId, toolName: string, a
       result.evidence = await rpc(id, 'tools/call', { name: 'read_workspace_file', arguments: { path: 'citation_evidence.json' } }, scope);
     }
     if (id === 'papercheck' && toolName === 'audit_citation_candidates') {
-      const normalized = z.record(z.string(), z.unknown()).parse(JSON.parse(JSON.stringify(publicResult(result)).replaceAll('已核验', '题录匹配')));
-      return { ...normalized, verificationScope: 'bibliographic-metadata', claimSupport: 'not-verified' };
+      return bibliographicResult(result);
     }
     return publicResult(result);
   }
