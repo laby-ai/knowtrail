@@ -81,8 +81,8 @@ class CommerceTests(unittest.TestCase):
             database.unlink(missing_ok=True)
         store.migrate()
         with connect() as conn:
-            conn.execute("CREATE TABLE tenant_members(id TEXT PRIMARY KEY,tenant_id TEXT,email TEXT,status TEXT)")
-            conn.executemany("INSERT INTO tenant_members VALUES(?,?,?,?)", [("owner", "org", "owner@example.invalid", "active"), ("reader", "org", "reader@example.invalid", "active"), ("outsider", "other", "foreign@example.invalid", "active")])
+            conn.execute("CREATE TABLE tenant_members(id TEXT PRIMARY KEY,tenant_id TEXT,email TEXT,status TEXT,display_name TEXT)")
+            conn.executemany("INSERT INTO tenant_members VALUES(?,?,?,?,?)", [("owner", "org", "owner@example.invalid", "active", "Owner fixture"), ("reader", "org", "reader@example.invalid", "active", "Reader fixture"), ("outsider", "other", "foreign@example.invalid", "active", "Foreign fixture")])
         self.account = store.ensure_personal("org", "owner")
         with store.locked(self.account, "org", "owner") as (_, state):
             store.batch(state, 10000, "purchase")

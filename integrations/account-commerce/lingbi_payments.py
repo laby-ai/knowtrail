@@ -83,7 +83,10 @@ def notify(provider, raw, headers):
     module = clients()
     if provider == "alipay":
         client = module.get_alipay()
-        data = {key: values[0] for key, values in parse_qs(raw.decode()).items()}
+        fields = parse_qs(raw.decode())
+        if any(len(values) != 1 for values in fields.values()):
+            raise ValueError("ambiguous_payment_parameters")
+        data = {key: values[0] for key, values in fields.items()}
         if data.get("app_id") != client.app_id or not os.getenv("LINGBI_ALIPAY_SELLER_ID") or data.get("seller_id") != os.getenv("LINGBI_ALIPAY_SELLER_ID"):
             raise ValueError("alipay_merchant_mismatch")
         verified = client.verify_notification(dict(data))

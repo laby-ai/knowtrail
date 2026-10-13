@@ -17,7 +17,7 @@ export async function prepareCommerceQuote(request: NextRequest) {
   const token = bearerTokenFromRequest(request);
   const membership = await commerceAccount<CommerceMembership>(`membership${body.accountId ? `?accountId=${encodeURIComponent(body.accountId)}` : ''}`, { token });
   const source = body.source === 'byok' ? 'byok' : body.source === 'platform' ? 'platform' : membership.modelSource;
-  if (!membership.readiness.chargingReady) return { mode: 'observe', requiresConfirmation: false, maxPoints: null, source, accountId: membership.accountId, message: '当前仅采集用量，不扣科研点数。' };
+  if (!membership.readiness.chargingReady) return { mode: 'observe', requiresConfirmation: false, maxPoints: null, source, accountId: membership.accountId, payerLabel: membership.accountName, message: '当前仅采集用量，不扣科研点数。' };
   const context = { requestId: randomUUID(), operation, accountId: membership.accountId, tenantId: session.tenant_id, memberId: session.member.id, source, providers: new Map<string, ModelSource>(), resources: [], calls: new Set<string>(), enforcing: false, startedAt: Date.now() };
   const config = await commerceContext.run(context, () => resolveRequestRuntimeAIConfig(request));
   const host = (base?: string) => { try { return new URL(base || '').hostname; } catch { throw new CommerceError(503, 'provider_not_configured'); } };
@@ -33,5 +33,5 @@ export async function prepareCommerceQuote(request: NextRequest) {
     resources.push({ rateKey: 'metaso.cn:search', source: 'platform', queries: operation === 'deep-research' ? 20 : 1 });
   }
   const quote = await commerceAccount<CommerceQuote>('internal/quote', { token, internal: true, body: { tenantId: session.tenant_id, memberId: session.member.id, accountId: membership.accountId, operation, resources, inputHash: inputHash(body.body), idempotencyKey: body.idempotencyKey || randomUUID() } });
-  return { ...quote, source, accountId: membership.accountId, mode: 'enforced', requiresConfirmation: true };
+  return { ...quote, source, accountId: membership.accountId, payerLabel: membership.accountName, mode: 'enforced', requiresConfirmation: true };
 }

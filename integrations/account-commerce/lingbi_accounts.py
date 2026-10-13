@@ -22,6 +22,7 @@ def summary(tenant, member, account=None):
         def rows(table):
             return [dict(id=row["id"], createdAt=row["created_at"], **({"status": row["status"], "amountFen": row["amount_fen"]} if table == "lingbi_orders" else {}), **json.loads(row["data_json"])) for row in conn.execute(f"SELECT * FROM {table} WHERE account_id=?{own_filter} ORDER BY created_at DESC LIMIT 50", params).fetchall()]
         return dict(asset=ASSET, accountId=selected, kind=state["kind"], role=role, plan=plan, planName=PLANS[plan]["name"], endsAt=state["end"],
+                    accountName=state.get("name", "个人账户"), memberDetails=[dict(id=row["id"], email=row["email"], displayName=row["display_name"], role=state["members"][row["id"]]) for row in conn.execute("SELECT id,email,display_name FROM tenant_members WHERE tenant_id=?", (tenant,)).fetchall() if row["id"] in state["members"]] if role == "admin" else [],
                     balance=account_balance, verified=state["verified"], modelSource=decode(conn.execute("SELECT state_json FROM lingbi_accounts WHERE id=?", (personal,)).fetchone())["modelSource"], budget=state["budgets"].get(member), budgetRemaining=budget_remaining,
                     members=state["members"] if role == "admin" else None, budgets=state["budgets"] if role == "admin" else None,
                     limits=PLANS[plan], events=rows("lingbi_events"), orders=rows("lingbi_orders"), usage=rows("lingbi_usage"))
@@ -30,7 +31,7 @@ def summary(tenant, member, account=None):
 def list_accounts(tenant, member):
     ensure_personal(tenant, member)
     with connect() as conn:
-        return [dict(id=row["id"], kind=row["kind"], role=decode(row)["members"][member], plan=active_plan(decode(row))) for row in conn.execute("SELECT * FROM lingbi_accounts WHERE tenant_id=?", (tenant,)).fetchall() if member in decode(row)["members"]]
+        return [dict(id=row["id"], name=decode(row).get("name", "个人账户"), kind=row["kind"], role=decode(row)["members"][member], plan=active_plan(decode(row))) for row in conn.execute("SELECT * FROM lingbi_accounts WHERE tenant_id=?", (tenant,)).fetchall() if member in decode(row)["members"]]
 
 
 def create_team(tenant, member, name):

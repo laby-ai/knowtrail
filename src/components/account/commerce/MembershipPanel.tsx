@@ -49,7 +49,7 @@ export function MembershipPanel({ memberId }: { memberId: string }) {
     {!ready && <div role="status" className="rounded-xl border bg-[var(--bg-secondary)] p-4"><p className="font-medium">当前处于用量采集阶段，暂未开放购买和扣费。</p><ul className="mt-2 list-disc pl-5">{membership.readiness.blockers.map(item => <li key={item}>{item}</li>)}</ul></div>}
     {error && <p role="alert" className="break-words text-red-600">{error}</p>}
     <div className="grid gap-4 sm:grid-cols-2">
-      <label className="space-y-2">付款账户<select aria-label="科研付款账户" className="liquid-glass-input w-full" value={membership.accountId} onChange={event => setAccountId(event.target.value)}>{membership.accounts.map(item => <option key={item.id} value={item.id}>{item.kind === 'team' ? '课题组' : '个人'} · {item.id}</option>)}</select></label>
+      <label className="space-y-2">付款账户<select aria-label="科研付款账户" className="liquid-glass-input w-full" value={membership.accountId} onChange={event => setAccountId(event.target.value)}>{membership.accounts.map(item => <option key={item.id} value={item.id}>{item.name}（{item.kind === 'team' ? '课题组' : '个人'}）</option>)}</select></label>
       <label className="space-y-2">模型来源<select aria-label="模型费用来源" disabled={busy} className="liquid-glass-input w-full" value={membership.modelSource} onChange={event => void source(event.target.value as ModelSource)}><option value="platform">平台模型</option><option value="byok">自带百炼密钥</option></select></label>
     </div>
     <p className="text-[var(--text-secondary)]">自带密钥的模型费用由百炼直接收取；灵笔只结算实际使用的平台服务。失败时不会自动切换平台模型扣费。</p>

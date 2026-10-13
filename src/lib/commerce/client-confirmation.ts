@@ -1,6 +1,6 @@
 'use client';
 import { COMMERCE_OPERATIONS } from './contracts';
-export type QuoteConfirmation = { id: string; maxPoints: number; accountId: string; source: string; expiresAt: string; operation: string };
+export type QuoteConfirmation = { id: string; maxPoints: number; accountId: string; payerLabel: string; source: string; expiresAt: string; operation: string };
 export type ConfirmationEvent = { quote: QuoteConfirmation; resolve: (approved: boolean) => void };
 export function selectedCommerceHeaders(): Record<string, string> {
   try {

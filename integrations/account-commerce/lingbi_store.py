@@ -55,7 +55,11 @@ def locked(account, tenant, member, *, admin=False, internal=False):
         role = state["members"].get(member)
         if not internal and (not role or (admin and role != "admin")):
             raise PermissionError("account_access_denied")
+        previous_batches = {item["id"] for item in state["batches"]}
         refresh(state)
+        for item in state["batches"]:
+            if item["id"] not in previous_batches and item["source"] == "membership":
+                event(conn, account, state["owner"], account + ":" + item["id"], dict(type="membership_grant", points=item["points"], expiresAt=item["expires"], orderId=item["order"]))
         yield conn, state
         conn.execute("UPDATE lingbi_accounts SET state_json=? WHERE id=?", (json.dumps(state), account))
 

@@ -19,6 +19,8 @@ def rates():
 def model_points(resources, price_book):
     cost = Decimal(0)
     for resource in resources:
+        if resource.get("source") not in ("platform", "byok"):
+            raise ValueError("invalid_resource_source")
         if resource.get("source") == "byok":
             continue
         price = price_book.get(resource["rateKey"])
@@ -34,7 +36,10 @@ def model_points(resources, price_book):
         if cached:
             if "cachedInputPerMillionCny" not in price:
                 raise ValueError("cached_input_not_priced")
-            cost += Decimal(str(price["cachedInputPerMillionCny"])) * cached / 1000000
+            cached_price = Decimal(str(price["cachedInputPerMillionCny"]))
+            if not cached_price.is_finite() or cached_price < 0:
+                raise ValueError("invalid_cached_price")
+            cost += cached_price * cached / 1000000
         for quantity, price_name in (("inputTokens", "inputPerMillionCny"), ("outputTokens", "outputPerMillionCny"), ("images", "imageCny"), ("queries", "queryCny")):
             count = resource.get(quantity, 0)
             if type(count) != int or not 0 <= count <= 10000000:
