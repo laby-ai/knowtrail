@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from '@/components/ui/dialog';
 import { StudioSkillsTools } from './StudioSkillsTools';
+import { ResearchMcpPanel } from '@/components/mcp/ResearchMcpPanel';
 import { KnowledgeMapWorkspace } from './KnowledgeMapWorkspace';
 import { VirtualClassroomWorkspace } from './VirtualClassroomWorkspace';
 import { KnowledgeMapPanel } from './KnowledgeMapPanel';
@@ -69,7 +70,7 @@ export function StudioPanel() {
         </p>
       </div>
 
-      <div className="px-5 py-4"><StudioSkillsTools /></div>
+      <div className="px-5 py-4"><StudioSkillsTools /><ResearchMcpPanel /></div>
       <Dialog open={activeTab !== null} onOpenChange={open => { if (!open) setActiveTab(null); }}>
         <DialogContent
           data-testid="studio-tool-dialog"
