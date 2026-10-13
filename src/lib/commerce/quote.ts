@@ -23,6 +23,12 @@ export async function prepareCommerceQuote(request: NextRequest) {
   const host = (base?: string) => { try { return new URL(base || '').hostname; } catch { throw new CommerceError(503, 'provider_not_configured'); } };
   const simple = ['chat', 'text-polishing', 'hypothesis-generation', 'experiment-design', 'academic-writing', 'peer-review', 'citation-verification', 'scientific-illustration'].includes(operation);
   const resources: CommerceResource[] = [{ rateKey: `${host(config.apiBase)}:${config.model}`, source, inputTokens: Math.max(Buffer.byteLength(body.body) * 4, simple ? 32768 : 128000), outputTokens: simple ? 8000 : 32000 }];
+  if (/ppt/.test(operation)) {
+    const payload = JSON.parse(body.body) as { slideCount?: number; pageCount?: number; pages?: number };
+    const pages = Math.max(1, Math.min(18, Number(payload.slideCount || payload.pageCount || payload.pages || 9) + 2));
+    resources[0].inputTokens = Math.min(10000000, Buffer.byteLength(body.body) * 4 + (pages + 8) * 8192);
+    resources[0].outputTokens = (pages + 8) * 4000;
+  }
   if (operation === 'ppt' || operation === 'scientific-illustration' || operation === 'ppt-slide-revise') {
     const payload = JSON.parse(body.body) as { slideCount?: number; pageCount?: number; pages?: number };
     const count = operation === 'ppt' ? Math.max(1, Math.min(18, Number(payload.slideCount || payload.pageCount || payload.pages || 9) + 2)) : 1;

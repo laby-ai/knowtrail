@@ -1,5 +1,5 @@
 export type ModelSource = 'platform' | 'byok';
-export type CommerceResource = { rateKey: string; source: ModelSource; inputTokens?: number; outputTokens?: number; cachedInputTokens?: number; images?: number; queries?: number; usageMissing?: boolean; retry?: boolean; status?: number; requestedImages?: number; boundedInputTokens?: number; boundedOutputTokens?: number };
+export type CommerceResource = { rateKey: string; source: ModelSource; inputTokens?: number; outputTokens?: number; cachedInputTokens?: number; images?: number; queries?: number; usageMissing?: boolean; retry?: boolean; status?: number; completed?: boolean; providerRequestId?: string; requestedImages?: number; boundedInputTokens?: number; boundedOutputTokens?: number };
 export type CommerceReadiness = { mode: 'observe' | 'enforced'; chargingReady: boolean; blockers: string[] };
 export type CommercePlan = { name: string; monthly: number; annual: number; points: number; storage: number; notebooks: number | null; seats: number; concurrent: number };
 export type CommerceCatalog = { asset: string; version: string; plans: Record<string, CommercePlan>; pointPacks: { id: string; amountFen: number; points: number }[]; readiness: CommerceReadiness; refundPolicy: string };

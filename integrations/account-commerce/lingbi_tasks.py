@@ -128,7 +128,7 @@ def reserve(tenant, member, account, task_id, digest, operation=None, source=Non
         if member in state["budgets"] and used + data["maxPoints"] > state["budgets"][member]:
             raise ValueError("member_budget_exceeded")
         remaining = data["maxPoints"]
-        for item in sorted(state["batches"], key=lambda item: item["expires"] or "9999"):
+        for item in sorted(state["batches"], key=lambda item: (item["expires"] or "9999", 1 if item["source"] == "purchase" else 0)):
             if item["expires"] and item["expires"] <= utcnow().isoformat():
                 continue
             amount = min(remaining, item["points"] - item["spent"] - item["held"])
@@ -179,7 +179,7 @@ def record_usage(tenant, member, account, data):
     safe = {key: data.get(key) for key in ("operation", "resources", "delivered", "reliable", "durationMs", "outcome", "requestId")}
     if not isinstance(safe["resources"], list) or len(safe["resources"]) > 100:
         raise ValueError("invalid_usage")
-    allowed = {"rateKey", "source", "inputTokens", "outputTokens", "cachedInputTokens", "images", "queries", "usageMissing", "retry", "status"}
+    allowed = {"rateKey", "source", "inputTokens", "outputTokens", "cachedInputTokens", "images", "queries", "usageMissing", "retry", "status", "providerRequestId"}
     safe["resources"] = [{key: value for key, value in item.items() if key in allowed} for item in safe["resources"]]
     try:
         safe["modelPoints"] = model_points(safe["resources"], rates()) if safe["reliable"] else None

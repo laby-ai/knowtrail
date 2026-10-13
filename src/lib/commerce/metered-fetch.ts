@@ -10,13 +10,14 @@ function applyPayload(resource: CommerceResource, data: ProviderPayload) {
     const output = usage.completion_tokens ?? usage.output_tokens;
     if (Number.isSafeInteger(input) && Number.isSafeInteger(output) && input! >= 0 && output! >= 0) {
       resource.inputTokens = input; resource.outputTokens = output; resource.usageMissing = false;
+      resource.completed = true;
       const cached = usage.prompt_tokens_details?.cached_tokens;
       if (Number.isSafeInteger(cached) && cached! >= 0 && cached! <= input!) resource.cachedInputTokens = cached;
     }
   }
   const images = (data.data || []).filter(item => item.url || item.b64_json).length +
     (data.output?.choices || []).flatMap(item => item.message?.content || []).filter(item => item.image).length + (data.output?.results || []).filter(item => item.url).length;
-  if (images) { resource.images = images; resource.usageMissing = false; }
+  if (images) { resource.images = images; resource.usageMissing = false; resource.completed = true; }
 }
 
 export function installMeteredFetch() {
@@ -40,7 +41,7 @@ export function installMeteredFetch() {
     let address: URL;
     try { address = new URL(String(input)); } catch { return original(input, init); }
     if (!/\/chat\/completions|\/images\/generations|\/aigc\/|\/api\/v1\/search/.test(address.pathname)) return original(input, init);
-    let body: { model?: string; stream?: boolean; stream_options?: unknown };
+    let body: { model?: string; stream?: boolean; stream_options?: unknown; max_tokens?: number };
     try { body = JSON.parse(init.body) as typeof body; } catch { return original(input, init); }
     const apiKey = new Headers(init.headers).get('Authorization')?.replace(/^Bearer\s+/i, '') || new Headers(init.headers).get('X-API-Key') || '';
     const source = context.providers.get(keyHash(apiKey)) || 'platform';
@@ -55,10 +56,11 @@ export function installMeteredFetch() {
       const budget = context.quote!.resources.filter(item => item.rateKey === rateKey && item.source === source).reduce((sum, item) => ({ input: sum.input + (item.inputTokens || 0), output: sum.output + (item.outputTokens || 0), images: sum.images + (item.images || 0), queries: sum.queries + (item.queries || 0) }), { input: 0, output: 0, images: 0, queries: 0 });
       const previous = context.resources.filter(item => item !== resource && item.rateKey === rateKey && item.source === source && !item.retry && (item.status === undefined || (item.status >= 200 && item.status < 300)));
       const used = previous.reduce((sum, item) => ({ input: sum.input + (item.inputTokens ?? item.boundedInputTokens ?? 0), output: sum.output + (item.outputTokens ?? item.boundedOutputTokens ?? 0), images: sum.images + (item.images ?? item.requestedImages ?? 0), queries: sum.queries + (item.queries || 0) }), { input: 0, output: 0, images: 0, queries: 0 });
-      if (source === 'platform' && previous.some(item => item.status !== undefined && item.usageMissing)) throw new CommerceError(402, 'previous_provider_usage_unverified');
+      if (source === 'platform' && previous.some(item => item.completed && item.usageMissing)) throw new CommerceError(402, 'previous_provider_usage_unverified');
       if (/\/chat\/completions/.test(address.pathname)) {
         if (Buffer.byteLength(init.body) + used.input > budget.input || used.output >= budget.output) throw new CommerceError(402, 'confirmed_usage_limit_reached');
-        requestBody = { ...body, max_tokens: Math.min(8000, budget.output - used.output) };
+        const maximum = /ppt/.test(context.operation) ? 4000 : 8000;
+        requestBody = { ...body, max_tokens: Math.min(body.max_tokens || maximum, maximum, budget.output - used.output) };
         resource.boundedInputTokens = Buffer.byteLength(init.body); resource.boundedOutputTokens = requestBody.max_tokens;
       } else if (/\/images\/|\/aigc\//.test(address.pathname)) {
         resource.requestedImages = 1;
@@ -71,6 +73,8 @@ export function installMeteredFetch() {
     let response: Response;
     try { response = await original(input, requestInit); } catch (error) { resource.status = 0; throw error; }
     resource.status = response.status;
+    const providerRequestId = response.headers.get('x-request-id') || response.headers.get('x-dashscope-request-id');
+    if (providerRequestId && /^[A-Za-z0-9_.:-]{1,160}$/.test(providerRequestId)) resource.providerRequestId = providerRequestId;
     if (!response.ok || !response.body) return response;
     if (/\/api\/v1\/search/.test(address.pathname)) { resource.queries = 1; resource.usageMissing = false; }
     if (!response.headers.get('content-type')?.includes('text/event-stream')) {
@@ -78,6 +82,7 @@ export function installMeteredFetch() {
         const payload = await response.clone().json() as ProviderPayload;
         applyPayload(resource, payload);
         if (payload.output?.task_id) (context.imageTasks ||= new Map()).set(payload.output.task_id, resource);
+        else resource.completed = true;
       } catch { /* No invented usage. */ }
       return response;
     }
@@ -93,6 +98,7 @@ export function installMeteredFetch() {
         if (buffer.length > 1_000_000) buffer = ''; // bounded transient parser; never persist text
         controller.enqueue(chunk);
       },
+      flush() { resource.completed = true; },
     }));
     return new Response(stream, { status: response.status, statusText: response.statusText, headers: response.headers });
   };
