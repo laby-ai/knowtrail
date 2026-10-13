@@ -55,7 +55,7 @@ export function installMeteredFetch() {
       const budget = context.quote!.resources.filter(item => item.rateKey === rateKey && item.source === source).reduce((sum, item) => ({ input: sum.input + (item.inputTokens || 0), output: sum.output + (item.outputTokens || 0), images: sum.images + (item.images || 0), queries: sum.queries + (item.queries || 0) }), { input: 0, output: 0, images: 0, queries: 0 });
       const previous = context.resources.filter(item => item !== resource && item.rateKey === rateKey && item.source === source && !item.retry && (item.status === undefined || (item.status >= 200 && item.status < 300)));
       const used = previous.reduce((sum, item) => ({ input: sum.input + (item.inputTokens ?? item.boundedInputTokens ?? 0), output: sum.output + (item.outputTokens ?? item.boundedOutputTokens ?? 0), images: sum.images + (item.images ?? item.requestedImages ?? 0), queries: sum.queries + (item.queries || 0) }), { input: 0, output: 0, images: 0, queries: 0 });
-      if (previous.some(item => item.status !== undefined && item.usageMissing)) throw new CommerceError(402, 'previous_provider_usage_unverified');
+      if (source === 'platform' && previous.some(item => item.status !== undefined && item.usageMissing)) throw new CommerceError(402, 'previous_provider_usage_unverified');
       if (/\/chat\/completions/.test(address.pathname)) {
         if (Buffer.byteLength(init.body) + used.input > budget.input || used.output >= budget.output) throw new CommerceError(402, 'confirmed_usage_limit_reached');
         requestBody = { ...body, max_tokens: Math.min(8000, budget.output - used.output) };

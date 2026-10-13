@@ -24,6 +24,10 @@ def model_points(resources, price_book):
         price = price_book.get(resource["rateKey"])
         if not price:
             raise ValueError("model_not_priced")
+        if price.get("tiers"):
+            price = next((tier for tier in price["tiers"] if resource.get("inputTokens", 0) <= tier["maxInputTokens"] and resource.get("outputTokens", 0) <= tier.get("maxOutputTokens", 10000000)), None)
+            if not price:
+                raise ValueError("usage_outside_priced_tiers")
         cached = resource.get("cachedInputTokens", 0)
         if type(cached) != int or not 0 <= cached <= resource.get("inputTokens", 0):
             raise ValueError("invalid_cached_usage")

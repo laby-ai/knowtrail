@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { commerceContext, registerProvider, type BillingContext } from '../src/lib/commerce/context';
 import { installMeteredFetch } from '../src/lib/commerce/metered-fetch';
+import { DeliveryTracker } from '../src/lib/commerce/delivery';
 function context(source: 'platform' | 'byok'): BillingContext { return { requestId: source, operation: 'chat', accountId: 'fixture', tenantId: 'fixture', memberId: source, source, providers: new Map(), resources: [], calls: new Set(), enforcing: false, startedAt: Date.now() }; }
 async function main() {
   const original = globalThis.fetch;
@@ -8,6 +9,16 @@ async function main() {
   installMeteredFetch();
   const platform = context('platform'), byok = context('byok');
   try {
+    const encode = (value: string) => new TextEncoder().encode(value);
+    const partial = new DeliveryTracker('text/event-stream');
+    partial.push(encode('data: {"stage":"done","slides":[{"imageUrl":"fixture-a"},{"imageUrl":null},{"imageUrl":"fixture-b"}]}\n\n'));
+    assert.equal(partial.finish(), 2);
+    const failed = new DeliveryTracker('text/event-stream');
+    failed.push(encode('data: {"stage":"image","status":"done"}\n\ndata: {"stage":"error","message":"download failed"}\n\n'));
+    assert.equal(failed.finish(), 0);
+    const text = new DeliveryTracker('text/event-stream');
+    text.push(encode('data: {"delta":"deliverable"}\n\ndata: [DONE]\n\n'));
+    assert.equal(text.finish(), 1);
     await Promise.all([platform, byok].map(item => commerceContext.run(item, async () => {
       registerProvider(`fixture-${item.source}`, item.source);
       const response = await fetch('https://fixture.invalid/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer fixture-${item.source}` }, body: JSON.stringify({ model: 'fixture-model', stream: true, messages: [{ role: 'user', content: 'isolated' }] }) });

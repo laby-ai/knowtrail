@@ -322,3 +322,11 @@ export async function generateSlideImage(prompt: string, options?: {
 export function resolveImageModelName(runtimeConfig?: Partial<RuntimeAIConfig>): string {
   return resolveImageModel(resolveImageRuntimeConfig(runtimeConfig));
 }
+export function imageBillingDescriptor(runtimeConfig?: Partial<RuntimeAIConfig>) {
+  const config = resolveImageRuntimeConfig(runtimeConfig);
+  const profile = bailianProfileFromRuntimeConfig(config);
+  if (profile) return { host: `${profile.workspace_id}.cn-beijing.maas.aliyuncs.com`.toLowerCase(), model: profile.image_model };
+  const base = resolveImageApiBase(config);
+  if (isDashScopeEndpoint(base)) return { host: 'dashscope.aliyuncs.com', model: envFirst('DASHSCOPE_IMAGE_MODEL', 'OPENAI_COMPAT_IMAGE_MODEL', 'ARK_IMAGE_MODEL') || 'wanx2.1-t2i-turbo' };
+  return { host: new URL(base).hostname, model: resolveImageModel(config) };
+}

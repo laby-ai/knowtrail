@@ -7,6 +7,7 @@ import { installMeteredFetch } from './metered-fetch';
 import { enqueueCommerce, drainCommerceOutbox } from './outbox';
 import { resolveRequestRuntimeAIConfig } from '@/lib/bailian-provider-profile';
 import type { CommerceMembership, CommerceQuote } from './contracts';
+import { DeliveryTracker } from './delivery';
 
 export function inputHash(text: string) { return createHash('sha256').update(text).digest('hex'); }
 export async function runCommerceTask(request: NextRequest, operation: string, execute: () => Promise<Response>): Promise<Response> {
@@ -31,11 +32,11 @@ export async function runCommerceTask(request: NextRequest, operation: string, e
     }
     return await commerceContext.run(context, async () => {
       let finalized = false;
-      async function finish(delivered: number, outcome: string) {
+      async function finish(delivered: number, outcome: string, deliveryReliable = true) {
         if (finalized) return;
         finalized = true;
         const resources = context.resources.filter(item => item.status && item.status >= 200 && item.status < 300 && !item.retry);
-        const reliable = resources.length > 0 && resources.every(item => !item.usageMissing);
+        const reliable = deliveryReliable && resources.length > 0 && resources.every(item => item.source === 'byok' || !item.usageMissing);
         const body = { tenantId: context.tenantId, memberId: context.memberId, accountId: context.accountId, requestId: context.requestId, operation, resources: context.resources, delivered, reliable, outcome, durationMs: Date.now() - context.startedAt };
         // Persist work before contacting account service; no wallet lives in this outbox.
         await enqueueCommerce({ route: 'usage', body });
@@ -46,19 +47,17 @@ export async function runCommerceTask(request: NextRequest, operation: string, e
         const response = await execute();
         if (!response.ok || !response.body) { await finish(0, 'failed'); return response; }
         const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let tail = '';
+        const tracker = new DeliveryTracker(response.headers.get('Content-Type') || '', operation);
         const stream = new ReadableStream<Uint8Array>({
           async pull(controller) {
             try {
               const chunk = await reader.read();
               if (chunk.done) {
-                const failed = /"(?:error|errorType)"\s*:\s*"[^"\s]/.test(tail) || /"(?:status|type)"\s*:\s*"(?:error|failed)"/.test(tail);
-                const images = resourcesImageCount(context);
-                await finish(failed && !images ? 0 : images || 1, failed ? 'partial_or_failed' : 'completed');
+                const delivered = tracker.finish();
+                await finish(delivered, delivered ? 'completed' : 'failed', tracker.reliable);
                 controller.close(); return;
               }
-              tail = (tail + decoder.decode(chunk.value, { stream: true })).slice(-32_768);
+              tracker.push(chunk.value);
               controller.enqueue(chunk.value);
             } catch (error) { await finish(0, 'interrupted'); controller.error(error); }
           },
@@ -71,4 +70,3 @@ export async function runCommerceTask(request: NextRequest, operation: string, e
     return Response.json({ error: error instanceof CommerceError ? error.code : 'commerce_task_unavailable', msg: '会员或用量服务暂时不可用，请稍后重试。' }, { status: error instanceof CommerceError ? error.status : 503 });
   }
 }
-function resourcesImageCount(context: BillingContext) { return context.resources.reduce((count, item) => count + (item.images || 0), 0); }
