@@ -42,7 +42,7 @@ export function MembershipPanel({ memberId }: { memberId: string }) {
     const result = await action('preferences', { modelSource: value });
     if (result && membership) window.localStorage.setItem(key, JSON.stringify({ accountId: membership.accountId, source: value }));
   }
-  if (!catalog || !membership) return <div className="space-y-3"><p role={error ? 'alert' : 'status'}>{error || '正在读取会员与用量…'}</p><button className="liquid-glass-btn" onClick={() => void load().catch(() => setError('会员服务暂时不可用'))}>重新加载</button></div>;
+  if (!catalog || !membership) return <div className="space-y-3"><p role={error ? 'alert' : 'status'}>{error || '正在读取会员与用量…'}</p><button className="liquid-glass-btn" onClick={() => void load().catch(() => setError('会员服务暂时不可用'))}>重新加载</button>{error && <button className="liquid-glass-btn" onClick={() => { window.localStorage.removeItem(key); setAccountId(''); void load('').catch(() => setError('个人账户暂时不可用')); }}>切换个人账户</button>}</div>;
   const ready = membership.readiness.chargingReady;
   return <div className="min-w-0 space-y-6 text-sm leading-6" data-testid="membership-panel">
     <div className="rounded-xl border p-4"><p className="font-semibold">{membership.planName}{membership.endsAt ? ` · 服务至 ${membership.endsAt.slice(0, 10)}` : ''}</p><p className="mt-2">{membership.role === "admin" ? `赠送 ${membership.balance.gifted} 点 · 购买 ${membership.balance.purchased} 点 · 预占 ${membership.balance.reserved} 点` : `成员剩余月预算：${membership.budgetRemaining ?? "未单独限制"} 点 · 自己预占 ${membership.balance.reserved} 点`}</p><p className="text-[var(--text-secondary)]">赠送点数当月到期，购买点数无到期日。先使用即将到期的点数。</p></div>

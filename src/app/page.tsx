@@ -183,11 +183,16 @@ export default function HomePage() {
   }, [accountSession, sessionReady, view, reloadNotebooks]);
 
   const persistNotebooks = useCallback(async (next: WorkspaceNotebook[]) => {
-    const response = await clientApiRequest('/api/notebooks', { method: 'POST', headers: { ...accountAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ notebooks: next.map(({id, title}) => ({id, title})) }) });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || '保存文献本失败');
-    setNotebooks(result.notebooks);
-    saveNotebooks(result.notebooks, accountSession);
+    let stored: WorkspaceNotebook[] = [];
+    const entries = next.map(({ id, title }) => ({ id, title }));
+    for (let offset = 0; offset < entries.length; offset += 500) {
+      const response = await clientApiRequest('/api/notebooks', { method: 'POST', headers: { ...accountAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ notebooks: entries.slice(offset, offset + 500) }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '保存文献本失败');
+      stored = result.notebooks;
+    }
+    setNotebooks(stored);
+    saveNotebooks(stored, accountSession);
   }, [accountSession]);
 
   const handleOpenNotebookHome = useCallback(() => {

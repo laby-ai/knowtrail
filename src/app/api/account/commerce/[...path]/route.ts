@@ -3,6 +3,8 @@ import { bearerTokenFromRequest } from '@/lib/account-session';
 import { getAccountApiBase } from '@/lib/account-auth-client';
 import { commerceAccount, CommerceError } from '@/lib/commerce/account-client';
 import { prepareCommerceQuote } from '@/lib/commerce/quote';
+import { bailianProfileErrorResponse } from '@/lib/bailian-provider-profile';
+import { commerceMessage } from '@/lib/commerce/errors';
 
 const PUBLIC = new Set(['catalog', 'membership', 'preferences', 'teams', 'team-members', 'orders', 'check-order', 'invoice', 'refund', 'verify-email/request', 'verify-email/confirm']);
 async function forward(request: NextRequest, params: Promise<{ path: string[] }>) {
@@ -25,7 +27,12 @@ async function forward(request: NextRequest, params: Promise<{ path: string[] }>
     const suffix = path === 'membership' && request.nextUrl.searchParams.get('accountId') ? `?accountId=${encodeURIComponent(request.nextUrl.searchParams.get('accountId')!)}` : '';
     const result = await commerceAccount(path + suffix, { token, body: request.method === 'POST' ? await request.json() : undefined });
     return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
-  } catch (error) { return Response.json({ error: error instanceof CommerceError ? error.code : 'commerce_request_failed' }, { status: error instanceof CommerceError ? error.status : 400 }); }
+  } catch (error) {
+    const providerError = bailianProfileErrorResponse(error);
+    if (providerError) return providerError;
+    const code = error instanceof CommerceError ? error.code : 'commerce_request_failed';
+    return Response.json({ error: commerceMessage(code), code }, { status: error instanceof CommerceError ? error.status : 400 });
+  }
 }
 export const GET = (request: NextRequest, context: { params: Promise<{ path: string[] }> }) => forward(request, context.params);
 export const POST = (request: NextRequest, context: { params: Promise<{ path: string[] }> }) => forward(request, context.params);

@@ -5,7 +5,8 @@ import { commerceAccount, CommerceError } from './account-client';
 import { commerceContext, type BillingContext } from './context';
 import { installMeteredFetch } from './metered-fetch';
 import { enqueueCommerce, drainCommerceOutbox } from './outbox';
-import { resolveRequestRuntimeAIConfig } from '@/lib/bailian-provider-profile';
+import { resolveRequestRuntimeAIConfig, bailianProfileErrorResponse } from '@/lib/bailian-provider-profile';
+import { commerceMessage } from './errors';
 import type { CommerceMembership, CommerceQuote } from './contracts';
 import { DeliveryTracker } from './delivery';
 
@@ -67,6 +68,9 @@ export async function runCommerceTask(request: NextRequest, operation: string, e
       } catch (error) { await finish(0, 'failed'); throw error; }
     });
   } catch (error) {
-    return Response.json({ error: error instanceof CommerceError ? error.code : 'commerce_task_unavailable', msg: '会员或用量服务暂时不可用，请稍后重试。' }, { status: error instanceof CommerceError ? error.status : 503 });
+    const providerError = bailianProfileErrorResponse(error);
+    if (providerError) return providerError;
+    const code = error instanceof CommerceError ? error.code : 'commerce_task_unavailable';
+    return Response.json({ error: commerceMessage(code), code }, { status: error instanceof CommerceError ? error.status : 503 });
   }
 }

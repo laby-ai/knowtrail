@@ -221,5 +221,16 @@ class CommerceTests(unittest.TestCase):
             self.assertEqual(accounts.summary("org", "owner")["balance"]["gifted"], 2500)
             self.assertEqual(accounts.summary("org", "owner")["balance"]["gifted"], 2500)
 
+    def test_month_end_manual_renewals_have_no_credit_gap(self):
+        from datetime import datetime, timezone
+        def at(month, day): return datetime(2026, month, day, 12, tzinfo=timezone.utc)
+        for index, timestamp in enumerate((at(1, 31), at(2, 15), at(3, 15))):
+            with patch.object(orders, "utcnow", return_value=timestamp), patch.object(store, "utcnow", return_value=timestamp):
+                order = orders.create_order("org", "owner", self.account, dict(productId="research.monthly", provider="alipay", idempotencyKey=f"month-renew-{index}"))
+                orders.fulfill(order["id"], provider="alipay", event_id=f"renew-receipt-{index}", amount_fen=3900)
+                accounts.summary("org", "owner")
+        with patch.object(store, "utcnow", return_value=at(3, 29)):
+            self.assertEqual(accounts.summary("org", "owner")["balance"]["gifted"], 1000)
+
 
 if __name__ == "__main__": unittest.main()

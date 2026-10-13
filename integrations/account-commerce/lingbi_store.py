@@ -77,17 +77,18 @@ def batch(state, points, source, *, expires=None, order=None, key=None):
 def refresh(state):
     if active_plan(state) == "free":
         return
-    start = __import__("datetime").datetime.fromisoformat(state["start"])
-    for index in range(120):
-        period = month_after(start, index)
-        end = min(month_after(start, index + 1).isoformat(), state["end"])
-        key = period.isoformat()
-        if key >= state["end"] or period > utcnow():
-            break
-        if key not in state["grantPeriods"]:
-            origin = next((item["order"] for item in state.get("subscriptions", []) if item["start"] <= key < item["end"]), None)
-            batch(state, PLANS[state["plan"]]["points"], "membership", expires=end, order=origin, key="grant:" + state["start"] + ":" + str(index))
-            state["grantPeriods"].append(key)
+    contracts = state.get("subscriptions") or [dict(start=state["start"], end=state["end"], order=None)]
+    for contract in contracts:
+        start = __import__("datetime").datetime.fromisoformat(contract["start"])
+        for index in range(12):
+            period = month_after(start, index)
+            end = min(month_after(start, index + 1).isoformat(), contract["end"], state["end"])
+            key = (contract["order"] + ":" + str(index)) if contract["order"] else period.isoformat()
+            if period.isoformat() >= end or period > utcnow():
+                break
+            if key not in state["grantPeriods"]:
+                batch(state, PLANS[state["plan"]]["points"], "membership", expires=end, order=contract["order"], key="grant:" + key)
+                state["grantPeriods"].append(key)
 
 
 def balance(state):
