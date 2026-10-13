@@ -3,30 +3,36 @@
   right: 0;
   top: 120px;
   width: min(48vw, 680px);
-  color: var(--text-tertiary);
-  opacity: .14;
+  color: #818cf8;
+  opacity: .48;
   pointer-events: none;
   user-select: none;
   overflow: hidden;
 }
-.research-network svg { width: 100%; animation: research-drift 22s ease-in-out infinite; }
+.research-network svg { width: 100%; animation: research-drift 12s ease-in-out infinite; }
 .research-workflow-node {
   display: flex; align-items: center; justify-content: center;
   width: 52px; height: 52px; flex-shrink: 0;
   border: 1px solid var(--border-medium); border-radius: 16px;
-  background: var(--bg-secondary); color: var(--text-secondary);
+  background: var(--bg-secondary); color: #818cf8;
+  box-shadow: inset 0 0 0 1px rgba(129, 140, 248, .12);
 }
 .research-workflow-node svg { width: 22px; height: 22px; }
 .research-workflow-link {
-  height: 1px; width: 36px; background: var(--border-medium);
+  height: 2px; width: 36px; background: #818cf8;
   transform-origin: left; animation: research-connect 800ms ease-out both;
 }
 .research-workflow-link:nth-of-type(4) { animation-delay: 180ms; }
-.research-notebook-card { transition: transform 200ms ease, border-color 200ms ease; }
+.research-notebook-card { position: relative; overflow: hidden; transition: transform 200ms ease, border-color 200ms ease; }
+.research-notebook-card::after {
+  content: ''; position: absolute; right: 12px; top: 54px;
+  width: 82px; height: 54px; opacity: .38; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 82 54' fill='none'%3E%3Cpath d='M10 27 36 9 70 19M10 27 40 45 70 19M36 9 40 45' stroke='%23818cf8' stroke-width='1.5'/%3E%3Cg fill='%23818cf8'%3E%3Ccircle cx='10' cy='27' r='4'/%3E%3Ccircle cx='36' cy='9' r='3'/%3E%3Ccircle cx='40' cy='45' r='3'/%3E%3Ccircle cx='70' cy='19' r='4'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+}
 @media (hover: hover) and (pointer: fine) {
   .research-notebook-card:not(:disabled):hover { transform: translateY(-2px); border-color: var(--text-tertiary); }
 }
-@keyframes research-drift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes research-drift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
 @keyframes research-connect { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @media (max-width: 767px) { .research-network { display: none; } }
 @media (prefers-reduced-motion: reduce) {
