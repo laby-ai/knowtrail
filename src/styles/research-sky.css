@@ -2,13 +2,13 @@
 .research-sky { position: absolute; inset: 0; z-index: -1; pointer-events: none; user-select: none; }
 .research-sky-planet {
   position: absolute; top: 0; right: 0; width: min(100%, 1440px); height: 640px;
-  background: url('/lingbi/media/research-planet-v2.png') right -90px / 100% auto no-repeat;
-  filter: brightness(1.12);
-  opacity: .52;
+  background: url('/lingbi/media/research-planet-v2.png') right -135px / 100% auto no-repeat;
+  filter: brightness(.96) saturate(.85);
+  opacity: .44;
   mask-image: linear-gradient(to bottom, #000 0%, #000 68%, transparent 100%);
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 68%, transparent 100%);
 }
-[data-theme='light'] .research-sky-planet { opacity: .42; }
+[data-theme='light'] .research-sky-planet { opacity: .34; }
 .research-sky-meteors { position: absolute; inset: 0 0 auto; height: 90px; overflow: hidden; }
 .research-sky-meteor {
   position: absolute; width: 96px; height: 1.5px; opacity: 0;
