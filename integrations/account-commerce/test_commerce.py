@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 scratch = tempfile.TemporaryDirectory()
 database = Path(scratch.name) / "test.sqlite3"
-os.environ.update(LINGBI_COMMERCE_MODE="enforced", LINGBI_COST_OBSERVATION_STARTED_AT="2026-01-01T00:00:00+00:00", LINGBI_COST_AUDIT_PASSED="true", LINGBI_PAYMENT_AUDIT_PASSED="true", LINGBI_COMMERCE_INTERNAL_SECRET="isolated-test-secret-only-do-not-deploy-12345", LINGBI_PRICE_BOOK_JSON=json.dumps({"fixture:model": {"inputPerMillionCny": 1, "outputPerMillionCny": 2, "imageCny": 1}, "fixture:search": {"queryCny": 0.01}}))
+os.environ.update(LINGBI_COMMERCE_MODE="enforced", LINGBI_COST_OBSERVATION_STARTED_AT="2026-01-01T00:00:00+00:00", LINGBI_COST_AUDIT_PASSED="true", LINGBI_PAYMENT_AUDIT_PASSED="true", LINGBI_STORAGE_AUDIT_PASSED="true", LINGBI_COMMERCE_INTERNAL_SECRET="isolated-test-secret-only-do-not-deploy-12345", LINGBI_PRICE_BOOK_JSON=json.dumps({"fixture:model": {"inputPerMillionCny": 1, "outputPerMillionCny": 2, "imageCny": 1}, "fixture:search": {"queryCny": 0.01}}))
 
 class TestConnection(sqlite3.Connection):
     def __exit__(self, *args):

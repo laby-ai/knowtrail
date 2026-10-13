@@ -16,7 +16,7 @@ def readiness():
             blockers.append("成本采集尚未满 7 天")
     except (ValueError, TypeError):
         blockers.append("尚未登记成本采集起始时间")
-    for key, label in (("LINGBI_COST_AUDIT_PASSED", "成本对账未通过"), ("LINGBI_PAYMENT_AUDIT_PASSED", "真实支付及退款验收未通过")):
+    for key, label in (("LINGBI_COST_AUDIT_PASSED", "成本对账未通过"), ("LINGBI_PAYMENT_AUDIT_PASSED", "真实支付及退款验收未通过"), ("LINGBI_STORAGE_AUDIT_PASSED", "套餐附件容量承载尚未验收")):
         if os.getenv(key) != "true":
             blockers.append(label)
     if os.getenv("LINGBI_COMMERCE_MODE", "observe") != "enforced":
