@@ -10,6 +10,7 @@ import { StudioPanel } from '@/components/studio/StudioPanel';
 import { LiquidGlassProvider } from '@/components/ui/liquid-glass-provider';
 import { LandingPage } from '@/components/home/LandingPage';
 import { NotebookHome } from '@/components/home/NotebookHome';
+import { ResearchSky } from '@/components/home/ResearchSky';
 import { AccountSettingsButton } from '@/components/account/AccountSettingsButton';
 import { ResearchPreferencesProvider, ResearchModeButton } from '@/components/research/ResearchPreferencesProvider';
 import { ResearchCollaboration } from '@/components/research/ResearchCollaboration';
@@ -86,7 +87,8 @@ function AcademicPresenterContent({
   }, []);
 
   return (
-    <div className="h-dvh w-full min-w-0 overflow-hidden flex flex-col">
+    <div className="relative isolate h-dvh w-full min-w-0 overflow-hidden flex flex-col">
+      <ResearchSky variant="workspace" />
       <header className="flex shrink-0 items-center gap-4 border-b border-[var(--border-subtle)] px-4 py-2">
         <button type="button" onClick={onBackHome} className="shrink-0 text-sm text-blue-500">返回文献本</button>
         <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{notebooks.find(n => n.id === activeNotebookId)?.title}</h1>

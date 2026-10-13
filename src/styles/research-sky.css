@@ -18,6 +18,17 @@
 }
 .research-sky-meteor-first { top: 15px; right: 12%; }
 .research-sky-meteor-second { top: 9px; left: 22%; animation-duration: 13s; animation-delay: 5s; }
+.research-sky-meteor-third { top: 8px; left: 48%; animation-duration: 10s; animation-delay: 2s; }
+.research-sky-meteor-fourth { top: 22px; left: 72%; animation-duration: 12s; animation-delay: 4s; }
+.research-sky-meteor-fifth { top: 5px; left: 12%; animation-duration: 11s; animation-delay: 6.5s; }
+.research-sky-meteor-sixth { top: 18px; right: 3%; animation-duration: 14s; animation-delay: 8s; }
+.research-sky[data-page='notebooks'] .research-sky-planet { top: 64px; height: 800px; opacity: .3; }
+[data-theme='light'] .research-sky[data-page='notebooks'] .research-sky-planet { opacity: .22; }
+.research-sky[data-page='notebooks'] .research-sky-meteors { top: 76px; height: 36px; }
+.research-sky[data-page='workspace'] .research-sky-planet { top: 36px; height: 800px; opacity: .24; }
+[data-theme='light'] .research-sky[data-page='workspace'] .research-sky-planet { opacity: .16; }
+.research-sky[data-page='workspace'] .research-sky-meteors { top: 0; left: 30%; right: 26%; height: 34px; }
+.research-sky[data-page='workspace'] .research-sky-meteor { width: 92px; }
 [data-theme='light'] .research-sky-meteor {
   background: linear-gradient(to right, #6366f1, rgba(99, 102, 241, .45) 25%, transparent);
 }
@@ -33,6 +44,13 @@
   [data-theme='light'] .research-sky-planet { opacity: .13; }
   .research-sky-meteors { height: 42px; }
   .research-sky-meteor { width: 80px; animation-duration: 14s; }
-  .research-sky-meteor-second { display: none; }
+  .research-sky-meteor-second, .research-sky-meteor-fourth, .research-sky-meteor-fifth, .research-sky-meteor-sixth { display: none; }
+  .research-sky-meteor-third { left: 76%; }
+  .research-sky[data-page='notebooks'] .research-sky-planet,
+  .research-sky[data-page='workspace'] .research-sky-planet { height: 520px; background-size: auto 520px; opacity: .18; }
+  [data-theme='light'] .research-sky[data-page='notebooks'] .research-sky-planet,
+  [data-theme='light'] .research-sky[data-page='workspace'] .research-sky-planet { opacity: .12; }
+  .research-sky[data-page='notebooks'] .research-sky-meteors { top: 68px; height: 24px; }
+  .research-sky[data-page='workspace'] .research-sky-meteors { left: 40%; right: 20%; height: 28px; }
 }
 @media (prefers-reduced-motion: reduce) { .research-sky-meteor { animation: none; display: none; } }

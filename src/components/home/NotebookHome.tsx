@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ResearchNetwork } from '@/components/ui/research-motif';
+import { ResearchSky } from '@/components/home/ResearchSky';
 import {
   Search,
   UserRound,
@@ -110,7 +110,7 @@ export function NotebookHome({
         </div>
       </header>
 
-      <ResearchNetwork />
+      <ResearchSky variant="notebooks" />
       <main className="relative pb-16">
         <div className="mx-auto max-w-7xl px-4 pt-5 sm:px-5 md:hidden">
           <label className="block w-full">
