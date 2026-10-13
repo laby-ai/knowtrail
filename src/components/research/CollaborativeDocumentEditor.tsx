@@ -75,13 +75,13 @@ export function CollaborativeDocumentEditor({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return (
-    <section className="space-y-2" data-testid="collaborative-editor">
-      <label className="block text-xs">
+    <section className="min-w-0 space-y-4" data-testid="collaborative-editor">
+      <label className="block text-sm leading-6">
         研究正文 / 实验日志
         <textarea
           ref={textarea}
           aria-label="协同研究正文"
-          className="liquid-glass-input mt-1 min-h-64 w-full"
+          className="liquid-glass-input mt-2 min-h-64 w-full leading-7"
           value={text}
           disabled={!ready || role === "viewer"}
           maxLength={100000}
@@ -153,7 +153,7 @@ export function CollaborativeDocumentEditor({
           )
           .join(" · ") || "正在确认在线状态"}
       </p>
-      <section className="space-y-2 rounded border p-3 text-xs">
+      <section className="space-y-4 rounded-2xl border p-5 text-sm leading-6">
         <h4 className="font-semibold">批注与讨论</h4>
         {quote && (
           <blockquote className="rounded bg-[var(--bg-secondary)] p-2">
@@ -169,7 +169,7 @@ export function CollaborativeDocumentEditor({
         )}
         <textarea
           aria-label="协作评论"
-          className="liquid-glass-input w-full"
+          className="liquid-glass-input min-h-24 w-full leading-7"
           value={comment}
           maxLength={2000}
           disabled={!ready || role === "viewer"}
@@ -193,7 +193,7 @@ export function CollaborativeDocumentEditor({
         </button>
         <div className="max-h-56 space-y-2 overflow-auto">
           {comments.map((item) => (
-            <article key={item.id} className="rounded border p-2">
+            <article key={item.id} className="space-y-2 rounded-xl border p-3 break-words">
               <p>
                 {item.authorName} · {item.resolved ? "已解决" : "待处理"}
               </p>

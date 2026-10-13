@@ -139,7 +139,7 @@ export function SharedSourcesPanel({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return (
-    <section className="space-y-2 rounded-lg border p-3 text-xs">
+    <section className="min-w-0 space-y-4 rounded-2xl border p-5 text-sm leading-6">
       <h4 className="font-semibold">
         共享文献来源（{choosing ? "选择中" : sources.length}）
       </h4>
@@ -176,7 +176,7 @@ export function SharedSourcesPanel({
       {sources.map((source) => (
         <div
           key={source.id}
-          className="flex flex-wrap items-center gap-2 rounded-lg border p-2"
+          className="flex flex-wrap items-center gap-3 rounded-xl border p-3"
         >
           {!choosing && <input type="checkbox" aria-label={`比较 ${source.title}`} checked={comparisonIds.includes(source.id)} onChange={event => setComparisonIds(current => event.target.checked ? [...current, source.id] : current.filter(id => id !== source.id))} />}
           {choosing && (
