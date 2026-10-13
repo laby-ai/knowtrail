@@ -98,6 +98,38 @@ def dispatch(handler, method):
                 from lingbi_capacity import capacity
                 ensure_personal(tenant, member)
                 result = capacity(tenant, member, account, data)
+            elif path == "check-order":
+                from lingbi_finance import original_order
+                from lingbi_provider_operations import query_payment
+                from lingbi_store import locked
+                order, detail = original_order(data.get("orderId"))
+                if detail["tenantId"] != tenant:
+                    raise AuthError(403, "order_access_denied")
+                with locked(order["account_id"], tenant, member, admin=True):
+                    pass
+                result = query_payment(data.get("orderId"))
+            elif path == "internal/finance":
+                allowed = os.getenv("LINGBI_FINANCE_MEMBER_IDS", "").split(",")
+                if member not in allowed:
+                    raise AuthError(403, "finance_operator_required")
+                from lingbi_finance import original_order, issue_invoice, finish_refund
+                from lingbi_orders import fulfill
+                from lingbi_provider_operations import refund_payment
+                order_id = data.get("orderId")
+                order, detail = original_order(order_id)
+                if detail["tenantId"] != tenant:
+                    raise AuthError(403, "order_access_denied")
+                action = data.get("action")
+                if action == "refund":
+                    result = refund_payment(order_id)
+                elif action == "invoice":
+                    result = issue_invoice(order_id, data.get("invoiceNumber"), data.get("fileUrl"))
+                elif action == "bank-paid" and detail["provider"] == "bank":
+                    result = fulfill(order_id, provider="bank", event_id=data.get("receiptId"), amount_fen=data.get("amountFen"))
+                elif action == "bank-refunded" and detail["provider"] == "bank":
+                    result = finish_refund(order_id, provider_refund_id=data.get("receiptId"), amount_fen=data.get("amountFen"))
+                else:
+                    raise ValueError("invalid_finance_action")
             elif path == "internal/reserve":
                 if not readiness()["chargingReady"]:
                     raise AuthError(503, "commercial_acceptance_pending")

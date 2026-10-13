@@ -4,7 +4,7 @@ import { getAccountApiBase } from '@/lib/account-auth-client';
 import { commerceAccount, CommerceError } from '@/lib/commerce/account-client';
 import { prepareCommerceQuote } from '@/lib/commerce/quote';
 
-const PUBLIC = new Set(['catalog', 'membership', 'preferences', 'teams', 'team-members', 'orders', 'invoice', 'refund', 'verify-email/request', 'verify-email/confirm']);
+const PUBLIC = new Set(['catalog', 'membership', 'preferences', 'teams', 'team-members', 'orders', 'check-order', 'invoice', 'refund', 'verify-email/request', 'verify-email/confirm']);
 async function forward(request: NextRequest, params: Promise<{ path: string[] }>) {
   const path = (await params).path.join('/');
   try {

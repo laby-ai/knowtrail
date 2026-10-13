@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import type { CommerceResource, CommerceQuote, ModelSource } from './contracts';
 import type { RuntimeAIConfig } from '@/types';
 
-export type BillingContext = { requestId: string; operation: string; accountId: string; tenantId: string; memberId: string; source: ModelSource; providers: Map<string, ModelSource>; resources: CommerceResource[]; calls: Set<string>; quote?: CommerceQuote; config?: Partial<RuntimeAIConfig>; enforcing: boolean; startedAt: number };
+export type BillingContext = { requestId: string; operation: string; accountId: string; tenantId: string; memberId: string; source: ModelSource; providers: Map<string, ModelSource>; resources: CommerceResource[]; calls: Set<string>; imageTasks?: Map<string, CommerceResource>; quote?: CommerceQuote; config?: Partial<RuntimeAIConfig>; enforcing: boolean; startedAt: number };
 const runtime = globalThis as typeof globalThis & { lingbiCommerceContext?: AsyncLocalStorage<BillingContext> };
 export const commerceContext = runtime.lingbiCommerceContext ||= new AsyncLocalStorage<BillingContext>();
 export function keyHash(value: string) { return createHash('sha256').update(value).digest('hex'); }

@@ -56,6 +56,8 @@ def create_order(tenant, member, account, data):
 
 def fulfill(order_id, *, provider, event_id, amount_fen):
     # Called only by a verified provider adapter or authenticated finance workflow.
+    if type(amount_fen) != int or amount_fen < 1 or not isinstance(event_id, str) or not 1 <= len(event_id) <= 160:
+        raise ValueError("invalid_payment_receipt")
     with connect() as conn:
         row = conn.execute("SELECT * FROM lingbi_orders WHERE id=?", (order_id,)).fetchone()
     if not row:
@@ -65,8 +67,10 @@ def fulfill(order_id, *, provider, event_id, amount_fen):
         row = conn.execute("SELECT * FROM lingbi_orders WHERE id=?", (order_id,)).fetchone()
         if amount_fen != row["amount_fen"] or provider != detail["provider"]:
             raise ValueError("payment_amount_or_provider_mismatch")
-        if row["status"] == "paid":
-            return dict(status="paid")
+        if row["status"] in ("paid", "refunding", "refunded"):
+            if detail.get("providerEventId") != event_id:
+                raise ValueError("payment_event_mismatch")
+            return dict(status=row["status"])
         if row["status"] != "pending":
             raise ValueError("order_not_payable")
         event_key = "payment:" + provider + ":" + event_id

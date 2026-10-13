@@ -30,7 +30,6 @@ export async function runCommerceTask(request: NextRequest, operation: string, e
       context.quote = await commerceAccount<CommerceQuote>('internal/reserve', { internal: true, body: { tenantId: context.tenantId, memberId: context.memberId, accountId: context.accountId, quoteId, inputHash: digest, operation, source } });
     }
     return await commerceContext.run(context, async () => {
-      context.config = await resolveRequestRuntimeAIConfig(request);
       let finalized = false;
       async function finish(delivered: number, outcome: string) {
         if (finalized) return;
@@ -43,6 +42,7 @@ export async function runCommerceTask(request: NextRequest, operation: string, e
         if (context.quote) await enqueueCommerce({ route: 'finalize', body: { ...body, resources, quoteId: request.headers.get('X-Lingbi-Quote') } });
       }
       try {
+        context.config = await resolveRequestRuntimeAIConfig(request);
         const response = await execute();
         if (!response.ok || !response.body) { await finish(0, 'failed'); return response; }
         const reader = response.body.getReader();

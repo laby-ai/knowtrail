@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { clientApiFetch } from '@/lib/client-api';
 import type { CommerceCatalog, CommerceMembership, ModelSource } from '@/lib/commerce/contracts';
 import { CommerceHistory } from './CommerceHistory';
@@ -15,9 +15,15 @@ export function MembershipPanel({ memberId }: { memberId: string }) {
   const [annual, setAnnual] = useState(false);
   const [provider, setProvider] = useState('alipay');
   const [payment, setPayment] = useState<{ payment_url?: string; qrImage?: string; bankInstructions?: string } | null>(null);
+  const generation = useRef(0);
   const key = `lingbi-commerce-selection:${memberId}`;
   async function load(selected = accountId) {
+    const requestGeneration = ++generation.current;
+    if (!selected) {
+      try { selected = (JSON.parse(window.localStorage.getItem(key) || '{}') as { accountId?: string }).accountId || ''; } catch { /* No saved selection. */ }
+    }
     const [plans, status] = await Promise.all([clientApiFetch<CommerceCatalog>('/api/account/commerce/catalog'), clientApiFetch<CommerceMembership>(`/api/account/commerce/membership${selected ? `?accountId=${encodeURIComponent(selected)}` : ''}`)]);
+    if (requestGeneration !== generation.current) return;
     setCatalog(plans); setMembership(status);
     window.localStorage.setItem(key, JSON.stringify({ accountId: status.accountId, source: status.modelSource }));
   }
@@ -39,7 +45,7 @@ export function MembershipPanel({ memberId }: { memberId: string }) {
   if (!catalog || !membership) return <div className="space-y-3"><p role={error ? 'alert' : 'status'}>{error || '正在读取会员与用量…'}</p><button className="liquid-glass-btn" onClick={() => void load().catch(() => setError('会员服务暂时不可用'))}>重新加载</button></div>;
   const ready = membership.readiness.chargingReady;
   return <div className="min-w-0 space-y-6 text-sm leading-6" data-testid="membership-panel">
-    <div className="rounded-xl border p-4"><p className="font-semibold">{membership.planName}{membership.endsAt ? ` · 服务至 ${membership.endsAt.slice(0, 10)}` : ''}</p><p className="mt-2">赠送 {membership.balance.gifted} 点 · 购买 {membership.balance.purchased} 点 · 预占 {membership.balance.reserved} 点</p><p className="text-[var(--text-secondary)]">赠送点数当月到期，购买点数无到期日。先使用即将到期的点数。</p></div>
+    <div className="rounded-xl border p-4"><p className="font-semibold">{membership.planName}{membership.endsAt ? ` · 服务至 ${membership.endsAt.slice(0, 10)}` : ''}</p><p className="mt-2">{membership.role === "admin" ? `赠送 ${membership.balance.gifted} 点 · 购买 ${membership.balance.purchased} 点 · 预占 ${membership.balance.reserved} 点` : `成员剩余月预算：${membership.budgetRemaining ?? "未单独限制"} 点 · 自己预占 ${membership.balance.reserved} 点`}</p><p className="text-[var(--text-secondary)]">赠送点数当月到期，购买点数无到期日。先使用即将到期的点数。</p></div>
     {!ready && <div role="status" className="rounded-xl border bg-[var(--bg-secondary)] p-4"><p className="font-medium">当前处于用量采集阶段，暂未开放购买和扣费。</p><ul className="mt-2 list-disc pl-5">{membership.readiness.blockers.map(item => <li key={item}>{item}</li>)}</ul></div>}
     {error && <p role="alert" className="break-words text-red-600">{error}</p>}
     <div className="grid gap-4 sm:grid-cols-2">
@@ -55,6 +61,6 @@ export function MembershipPanel({ memberId }: { memberId: string }) {
     <section className="space-y-3"><h3 className="font-semibold">购买科研点数</h3><select aria-label="支付方式" className="liquid-glass-input" value={provider} onChange={event => setProvider(event.target.value)}><option value="alipay">支付宝</option><option value="wechat">微信支付</option>{membership.kind === 'team' && <option value="bank">对公转账</option>}</select><div className="flex flex-wrap gap-3">{catalog.pointPacks.map(pack => <button key={pack.id} disabled={busy || !ready || membership.role !== 'admin'} className="liquid-glass-btn" onClick={() => void purchase(pack.id)}>¥{pack.amountFen / 100} · {pack.points} 点</button>)}</div><p>¥1＝100 点。价格与点数由账号服务确定，首发手动续费。</p></section>
     {payment && <div className="space-y-3 rounded-xl border p-4">{payment.payment_url && /^https:\/\/openapi\.alipay\.com\//.test(payment.payment_url) && <a href={payment.payment_url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent-blue)]">打开支付宝付款</a>}{payment.qrImage && <img src={payment.qrImage} alt="微信支付二维码" width={220} height={220} />}{payment.bankInstructions && <p className="whitespace-pre-wrap">{payment.bankInstructions}</p>}<p>付款后点击刷新核验到账；打开支付页面不代表支付成功。</p><button className="liquid-glass-btn" onClick={() => void load().catch(() => setError('到账核验失败，请重试'))}>刷新会员与余额</button></div>}
     <CommerceTeam purchase={purchase} membership={membership} busy={busy} action={action} />
-    <CommerceHistory membership={membership} busy={busy} action={action} />
+    <CommerceHistory membership={membership} busy={busy} action={action} /><p className="text-xs text-[var(--text-secondary)]">退款规则：{catalog.refundPolicy}</p>
   </div>;
 }

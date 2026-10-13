@@ -2,7 +2,7 @@ import { commerceContext, keyHash } from './context';
 import { CommerceError } from './account-client';
 import type { CommerceResource } from './contracts';
 
-type ProviderPayload = { usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } }; data?: { url?: string; b64_json?: string }[]; output?: { choices?: { message?: { content?: { image?: string }[] } }[]; results?: { url?: string }[] } };
+type ProviderPayload = { usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } }; data?: { url?: string; b64_json?: string }[]; output?: { task_id?: string; choices?: { message?: { content?: { image?: string }[] } }[]; results?: { url?: string }[] } };
 function applyPayload(resource: CommerceResource, data: ProviderPayload) {
   const usage = data.usage;
   if (usage) {
@@ -26,7 +26,17 @@ export function installMeteredFetch() {
   const original = globalThis.fetch.bind(globalThis);
   globalThis.fetch = async (input, init) => {
     const context = commerceContext.getStore();
-    if (!context || init?.method !== 'POST' || typeof init.body !== 'string') return original(input, init);
+    if (!context) return original(input, init);
+    const taskId = String(input).match(/dashscope\.aliyuncs\.com\/api\/v1\/tasks\/([A-Za-z0-9_-]+)/)?.[1];
+    if (taskId && (!init?.method || init.method === 'GET')) {
+      const response = await original(input, init);
+      const resource = context.imageTasks?.get(taskId);
+      if (response.ok && resource) {
+        try { applyPayload(resource, await response.clone().json() as ProviderPayload); } catch { /* Await a verified provider result. */ }
+      }
+      return response;
+    }
+    if (init?.method !== 'POST' || typeof init.body !== 'string') return original(input, init);
     let address: URL;
     try { address = new URL(String(input)); } catch { return original(input, init); }
     if (!/\/chat\/completions|\/images\/generations|\/aigc\/|\/api\/v1\/search/.test(address.pathname)) return original(input, init);
@@ -64,7 +74,11 @@ export function installMeteredFetch() {
     if (!response.ok || !response.body) return response;
     if (/\/api\/v1\/search/.test(address.pathname)) { resource.queries = 1; resource.usageMissing = false; }
     if (!response.headers.get('content-type')?.includes('text/event-stream')) {
-      try { applyPayload(resource, await response.clone().json() as ProviderPayload); } catch { /* No invented usage. */ }
+      try {
+        const payload = await response.clone().json() as ProviderPayload;
+        applyPayload(resource, payload);
+        if (payload.output?.task_id) (context.imageTasks ||= new Map()).set(payload.output.task_id, resource);
+      } catch { /* No invented usage. */ }
       return response;
     }
     const decoder = new TextDecoder();

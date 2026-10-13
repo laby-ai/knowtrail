@@ -15,13 +15,11 @@ import {
   shouldProxyMissingClassroomAsset,
 } from './lib/virtual-classroom/proxy-target';
 
-if (process.env.LINGBI_COMMERCE_MODE) {
-  void drainCommerceOutbox();
-  setInterval(() => { void drainCommerceOutbox(); }, 30_000).unref();
-}
-
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const dev = runtimeEnv !== 'production';
+if (process.env.LINGBI_COMMERCE_MODE === 'enforced' && process.env.ACCOUNT_CENTER_REQUIRE_AUTH !== 'true') {
+  throw new Error('Commercial charging requires authenticated accounts.');
+}
 const operationalObservability = operationalObservabilityStatus();
 if (!dev && !operationalObservability.ready) {
   console.error(JSON.stringify({
@@ -119,6 +117,10 @@ function proxyClassroomRuntime(
 }
 
 app.prepare().then(() => {
+  if (process.env.LINGBI_COMMERCE_MODE) {
+    void drainCommerceOutbox();
+    setInterval(() => { void drainCommerceOutbox(); }, 30_000).unref();
+  }
   const server = createServer(async (req, res) => {
     const observation = observeRequest(req, res);
     try {

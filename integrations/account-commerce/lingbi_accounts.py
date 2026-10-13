@@ -10,12 +10,19 @@ def summary(tenant, member, account=None):
     with locked(selected, tenant, member) as (conn, state):
         role = state["members"][member]
         plan = active_plan(state)
+        account_balance = balance(state)
+        budget_remaining = None
+        if role != "admin":
+            own_tasks = conn.execute("SELECT status,data_json FROM lingbi_tasks WHERE account_id=? AND member_id=? AND created_at>=?", (selected, member, utcnow().isoformat()[:7])).fetchall()
+            used = sum(json.loads(item["data_json"])["maxPoints"] if item["status"] in ("reserved", "reconcile") else json.loads(item["data_json"])["settledPoints"] for item in own_tasks)
+            budget_remaining = max(0, state["budgets"][member] - used) if member in state["budgets"] else None
+            account_balance = dict(gifted=0, purchased=0, reserved=sum(json.loads(item["data_json"])["maxPoints"] for item in own_tasks if item["status"] in ("reserved", "reconcile")))
         params = (selected,) if role == "admin" else (selected, member)
         own_filter = "" if role == "admin" else " AND member_id=?"
         def rows(table):
             return [dict(id=row["id"], createdAt=row["created_at"], **({"status": row["status"], "amountFen": row["amount_fen"]} if table == "lingbi_orders" else {}), **json.loads(row["data_json"])) for row in conn.execute(f"SELECT * FROM {table} WHERE account_id=?{own_filter} ORDER BY created_at DESC LIMIT 50", params).fetchall()]
         return dict(asset=ASSET, accountId=selected, kind=state["kind"], role=role, plan=plan, planName=PLANS[plan]["name"], endsAt=state["end"],
-                    balance=balance(state), verified=state["verified"], modelSource=decode(conn.execute("SELECT state_json FROM lingbi_accounts WHERE id=?", (personal,)).fetchone())["modelSource"], budget=state["budgets"].get(member),
+                    balance=account_balance, verified=state["verified"], modelSource=decode(conn.execute("SELECT state_json FROM lingbi_accounts WHERE id=?", (personal,)).fetchone())["modelSource"], budget=state["budgets"].get(member), budgetRemaining=budget_remaining,
                     members=state["members"] if role == "admin" else None, budgets=state["budgets"] if role == "admin" else None,
                     limits=PLANS[plan], events=rows("lingbi_events"), orders=rows("lingbi_orders"), usage=rows("lingbi_usage"))
 

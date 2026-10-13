@@ -21,7 +21,7 @@ def prepare_refund(order_id):
         current = conn.execute("SELECT * FROM lingbi_orders WHERE id=?", (order_id,)).fetchone()
         detail = json.loads(current["data_json"])
         if current["status"] in ("refunding", "refunded"):
-            return dict(orderId=order_id, status=current["status"], **detail["refund"])
+            return {**detail["refund"], "orderId": order_id, "status": current["status"]}
         if current["status"] != "paid" or detail.get("refund", {}).get("status") != "review_requested":
             raise ValueError("refund_review_required")
         purchases = [item for item in state["batches"] if item.get("order") == order_id]
@@ -57,7 +57,7 @@ def prepare_refund(order_id):
             allocations.append(dict(batch=item["id"], points=held))
         detail["refund"] = dict(status="processing", amountFen=amount, allocations=allocations, unconsumedPoints=points, refundId="lbrf" + order_id[2:28])
         conn.execute("UPDATE lingbi_orders SET status='refunding',data_json=? WHERE id=?", (json.dumps(detail), order_id))
-    return dict(orderId=order_id, status="refunding", **detail["refund"])
+    return {**detail["refund"], "orderId": order_id, "status": "refunding"}
 
 
 def finish_refund(order_id, *, provider_refund_id, amount_fen):
@@ -66,6 +66,8 @@ def finish_refund(order_id, *, provider_refund_id, amount_fen):
         row = conn.execute("SELECT * FROM lingbi_orders WHERE id=?", (order_id,)).fetchone()
         detail = json.loads(row["data_json"])
         if row["status"] == "refunded":
+            if detail["refund"]["providerRefundId"] != provider_refund_id or detail["refund"]["amountFen"] != amount_fen:
+                raise ValueError("refund_confirmation_mismatch")
             return dict(status="refunded")
         refund = detail.get("refund", {})
         if row["status"] != "refunding" or refund.get("amountFen") != amount_fen or not provider_refund_id:
