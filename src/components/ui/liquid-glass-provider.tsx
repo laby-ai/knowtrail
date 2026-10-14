@@ -65,8 +65,36 @@ export function LiquidGlassProvider({ children }: { children: React.ReactNode })
 
   return (
     <div ref={containerRef} className="relative w-full min-h-full bg-[var(--bg-primary)]">
-      {/* Gradient stops retain soft edges without GPU blur or circular surfaces. */}
-      <div className="glass-ambient-gradient" aria-hidden="true" />
+      {/* Ambient Background Blobs — larger & more vivid for light mode refraction */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div
+          className="ambient-blob ambient-blob-purple"
+          style={{
+            width: '600px',
+            height: '600px',
+            top: '5%',
+            left: '10%',
+          }}
+        />
+        <div
+          className="ambient-blob ambient-blob-pink"
+          style={{
+            width: '700px',
+            height: '700px',
+            bottom: '0%',
+            right: '5%',
+          }}
+        />
+        <div
+          className="ambient-blob ambient-blob-cyan"
+          style={{
+            width: '550px',
+            height: '550px',
+            top: '45%',
+            left: '50%',
+          }}
+        />
+      </div>
 
       {/* Content */}
       <div className="relative z-10 w-full min-h-full">

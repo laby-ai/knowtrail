@@ -558,18 +558,6 @@ body {
 }
 
 /* ── Ambient Background Blobs ── */
-.glass-ambient-gradient {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  border: 0;
-  outline: 0;
-  background:
-    radial-gradient(ellipse 45% 50% at 20% 25%, var(--blob-purple), transparent 80%),
-    radial-gradient(ellipse 42% 48% at 80% 85%, var(--blob-pink), transparent 80%),
-    radial-gradient(ellipse 40% 45% at 58% 65%, var(--blob-cyan), transparent 80%);
-  opacity: 0.1;
-}
 .ambient-blob {
   position: absolute;
   border-radius: 50%;
