@@ -1,5 +1,7 @@
 'use client';
 
+import type { ResearchComposerRenderer } from '@/components/editor/ResearchComposer';
+
 import { clientApiRequest } from '@/lib/client-api';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -64,7 +66,7 @@ function downloadMarkdown(content: string, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
-export function ExperimentDesignPanel() {
+export function ExperimentDesignPanel({ renderComposer }: { renderComposer?: ResearchComposerRenderer }) {
   const { getSelectedPapers, storageScopeKey } = useApp();
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
@@ -226,38 +228,7 @@ export function ExperimentDesignPanel() {
   };
 
 
-  return (
-    <div className="space-y-4" data-testid="experiment-design-panel">
-      <SavedToolStatus saved={saved} guest={storageScopeKey.startsWith('guest:')} />
-      <div>
-        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-          <FlaskConical className="h-4 w-4 text-rose-500" />
-          采集前实验设计与预注册
-        </div>
-        <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-          明确独立重复、处理与对照、随机化、主要结局和分析预案；不代表样本量已算定、伦理已审批或实验已执行。
-        </p>
-      </div>
-
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
-        {missingEvidence
-          ? '尚未选择证据来源。请先在左侧文献本选择论文或资料。'
-          : `已选择 ${selectedPapers.length} 个来源：${sourceSummary}${selectedPapers.length > 3 ? ' 等' : ''}`}
-      </div>
-
-      <div className="grid gap-3">
-        <label className="block">
-          <span className="text-[11px] font-medium text-[var(--text-secondary)]">研究问题</span>
-          <textarea
-            value={question}
-            onChange={event => setField('question', event.target.value)}
-            maxLength={1200}
-            disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
-            data-testid="experiment-design-question"
-            placeholder="要比较什么处理，并回答什么研究问题？"
-            className="mt-1.5 min-h-20 w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text-primary)] outline-none transition focus:border-rose-400/60"
-          />
-        </label>
+  const designFields = (      <div className="grid gap-3">
         <label className="block">
           <span className="text-[11px] font-medium text-[var(--text-secondary)]">待验证假设</span>
           <textarea
@@ -330,6 +301,51 @@ export function ExperimentDesignPanel() {
           </label>
         </div>
       </div>
+);
+
+  return (
+    <div className="space-y-4" data-testid="experiment-design-panel">
+      <SavedToolStatus saved={saved} guest={storageScopeKey.startsWith('guest:')} />
+      {!renderComposer && <>
+      <div>
+        <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+          <FlaskConical className="h-4 w-4 text-rose-500" />
+          采集前实验设计与预注册
+        </div>
+        <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+          明确独立重复、处理与对照、随机化、主要结局和分析预案；不代表样本量已算定、伦理已审批或实验已执行。
+        </p>
+      </div>
+
+      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-3 py-2 text-[11px] text-[var(--text-secondary)]">
+        {missingEvidence
+          ? '尚未选择证据来源。请先在左侧文献本选择论文或资料。'
+          : `已选择 ${selectedPapers.length} 个来源：${sourceSummary}${selectedPapers.length > 3 ? ' 等' : ''}`}
+      </div>
+
+      </>}
+      {renderComposer ? renderComposer({
+        label: '实验设计', value: question, onChange: value => setField('question', value), onSubmit: () => void runDesign(), onStop: stopDesign,
+        busy: status === 'running', disabled: saved.loading || saved.readFailed || saved.conflict,
+        canSubmit: !missingEvidence && Boolean(formReady) && status !== 'running' && !saved.loading && !saved.readFailed && !saved.conflict,
+        maxLength: 1200, placeholder: '输入研究问题和实验目标…', settingsLabel: '实验要素',
+        hint: missingEvidence ? '请先选择资料。' : question.trim() && !formReady ? '请在“实验要素”中补全假设、实验单位、处理与对照、主要结局。' : undefined,
+        settings: (designFields),
+      }) : (<>      <div className="grid gap-3">
+        <label className="block">
+          <span className="text-[11px] font-medium text-[var(--text-secondary)]">研究问题</span>
+          <textarea
+            value={question}
+            onChange={event => setField('question', event.target.value)}
+            maxLength={1200}
+            disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
+            data-testid="experiment-design-question"
+            placeholder="要比较什么处理，并回答什么研究问题？"
+            className="mt-1.5 min-h-20 w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text-primary)] outline-none transition focus:border-rose-400/60"
+          />
+        </label>
+        {designFields}
+      </div>
 
       <button
         type="button"
@@ -342,6 +358,7 @@ export function ExperimentDesignPanel() {
         生成实验设计协议
       </button>
 
+      </>)}
       {status === 'running' && (
         <StudioJobProgress title="实验设计进行中" message={message} stages={DESIGN_STAGES} currentStageKey={stage} progressPercent={progress} hint="只使用当前选定来源。可随时停止，未完成结构不会显示为可用协议。" onCancel={stopDesign} cancelLabel="停止生成" testId="experiment-design-progress" />
       )}

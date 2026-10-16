@@ -231,3 +231,26 @@
   .quiet-tool-button svg { width: 24px; height: 24px; }
   .quiet-tool-button > span > span:last-child > span:first-child { font-size: 16px; }
 }
+
+/* Mode inputs share the conversation composer; result pages never live inside it. */
+.quiet-research-workbench [data-testid="chat-scroll"][hidden] { display: none; }
+.research-mode-results { padding: 24px 30px; }
+.research-mode-input { padding: 8px; border: 1px solid #dce5f2; border-radius: 16px; background: var(--bg-card); }
+.research-mode-input textarea { min-height: 54px; max-height: 140px; resize: none; background: transparent; padding: 10px 12px; outline: none; font-size: 16px; line-height: 1.6; }
+.research-mode-actions { display: contents; }
+.research-mode-actions > button { flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.research-mode-actions > .research-mode-settings { order: 2; border-radius: 8px; gap: 6px; padding: 7px 9px; font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+.research-mode-hint { margin: 7px 4px 0; font-size: 12px; color: var(--text-secondary); }
+.research-mode-settings-content { width: min(440px, calc(100vw - 28px)); max-height: min(520px, 60dvh); overflow-y: auto; overscroll-behavior: contain; background: var(--bg-card); color: var(--text-primary); }
+.research-mode-settings-content textarea, .research-mode-settings-content input { font-size: 14px; }
+@media (max-width: 1100px) {
+  .research-mode-actions > .research-mode-settings { grid-row: 2; grid-column: 2; justify-self: end; }
+}
+@media (max-width: 640px) {
+  .research-mode-results { padding: 16px 14px; }
+  .research-mode-input textarea { font-size: 16px; }
+}
+
+.quiet-composer [data-testid="research-mode-send"]:disabled { background: #a5c2ff !important; cursor: not-allowed; }
+
+.discover-result-snippet { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }

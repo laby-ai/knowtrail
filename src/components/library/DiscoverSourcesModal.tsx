@@ -1,5 +1,7 @@
 'use client';
 
+import type { ResearchComposerRenderer } from '@/components/editor/ResearchComposer';
+
 // NotebookLM-style "discover sources": search the web from the library
 // panel, pick results, and ingest them as sources in one step.
 
@@ -35,12 +37,14 @@ export function DiscoverSourcesModal({
   onIngestFiles,
   variant = 'modal',
   initialScope = 'webpage',
+  renderComposer,
 }: {
   notebookId?: string;
   onClose: () => void;
   onIngestFiles: (files: File[], signal?: AbortSignal) => Promise<void | number>;
   variant?: 'modal' | 'embedded';
   initialScope?: 'webpage' | 'scholar';
+  renderComposer?: ResearchComposerRenderer;
 }) {
   const { storageScopeKey } = useApp();
   const emptySearch = useCallback(() => ({ ...emptyDiscoverSearch(), scope: initialScope }), [initialScope]);
@@ -254,7 +258,56 @@ export function DiscoverSourcesModal({
         onClick={e => e.stopPropagation()}
       >
         <SavedToolStatus saved={saved} guest={storageScopeKey.startsWith('guest:')} />
-      {/* Header */}
+        {renderComposer ? renderComposer({
+          label: '论文检索', value: query, onChange: value => { setQuery(value); setOptimizedQuery(''); setPlanKeywords([]); },
+          onSubmit: () => void handleSearch(),
+          onStop: () => { searchSequence.current++; requests.current.forEach(controller => controller.abort()); busy.current = false; setIsSearching(false); setNotice('操作已停止，保留已保存的内容。'); },
+          busy: isSearching || ingestPhase === 'fetching', disabled: !ready,
+          canSubmit: Boolean(query.trim()) && ready && !isSearching && ingestPhase !== 'fetching',
+          placeholder: '输入主题、题目、作者或关键词…', settingsLabel: '检索设置',
+          settings: (<div className="space-y-3">          <div className="flex shrink-0 gap-1 rounded-xl bg-[var(--glass-subtle)] p-1">
+            {([['webpage', '网页', Globe2], ['scholar', '学术', GraduationCap]] as const).map(([id, label, Icon]) => (
+              <button
+                key={id}
+                disabled={!ready || isSearching || ingestPhase === 'fetching'}
+                onClick={() => { setScope(id); setOptimizedQuery(''); setPlanKeywords([]); }}
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
+                  scope === id ? 'bg-[var(--glass-active)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                }`}
+                data-testid={`discover-scope-${id}`}
+              >
+                <Icon className="h-3 w-3" />
+                {label}
+              </button>
+            ))}
+          </div>
+        {optimizedQuery && (
+          <div className="rounded-xl border border-blue-400/20 bg-blue-500/8 px-3 py-2" data-testid="discover-query-plan">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium text-blue-300">可编辑检索式</span>
+              <span className="text-[10px] text-[var(--text-quaternary)]">模型只整理检索式，结果来自真实来源</span>
+            </div>
+            <input
+              value={optimizedQuery}
+              disabled={!ready || isSearching || ingestPhase === 'fetching'}
+              onChange={event => { setOptimizedQuery(event.target.value); setPlanKeywords([]); }}
+              onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void handleSearch(); }}
+              data-testid="discover-optimized-query"
+              className="liquid-glass-input w-full px-3 py-2 text-xs"
+              aria-label="可编辑检索式"
+            />
+            {planKeywords.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5" aria-label="检索关键词">
+                {planKeywords.map(keyword => (
+                  <span key={keyword} className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-300">{keyword}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+</div>),
+        }) : (<>      {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
@@ -341,6 +394,7 @@ export function DiscoverSourcesModal({
           </div>
         )}
 
+        </>)}
         {error && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
@@ -353,11 +407,11 @@ export function DiscoverSourcesModal({
             <p className="text-[11px] leading-relaxed text-emerald-300">{notice}</p>
           </div>
         )}
-        {searchProvider === 'arxiv' && (
+        {searchProvider === 'arxiv' && results.length > 0 && (
           <div className="flex items-start gap-2 rounded-xl border border-blue-400/20 bg-blue-500/8 px-3 py-2" data-testid="discover-provider-boundary">
             <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
             <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-              当前使用 arXiv 开放源，英文题名或关键词通常更准确。结果是候选线索，引用前仍需核对题名、作者、日期、来源页和主张依据。
+              当前使用 arXiv 开放源；结果为候选，引用前请核对原文。
             </p>
           </div>
         )}
@@ -375,7 +429,7 @@ export function DiscoverSourcesModal({
         )}
 
         {/* Results */}
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1" data-testid="discover-results">
+        <div className={renderComposer ? "space-y-3" : "min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"} data-testid="discover-results">
           {isSearching ? (
             <div className="flex flex-col items-center gap-3 py-14 text-[var(--text-tertiary)]">
               <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
@@ -415,7 +469,7 @@ export function DiscoverSourcesModal({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-semibold leading-snug text-[var(--text-primary)]">{item.title}</span>
-                        <span className="mt-1 block text-[11px] leading-relaxed text-[var(--text-secondary)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
+                        <span className="discover-result-snippet mt-1 text-[11px] leading-relaxed text-[var(--text-secondary)]">
                           {item.snippet || '(无摘要)'}
                         </span>
                         <span className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-quaternary)]">

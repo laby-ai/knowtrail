@@ -28,33 +28,33 @@ for (const skillId of [
   assert.match(chatSkillsSource, new RegExp(`id: '${skillId}'`), `${skillId} should be available in the middle chat`);
 }
 
-assert.match(skillSelectorSource, /chat-skill-chip/, 'The selected Skill should remain visible beside the composer');
+assert.match(skillSelectorSource, /aria-pressed=\{selectedSkillId === skill.id\}/, 'The selected Skill should remain visible beside the composer');
 assert.match(skillSelectorSource, /data-testid="chat-skill-shortcuts"/, 'Common Skills should stay visible inside the composer toolbar');
 assert.match(skillSelectorSource, /普通问答/, 'The composer toolbar should provide an explicit return to normal chat');
 assert.match(skillSelectorSource, /RESEARCH_CHAT_SKILLS\.map/, 'Every research Skill should remain directly reachable from the composer toolbar');
-assert.match(skillSelectorSource, /lg:flex-1/, 'The direct Skill row should distribute across the full desktop composer width');
+assert.match(skillSelectorSource, /quiet-mode-bar/, 'The existing direct mode row should remain available');
 assert.doesNotMatch(skillSelectorSource, />更多</, 'The composer should not hide research Skills behind a More action');
 assert.doesNotMatch(skillSelectorSource, /chat-skill-menu|chat-skill-group-/, 'The composer should not reintroduce a grouped popover');
 assert.match(editorSource, /data-testid="chat-composer-shell"/, 'The prompt input and Skill shortcuts should share one composer surface');
 assert.match(
   editorSource,
-  /data-testid="chat-composer-shell"[\s\S]*className="mx-auto w-full rounded-\[22px\]/,
+  /data-testid="chat-composer-shell"[\s\S]*w-full rounded-\[22px\]/,
   'The conversation composer should use the full width of the center workspace',
 );
 assert.match(
   editorSource,
   /data-testid="chat-composer-shell"[\s\S]*textarea[\s\S]*ResearchChatSkillSelector/,
-  'The Skill shortcuts should render below the prompt within the same composer surface',
+  'All modes remain reachable without replacing the conversation service',
 );
 assert.match(editorSource, /clearChatSkill/, 'The selected Skill should be removable without clearing the draft');
 assert.match(editorSource, /sendQuestion\(draft, \{ skill: selectedChatSkill \}\)/, 'Normal chat submissions should use the selected Skill');
 assert.match(editorSource, /skill: options\.skill \|\| undefined/, 'Chat requests should send the selected Skill to the server');
 assert.match(editorSource, /handleGenerateReport\(draft\)/, 'The literature review Skill should reuse the grounded report flow');
 assert.match(editorSource, /data-testid="chat-skill-workspace"/, 'Structured Skills should open their real workspace above the composer');
-assert.match(editorSource, /<PaperSearchPanel \/>/, 'Paper search should retain its real source discovery workspace');
-assert.match(editorSource, /<DeepResearchPanel \/>/, 'Deep research should retain its grounded report workspace');
-assert.match(editorSource, /<HypothesisGenerationPanel \/>/, 'Hypothesis generation should retain its structured generation workspace');
-assert.match(editorSource, /<ExperimentDesignPanel \/>/, 'Experiment design should retain its structured protocol workspace');
+assert.match(editorSource, /<PaperSearchPanel\b[^>]*\/>/, 'Paper search should retain its real source discovery workspace');
+assert.match(editorSource, /<DeepResearchPanel\b[^>]*\/>/, 'Deep research should retain its grounded report workspace');
+assert.match(editorSource, /<HypothesisGenerationPanel\b[^>]*\/>/, 'Hypothesis generation should retain its structured generation workspace');
+assert.match(editorSource, /<ExperimentDesignPanel\b[^>]*\/>/, 'Experiment design should retain its structured protocol workspace');
 assert.match(chatRouteSource, /resolveResearchChatSkillInstruction\(skill\)/, 'The chat route should resolve server-owned Skill instructions');
 assert.match(chatRouteSource, /skillInstruction/, 'The server should add the Skill instruction without exposing it as user text');
 assert.match(

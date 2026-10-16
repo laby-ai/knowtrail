@@ -1,5 +1,7 @@
 'use client';
 
+import type { ResearchComposerRenderer } from '@/components/editor/ResearchComposer';
+
 import { useCallback, useState } from 'react';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DiscoverSourcesModal } from '@/components/library/DiscoverSourcesModal';
@@ -12,7 +14,7 @@ type UploadSummary = {
   errors: string[];
 };
 
-export function PaperSearchPanel() {
+export function PaperSearchPanel({ renderComposer }: { renderComposer?: ResearchComposerRenderer }) {
   const {
     activeFolderId,
     addFolder,
@@ -62,6 +64,7 @@ export function PaperSearchPanel() {
       )}
       <DiscoverSourcesModal
         variant="embedded"
+        renderComposer={renderComposer}
         initialScope="scholar"
         notebookId={notebookId}
         onClose={() => undefined}

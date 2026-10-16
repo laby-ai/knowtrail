@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { ResearchComposer, type ResearchComposerRenderer } from './ResearchComposer';
 import { SavedToolStatus } from '@/components/studio/SavedToolStatus';
 import { clientApiPath } from '@/lib/client-api';
 import {
@@ -552,6 +554,7 @@ interface ChatViewProps {
 }
 
 function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, researchChatReadiness, onCitationClick, onRegenerate, selectedChatSkill, onSelectChatSkill, onClearChatSkill }: ChatViewProps) {
+  const { storageScopeKey } = useApp();
   // --- Liquid pull physics ---
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
@@ -562,6 +565,9 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
   const velocity = useRef(0);
   const isOpen = useRef(false);
   const [panelOpenState, setPanelOpenState] = useState(false);
+  const [composerTarget, setComposerTarget] = useState<HTMLDivElement | null>(null);
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   const PANEL_HEIGHT = 200;
   const PULL_THRESHOLD = 80;
@@ -574,6 +580,14 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
     && !workspaceSkillActive
     && (Boolean(inputMessage.trim()) || activeChatSkill?.allowsEmptyPrompt === true);
   const visibleQuickQuestions = compact ? quickQuestions.slice(0, 4) : quickQuestions;
+  useEffect(() => {
+    if (!workspaceSkillActive) chatInputRef.current?.focus();
+  }, [selectedChatSkill, workspaceSkillActive]);
+  useEffect(() => {
+    const input = chatInputRef.current;
+    if (input) { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 140)}px`; }
+  }, [inputMessage, workspaceSkillActive]);
+
 
   // Merge scrollRef with scrollAreaRef
   const scrollAreaCallbackRef = useCallback((node: HTMLDivElement | null) => {
@@ -727,7 +741,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
   return (
     <div className="h-full flex flex-col">
       {/* Messages */}
-      <div ref={scrollAreaCallbackRef} data-testid="chat-scroll" className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+      <div ref={scrollAreaCallbackRef} data-testid="chat-scroll" hidden={workspaceSkillActive} className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         <div className="space-y-6 max-w-2xl mx-auto">
           {messages.length === 0 ? (
             <div
@@ -831,6 +845,14 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
         </div>
       </div>
 
+      {workspaceSkillActive && <div className="research-mode-results flex-1 min-h-0 overflow-y-auto" aria-label={`${activeChatSkill.label}结果`}>
+        <div className="mx-auto w-full max-w-3xl">
+          <ResearchChatSkillWorkspace key={`${selectedChatSkill}:${storageScopeKey}`} skillId={selectedChatSkill} renderComposer={options => composerTarget ? createPortal(
+            <ResearchComposer {...options} sources={<ChatSourceSelector disabled={options.busy} />} onBusyChange={setWorkspaceBusy} />, composerTarget, selectedChatSkill
+          ) : null} />
+        </div>
+      </div>}
+
       {/* Liquid pull quick questions panel (only when chat is active) */}
       {!compact && messages.length > 0 && (
         <div
@@ -905,16 +927,17 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
             {researchChatReadiness.message}
           </div>
         )}
-        {compact && <ResearchChatSkillSelector inline selectedSkillId={selectedChatSkill} onSelect={onSelectChatSkill} onClear={onClearChatSkill} disabled={isGenerating} />}
+        {(compact || workspaceSkillActive) && <ResearchChatSkillSelector inline={compact} selectedSkillId={selectedChatSkill} onSelect={onSelectChatSkill} onClear={onClearChatSkill} disabled={isGenerating || workspaceBusy} />}
+        <div ref={setComposerTarget} data-testid="research-mode-composer-slot" />
+        {!workspaceSkillActive && <>
         <div
           data-testid="chat-composer-shell"
           className={`${compact ? 'quiet-composer' : ''} mx-auto w-full rounded-[22px] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-2 shadow-[0_10px_28px_rgba(70,96,128,0.08)] transition focus-within:border-blue-400/55 focus-within:shadow-[0_12px_34px_rgba(59,130,246,0.12)]`}
           data-workspace-skill={workspaceSkillActive}
         >
-          {workspaceSkillActive ? (
-            <ResearchChatSkillWorkspace skillId={selectedChatSkill} />
-          ) : (
+          {(
             <textarea
+              ref={chatInputRef}
               placeholder={!researchChatReadiness.ready
                 ? '文献问答服务配置中...'
                 : hasSelectedSources
@@ -970,6 +993,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
             ))}
           </div>
         </div>
+        </>}
       </div>
     </div>
   );
@@ -994,18 +1018,18 @@ function ChatSourceSelector({ disabled }: { disabled: boolean }) {
   );
 }
 
-function ResearchChatSkillWorkspace({ skillId }: { skillId: ResearchChatSkillId | null }) {
+function ResearchChatSkillWorkspace({ skillId, renderComposer }: { skillId: ResearchChatSkillId | null; renderComposer: ResearchComposerRenderer }) {
   if (!isWorkspaceResearchChatSkillId(skillId)) return null;
 
   return (
     <div
       data-testid="chat-skill-workspace"
-      className="max-h-[min(50vh,520px)] overflow-y-auto overscroll-contain px-1 pb-2"
+      className="px-1 pb-2"
     >
-      {skillId === 'paper-search' && <PaperSearchPanel />}
-      {skillId === 'deep-research' && <DeepResearchPanel />}
-      {skillId === 'hypothesis-generation' && <HypothesisGenerationPanel />}
-      {skillId === 'experiment-design' && <ExperimentDesignPanel />}
+      {skillId === 'paper-search' && <PaperSearchPanel renderComposer={renderComposer} />}
+      {skillId === 'deep-research' && <DeepResearchPanel renderComposer={renderComposer} />}
+      {skillId === 'hypothesis-generation' && <HypothesisGenerationPanel renderComposer={renderComposer} />}
+      {skillId === 'experiment-design' && <ExperimentDesignPanel renderComposer={renderComposer} />}
     </div>
   );
 }
