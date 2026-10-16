@@ -9,6 +9,7 @@ async function main() {
   assert.ok(fs.existsSync(modulePath), 'Paper search should upload selected sources through a focused adapter');
   const { uploadDiscoveredSourceFiles } = await import('../src/lib/discovered-source-upload');
   const { createDiscoveredSourceFile } = await import('../src/lib/discovered-source-file');
+  const { sourceBibliography } = await import('../src/lib/source-bibliography');
   const requests: Array<{ url: string; method?: string }> = [];
   const request: UploadRequest = async (input, init) => {
     requests.push({ url: String(input), method: init?.method });
@@ -81,6 +82,10 @@ async function main() {
   assert.equal(fetchCount, 0);
   assert.match(await openSourceFile.text(), /来源类型:arXiv 开放元数据候选/);
   assert.match(await openSourceFile.text(), /requires verification before citation/);
+  assert.deepEqual(sourceBibliography({ rawContent: await openSourceFile.text() }), { authors: ['Ada Researcher'], year: 2025 });
+  assert.equal(sourceBibliography({ rawContent: '发布时间:2023-02-30\n作者:Sample' }).year, undefined);
+  assert.equal(sourceBibliography({ rawContent: '正文在2018年讨论观测。' }).year, undefined);
+  assert.equal(sourceBibliography({ rawContent: '发布时间:三年前\n作者:Sample' }).year, undefined);
 
   const fetchedFile = await createDiscoveredSourceFile({
     title: 'Fetched Candidate',

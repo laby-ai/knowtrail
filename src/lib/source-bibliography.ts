@@ -17,6 +17,8 @@ export function sourceBibliography(source: SourceBibliographyInput): { authors: 
     .map(value => value.trim())
     .filter(value => value && !/^(?:未解析作者|未知作者|作者未知|已入库来源|unknown(?: author)?|n\/a|无)$/i.test(value));
   const explicitYear = header.match(/^(?:年份|发表年份|出版年|Year|Publication year)[ \t]*[:：][ \t]*(\d{4})[ \t]*$/im)?.[1];
-  const year = typeof source.year === 'number' ? source.year : explicitYear ? Number(explicitYear) : undefined;
+  const publicationDate = header.match(/^(?:发布时间|Publication date)[ \t]*[:：][ \t]*(\d{4}-\d{2}-\d{2})[ \t]*$/im)?.[1];
+  const validDate = publicationDate && Number.isFinite(Date.parse(publicationDate)) && new Date(publicationDate).toISOString().slice(0, 10) === publicationDate;
+  const year = typeof source.year === 'number' ? source.year : explicitYear ? Number(explicitYear) : validDate ? Number(publicationDate.slice(0, 4)) : undefined;
   return { authors, ...(year !== undefined && Number.isInteger(year) && year >= 1000 && year <= 9999 ? { year } : {}) };
 }
