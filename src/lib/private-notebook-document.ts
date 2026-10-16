@@ -28,16 +28,17 @@ function directory(scope: PrivateNotebookScope, name: string): string {
   return path.join(process.env.STUDIO_DOCUMENT_STORE_DIR?.trim() || path.join(process.cwd(), '.data', 'studio-documents'), digest(scope.ownerMemberId), scope.notebookId, name);
 }
 
-export async function readNotebookDocument<T>(scope: PrivateNotebookScope, name: string): Promise<NotebookDocument<T> | null> {
+export async function readNotebookDocument<T>(scope: PrivateNotebookScope, name: string, revision?: string): Promise<NotebookDocument<T> | null> {
   const root = directory(scope, name);
+  if (revision !== undefined && !/^[a-f0-9]{64}$/.test(revision)) throw new Error('保存版本无效。');
   let raw: string;
-  try { raw = await readFile(path.join(root, 'current.json'), 'utf8'); }
+  try { raw = await readFile(path.join(root, revision ? `${revision}.json` : 'current.json'), 'utf8'); }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw error;
   }
   const saved = JSON.parse(raw) as NotebookDocument<T>;
-  if (!saved.revision || !saved.updatedAt || saved.data === undefined || saved.revision !== digest(JSON.stringify(saved.data))) {
+  if (!saved.revision || !saved.updatedAt || saved.data === undefined || saved.revision !== digest(JSON.stringify(saved.data)) || (revision && saved.revision !== revision)) {
     throw new Error('保存记录校验失败，请稍后重试。');
   }
   return saved;
