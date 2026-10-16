@@ -137,6 +137,11 @@ interface IngestionSourceSummary {
   fileSize?: number;
   title: string;
   shortName?: string;
+  authors?: string[];
+  year?: number;
+  keywords?: string[];
+  journal?: string;
+  doi?: string;
   status: Paper['ingestionStatus'];
   stages?: Paper['ingestionStages'];
   chunkCount: number;
@@ -149,6 +154,8 @@ interface IngestionSourceSummary {
 }
 
 interface IngestionSourceDetail extends IngestionSourceSummary {
+  storageKey?: string;
+  fileUrl?: string;
   abstract?: string;
   content?: string;
   rawContent?: string;
@@ -566,16 +573,20 @@ export function LibraryPanel({
         addPaper(importFolderId, {
           id: detail.id,
           title: detail.title || detail.fileName,
-          authors: ['已入库来源'],
-          year: new Date(detail.createdAt || detail.updatedAt || Date.now()).getFullYear(),
-          keywords: ['持久来源'],
-          abstract: rawContent.slice(0, 240) || `${detail.title || detail.fileName} 已完成来源摄取。`,
-          content: rawContent || `${detail.title || detail.fileName} 已完成来源摄取。`,
-          rawContent,
+          authors: detail.authors || [],
+          year: detail.year,
+          keywords: detail.keywords || [],
+          journal: detail.journal,
+          doi: detail.doi,
+          abstract: detail.abstract || rawContent.slice(0, 240),
+          content: detail.content || rawContent,
+          rawContent: detail.rawContent || rawContent,
           shortName: detail.shortName || detail.fileName,
           fileName: detail.fileName,
           fileType: detail.fileType,
           fileSize: detail.fileSize || 0,
+          fileKey: detail.storageKey,
+          fileUrl: detail.fileUrl,
           uploadTime: detail.createdAt || detail.updatedAt || new Date().toISOString(),
           mineru: detail.mineru,
           mineruStatus: legacyMinerUStatus(detail.mineru),
@@ -588,9 +599,9 @@ export function LibraryPanel({
         knownPapers.set(detail.id, {
           id: detail.id,
           title: detail.title || detail.fileName,
-          authors: ['已入库来源'],
-          year: new Date().getFullYear(),
-          keywords: ['持久来源'],
+          authors: detail.authors || [],
+          year: detail.year,
+          keywords: detail.keywords || [],
           abstract: rawContent.slice(0, 240),
           content: rawContent,
           rawContent,
@@ -608,6 +619,11 @@ export function LibraryPanel({
         if (!current) continue;
         const nextVectorIndex = source.vectorIndex;
         const changed = (
+          JSON.stringify(current.authors) !== JSON.stringify(source.authors || []) ||
+          current.year !== source.year ||
+          JSON.stringify(current.keywords) !== JSON.stringify(source.keywords || []) ||
+          current.journal !== source.journal ||
+          current.doi !== source.doi ||
           current.ingestionStatus !== source.status ||
           current.ingestionChunkCount !== source.chunkCount ||
           current.mineru?.status !== source.mineru?.status ||
@@ -618,6 +634,11 @@ export function LibraryPanel({
         );
         if (changed) {
           updatePaper(source.id, {
+            authors: source.authors || [],
+            year: source.year,
+            keywords: source.keywords || [],
+            journal: source.journal,
+            doi: source.doi,
             ingestionStatus: source.status,
             ingestionStages: source.stages,
             ingestionChunkCount: source.chunkCount,
@@ -760,6 +781,7 @@ export function LibraryPanel({
           const paper: Paper = {
             id: result.id, title: result.title, authors: result.authors, year: result.year,
             keywords: result.keywords, abstract: result.abstract, content: result.content,
+            journal: result.journal, doi: result.doi,
             rawContent: result.rawContent,
             shortName: result.shortName, fileName: result.fileName, fileType: result.fileType,
             fileSize: result.fileSize, fileUrl: result.fileUrl, fileKey: result.fileKey,
@@ -1242,7 +1264,7 @@ export function LibraryPanel({
                       <div className="pointer-events-none relative z-10 flex-1 min-w-0">
                         <p className="text-[13px] truncate font-medium text-[var(--text-primary)] leading-tight">{paper.title}</p>
                         <p className="text-[11px] text-[var(--text-secondary)] mt-1 truncate">
-                          {compact && paper.authors.includes('已入库来源') ? `${paper.fileType.toUpperCase()} · ${formatFileSize(paper.fileSize)}` : `${paper.authors.join(', ')} · ${paper.year}`}
+                          {[paper.authors.join(', '), paper.year].filter(Boolean).join(' · ') || `${paper.fileType.toUpperCase()} · ${formatFileSize(paper.fileSize)}`}
                         </p>
                         <div className={`flex items-center gap-1.5 mt-1.5 flex-wrap ${compact ? "quiet-source-metadata" : ""}`}>
                           <span className={`${compact ? "hidden" : ""} text-[9px] px-1.5 py-0.5 rounded-md font-semibold border ${fileTypeBadgeStyle(paper.fileType)}`}>

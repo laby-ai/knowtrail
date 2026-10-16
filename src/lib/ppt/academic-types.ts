@@ -6,7 +6,7 @@ export interface PaperInput {
   id?: string;
   title: string;
   authors: string[];
-  year: number;
+  year?: number;
   abstract?: string;
   content?: string;
   rawContent?: string;

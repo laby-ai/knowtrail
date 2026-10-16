@@ -43,7 +43,7 @@ export interface Paper {
   id: string;
   title: string;
   authors: string[];
-  year: number;
+  year?: number;
   keywords: string[];
   abstract?: string;
   content: string;

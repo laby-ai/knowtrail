@@ -67,7 +67,6 @@ function buildGroundedOutlinePapers(papers: PaperInput[], grounded: GroundedRetr
   if (!grounded.promptContext) return papers;
   const first = papers[0];
   if (!first) return papers;
-  const authors = Array.isArray(first.authors) ? first.authors.join(', ') : '';
   const meta = papers.map((p, i) => {
     const pAuthors = Array.isArray(p.authors) ? p.authors.join(', ') : '';
     return `[${i + 1}] ${p.title || p.fileName || p.id || '未命名资料'}
@@ -93,8 +92,8 @@ year: ${p.year || ''}`;
   return [{
     ...first,
     title: first.title || first.fileName || 'Grounded Evidence Outline',
-    authors: first.authors?.length ? first.authors : (authors ? [authors] : ['Lingbi Retrieval']),
-    year: first.year || new Date().getFullYear(),
+    authors: first.authors || [],
+    year: first.year,
     abstract: first.abstract || '基于持久化 source/chunk 检索生成的学术报告 PPT 证据大纲。',
     content,
     rawContent: content,

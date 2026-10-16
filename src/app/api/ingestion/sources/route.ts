@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deleteIngestionSource, getIngestionSource, listIngestionSources } from '@/lib/ingestion-store';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import { sourceBibliography } from '@/lib/source-bibliography';
 
 export async function GET(request: NextRequest) {
   const scope = await resolveAccountNotebookScope(request, {
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
     if (!source) {
       return NextResponse.json({ error: 'source not found' }, { status: 404 });
     }
-    return NextResponse.json({ source }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ source: { ...source, ...sourceBibliography(source) } }, { headers: { 'Cache-Control': 'no-store' } });
   }
 
   const sources = await listIngestionSources({ ownerMemberId, notebookId });
@@ -33,6 +34,10 @@ export async function GET(request: NextRequest) {
       fileSize: source.fileSize,
       title: source.title,
       shortName: source.shortName,
+      ...sourceBibliography(source),
+      keywords: source.keywords,
+      journal: source.journal,
+      doi: source.doi,
       status: source.status,
       createdAt: source.createdAt,
       stages: source.stages,

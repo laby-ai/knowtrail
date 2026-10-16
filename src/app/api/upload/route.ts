@@ -7,6 +7,7 @@ import { resolveInternalAppOrigin } from '@/lib/internal-origin';
 import { ingestExtractedSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
 import { classifyMinerUJobFailure, mineruJobErrorMessage, mineruJobOptionsFromEnv } from '@/lib/mineru-job';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import { sourceBibliography } from '@/lib/source-bibliography';
 
 const SUPPORTED_TYPES = new Set([
   'pdf', 'doc', 'docx', 'txt', 'md',
@@ -480,13 +481,12 @@ export async function POST(request: NextRequest) {
         }
 
         const title = analysis?.title || baseName;
-        const authors = Array.isArray(analysis?.authors) ? analysis.authors : ['未解析作者'];
-        const year = typeof analysis?.year === 'number' ? analysis.year : new Date().getFullYear();
+        const { authors, year } = sourceBibliography({ authors: analysis?.authors, year: analysis?.year, rawContent: isImageType(ext) ? '' : fileContent });
         const keywords = Array.isArray(analysis?.keywords) ? analysis.keywords : ['原始数据'];
         const abstract = typeof analysis?.abstract === 'string' ? analysis.abstract : `该文件包含了关于${title}的原始资料与数据记录。`;
         const content = typeof analysis?.content === 'string' ? analysis.content : abstract;
         const rawContent = isImageType(ext) ? '' : fileContent.slice(0, 50000);
-        const shortName = `${authors[0]}. ${year}`;
+        const shortName = [authors[0], year].filter(Boolean).join('. ') || title;
         const journal = typeof analysis?.journal === 'string' ? analysis.journal : '';
         const doi = typeof analysis?.doi === 'string' ? analysis.doi : '';
         const paperId = `paper-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -506,6 +506,9 @@ export async function POST(request: NextRequest) {
           content,
           rawContent,
           shortName,
+          keywords,
+          journal,
+          doi,
         }, { aiConfig });
 
         console.log(`[Upload] File: ${file.name}, ext: ${ext}, content length: ${content.length}, rawContent length: ${rawContent.length}, analysis: ${analysis ? 'OK' : needsAIAnalysis ? 'NULL' : 'SKIPPED'}, env: ${isProd ? 'PROD' : 'DEV'}`);

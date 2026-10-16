@@ -54,6 +54,14 @@ export interface StoredSourceRecord {
   fileSize?: number;
   title: string;
   shortName: string;
+  authors?: string[];
+  year?: number;
+  keywords?: string[];
+  abstract?: string;
+  content?: string;
+  rawContent?: string;
+  journal?: string;
+  doi?: string;
   storageKey?: string;
   fileUrl?: string;
   status: IngestionStatus;
@@ -77,6 +85,8 @@ export interface IngestionSourceInput extends RagSourceInput {
   fileSize?: number;
   fileKey?: string;
   fileUrl?: string;
+  journal?: string;
+  doi?: string;
 }
 
 export interface IngestExtractedSourceOptions {

@@ -5,6 +5,7 @@ import { embedTexts } from '@/lib/ai-service';
 import { upsertSourceChunks } from '@/lib/vector-store';
 import { hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
 import { LocalJsonSourceStoreAdapter } from '@/lib/source-store/local-json-adapter';
+import { sourceBibliography } from '@/lib/source-bibliography';
 import {
   POSTGRES_CHUNKS_TABLE,
   POSTGRES_PAYLOAD_TABLE,
@@ -310,6 +311,14 @@ export function buildSourceStoreFromPostgresRows(input: {
       fileSize: optionalNumber(row.file_size) ?? payload.fileSize,
       title: row.title || payload.title || row.file_name || '未命名资料',
       shortName: row.short_name || payload.shortName || row.file_name || '未知资料',
+      authors: payload.authors,
+      year: payload.year,
+      keywords: payload.keywords,
+      abstract: payload.abstract,
+      content: payload.content,
+      rawContent: payload.rawContent,
+      journal: payload.journal,
+      doi: payload.doi,
       storageKey: row.storage_key || payload.storageKey,
       fileUrl: row.file_url || payload.fileUrl,
       status: row.status || payload.status || 'pending',
@@ -767,6 +776,13 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
     fileSize: input.fileSize,
     title: input.title || input.fileName,
     shortName: input.shortName || input.fileName,
+    ...sourceBibliography(input),
+    keywords: input.keywords,
+    abstract: input.abstract,
+    content: input.content,
+    rawContent: input.rawContent,
+    journal: input.journal,
+    doi: input.doi,
     storageKey: input.fileKey,
     fileUrl: input.fileUrl,
     status: 'pending',
