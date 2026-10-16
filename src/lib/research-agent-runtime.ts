@@ -94,7 +94,7 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
           const plan = { sourceIds, outlineDraft };
           if (!isResearchPresentationPlan(plan)) throw new Error('大纲页数或内容不完整，请缩小范围后重试。');
           call.presentation = plan;
-          result = { success: true, plugin, status: 'outline-ready', pages: plan.outlineDraft.length, instruction: '大纲已挂在本轮对话，尚未生成文件。请用户检查并确认后再生成。' };
+          result = { success: true, plugin, status: 'outline-ready', pages: plan.outlineDraft.length, instruction: '大纲在本轮卡片中，尚未生成文件。提示用户点击卡片的“检查大纲并生成”，在卡片确认后生成。不要要求回复确认，普通回复不会触发生成器。' };
         } else if (event.name === 'search_papers') {
           if (query.length > 1200) throw new Error('检索内容过长，请缩短关键词。');
           const found = await searchDiscoveredSources({ query, scope: 'scholar', size: 10, withContent: false, signal: input.signal }, { metasoApiKey: '' });
