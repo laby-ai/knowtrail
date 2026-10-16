@@ -6,8 +6,8 @@ Only the three existing public build values enter that build. Production
 credentials, SMS sessions, model configuration and user documents stay on the
 server. No deployment SSH credentials are needed by GitHub Actions.
 
-The repository contains six provider/feedback files absent from the deployed
-303-file runtime source profile. Before building, `--prepare` moves only those
+The repository contains six provider/feedback files and their dedicated BYOK test
+absent from the deployed profile. Before building, `--prepare` moves only those
 verified clean Git files into the disposable runner's temporary directory. The
 checkout must be a GitHub CI workspace; a modified file is refused. The manifest
 records these exclusions. Local/source checkouts and production are not altered,
@@ -35,11 +35,13 @@ python3 deploy/linux/import-ci-runtime.py \
 
 For remote delivery, stream the local tar through SSH stdin rather than copying
 an additional archive onto the production disk. The importer checks the full
-manifest first, requires the current lockfile/package and Node/public config to
+manifest first, requires the current lockfile/dependency specification and Node/public config to
 match, and bounds new allocation before creating the candidate. It preserves the
 32,000,000,000-byte readiness floor plus a 20 MB concurrent-write reserve. A
 refusal leaves no candidate. A changed dependency needs its own verified rollout;
 the importer never installs or upgrades packages.
+Package test-script entries may differ; both dependency sections, the package
+manager, engine requirements and the exact lockfile must remain unchanged.
 
 Only identical immutable code/static assets may share inodes with the retained
 current release. HTML/RSC/runtime cache stays separate. Node dependencies are a

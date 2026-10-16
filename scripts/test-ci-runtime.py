@@ -43,6 +43,8 @@ class ImportRuntime(unittest.TestCase):
                          'files': [{'path': n, 'size': len(b), 'mode': 0o644,
                                     'sha256': hashlib.sha256(b).hexdigest()}
                                    for n, b in self.files.items()]}
+        self.manifest['dependencySha256'] = hashlib.sha256(json.dumps({k: None for k in (
+            'dependencies', 'devDependencies', 'packageManager', 'engines')}, sort_keys=True).encode()).hexdigest()
 
     def archive(self, manifest=None, tamper=None, extra=None, omit=None):
         encoded = json.dumps(manifest or self.manifest).encode()

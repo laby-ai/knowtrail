@@ -69,9 +69,13 @@ def import_runtime(base, target, stream, expected_sha):
         if (manifest['platform'] != 'Linux' or manifest['machine'] != os.uname().machine
                 or manifest['node'] != subprocess.check_output(['node', '--version'], text=True).strip()):
             raise ValueError('CI and deployed runtime differ')
-        for name in ['package.json', 'pnpm-lock.yaml']:
-            if sha(base / name) != entries[name]['sha256']:
-                raise ValueError('Dependency change requires a separate dependency rollout')
+        if sha(base / 'pnpm-lock.yaml') != entries['pnpm-lock.yaml']['sha256']:
+            raise ValueError('Dependency change requires a separate dependency rollout')
+        pkg = json.loads((base / 'package.json').read_text())
+        dependency_hash = hashlib.sha256(json.dumps({k: pkg.get(k) for k in (
+            'dependencies', 'devDependencies', 'packageManager', 'engines')}, sort_keys=True).encode()).hexdigest()
+        if dependency_hash != manifest['dependencySha256']:
+            raise ValueError('Dependency specification differs from the verified current tree')
         env = dict(line.split('=', 1) for line in (base / '.env.production').read_text().splitlines()
                    if line.startswith('NEXT_PUBLIC_') and '=' in line)
         if any(env.get(k, '').strip('"\'') != v for k, v in manifest['publicEnv'].items()):

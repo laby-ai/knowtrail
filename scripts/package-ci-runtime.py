@@ -18,7 +18,7 @@ EXCLUDED_SOURCES = {'src/app/api/account/provider-profile/route.ts',
                     'src/components/account/BailianProviderButton.tsx',
                     'src/components/studio/ImagePptGenerationFeedback.tsx',
                     'src/lib/bailian-provider-profile.ts', 'src/lib/bailian-qwen-tts.ts',
-                    'src/lib/bailian-wan-image.ts'}
+                    'src/lib/bailian-wan-image.ts', 'scripts/test-bailian-byok.ts'}
 
 
 def sha(path):
@@ -83,6 +83,9 @@ def package(root, output):
         'platform': platform.system(), 'machine': platform.machine(),
         'publicEnv': {k: os.environ.get(k, '') for k in PUBLIC_ENV},
         'excludedSources': sorted(EXCLUDED_SOURCES), 'files': files}
+    pkg = json.loads((root / 'package.json').read_text())
+    manifest['dependencySha256'] = hashlib.sha256(json.dumps({k: pkg.get(k) for k in (
+        'dependencies', 'devDependencies', 'packageManager', 'engines')}, sort_keys=True).encode()).hexdigest()
     encoded = (json.dumps(manifest, indent=2) + '\n').encode()
     with tarfile.open(str(output) + '.tar.gz', 'x:gz', dereference=True) as archive:
         info = tarfile.TarInfo('CI_RUNTIME_MANIFEST.json')
