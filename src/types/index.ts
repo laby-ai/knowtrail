@@ -258,6 +258,9 @@ export interface RuntimeAIConfig {
   ttsSpeaker: string;
   providerId?: string;
   workspaceId?: string;
+  region?: string;
+  imageModel?: string;
+  ttsModel?: string;
 }
 
 export interface StudioPromptRequest {
