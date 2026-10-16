@@ -48,10 +48,16 @@ async def main():
         """Open a research plugin in this conversation. Use the allowed plugin IDs in the system instructions."""
         return await invoke("open_plugin", {"plugin": plugin, "request": request})
 
+    async def prepare_presentation(outline: list[dict[str, str]]):
+        """Prepare a source-grounded editable PPT outline for user confirmation. Does not generate a file."""
+        return await invoke("prepare_presentation", {"outline": outline})
+
     tools = [
         FunctionTool(search_papers, is_read_only=True, is_concurrency_safe=False),
         FunctionTool(open_plugin, is_read_only=True, is_concurrency_safe=False,
                      input_schema={"type":"object","properties":{"plugin":{"type":"string","enum":bootstrap["plugins"]},"request":{"type":"string","maxLength":4000}},"required":["plugin","request"]}),
+        FunctionTool(prepare_presentation, is_read_only=True, is_concurrency_safe=False,
+                     input_schema={"type":"object","properties":{"outline":{"type":"array","minItems":1,"maxItems":18,"items":{"type":"object","properties":{"title":{"type":"string","minLength":1,"maxLength":80},"focus":{"type":"string","minLength":1,"maxLength":220}},"required":["title","focus"],"additionalProperties":False}}},"required":["outline"],"additionalProperties":False}),
     ]
     skills = [Skill(name=s["id"], description=s["description"], dir="/research-skills/"+s["id"],
                     markdown=s["instructions"], updated_at=0) for s in bootstrap["skills"]]

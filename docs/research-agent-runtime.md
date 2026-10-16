@@ -42,3 +42,11 @@ Compatibility and quality tests default to `qwen3.8-flash`, with small inputs,
 bounded output and no automatic paid retries. Use deterministic fixtures for
 regression coverage. Max tests require a concrete quality or compatibility gap;
 changing the test model does not silently change production generation routing.
+
+The versioned `services/research-agent/skills/editable-ppt/SKILL.md` adds a native
+editable-PPT workflow. `prepare_presentation` returns a validated outline bound
+to the server's selected source IDs, without generating a file. The conversation
+card reuses the existing outline confirmation and native PPT endpoint. Only a
+successful private save can attach its immutable artifact ID to that turn;
+refresh reads that version rather than the notebook's latest unrelated PPT.
+The existing studio remains available for the full set of presentation options.

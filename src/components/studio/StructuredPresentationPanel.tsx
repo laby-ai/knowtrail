@@ -15,6 +15,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import type { ResearchPresentationArtifact, ResearchPresentationPlan } from '@/lib/research-agent-contract';
 import { useStructuredPresentationFile } from '@/hooks/use-structured-presentation-file';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
@@ -25,8 +26,9 @@ import {
   type StructuredPresentationOutlineItem,
 } from './StructuredPresentationOutlineDraft';
 
-export function StructuredPresentationPanel() {
-  const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+export function StructuredPresentationPanel({ skillPlan, onPlanChange, onArtifact }: { skillPlan?: ResearchPresentationPlan;
+  onPlanChange?: (outline: StructuredPresentationOutlineItem[]) => void; onArtifact?: (artifact: ResearchPresentationArtifact) => Promise<void> } = {}) {
+  const { getSelectedPapers, folders, aiConfig, storageScopeKey } = useApp();
   const generationReadiness = useStudioGenerationReadiness('structuredPpt');
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -48,16 +50,14 @@ export function StructuredPresentationPanel() {
   const [outlineConfirmed, setOutlineConfirmed] = useState(false);
   // MinerU state
   const [mineruStatus, setMineruStatus] = useState<string>('');
-  const selectedPapers = getSelectedPapers();
-  const hasSelectedPapers = selectedPapers.length > 0;
+  const selectedPapers = skillPlan ? skillPlan.sourceIds.flatMap(id => folders.flatMap(folder => folder.papers).filter(paper => paper.id === id)) : getSelectedPapers();
+  const hasSelectedPapers = selectedPapers.length > 0 && (!skillPlan || selectedPapers.length === skillPlan.sourceIds.length);
   const selectedPaperKey = selectedPapers.map(paper => paper.id).join('|');
   const abortControllerRef = useRef<AbortController | null>(null);
   const timersRef = useRef<number[]>([]);
-  const { presentation, setPresentation, latestArtifactId, pptxUrl, isRestoring, restoreError, retryRestore, isDownloading, handleDownload, scopeKeyRef, acceptResponse } = useStructuredPresentationFile(storageScopeKey, notebookId, setError);
-  const suggestedOutline = useMemo(
-    () => buildStructuredPresentationOutlineDraft(selectedPapers, duration),
-    [selectedPaperKey, duration],
-  );
+  const { presentation, setPresentation, latestArtifactId, pptxUrl, isRestoring, restoreError, retryRestore, isDownloading, handleDownload, scopeKeyRef, acceptResponse } = useStructuredPresentationFile(storageScopeKey, notebookId, setError, skillPlan ? null : undefined);
+  const suggestedOutline = useMemo(() => skillPlan?.outlineDraft || buildStructuredPresentationOutlineDraft(selectedPapers, duration),
+    [selectedPaperKey, duration, skillPlan?.outlineDraft]);
 
   useEffect(() => {
     setOutlineDraft(suggestedOutline);
@@ -85,9 +85,9 @@ export function StructuredPresentationPanel() {
       setError(!generationReadiness.ready ? generationReadiness.message : restoreError);
       return;
     }
-    const papers = getSelectedPapers();
-    if (papers.length === 0) {
-      setError('请先在左侧资料区选择来源');
+    const papers = skillPlan ? selectedPapers : getSelectedPapers();
+    if (!hasSelectedPapers || papers.length === 0) {
+      setError(skillPlan ? '本轮大纲的来源尚未全部读取，请刷新资料后重试。' : '请先在左侧资料区选择来源');
       return;
     }
     if (!outlineConfirmed) {
@@ -224,7 +224,7 @@ export function StructuredPresentationPanel() {
         } catch { /* ignore parse errors */ }
       }
 
-      await acceptResponse(res, requestScopeKey, outlineDraft.length, abortController.signal);
+      await acceptResponse(res, requestScopeKey, outlineDraft.length, abortController.signal).then(saved => saved && isCurrentRequest() ? onArtifact?.(saved) : undefined);
       setProgressMsg('');
       setProgressStep('');
     } catch (e: unknown) {
@@ -276,9 +276,9 @@ export function StructuredPresentationPanel() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col items-center p-6 overflow-y-auto" data-testid="academic-ppt-panel">
+    <div className={`flex-1 flex flex-col items-center ${skillPlan ? 'py-3' : 'p-6'} overflow-y-auto`} data-testid="academic-ppt-panel">
       {/* Header */}
-      <div className="w-full max-w-[420px] text-center mb-5">
+      {!skillPlan && <div className="w-full max-w-[420px] text-center mb-5">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center mb-3 mx-auto border border-[var(--glass-border)]" style={{ boxShadow: 'var(--glass-shadow-sm)' }}>
           <Presentation className="w-7 h-7 text-amber-400" />
         </div>
@@ -287,12 +287,12 @@ export function StructuredPresentationPanel() {
           先检查大纲，再生成可编辑演示文稿<br/>
           支持时长、受众、讲稿和资料图表
         </p>
-      </div>
+      </div>}
 
       {/* Options */}
       {!isGenerating && !pptxUrl && !isRestoring && (
         <>
-        <div className="w-full max-w-[420px] space-y-3 mb-5">
+        {!skillPlan && <div className="w-full max-w-[420px] space-y-3 mb-5">
           {/* Institution selector */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs text-[var(--text-tertiary)] font-medium pl-0.5">机构标识</label>
@@ -406,16 +406,17 @@ export function StructuredPresentationPanel() {
               <div className="toggle-knob" />
             </button>
           </div>
-        </div>
+        </div>}
 
           {hasSelectedPapers && (
             <StructuredPresentationOutlineDraft
               items={outlineDraft}
               confirmed={outlineConfirmed}
-              onChange={setOutlineDraft}
+              onChange={items => { setOutlineDraft(items); onPlanChange?.(items); }}
               onConfirmChange={setOutlineConfirmed}
               onReset={() => {
                 setOutlineDraft(suggestedOutline);
+                onPlanChange?.(suggestedOutline);
                 setOutlineConfirmed(false);
               }}
             />
