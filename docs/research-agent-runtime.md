@@ -1,6 +1,9 @@
 # Conversation research runtime
 
-The existing workbench uses AgentScope 2.0.10 for its conversation orchestration.
+The NotebookLM-style sources / conversation / studio workbench uses AgentScope
+2.0.10 for its conversation orchestration. Research Skill shortcuts stay beside
+the shared composer; the studio's seven auxiliary tools remain in a separate
+right pane. On phones, three tabs expose those same areas without squeezing them.
 The Next endpoint `POST /api/agent/chat` first verifies the existing SMS account
 and notebook scope. It reads only that owner's saved history and selected source
 evidence. Each request starts a separate stdio worker; cancellation kills it and
@@ -34,3 +37,8 @@ automatic provider retry, 180-second cancellation deadline. Final content uses
 the existing Max configuration; auxiliary extraction continues to use Flash.
 Private responses are `private, no-store`. A missing or broken runtime fails
 explicitly instead of silently pretending that another engine executed the task.
+
+Compatibility and quality tests default to `qwen3.8-flash`, with small inputs,
+bounded output and no automatic paid retries. Use deterministic fixtures for
+regression coverage. Max tests require a concrete quality or compatibility gap;
+changing the test model does not silently change production generation routing.

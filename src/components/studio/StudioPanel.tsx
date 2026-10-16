@@ -72,8 +72,7 @@ export function StudioPanel({
           <div>
             <h2 className={compact
               ? 'text-sm font-semibold tracking-tight text-[var(--text-primary)]'
-              : 'text-base font-semibold tracking-tight text-[var(--text-primary)]'}>产物中心</h2>
-            <p className="text-[11px] text-[var(--text-tertiary)]">选择工具，在右侧完成输入、进度与结果</p>
+              : 'text-base font-semibold tracking-tight text-[var(--text-primary)]'}>工作室</h2>
           </div>
         </div>
 
@@ -117,8 +116,8 @@ export function StudioWorkspacePanel({
           data-testid="studio-back-to-directory"
           onClick={onClose}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
-          aria-label={compact ? "收起工具" : "返回产物中心"}
-          title={compact ? "收起工具" : "返回产物中心"}
+          aria-label="返回工具列表"
+          title="返回工具列表"
         >
           <ArrowLeft className="pointer-events-none h-4 w-4" />
         </button>

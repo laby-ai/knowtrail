@@ -84,6 +84,17 @@
 .quiet-library-pane:hover .quiet-library-toggle, .quiet-library-toggle:focus-visible, .quiet-workbench-shell[data-library-collapsed="true"] .quiet-library-toggle { opacity: 1; }
 .quiet-library-toggle:hover { background: #eaf1fb; }
 .quiet-main-pane { container-type: inline-size; min-width: 0; flex: 1; overflow: hidden; }
+.quiet-tools-pane { flex: 0 0 clamp(280px, 23vw, 340px); min-width: 0; overflow: hidden; border-left: 1px solid var(--border-subtle); background: #fff; }
+.quiet-tools-pane [data-testid="studio-tool-switcher"] > button { min-height: 84px; padding: 12px 10px; background: #f8fafd; }
+.quiet-tools-pane [data-testid="studio-tool-switcher"] > button > span { align-items: flex-start; }
+.quiet-tools-pane [data-testid="studio-tool-switcher"] > button > span > span:last-child > span:first-child { font-size: 14px; line-height: 20px; }
+.quiet-tools-pane [data-testid="studio-tool-switcher"] > button > span > span:last-child > span:last-child { font-size: 11px; line-height: 16px; white-space: normal; }
+@container (max-width: 800px) {
+  .quiet-main-pane .quiet-message-assistant { margin-right: 0; }
+  .quiet-main-pane [data-testid="chat-scroll"] { padding: 24px 20px; }
+  .quiet-main-pane [data-testid^="chat-message-"] { gap: 12px; }
+  .quiet-main-pane .ai-bubble-gradient p, .quiet-main-pane .ai-bubble-gradient li { font-size: 17px; }
+}
 .quiet-tool-rail { flex: 0 0 106px; min-width: 0; overflow-y: auto; border-left: 1px solid var(--border-subtle); background: #fafcff; padding: 24px 8px; }
 .quiet-tool-list { display: flex; flex-direction: column; gap: 16px; }
 .quiet-tool-button { width: 100%; min-height: 88px; border: 0; border-radius: 8px; background: transparent; padding: 8px 2px; color: #40516a; }
@@ -181,9 +192,10 @@
   .quiet-mobile-tabs { display: flex; position: absolute; top: 0; left: 0; right: 0; height: 46px; border-bottom: 1px solid var(--border-subtle); background: #fff; }
   .quiet-mobile-tabs button { flex: 1; padding: 10px; font-size: 14px; color: #65758c; }
   .quiet-mobile-tabs button[aria-selected="true"] { color: #245dcb; border-bottom: 2px solid #2866d7; }
-  .quiet-library-pane, .quiet-main-pane, .quiet-tool-drawer, .quiet-tool-rail { display: none; height: 100%; width: 100%; border: 0; }
+  .quiet-library-pane, .quiet-main-pane, .quiet-tools-pane, .quiet-tool-drawer, .quiet-tool-rail { display: none; height: 100%; width: 100%; border: 0; }
   .quiet-workbench-shell[data-mobile-panel="left"] .quiet-library-pane { display: block; }
   .quiet-workbench-shell[data-mobile-panel="center"] .quiet-main-pane { display: block; }
+  .quiet-workbench-shell[data-mobile-panel="right"] .quiet-tools-pane { display: block; }
   .quiet-workbench-shell[data-mobile-panel="right"][data-tool-open="true"] .quiet-tool-drawer { display: block; position: static; box-shadow: none; }
   .quiet-workbench-shell[data-mobile-panel="right"][data-tool-open="false"] .quiet-tool-rail { display: block; padding: 20px; }
   .quiet-workbench-shell[data-library-collapsed="true"] .quiet-library-content { display: block; }

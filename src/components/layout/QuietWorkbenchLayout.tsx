@@ -6,14 +6,14 @@ import { useApp } from '@/contexts/AppContext';
 import type { ThreeColumnLayoutProps } from './ThreeColumnLayout';
 
 export function QuietWorkbenchLayout({
-  leftPanel, centerPanel, rightPanel, rightRail, rightOpen = false,
+  leftPanel, centerPanel, rightPanel, rightOpen = false,
   onCloseRight, rightFocusKey, initialMobilePanel = 'center',
   initialPreferences, onPreferencesChange,
 }: ThreeColumnLayoutProps) {
   const [leftCollapsed, setLeftCollapsed] = useState(initialPreferences?.leftPanelCollapsed ?? false);
   const [mobilePanel, setMobilePanel] = useState(initialMobilePanel);
   const drawerRef = useRef<HTMLElement>(null);
-  const railRef = useRef<HTMLElement>(null);
+  const previousTool = useRef(rightFocusKey);
   const wasOpen = useRef(false);
   const { revealPaperRequest } = useApp();
 
@@ -28,8 +28,9 @@ export function QuietWorkbenchLayout({
       setMobilePanel('right');
       drawerRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
     } else if (wasOpen.current) {
-      railRef.current?.querySelector<HTMLButtonElement>(`[data-testid="studio-nav-${rightFocusKey}"]`)?.focus();
+      drawerRef.current?.querySelector<HTMLButtonElement>(`[data-testid="studio-nav-${previousTool.current}"]`)?.focus();
     }
+    if (rightOpen) previousTool.current = rightFocusKey;
     wasOpen.current = rightOpen;
   }, [rightOpen, rightFocusKey]);
 
@@ -63,8 +64,7 @@ export function QuietWorkbenchLayout({
         <div className="quiet-library-content">{leftPanel}</div>
       </aside>
       <section className="quiet-main-pane" data-testid="workbench-center-panel" aria-label="文献问答">{centerPanel}</section>
-      <section ref={drawerRef} className="quiet-tool-drawer" data-testid="workbench-right-panel" aria-label="当前工具" hidden={!rightOpen}>{rightPanel}</section>
-      <nav ref={railRef} className="quiet-tool-rail" data-testid="workbench-right-rail" aria-label="科研工具">{rightRail}</nav>
+      <aside ref={drawerRef} className="quiet-tools-pane" data-testid="workbench-right-panel" aria-label="工作室">{rightPanel}</aside>
     </div>
   );
 }
