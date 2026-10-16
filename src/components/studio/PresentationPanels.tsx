@@ -1,6 +1,7 @@
 'use client';
 
 import { clientApiRequest } from '@/lib/client-api';
+import { exportImageDeck } from '@/lib/ppt/image-deck-export';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -305,31 +306,7 @@ function PresentationPanel() {
     if (slides.length === 0) return;
     setIsExporting(true);
     try {
-      const PptxGenJS = (await import('pptxgenjs')).default;
-      const pptx = new PptxGenJS();
-      pptx.layout = 'LAYOUT_16x9';
-
-      for (const slide of slides) {
-        const pptSlide = pptx.addSlide();
-        if (slide.imageUrl) {
-          pptSlide.addImage({
-            path: slide.imageUrl,
-            x: 0, y: 0, w: '100%', h: '100%',
-          });
-        } else {
-          pptSlide.background = { color: '1a1a2e' };
-          pptSlide.addText(slide.title, {
-            x: 0.8, y: 0.6, w: '80%', h: 1.2,
-            fontSize: 28, color: 'FFFFFF', bold: true,
-          });
-          pptSlide.addText(slide.content, {
-            x: 0.8, y: 2.0, w: '80%', h: 3.5,
-            fontSize: 14, color: 'CCCCCC', lineSpacing: 22,
-          });
-        }
-      }
-
-      await pptx.writeFile({ fileName: `${slides[0]?.title || 'presentation'}.pptx` });
+      await exportImageDeck(slides);
     } catch (err) {
       console.error('[PPT] Export error:', err);
       alert('导出失败：' + (err instanceof Error ? err.message : '未知错误'));
