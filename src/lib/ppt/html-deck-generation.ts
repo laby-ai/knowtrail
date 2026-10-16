@@ -1,5 +1,6 @@
 // Server-side helpers shared by the HTML deck generation and repair routes.
 import { llmInvoke } from '@/lib/ai-service';
+import { extractHtmlDocument } from '@/lib/ppt/html-slide-safety';
 import type { RuntimeAIConfig } from '@/types';
 import { HTML_SLIDE_HARD_CONTRACT } from '@/lib/ppt/html-deck-style';
 
@@ -18,19 +19,7 @@ export function langInstruction(language: string): string {
     : '所有幻灯片文案使用中文(专有名词、指标名可保留英文)。';
 }
 
-export function extractHtmlDocument(raw: string): string | null {
-  const fenced = raw.match(/```(?:html)?\s*([\s\S]*?)```/);
-  const candidate = fenced ? fenced[1] : raw;
-  const docMatch = candidate.match(/<!DOCTYPE html>[\s\S]*<\/html>/i) || candidate.match(/<html[\s\S]*<\/html>/i);
-  if (!docMatch) return null;
-  const html = docMatch[0];
-  // Reject anything that could execute script or reach the network.
-  if (/<script\b/i.test(html)) return null;
-  if (/\bon[a-z]+\s*=/i.test(html)) return null;
-  if (/@import|<link\b|<iframe\b|<object\b|<embed\b/i.test(html)) return null;
-  if (/url\(\s*['"]?https?:/i.test(html) || /src\s*=\s*['"]https?:/i.test(html)) return null;
-  return html;
-}
+export { extractHtmlDocument } from '@/lib/ppt/html-slide-safety';
 
 export interface SlideRevisionContext {
   currentHtml: string;
@@ -48,6 +37,7 @@ export async function generateSlideHtml(opts: {
   language: string;
   runtimeConfig?: Partial<RuntimeAIConfig>;
   revision?: SlideRevisionContext;
+  signal?: AbortSignal;
 }): Promise<string> {
   const { page, index, total, deckTitle, styleContract, evidence, language, runtimeConfig, revision } = opts;
 
@@ -91,7 +81,8 @@ ${langInstruction(language)}
         model: runtimeConfig?.model,
         temperature: attempt === 1 ? 0.5 : 0.7,
         maxTokens: Number(process.env.PPT_HTML_SLIDE_MAX_TOKENS || 4000),
-        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+        thinking: 'disabled',
+        signal: AbortSignal.any([...(opts.signal ? [opts.signal] : []), AbortSignal.timeout(LLM_TIMEOUT_MS)]),
       },
       undefined,
       runtimeConfig,
@@ -108,6 +99,7 @@ export async function generateDeckNarrations(
   deckTitle: string,
   language: string,
   runtimeConfig?: Partial<RuntimeAIConfig>,
+  signal?: AbortSignal,
 ): Promise<string[]> {
   const outlineText = pages
     .map((p, i) => `${i + 1}. ${p.title}: ${(p.points || []).join(' / ')}`)
@@ -119,7 +111,7 @@ ${outlineText}
 
 要求:
 - 输出 JSON 数组,恰好 ${pages.length} 个字符串,第 i 个是第 i 页的演讲稿。
-- 每页 80-150 字,口语自然,承上启下,直接可念。
+- 只解释有资料依据的要点，短资料配短讲稿，不设字数下限；不得补充缺失的背景、作者归因或科研结论。
 - 不要重复页面上已有的文字罗列,而是讲解、串联和强调。
 ${langInstruction(language)}
 只输出 JSON 数组。`;
@@ -131,17 +123,15 @@ ${langInstruction(language)}
         model: runtimeConfig?.model,
         temperature: 0.6,
         maxTokens: Number(process.env.PPT_NARRATION_MAX_TOKENS || 4000),
-        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+        thinking: 'disabled',
+        signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(LLM_TIMEOUT_MS)]),
       },
       undefined,
       runtimeConfig,
     );
-    const jsonMatch = raw.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return pages.map(() => '');
-    const parsed = JSON.parse(jsonMatch[0]) as unknown[];
-    return pages.map((_, i) => (typeof parsed[i] === 'string' ? (parsed[i] as string) : ''));
-  } catch (err) {
-    console.warn('[PPT-HTML] narration generation failed:', err instanceof Error ? err.message : err);
-    return pages.map(() => '');
-  }
+    const match = raw.match(/\[[\s\S]*\]/);
+    const parsed: unknown = match ? JSON.parse(match[0]) : null;
+    if (!Array.isArray(parsed) || parsed.length !== pages.length || !parsed.every((value: unknown) => typeof value === 'string' && value.trim())) throw new Error('演讲稿未完整生成，本次未保存，请重试。');
+    return parsed as string[];
+  } catch (error) { throw error instanceof Error ? error : new Error('演讲稿生成失败，本次未保存。'); }
 }

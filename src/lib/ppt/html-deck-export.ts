@@ -289,7 +289,7 @@ export async function measureSlideOverflow(html: string): Promise<SlideOverflowR
   }
 }
 
-export async function exportHtmlDeckToPptx(slides: HtmlDeckSlide[], fileName: string): Promise<void> {
+export async function exportHtmlDeckToPptx(slides: HtmlDeckSlide[], fileName: string, onFile?: (blob: Blob) => Promise<void>): Promise<void> {
   const PptxGenJS = (await import('pptxgenjs')).default;
   const pptx = new PptxGenJS();
   pptx.layout = 'LAYOUT_WIDE'; // 13.33in x 7.5in = 1280x720 @96dpi
@@ -320,7 +320,11 @@ export async function exportHtmlDeckToPptx(slides: HtmlDeckSlide[], fileName: st
     }
   }
 
-  await pptx.writeFile({ fileName: `${fileName.replace(/[\\/:*?"<>|]/g, '_')}.pptx` });
+  if (onFile) {
+    const blob = await pptx.write({ outputType: 'blob' });
+    if (!(blob instanceof Blob)) throw new Error('PPT文件导出异常，请重试。');
+    await onFile(blob);
+  } else await pptx.writeFile({ fileName: `${fileName.replace(/[\\/:*?"<>|]/g, '_')}.pptx` });
 }
 
 export function buildStandaloneDeckHtml(slides: HtmlDeckSlide[], deckTitle: string): string {

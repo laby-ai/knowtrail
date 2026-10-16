@@ -1,3 +1,5 @@
+import { cancelDeckRequest, prepareDeckGeneration, ownedDeckSources, finishDeckGeneration, deckRequestFailure, type DeckPersistenceInput } from '@/lib/ppt/deck-generation-storage';
+import type { ImageDeckDocument } from '@/lib/ppt/deck-document';
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
@@ -266,7 +268,7 @@ async function generateImage(prompt: string, options?: {
 // Types (aligned with banana-slides OutlinePage/OutlinePart)
 // ============================================================
 
-interface PPTRequest {
+interface PPTRequest extends DeckPersistenceInput {
   papers: RagSourceInput[];
   style?: string;              // preset style id (e.g. 'academic-formal')
   pageCount?: number;
@@ -317,6 +319,7 @@ async function genOutline(
   language: string = 'zh',
   pageCount: number = 8,
   runtimeConfig?: Partial<RuntimeAIConfig>,
+  signal?: AbortSignal,
 ): Promise<OutlineItem[]> {
   const langInstruction = language === 'en' ? 'Please output all in English.'
     : language === 'ja' ? 'すべて日本語で出力してください。'
@@ -370,7 +373,8 @@ ${langInstruction}`;
       model: runtimeConfig?.model || 'doubao-seed-2-0-pro-260215',
       temperature: 0.4,
       maxTokens: Number(process.env.PPT_OUTLINE_MAX_TOKENS || 900),
-      signal: AbortSignal.timeout(Number(process.env.PPT_LLM_TIMEOUT_MS || 180_000)),
+      thinking: 'disabled',
+      signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(Number(process.env.PPT_LLM_TIMEOUT_MS || 180_000))]),
     },
     undefined,
     runtimeConfig,
@@ -411,6 +415,7 @@ async function genDesc(
   detailLevel: string = 'default',
   language: string = 'zh',
   runtimeConfig?: Partial<RuntimeAIConfig>,
+  signal?: AbortSignal,
 ): Promise<string[]> {
   const pages = flattenOutline(outline);
 
@@ -474,7 +479,8 @@ ${langInstr}`;
         model: runtimeConfig?.model || 'doubao-seed-2-0-pro-260215',
         temperature: 0.5,
         maxTokens: Number(process.env.PPT_DESC_MAX_TOKENS || 1200),
-        signal: AbortSignal.timeout(Number(process.env.PPT_LLM_TIMEOUT_MS || 180_000)),
+        thinking: 'disabled',
+      signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(Number(process.env.PPT_LLM_TIMEOUT_MS || 180_000))]),
       },
       undefined,
       runtimeConfig,
@@ -622,6 +628,7 @@ async function genImagesParallel(
         return { idx: globalIdx, result: { imageBase64: base64Data } };
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
+        if (signal?.aborted) throw err;
         console.error(`[PPT] ✗ 第 ${globalIdx + 1} 页异常:`, err);
         completed++;
         onProgress?.(completed, prompts.length);
@@ -647,6 +654,7 @@ async function genNarrations(
   descriptions: { pageTitle: string; pageText: string; imageMaterial?: string }[],
   language: string = 'zh',
   runtimeConfig?: Partial<RuntimeAIConfig>,
+  signal?: AbortSignal,
 ): Promise<string[]> {
   const langInstruction = language === 'en'
     ? 'Write the narration in English.'
@@ -659,15 +667,9 @@ async function genNarrations(
 请为以下PPT的每一页生成一段**详尽、专业、可直接朗读**的演讲词，要求：
 
 ## 内容要求
-1. **每页300-500字**（不是200-350字），这是正式汇报的完整口述稿
-2. **不要照读幻灯片文字**——你的任务是"展开讲"，而不是"念标题"
-3. 对每个要点进行深度展开：
-   - 解释"为什么"：这个要点为什么重要？背景是什么？
-   - 解释"怎么做"：具体方法、数据来源、实验设计
-   - 解释"意味着什么"：结果的意义、与领域的关联
-4. 适当加入过渡语："接下来我们来看..."、"值得注意的是..."、"这与前面的发现形成了..."
-5. 如果该页有数据/图表，要引导听众关注关键数据点
-6. 开头要有吸引注意力的引入语，结尾要有承上启下的总结
+1. 只解释本页有依据的内容，资料简短时演讲词也要简短，不设字数下限。
+2. 保留数字、单位和限定条件；不得补充原文未提供的背景、作者归因、实验结果或意义。
+3. 没有资料依据时明确说明未提供，不凑字、不加泛泛的引入或总结。
 
 ## 语言风格
 - 口语化但保持学术严谨性（像TED演讲或Nature论文oral presentation）
@@ -695,57 +697,36 @@ ${pages.map((page, i) => {
       model: runtimeConfig?.model || 'doubao-seed-2-0-pro-260215',
       temperature: 0.7,
       maxTokens: Number(process.env.PPT_NARRATION_MAX_TOKENS || 1800),
-      signal: AbortSignal.timeout(Number(process.env.PPT_LLM_TIMEOUT_MS || 180_000)),
+      thinking: 'disabled',
+      signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(Number(process.env.PPT_LLM_TIMEOUT_MS || 180_000))]),
     }, undefined, runtimeConfig);
     console.log(`[PPT] 🎤 LLM返回演讲词原始长度: ${result.length}字符`);
 
-    // Parse JSON array from LLM response (robust extraction)
-    let jsonMatch = result.match(/\[[\s\S]*?\](?=\s*$)/);
-    if (!jsonMatch) jsonMatch = result.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      try {
-        const narrations: string[] = JSON.parse(jsonMatch[0]);
-        // Validate and log each narration length
-        narrations.forEach((n, i) => {
-          console.log(`[PPT] 🎤 第${i + 1}页演讲词: ${n.length}字`);
-        });
-        while (narrations.length < pages.length) narrations.push('');
-        return narrations.slice(0, pages.length);
-      } catch (parseErr) {
-        console.warn('[PPT] 🎤 JSON解析失败，尝试修复:', parseErr);
-      }
-    }
-
-    // Fallback: try to extract quoted strings
-    const quotedStrings = [...result.matchAll(/"([^"]{50,})"/g)].map(m => m[1]);
-    if (quotedStrings.length >= pages.length) {
-      console.log(`[PPT] 🎤 Fallback提取到${quotedStrings.length}段引用文本`);
-      return quotedStrings.slice(0, pages.length);
-    }
-
-    // Last fallback: split by numbered markers or double newline
-    const parts = result.split(/(?:第\d+页|---|\n{3,})/).filter(s => s.trim().length > 20);
-    console.log(`[PPT] 🎤 最终fallback分割得到${parts.length}段`);
-    return pages.map((_, i) => parts[i]?.trim() || '');
-  } catch (e) {
-    console.error('[PPT] 演讲词生成失败:', e);
-    return pages.map(() => '');
-  }
+    const match = result.match(/\[[\s\S]*\]/);
+    const narrations: unknown = match ? JSON.parse(match[0]) : null;
+    if (!Array.isArray(narrations) || narrations.length !== pages.length || !narrations.every((value: unknown) => typeof value === 'string' && value.trim())) throw new Error('演讲词未完整生成，本次未保存，请重试。');
+    return narrations as string[];
+  } catch (error) { throw error instanceof Error ? error : new Error('演讲词生成失败，本次未保存。'); }
 }
 
 // ============================================================
 // Main POST handler — SSE streaming progress (5 stages)
 // ============================================================
 export async function POST(request: NextRequest) {
+  try { return await generate(request); } catch (error) { return deckRequestFailure(error); }
+}
+
+async function generate(request: NextRequest) {
   const body: PPTRequest = await request.json();
   const {
-    papers, style, pageCount = 8, templateStyle,
+    style, pageCount = 8, templateStyle,
     detailLevel = 'default', language = 'zh',
     aspectRatio = '16:9',
     referenceImageIndex = null,
     aiConfig,
     debugRetrievalOnly,
   } = body;
+  let papers = body.papers;
   const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
@@ -763,6 +744,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
   }
 
+  const persistence = await prepareDeckGeneration(body, 'image-deck', scope);
+  if (persistence?.previous) {
+    return new Response(`data: ${JSON.stringify({ stage: 'done', status: 'done', ...persistence.previous.data.deck, document: persistence.previous })}\n\n`, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store' } });
+  }
+  try {
+  if (persistence) papers = await ownedDeckSources(papers, persistence.scope);
+  const fullEvidence = persistence ? papers.map(p => `标题：${p.title}\n${p.rawContent || ''}`).join('\n\n---\n\n') : '';
+  if (fullEvidence.length > 18000) throw new Error('所选资料过长，请缩小资料范围后生成，原文未截断。');
   const grounded = await buildGroundedRetrievalContext(
     '生成学术演示文稿大纲、每页核心论点、关键证据、图表线索和可引用结论',
     papers,
@@ -784,7 +773,7 @@ export async function POST(request: NextRequest) {
     return `论文标题：${p.title || p.fileName || p.id || '未命名资料'}\n作者：${authors || '未解析作者'}\n年份：${p.year || ''}`;
   }).join('\n\n---\n\n');
 
-  const evidencePapers = grounded.promptContext
+  const evidencePapers = !fullEvidence && grounded.promptContext
     ? [{
       title: 'Grounded Evidence Outline',
       authors: ['Lingbi Retrieval'],
@@ -795,7 +784,7 @@ export async function POST(request: NextRequest) {
     : papers;
 
   // Build idea prompt from grounded evidence first; request content is only the fallback.
-  const ideaPrompt = grounded.promptContext
+  const ideaPrompt = fullEvidence || (grounded.promptContext
     ? `${paperSummaries}\n\n【检索证据】\n${grounded.promptContext}`
     : papers.map(p => {
     const parts = [`论文标题：${p.title}`, `作者：${(p.authors || []).join(', ')}`, `年份：${p.year || ''}`];
@@ -803,7 +792,7 @@ export async function POST(request: NextRequest) {
     if (p.rawContent) parts.push(`原文内容：${p.rawContent.slice(0, 8000)}`);
     else if (p.content) parts.push(`内容分析：${p.content}`);
     return parts.join('\n');
-  }).join('\n\n---\n\n');
+  }).join('\n\n---\n\n'));
 
   // Get style description from preset or custom
   const styleDesc = getStyleDescription(style, templateStyle);
@@ -829,10 +818,14 @@ export async function POST(request: NextRequest) {
   console.log(`[PPT] ▶ 开始生成 | 风格:${style || 'default'} | 页数:${pageCount} | 细节:${detailLevel} | 语言:${language} | 比例:${aspectRatio} | 参考图:${referenceImageIndex ?? '无'}`);
 
   // SSE streaming
+  const cancellation = new AbortController();
+  const generationSignal = AbortSignal.any([request.signal, cancellation.signal, ...(persistence?.signal ? [persistence.signal] : [])]);
+  let closed = false;
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       const sendEvent = (data: object) => {
+        if (closed || generationSignal.aborted) return;
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
@@ -847,27 +840,10 @@ export async function POST(request: NextRequest) {
 
         // ── Stage 1: Generate Outline ──
         sendEvent({ stage: 'outline', status: 'generating', message: '正在生成 PPT 大纲...' });
-        const outline = await genOutline(ideaPrompt, language, pageCount, runtimeConfig);
-        let pages = flattenOutline(outline);
+        const outline = await genOutline(ideaPrompt, language, pageCount, runtimeConfig, generationSignal);
+        const pages = flattenOutline(outline);
 
-        // Force page count alignment: LLM may not obey exact count
-        if (pages.length > pageCount) {
-          // Truncate excess pages, keep the first pageCount
-          pages = pages.slice(0, pageCount);
-        } else if (pages.length < pageCount && pages.length > 0) {
-          // Supplement by duplicating the last page with variant titles
-          const lastPage = pages[pages.length - 1];
-          const supplementTitles = ['补充说明', '延伸讨论', '应用前景', '数据支撑', '案例分析', '技术细节', '方法论补充', '对比分析'];
-          while (pages.length < pageCount) {
-            const idx = pages.length - pages.length; // 0-based offset
-            pages.push({
-              title: supplementTitles[idx % supplementTitles.length],
-              points: ['待补充内容'],
-              part: lastPage.part,
-            });
-          }
-        }
-
+        if (pages.length !== pageCount) throw new Error(`大纲页数不完整（${pages.length}/${pageCount}），本次未保存。`);
         sendEvent({
           stage: 'outline', status: 'done',
           message: `大纲生成完成，共 ${pages.length} 页`,
@@ -877,7 +853,7 @@ export async function POST(request: NextRequest) {
 
         // ── Stage 2: Generate Descriptions (PARALLEL) ──
         sendEvent({ stage: 'description', status: 'generating', message: '正在并行生成每页内容描述...' });
-        const descResults = await genDesc(ideaPrompt, outline, evidencePapers, detailLevel, language, runtimeConfig);
+        const descResults = await genDesc(ideaPrompt, outline, evidencePapers, detailLevel, language, runtimeConfig, generationSignal);
         const descriptions = descResults.map(d => parseDesc(d));
         sendEvent({ stage: 'description', status: 'done', message: `每页描述生成完成 (${descResults.reduce((s, d) => s + d.length, 0)} 字)` });
 
@@ -888,7 +864,7 @@ export async function POST(request: NextRequest) {
         sendEvent({ stage: 'image', status: 'generating', message: '正在生成幻灯片图片...', imageTotal: prompts.length });
         const imageResults = await genImagesParallel(prompts, (completed, total) => {
           sendEvent({ stage: 'image', status: 'progress', message: `图片生成中... ${completed}/${total}`, imageCompleted: completed, imageTotal: total });
-        }, aspectRatio, refImageBase64, runtimeConfig, request.signal);
+        }, aspectRatio, refImageBase64, runtimeConfig, generationSignal);
         const imageUrls = imageResults.map(result => result.imageBase64);
 
         const successCount = imageUrls.filter(u => u !== null).length;
@@ -903,7 +879,7 @@ export async function POST(request: NextRequest) {
 
         // ── Stage 5: Generate Narrations (演讲词) ──
         sendEvent({ stage: 'narration', status: 'generating', message: '正在生成每页演讲词...' });
-        const narrations = await genNarrations(pages, descriptions, language, runtimeConfig);
+        const narrations = await genNarrations(pages, descriptions, language, runtimeConfig, generationSignal);
         sendEvent({ stage: 'narration', status: 'done', message: '演讲词生成完成' });
 
         // ── Build final slides (base64 → data URI + narration) ──
@@ -915,29 +891,43 @@ export async function POST(request: NextRequest) {
           part: page.part,
         }));
 
+        const deckData: ImageDeckDocument = { runId: body.runId || null, deck: {
+          deckTitle: papers[0]?.title || '资料简报',
+          slides: slides.map((slide, i) => ({ ...slide, id: `${body.runId || 'slide'}-${i}`, order: i, citations: grounded.citations })),
+          activeIndex: 0, history: {}, style: style || 'academic', detailLevel, language, aspectRatio,
+          citations: grounded.citations, retrieval: toRetrievalMetadata(grounded),
+        } };
+        const saved = await finishDeckGeneration(body, 'image-deck', persistence?.scope, deckData, generationSignal);
         sendEvent({
           stage: 'done',
           status: 'done',
           message: 'PPT 生成完成！',
-          slides,
+          ...saved,
+          slides: saved.document?.data.deck?.slides || slides,
           citations: grounded.citations,
           retrieval: toRetrievalMetadata(grounded),
         });
-        controller.close();
+        if (!closed) { closed = true; controller.close(); }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'PPT 生成失败';
+        if (generationSignal.aborted) return;
         console.error('[PPT] Generation error:', message);
         sendEvent({ stage: 'error', status: 'error', message });
-        controller.close();
+        if (!closed) { closed = true; controller.close(); }
       }
+      finally { persistence?.release(); if (!closed) { closed = true; controller.close(); } }
     },
+    cancel() { closed = true; cancellation.abort(); },
   });
 
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'private, no-store',
       'Connection': 'keep-alive',
     },
   });
+  } catch (error) { persistence?.release(); throw error; }
 }
+
+export async function DELETE(request: NextRequest) { return cancelDeckRequest(request, 'image-deck'); }

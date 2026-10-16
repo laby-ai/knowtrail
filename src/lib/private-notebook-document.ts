@@ -21,6 +21,8 @@ export class NotebookDocumentConflict extends Error {
 const writes = new Map<string, Promise<unknown>>();
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
 
+export { directory as notebookDocumentDirectory };
+
 function directory(scope: PrivateNotebookScope, name: string): string {
   if (!scope.ownerMemberId.trim() || normalizeNotebookId(scope.notebookId) !== scope.notebookId || !/^[a-z][a-z-]{0,63}$/.test(name)) {
     throw new Error('请先登录并打开文献本。');

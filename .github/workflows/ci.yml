@@ -49,6 +49,9 @@ jobs:
       - name: Learning materials recovery contract
         run: pnpm exec tsx scripts/test-learning-materials-recovery.ts
 
+      - name: Image and HTML PPT recovery contract
+        run: pnpm exec tsx scripts/test-ppt-deck-recovery.ts
+
       - name: Deep research contracts
         run: pnpm run test:deep-research-contract
 

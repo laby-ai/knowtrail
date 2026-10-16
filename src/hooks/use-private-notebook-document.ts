@@ -105,7 +105,7 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
           const saved = await write(next, controller.signal);
           if (!active.current || controller.signal.aborted) return false;
           revision.current = saved.revision;
-          if (pending.current === next) clearPending();
+          if (pending.current === next) { remember(saved.data); clearPending(); }
           else if (pending.current) cachePending({ data: pending.current.data, expectedRevision: saved.revision });
         }
         setError(null);
@@ -128,7 +128,7 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
     })();
     task.current = running;
     return running;
-  }, [cachePending, clearPending, guest, write]);
+  }, [cachePending, clearPending, guest, remember, write]);
 
   useEffect(() => {
     active.current = true;
