@@ -1,5 +1,7 @@
 'use client';
 
+import type { ResearchComposerRenderer } from '@/components/editor/ResearchComposer';
+
 import { clientApiRequest } from '@/lib/client-api';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -50,7 +52,7 @@ function toPaperRequest(paper: Paper) {
   };
 }
 
-export function DeepResearchPanel() {
+export function DeepResearchPanel({ renderComposer }: { renderComposer?: ResearchComposerRenderer }) {
   const { getSelectedPapers, storageScopeKey } = useApp();
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
@@ -235,6 +237,7 @@ export function DeepResearchPanel() {
 
   return (
     <div className="space-y-4" data-testid="deep-research-panel">
+      {!renderComposer && <>
       <div>
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
           <FileSearch className="h-4 w-4 text-blue-500" />
@@ -251,6 +254,7 @@ export function DeepResearchPanel() {
           : `已选择 ${selectedPapers.length} 个来源：${sourceSummary}${selectedPapers.length > 3 ? ' 等' : ''}`}
       </div>
 
+      </>}
       {savedReport.loading && <p className="text-xs text-[var(--text-secondary)]" data-testid="research-report-restoring">正在读取报告…</p>}
       {savedReport.saving && <p className="text-xs text-[var(--text-secondary)]">正在保存…</p>}
       {(savedReport.error || (savedReport.unsaved && status !== 'running' && error)) && (
@@ -262,6 +266,7 @@ export function DeepResearchPanel() {
         </div>
       )}
 
+      {!renderComposer && <>
       <label className="block">
         <span className="text-[11px] font-medium text-[var(--text-secondary)]">研究问题</span>
         <textarea
@@ -286,6 +291,14 @@ export function DeepResearchPanel() {
         开始深度研究
       </button>
 
+      </>}
+      {renderComposer?.({
+        label: '深度研究', value: question, onChange: setQuestion, onSubmit: () => void runResearch(), onStop: stopResearch,
+        busy: status === 'running', disabled: savedReport.loading || savedReport.readFailed || savedReport.conflict,
+        canSubmit: !missingEvidence && Boolean(question.trim()) && status !== 'running' && !savedReport.loading && !savedReport.readFailed && !savedReport.conflict && !savedReport.error && !(savedReport.unsaved && Boolean(error)), maxLength: 1200,
+        placeholder: '输入研究问题、范围和重点…',
+        hint: missingEvidence ? '请先选择资料。' : undefined,
+      })}
       {status === 'running' && (
         <StudioJobProgress
           title="深度研究进行中"

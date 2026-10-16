@@ -1,5 +1,7 @@
 'use client';
 
+import type { ResearchComposerRenderer } from '@/components/editor/ResearchComposer';
+
 import { clientApiPath, clientApiRequest } from '@/lib/client-api';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -47,7 +49,7 @@ function toPaperRequest(paper: Paper) {
   };
 }
 
-export function HypothesisGenerationPanel() {
+export function HypothesisGenerationPanel({ renderComposer }: { renderComposer?: ResearchComposerRenderer }) {
   const { getSelectedPapers, storageScopeKey } = useApp();
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
@@ -188,6 +190,7 @@ export function HypothesisGenerationPanel() {
   return (
     <div className="space-y-4" data-testid="hypothesis-generation-panel">
       <SavedToolStatus saved={saved} guest={storageScopeKey.startsWith('guest:')} />
+      {!renderComposer && <>
       <div>
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
           <Lightbulb className="h-4 w-4 text-amber-500" />
@@ -228,6 +231,14 @@ export function HypothesisGenerationPanel() {
         生成研究假设
       </button>
 
+      </>}
+      {renderComposer?.({
+        label: '假设生成', value: question, onChange: setQuestion, onSubmit: () => void runGeneration(), onStop: stopGeneration,
+        busy: status === 'running', disabled: saved.loading || saved.readFailed || saved.conflict,
+        canSubmit: !missingEvidence && Boolean(question.trim()) && status !== 'running' && !saved.loading && !saved.readFailed && !saved.conflict, maxLength: 1200,
+        placeholder: '输入要解释或验证的研究问题…',
+        hint: missingEvidence ? '请先选择资料。' : undefined,
+      })}
       {status === 'running' && (
         <StudioJobProgress
           title="假设生成进行中"
