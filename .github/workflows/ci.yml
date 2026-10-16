@@ -55,6 +55,9 @@ jobs:
       - name: Research report recovery contract
         run: pnpm exec tsx scripts/test-research-report-recovery.ts
 
+      - name: Knowledge map recovery contract
+        run: pnpm exec tsx scripts/test-knowledge-map-recovery.ts
+
       - name: Hypothesis generation contracts
         run: pnpm run test:hypothesis-generation-contract
 

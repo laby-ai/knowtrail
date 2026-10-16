@@ -14,7 +14,9 @@ export interface KnowledgeMapCacheHit extends KnowledgeMapResponse {
 }
 
 const CACHE_VERSION = 2;
-const CACHE_DIR = path.join(process.cwd(), '.data', 'knowledge-map');
+const CACHE_DIR = process.env.STUDIO_DOCUMENT_STORE_DIR?.trim()
+  ? path.join(process.env.STUDIO_DOCUMENT_STORE_DIR.trim(), '_cache', 'knowledge-map')
+  : path.join(process.cwd(), '.data', 'knowledge-map');
 
 function stablePaperSignature(paper: RagSourceInput) {
   const content = paper.rawContent || paper.content || '';
