@@ -256,6 +256,8 @@ export interface RuntimeAIConfig {
   visionModel: string;
   embeddingModel: string;
   ttsSpeaker: string;
+  providerId?: string;
+  workspaceId?: string;
 }
 
 export interface StudioPromptRequest {
