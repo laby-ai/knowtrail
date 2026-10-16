@@ -1,3 +1,4 @@
+import { parseDeckNarrations } from '@/lib/ppt/deck-json';
 // Server-side helpers shared by the HTML deck generation and repair routes.
 import { llmInvoke } from '@/lib/ai-service';
 import { extractHtmlDocument } from '@/lib/ppt/html-slide-safety';
@@ -110,11 +111,11 @@ export async function generateDeckNarrations(
 ${outlineText}
 
 要求:
-- 输出 JSON 数组,恰好 ${pages.length} 个字符串,第 i 个是第 i 页的演讲稿。
+- 输出 JSON 对象 {"narrations":[...]},数组恰好 ${pages.length} 个字符串,第 i 个是第 i 页的演讲稿。
 - 只解释有资料依据的要点，短资料配短讲稿，不设字数下限；不得补充缺失的背景、作者归因或科研结论。
 - 不要重复页面上已有的文字罗列,而是讲解、串联和强调。
 ${langInstruction(language)}
-只输出 JSON 数组。`;
+只输出上述 JSON 对象。`;
 
   try {
     const raw = await llmInvoke(
@@ -122,16 +123,14 @@ ${langInstruction(language)}
       {
         model: runtimeConfig?.model,
         temperature: 0.6,
-        maxTokens: Number(process.env.PPT_NARRATION_MAX_TOKENS || 4000),
+        maxTokens: Math.min(8000, Math.max(Number(process.env.PPT_NARRATION_MAX_TOKENS || 0), pages.length * 250 + 800)),
+        jsonMode: true,
         thinking: 'disabled',
         signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(LLM_TIMEOUT_MS)]),
       },
       undefined,
       runtimeConfig,
     );
-    const match = raw.match(/\[[\s\S]*\]/);
-    const parsed: unknown = match ? JSON.parse(match[0]) : null;
-    if (!Array.isArray(parsed) || parsed.length !== pages.length || !parsed.every((value: unknown) => typeof value === 'string' && value.trim())) throw new Error('演讲稿未完整生成，本次未保存，请重试。');
-    return parsed as string[];
+    return parseDeckNarrations(raw, pages.length);
   } catch (error) { throw error instanceof Error ? error : new Error('演讲稿生成失败，本次未保存。'); }
 }

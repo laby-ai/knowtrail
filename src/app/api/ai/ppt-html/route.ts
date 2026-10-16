@@ -1,3 +1,4 @@
+import { parseDeckOutline } from '@/lib/ppt/deck-json';
 import { cancelDeckRequest, prepareDeckGeneration, ownedDeckSources, finishDeckGeneration, deckRequestFailure, type DeckPersistenceInput } from '@/lib/ppt/deck-generation-storage';
 import type { HtmlDeckDocument } from '@/lib/ppt/deck-document';
 import { NextRequest, NextResponse } from 'next/server';
@@ -52,7 +53,7 @@ async function genOutline(
 ): Promise<DeckOutlinePage[]> {
   const prompt = `你是一位顶级演示文稿策划。基于给定资料,为一份「${styleLabel}」风格的演示文稿规划大纲。
 
-输出 JSON 数组,恰好 ${pageCount} 个元素,每个元素:
+输出一个 JSON 对象 {"pages":[...]},其中 pages 数组恰好 ${pageCount} 个元素,每个元素:
 {"title": "该页标题(有观点的完整短句优先)", "points": ["该页要呈现的要点/数据,2-4条,必须来自资料"], "layoutHint": "该页版式提示,从这些里选一个: cover | section | keynumber | comparison | grid | chart | quote | closing"}
 
 规划规则:
@@ -66,14 +67,15 @@ ${langInstruction(language)}
 资料:
 ${ideaPrompt}
 
-只输出 JSON 数组,不要其他文字。`;
+只输出上述 JSON 对象,不要其他文字。`;
 
   const result = await llmInvoke(
     [{ role: 'user', content: prompt }],
     {
       model: runtimeConfig?.model,
       temperature: 0.4,
-      maxTokens: Number(process.env.PPT_OUTLINE_MAX_TOKENS || 1600),
+      maxTokens: Math.min(6000, Math.max(Number(process.env.PPT_OUTLINE_MAX_TOKENS || 0), 1600 + pageCount * 200)),
+      jsonMode: true,
       thinking: 'disabled',
       signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(LLM_TIMEOUT_MS)]),
     },
@@ -81,11 +83,7 @@ ${ideaPrompt}
     runtimeConfig,
   );
 
-  const jsonMatch = result.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) throw new Error('大纲生成失败:无法解析 JSON');
-  const pages = JSON.parse(jsonMatch[0]) as DeckOutlinePage[];
-  if (!Array.isArray(pages) || pages.length === 0) throw new Error('大纲生成失败:结果为空');
-  return pages.slice(0, pageCount);
+  return parseDeckOutline(result, pageCount);
 }
 
 async function genSlidesParallel(

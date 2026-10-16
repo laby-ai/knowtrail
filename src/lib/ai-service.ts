@@ -19,6 +19,7 @@ type RuntimeLLMOptions = {
   model?: string;
   temperature?: number;
   thinking?: 'enabled' | 'disabled';
+  jsonMode?: boolean;
   vision?: boolean;
   auxiliary?: boolean;
   maxTokens?: number;
@@ -119,6 +120,7 @@ async function* openAICompatStream(
       temperature: options?.temperature ?? 0.7,
       ...maxTokensPayload,
       ...thinkingPayload,
+      ...(options?.jsonMode ? { response_format: { type: 'json_object' } } : {}),
       stream: true,
     }),
   }, { label: 'openai-compatible chat' });

@@ -1,3 +1,4 @@
+import { parseDeckOutline, parseDeckNarrations } from '@/lib/ppt/deck-json';
 import { cancelDeckRequest, prepareDeckGeneration, ownedDeckSources, finishDeckGeneration, deckRequestFailure, type DeckPersistenceInput } from '@/lib/ppt/deck-generation-storage';
 import type { ImageDeckDocument } from '@/lib/ppt/deck-document';
 import { NextRequest, NextResponse } from 'next/server';
@@ -326,53 +327,22 @@ async function genOutline(
     : language === 'auto' ? ''
     : '请使用全中文输出。';
 
-  const outlinePrompt = `You are a helpful assistant that generates an outline for a presentation.
-
-You can organize the content in two ways:
-
-1. Simple format (for short presentations without major sections):
-[{"title": "title1", "points": ["point1", "point2"]}, {"title": "title2", "points": ["point1", "point2"]}]
-
-2. Part-based format (for longer presentations with major sections):
-[
-  {
-    "part": "Part 1: Introduction",
-    "pages": [
-      {"title": "Welcome", "points": ["point1", "point2"]},
-      {"title": "Overview", "points": ["point1", "point2"]}
-    ]
-  },
-  {
-    "part": "Part 2: Main Content",
-    "pages": [
-      {"title": "Topic 1", "points": ["point1", "point2"]},
-      {"title": "Topic 2", "points": ["point1", "point2"]}
-    ]
-  }
-]
-
-Choose the format that best fits the content. Use parts when the presentation has clear major sections.
-Unless otherwise specified, the first page should be kept simplest, containing only the title, subtitle, and presenter information.
-
-The user's request: ${ideaPrompt}
-
-!! CRITICAL PAGE COUNT RULE !!
-The user requested EXACTLY ${pageCount} pages/slides in the outline.
-- You MUST generate EXACTLY ${pageCount} page entries in total across all parts.
-- Count every page object carefully before outputting.
-- If you have too few pages, add more detail pages. If you have too many, merge or remove pages.
-- DO NOT generate more or fewer than ${pageCount} pages. This is a hard requirement.
-- After writing, verify: total page count = ${pageCount}. If not, adjust immediately.
-
-Now generate the outline with EXACTLY ${pageCount} pages. Output ONLY the JSON array, no other text.
-${langInstruction}`;
+  const outlinePrompt = `Plan EXACTLY ${pageCount} pages/slides from the evidence below.
+Return one JSON object: {"pages":[{"title":"page title","points":["source-backed point"],"part":"optional section"}]}.
+The pages array must contain EXACTLY ${pageCount} pages. Use short titles and 1-4 concise points per page.
+Preserve numbers, units and limitations. Do not invent authors, results, background or a generic product closing.
+${langInstruction}
+Evidence:
+${ideaPrompt}
+Output ONLY the JSON object.`;
 
   const result = await llmInvoke(
     [{ role: 'user', content: outlinePrompt }],
     {
       model: runtimeConfig?.model || 'doubao-seed-2-0-pro-260215',
       temperature: 0.4,
-      maxTokens: Number(process.env.PPT_OUTLINE_MAX_TOKENS || 900),
+      maxTokens: Math.min(6000, Math.max(Number(process.env.PPT_OUTLINE_MAX_TOKENS || 0), 1600 + pageCount * 200)),
+      jsonMode: true,
       thinking: 'disabled',
       signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(Number(process.env.PPT_LLM_TIMEOUT_MS || 180_000))]),
     },
@@ -380,9 +350,7 @@ ${langInstruction}`;
     runtimeConfig,
   );
 
-  const jsonMatch = result.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) throw new Error('大纲生成失败：无法解析 JSON');
-  return JSON.parse(jsonMatch[0]);
+  return parseDeckOutline(result, pageCount);
 }
 
 // ============================================================
@@ -678,8 +646,8 @@ async function genNarrations(
 - ${langInstruction}
 
 ## 输出格式
-严格按以下JSON数组格式输出，不要有任何其他文字（包括markdown标记）：
-["第1页演讲词内容", "第2页演讲词内容", ...]
+严格按以下JSON对象格式输出，不要有任何其他文字（包括markdown标记）：
+{"narrations":["第1页演讲词内容", "第2页演讲词内容", ...]}
 
 ## PPT内容
 
@@ -696,16 +664,14 @@ ${pages.map((page, i) => {
     const result = await llmInvoke([{ role: 'user', content: prompt }], {
       model: runtimeConfig?.model || 'doubao-seed-2-0-pro-260215',
       temperature: 0.7,
-      maxTokens: Number(process.env.PPT_NARRATION_MAX_TOKENS || 1800),
+      maxTokens: Math.min(8000, Math.max(Number(process.env.PPT_NARRATION_MAX_TOKENS || 0), pages.length * 250 + 800)),
+      jsonMode: true,
       thinking: 'disabled',
       signal: AbortSignal.any([...(signal ? [signal] : []), AbortSignal.timeout(Number(process.env.PPT_LLM_TIMEOUT_MS || 180_000))]),
     }, undefined, runtimeConfig);
     console.log(`[PPT] 🎤 LLM返回演讲词原始长度: ${result.length}字符`);
 
-    const match = result.match(/\[[\s\S]*\]/);
-    const narrations: unknown = match ? JSON.parse(match[0]) : null;
-    if (!Array.isArray(narrations) || narrations.length !== pages.length || !narrations.every((value: unknown) => typeof value === 'string' && value.trim())) throw new Error('演讲词未完整生成，本次未保存，请重试。');
-    return narrations as string[];
+    return parseDeckNarrations(result, pages.length);
   } catch (error) { throw error instanceof Error ? error : new Error('演讲词生成失败，本次未保存。'); }
 }
 

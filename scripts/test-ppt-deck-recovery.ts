@@ -8,6 +8,7 @@ import { NotebookDocumentConflict, readNotebookDocument } from '../src/lib/priva
 import { cancelDeckGeneration, prepareDeckGeneration } from '../src/lib/ppt/deck-generation-storage';
 import { extractHtmlDocument } from '../src/lib/ppt/html-slide-safety';
 import { readDeckExport, saveDeckExport } from '../src/lib/ppt/deck-export-store';
+import { parseDeckOutline, parseDeckNarrations } from '../src/lib/ppt/deck-json';
 
 async function main() {
   const root = await mkdtemp(path.join(os.tmpdir(), 'knowtrail-ppt-deck-'));
@@ -20,6 +21,12 @@ async function main() {
   const data: ImageDeckDocument = { runId, deck: { deckTitle: '模拟记录', activeIndex: 0, history: {}, style: 'academic', detailLevel: 'default', language: 'zh', aspectRatio: '16:9', citations: [], retrieval: null,
     slides: [{ id: 'one', order: 0, title: '12条剔除2条保留10条', content: '导入→检查时间戳→剔除缺失→人工核对', narration: '仅用于软件验收。', imageUrl: 'data:image/png;base64,' + png, citations: [] }] } };
   try {
+    const quoted = { title: '包含"引号"的原文标题', points: ['12条剔除2条后保留10条'] };
+    assert.deepEqual(parseDeckOutline(JSON.stringify({ pages: [quoted] }), 1), [quoted]);
+    assert.deepEqual(parseDeckNarrations('{"narrations":["仅用于模拟验收。"]}', 1), ['仅用于模拟验收。']);
+    assert.throws(() => parseDeckOutline('{"pages":[{"title":"未转义"引号","points":[]}]}', 1), /大纲格式不完整/);
+    assert.throws(() => parseDeckOutline('{"pages":[]}', 4), /大纲格式不完整/);
+    assert.throws(() => parseDeckNarrations('{"narrations":[""]}', 1), /演讲稿未完整/);
     assert(isImageDeckDocument(data));
     const saved = await savePptDeckDocument(a, 'image-deck', data, null);
     assert(isImageDeckDocument(saved.data));

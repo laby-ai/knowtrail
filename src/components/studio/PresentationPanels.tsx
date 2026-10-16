@@ -438,11 +438,7 @@ function PresentationPanel() {
                 {generationError}
                 <button type="button" className="mt-2 block underline" onClick={() => { setGenerationError(null); savedDeck.reload(); }}>{savedDeck.unsaved ? '读取已保存内容（将替换当前草稿）' : '读取已保存简报'}</button>
               </p>
-              <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">
-                {/图片服务暂时繁忙|HTTP\s*429|rate.?limit/i.test(generationError)
-                  ? '图片服务当前较忙，请稍后重试。'
-                  : '文本模型已进入生成流程，但账号绑定的图片模型暂时不可用。请稍后重试或联系服务方检查模型配置。'}
-              </p>
+              {/图片服务暂时繁忙|HTTP\s*429|rate.?limit/i.test(generationError) && <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">图片服务当前较忙，请稍后重试。</p>}
             </div>
           </div>
           <button
