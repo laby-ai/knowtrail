@@ -52,6 +52,9 @@ jobs:
       - name: Deep research contracts
         run: pnpm run test:deep-research-contract
 
+      - name: Research report recovery contract
+        run: pnpm exec tsx scripts/test-research-report-recovery.ts
+
       - name: Hypothesis generation contracts
         run: pnpm run test:hypothesis-generation-contract
 

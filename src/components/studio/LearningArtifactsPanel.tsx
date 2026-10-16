@@ -185,8 +185,9 @@ export function LearningArtifactsPanel({ mode }: { mode: LearningArtifactsMode }
       {materials.error && (
         <div className="space-y-2 rounded-xl border border-rose-400/25 p-3 text-xs text-rose-700" data-testid="learning-artifacts-save-error">
           <p>{materials.error}</p>
+          {materials.conflict && <p>当前进度尚未保存；读取已保存内容会替换当前进度。</p>}
           {cards.length > 0 && !materials.conflict && <button type="button" onClick={materials.retry}>重试保存</button>}
-          <button type="button" onClick={materials.reload} className="ml-3">读取已保存内容</button>
+          <button type="button" onClick={materials.readFailed && !materials.conflict ? materials.retryRead : materials.reload} className="ml-3">{materials.readFailed && !materials.conflict ? '重试读取' : '读取已保存内容'}</button>
         </div>
       )}
 

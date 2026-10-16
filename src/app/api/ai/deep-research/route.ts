@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { prepareResearchReportPersistence, type ReportPersistenceRequest } from '@/lib/research-report-persistence';
 import { llmStream, SYSTEM_PROMPTS } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
@@ -19,7 +20,7 @@ import type { RagSourceInput } from '@/lib/rag';
 import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
-type DeepResearchRequest = {
+type DeepResearchRequest = ReportPersistenceRequest & {
   question?: string;
   papers?: RagSourceInput[];
   notebookId?: string;
@@ -60,6 +61,8 @@ export async function POST(request: NextRequest) {
     loginMessage: '请先登录账号，再进行深度研究。',
   });
   if (!scope.ok) return scope.response;
+  const persistence = await prepareResearchReportPersistence(scope, input, question);
+  if ('response' in persistence) return persistence.response;
 
   const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
   const retrievalQuery = `深度研究问题：${question}\n请检索与研究边界、主要结论、争议和待核验问题有关的证据。`;
@@ -230,7 +233,7 @@ export async function POST(request: NextRequest) {
         }
 
         const billing = await reservationFinalizer.settle(answerText);
-        emit({
+        const completion = {
           citationAudit,
           researchStatus: {
             answerStatus,
@@ -243,19 +246,23 @@ export async function POST(request: NextRequest) {
             ],
           },
           billing,
-        });
+        };
+        const document = await persistence.save?.({ answer: answerText, citations: grounded.citations, retrieval, citationAudit, researchStatus: completion.researchStatus, status: answerStatus === 'complete' ? 'complete' : 'incomplete' });
+        emit({ ...completion, document });
         taskObservation.succeeded();
         emit('[DONE]');
     },
     async onError(error, { emit, signal }) {
         await reservationFinalizer.finalizeFailure(answerText);
         const aborted = signal.aborted;
+        const recovery = await persistence.interrupted?.(answerText, grounded.citations, retrieval, error);
         if (aborted) taskObservation.cancelled('deep_research_interrupted');
         else taskObservation.failed('deep_research_failed', error);
         emit({
-          error: aborted
+          ...recovery,
+          error: recovery?.saveError || (aborted
             ? '深度研究已停止或超过等待时间；已返回的证据和正文片段仍可保留核验。'
-            : error instanceof Error ? error.message : '深度研究生成失败。',
+            : error instanceof Error ? error.message : '深度研究生成失败。'),
           errorType: aborted ? 'deep_research_interrupted' : 'deep_research_failed',
           researchStatus: {
             answerStatus: answerText ? 'incomplete' : 'no-evidence',
