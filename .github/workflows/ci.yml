@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     name: Typecheck and lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -167,6 +167,7 @@ jobs:
           NEXT_PUBLIC_DOMAIN: localhost:5000
           NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN: /classroom-runtime
         run: |
+          python scripts/package-ci-runtime.py --prepare
           pnpm exec next build
           pnpm exec tsup src/server.ts --format cjs --platform node --target node20 --outDir dist --no-splitting --no-minify
           python scripts/package-ci-runtime.py ci-runtime

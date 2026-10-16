@@ -106,6 +106,13 @@ class ImportRuntime(unittest.TestCase):
                                  '.next/cache/test.bin', '.next/server/test.js.map'})
         with tarfile.open(str(output) + '.tar.gz') as archive:
             self.assertTrue(all(e.isfile() for e in archive))
+        undeployed = self.base / next(iter(packager.EXCLUDED_SOURCES))
+        undeployed.parent.mkdir(parents=True, exist_ok=True)
+        undeployed.write_text('dedicated-unreleased-fixture')
+        with patch.object(packager.subprocess, 'check_output', side_effect=git_only):
+            with self.assertRaisesRegex(ValueError, 'production source profile'):
+                packager.package(self.base, self.base.parent / 'refused-artifact')
+        self.assertFalse((self.base.parent / 'refused-artifact.tar.gz').exists())
 
     @unittest.skipUnless(sys.platform == 'linux', 'Native filesystem import is verified on Linux CI')
     def test_materialize_hardlinks_but_keep_runtime_html_private(self):
