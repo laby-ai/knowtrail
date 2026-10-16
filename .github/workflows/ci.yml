@@ -48,7 +48,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Research agent card persistence
-        run: pnpm exec tsx scripts/test-research-agent-contract.ts
+        run: |
+          pnpm exec tsx scripts/test-research-agent-contract.ts
+          pnpm exec tsx scripts/test-research-agent-report.ts
 
       - name: Paper search contracts
         run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects

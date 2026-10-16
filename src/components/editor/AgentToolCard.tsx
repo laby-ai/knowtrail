@@ -12,6 +12,7 @@ import { clientApiRequest } from '@/lib/client-api';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { PresentationSkillCard } from './PresentationSkillCard';
+import { ReportSkillCard } from './ReportSkillCard';
 
 const TABS: Record<ResearchPluginId, StudioTab> = {
   'paper-search': 'paper-search', 'deep-research': 'deep-research',
@@ -34,7 +35,8 @@ export function AgentToolCard({ call, messageId }: { call: ResearchToolCall; mes
       {call.status === 'failed' && <p role="alert">{call.error || '本次调用未完成，请重新发送。'}</p>}
       {call.status === 'ready' && call.results && <PaperResults call={call} />}
       {call.status === 'ready' && call.presentation && <PresentationSkillCard plan={call.presentation} messageId={messageId} callId={call.id} />}
-      {call.status === 'ready' && !call.results && !call.presentation && <>
+      {call.status === 'ready' && call.report && <ReportSkillCard reference={call.report} />}
+      {call.status === 'ready' && !call.results && !call.presentation && !call.report && <>
         <button type="button" className="agent-plugin-open" onClick={() => setOpen(value => !value)} aria-expanded={open}>
           {open ? '收起' : `打开${RESEARCH_PLUGINS[call.plugin]}`}<ChevronDown size={16} />
         </button>

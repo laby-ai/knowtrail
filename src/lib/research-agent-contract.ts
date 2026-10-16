@@ -10,6 +10,24 @@ export const RESEARCH_PLUGINS = {
   report: '报告', 'knowledge-cards': '学习卡', quiz: '测验',
 } as const;
 export type ResearchPluginId = keyof typeof RESEARCH_PLUGINS;
+export interface ResearchReportReference {
+  sourceIds: string[];
+  question: string;
+  revision: string;
+  runId: string;
+  status: 'complete' | 'incomplete';
+}
+export function isResearchReportReference(value: unknown): value is ResearchReportReference {
+  if (!value || typeof value !== 'object') return false;
+  const report = value as Partial<ResearchReportReference>;
+  return Boolean(Array.isArray(report.sourceIds) && report.sourceIds.length > 0 && report.sourceIds.length <= 20
+    && report.sourceIds.every(id => typeof id === 'string' && /^[\w.-]{1,180}$/.test(id))
+    && new Set(report.sourceIds).size === report.sourceIds.length
+    && typeof report.question === 'string' && report.question.trim() && report.question.length <= 1200
+    && typeof report.revision === 'string' && /^[a-f0-9]{64}$/.test(report.revision)
+    && typeof report.runId === 'string' && /^[a-f0-9-]{36}$/i.test(report.runId)
+    && ['complete', 'incomplete'].includes(report.status || ''));
+}
 export interface ResearchPresentationArtifact { id: string; fileName: string; slideCount: number }
 export interface ResearchPresentationPlan {
   sourceIds: string[];
@@ -37,6 +55,7 @@ export interface ResearchToolCall {
   error?: string;
   results?: DiscoveredSourceFileInput[];
   presentation?: ResearchPresentationPlan;
+  report?: ResearchReportReference;
 }
 export function isResearchPlugin(value: unknown): value is ResearchPluginId {
   return typeof value === 'string' && Object.hasOwn(RESEARCH_PLUGINS, value);
@@ -49,5 +68,6 @@ export function isResearchToolCall(value: unknown): value is ResearchToolCall {
     && ['running', 'ready', 'failed'].includes(call.status || '')
     && (call.error === undefined || typeof call.error === 'string' && call.error.length <= 1000)
     && (call.results === undefined || isDiscoverSearchDocument({ query: '', optimizedQuery: '', planKeywords: [], scope: 'scholar', selected: [], provider: 'arxiv', searched: true, results: call.results }))
-    && (call.presentation === undefined || call.plugin === 'presentation' && call.results === undefined && isResearchPresentationPlan(call.presentation));
+    && (call.presentation === undefined || call.plugin === 'presentation' && call.results === undefined && isResearchPresentationPlan(call.presentation))
+    && (call.report === undefined || call.plugin === 'report' && call.results === undefined && call.presentation === undefined && isResearchReportReference(call.report));
 }
