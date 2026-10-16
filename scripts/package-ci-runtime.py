@@ -74,7 +74,8 @@ def package(root, output):
         if path.is_symlink() or not path.is_file():
             raise ValueError(f'Runtime inputs must be regular files: {name}')
         files.append({'path': name, 'size': path.stat().st_size,
-                      'mode': stat.S_IMODE(path.stat().st_mode), 'sha256': sha(path)})
+                      'mode': 0o755 if stat.S_IMODE(path.stat().st_mode) & 0o111 else 0o644,
+                      'sha256': sha(path)})
     manifest = {'schema': 1, 'commit': subprocess.check_output(
         ['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip(),
         'tree': subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], cwd=root, text=True).strip(),
@@ -94,7 +95,10 @@ def package(root, output):
         for entry in files:
             if sha(root / entry['path']) != entry['sha256']:
                 raise ValueError('Build changed while packaging')
-            archive.add(root / entry['path'], arcname=entry['path'], recursive=False)
+            info = archive.gettarinfo(root / entry['path'], arcname=entry['path'])
+            info.mode = entry['mode']
+            with (root / entry['path']).open('rb') as stream:
+                archive.addfile(info, stream)
     Path(str(output) + '.manifest.json').write_bytes(encoded)
     print(json.dumps({'ok': True, 'buildId': manifest['buildId'], 'commit': manifest['commit'],
                       'files': len(files), 'runtimeBytes': sum(f['size'] for f in files),

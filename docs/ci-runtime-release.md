@@ -20,6 +20,9 @@ public build configuration. The tar includes tracked runtime source/Skills and
 compiled output. It excludes dependencies, production env files, uploads,
 runtime cache and source maps. Existing `package:linux` remains available for
 other deployments; do not run it on the capacity-constrained production host.
+File modes are normalized to 0644 (0755 for executable files) in the manifest and
+tar, without changing their bytes. The runner's group-writable build modes are
+not carried into production or used to weaken immutable-file reuse checks.
 
 After CI succeeds, download the artifact for that exact PR head. Check the PR's
 merged source tree against the artifact's source files before a release. Do not

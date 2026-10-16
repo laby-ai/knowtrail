@@ -86,6 +86,7 @@ class ImportRuntime(unittest.TestCase):
             path = self.base / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('dedicated-test-fixture')
+        (self.base / 'src/example.ts').chmod(0o664)
         tracked = ['package.json', 'pnpm-lock.yaml', '.env.production',
                    'public/uploads/private.txt', 'src/example.ts']
         original = subprocess.check_output
@@ -101,13 +102,14 @@ class ImportRuntime(unittest.TestCase):
         with patch.object(packager.subprocess, 'check_output', side_effect=git_only):
             packager.package(self.base, output)
         manifest = json.loads(Path(str(output) + '.manifest.json').read_text())
+        self.assertTrue(all(e['mode'] in (0o644, 0o755) for e in manifest['files']))
         names = {e['path'] for e in manifest['files']}
         self.assertIn('src/example.ts', names)
         self.assertIn('.next/server/app/page.html', names)
         self.assertFalse(names & {'.env.production', 'public/uploads/private.txt',
                                  '.next/cache/test.bin', '.next/server/test.js.map'})
         with tarfile.open(str(output) + '.tar.gz') as archive:
-            self.assertTrue(all(e.isfile() for e in archive))
+            self.assertTrue(all(e.isfile() and e.mode in (0o644, 0o755) for e in archive))
         undeployed = self.base / next(iter(packager.EXCLUDED_SOURCES))
         undeployed.parent.mkdir(parents=True, exist_ok=True)
         undeployed.write_text('dedicated-unreleased-fixture')
