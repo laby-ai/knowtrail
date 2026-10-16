@@ -39,12 +39,11 @@ export function ReportSkillCard({ reference }: { reference: ResearchReportRefere
     {!report && !error && <p role="status">正在读取报告…</p>}
     {error && <><p role="alert">{error}</p><button type="button" className="agent-plugin-open" onClick={() => setAttempt(value => value + 1)}>重新读取报告</button></>}
     {report && <>
-      <p className="break-words text-sm font-medium">{report.question}</p>
       <p className="text-xs text-[var(--text-secondary)]">{reference.sourceIds.length} 份来源 · {report.citations.length} 条引用</p>
       {report.status !== 'complete' && <p role="status" className="text-xs text-amber-700">已保留未完成草稿，需补充章节或引用。</p>}
       <button type="button" className="agent-plugin-open" aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? '收起报告' : '查看本轮报告'}</button>
       {open && <div className="space-y-3 break-words" data-testid="agent-report-content">
-        <div className="prose prose-sm max-w-none overflow-x-auto"><ReactMarkdown remarkPlugins={[remarkGfm]}>{report.answer}</ReactMarkdown></div>
+        <div className="space-y-3 overflow-x-auto text-sm leading-relaxed [&_h2]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-1"><ReactMarkdown remarkPlugins={[remarkGfm]}>{report.answer}</ReactMarkdown></div>
         <StudioEvidenceStatusPanel citations={report.citations} retrieval={report.retrieval} compact />
       </div>}
     </>}
