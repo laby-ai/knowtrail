@@ -46,6 +46,9 @@ jobs:
       - name: Source metadata recovery contract
         run: pnpm run test:source-metadata-recovery
 
+      - name: Learning materials recovery contract
+        run: pnpm exec tsx scripts/test-learning-materials-recovery.ts
+
       - name: Deep research contracts
         run: pnpm run test:deep-research-contract
 
