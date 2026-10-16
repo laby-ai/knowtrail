@@ -151,3 +151,33 @@ jobs:
 
       - name: Lint
         run: pnpm run lint:build
+
+      - name: Verify bounded runtime import
+        run: python scripts/test-ci-runtime.py
+
+      - name: Match the deployed build runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.2'
+
+      - name: Build the Linux runtime outside production
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          NEXT_PUBLIC_BASE_PATH: /knowtrail
+          NEXT_PUBLIC_DOMAIN: localhost:5000
+          NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN: /classroom-runtime
+        run: |
+          pnpm exec next build
+          pnpm exec tsup src/server.ts --format cjs --platform node --target node20 --outDir dist --no-splitting --no-minify
+          python scripts/package-ci-runtime.py ci-runtime
+
+      - name: Retain the exact runtime and file manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowtrail-linux-${{ github.run_id }}
+          path: |
+            ci-runtime.tar.gz
+            ci-runtime.manifest.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
