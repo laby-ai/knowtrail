@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
           { role: 'user', content: prompt },
         ], {
           model: modelName,
+          thinking: 'disabled',
           temperature: 0.35,
           maxTokens: 3200,
           signal,
@@ -208,6 +209,7 @@ export async function POST(request: NextRequest) {
             { role: 'user', content: repairPrompt },
           ], {
             model: modelName,
+            thinking: 'disabled',
             temperature: 0.1,
             maxTokens: 2400,
             signal,
