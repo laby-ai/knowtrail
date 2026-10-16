@@ -99,7 +99,7 @@ export function DiscoverSourcesModal({
       if (!effectiveQuery) {
         const hostContext = readPaperHostContext();
         let plan: { success?: boolean; optimizedQuery?: string; keywords?: string[]; error?: string };
-        if (hostContext.enabled && window.paperHostBridge) {
+        if (scope !== 'scholar' && hostContext.enabled && window.paperHostBridge) {
           try {
             plan = { success: true, ...await optimizePaperHostDiscoverQuery(original, scope) };
           } catch (error) {
@@ -110,7 +110,7 @@ export function DiscoverSourcesModal({
             method: 'POST',
             signal: controller.signal,
             headers: { 'Content-Type': 'application/json', ...auth },
-            body: JSON.stringify({ query: original, scope, notebookId }),
+            body: JSON.stringify({ query: original, scope, notebookId, provider: scope === 'scholar' ? 'arxiv' : undefined }),
           });
           plan = await planResponse.json();
           if (!planResponse.ok) plan.success = false;
@@ -129,7 +129,7 @@ export function DiscoverSourcesModal({
       }
 
       const hostContext = readPaperHostContext();
-      if (hostContext.enabled && window.paperHostBridge) {
+      if (scope !== 'scholar' && hostContext.enabled && window.paperHostBridge) {
         const result = await searchPaperHostSources({ query: effectiveQuery, scope });
         if (sequence !== searchSequence.current) return;
         setResults(result.results);
@@ -139,7 +139,7 @@ export function DiscoverSourcesModal({
           method: 'POST',
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json', ...auth },
-          body: JSON.stringify({ query: effectiveQuery, scope, size: 10, withContent: false, notebookId }),
+          body: JSON.stringify({ query: effectiveQuery, scope, size: 10, withContent: false, notebookId, provider: scope === 'scholar' ? 'arxiv' : undefined }),
         });
         const data = await res.json();
         if (sequence !== searchSequence.current) return;
@@ -325,7 +325,7 @@ export function DiscoverSourcesModal({
             <input
               value={optimizedQuery}
               disabled={!ready || isSearching || ingestPhase === 'fetching'}
-              onChange={event => setOptimizedQuery(event.target.value)}
+              onChange={event => { setOptimizedQuery(event.target.value); setPlanKeywords([]); }}
               onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void handleSearch(); }}
               data-testid="discover-optimized-query"
               className="liquid-glass-input w-full px-3 py-2 text-xs"

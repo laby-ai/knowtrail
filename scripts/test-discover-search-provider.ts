@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   DiscoverSearchProviderError,
+  arxivSearchExpression,
   parseArxivAtom,
   searchDiscoveredSources,
 } from '../src/lib/discover-search-provider';
@@ -26,6 +27,16 @@ const atom = `<?xml version="1.0" encoding="UTF-8"?>
 </feed>`;
 
 async function main() {
+assert.equal(parseArxivAtom(atom.replaceAll('https://arxiv.org/abs/', 'http://arxiv.org/abs/')).results.length, 1);
+assert.throws(() => parseArxivAtom('<feed><entry><id>http://arxiv.org/api/errors#incorrect</id><title>Error</title></entry></feed>'), /未接受/);
+assert.equal(arxivSearchExpression('TRAPPIST-1 transit'), 'all:"TRAPPIST-1" AND all:"transit"');
+assert.equal(arxivSearchExpression('all:"TRAPPIST-1" AND (ti:transit OR abs:transit)'), 'all:"TRAPPIST-1" AND (ti:transit OR abs:transit)');
+assert.throws(() => arxivSearchExpression('all:"TRAPPIST-1'), /引号/);
+assert.throws(() => arxivSearchExpression('all:transit)'), /括号/);
+let auxiliary = false; let officialPrompt = '';
+await optimizeDiscoverQuery('TRAPPIST-1凌星', 'scholar', async (messages, options) => { auxiliary = Boolean(options.auxiliary); officialPrompt = String(messages[0].content); return JSON.stringify({optimizedQuery:'all:"TRAPPIST-1" AND all:transit',keywords:['TRAPPIST-1','transit']}); }, undefined, true);
+assert.ok(auxiliary); assert.match(officialPrompt,/arXiv英文/);
+
 const normalizedPlan = normalizeDiscoverQueryPlan(
   '多模态大模型',
   '```json\n{"optimizedQuery":"multimodal large language model evaluation 多模态大模型 评测","keywords":["MLLM","benchmark"]}\n```',

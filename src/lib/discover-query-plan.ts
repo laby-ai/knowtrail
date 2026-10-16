@@ -10,7 +10,7 @@ export type DiscoverQueryPlan = {
 
 type QueryPlanInvoker = (
   messages: Message[],
-  options: { temperature: number; thinking: 'disabled'; maxTokens: number; signal?: AbortSignal },
+  options: { temperature: number; thinking: 'disabled'; maxTokens: number; signal?: AbortSignal; auxiliary?: boolean },
 ) => Promise<string>;
 
 function compact(value: unknown, maxLength = 240): string {
@@ -34,7 +34,7 @@ function parseJsonObject(raw: string): Record<string, unknown> {
 export function normalizeDiscoverQueryPlan(originalQuery: string, raw: string): DiscoverQueryPlan {
   const original = compact(originalQuery);
   const parsed = parseJsonObject(raw);
-  const optimized = compact(parsed.optimizedQuery || parsed.searchQuery || parsed.query);
+  const optimized = compact(parsed.optimizedQuery || parsed.searchQuery || parsed.query, 1000);
   if (!original || !optimized) throw new Error('检索式优化服务未返回可用检索式');
   const keywords = Array.isArray(parsed.keywords)
     ? parsed.keywords.map(item => compact(item, 60)).filter(Boolean).slice(0, 6)
@@ -47,6 +47,7 @@ export async function optimizeDiscoverQuery(
   scope: DiscoverQueryScope,
   invoke: QueryPlanInvoker,
   signal?: AbortSignal,
+  arxiv = false,
 ): Promise<DiscoverQueryPlan> {
   const original = compact(originalQuery);
   if (!original) throw new Error('请输入搜索关键词');
@@ -58,10 +59,12 @@ export async function optimizeDiscoverQuery(
         `你是${sourceLabel}的检索式规划器。`,
         '只改写检索式，不回答问题，不生成论文题名、作者、链接、引用或事实。',
         '保留用户核心意图，去掉对话性表达，补充必要英文术语和同义词。',
-        '输出严格 JSON：{"optimizedQuery":"一条可直接检索的中英双语检索式","keywords":["最多6个关键词"]}。',
+        arxiv
+          ? '输出严格 JSON：{"optimizedQuery":"arXiv英文检索式，如 all:\\"TRAPPIST-1\\" AND all:transit","keywords":["最多6个关键词"]}。只用必要英文关键词，字段all/ti/au/abs/cat、AND/OR/ANDNOT和成对括号/双引号。保留对象名称；不要拼接中文式、竖线或说明。'
+          : '输出严格 JSON：{"optimizedQuery":"一条可直接检索的中英双语检索式","keywords":["最多6个关键词"]}。',
       ].join(''),
     },
     { role: 'user', content: original },
-  ], { temperature: 0.1, thinking: 'disabled', maxTokens: 220, signal });
+  ], { temperature: 0.1, thinking: 'disabled', maxTokens: 220, signal, auxiliary: true });
   return normalizeDiscoverQueryPlan(original, response);
 }

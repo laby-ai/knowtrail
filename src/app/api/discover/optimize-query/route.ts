@@ -6,7 +6,7 @@ import { optimizeDiscoverQuery } from '@/lib/discover-query-plan';
 export const maxDuration = 30;
 
 export async function POST(request: NextRequest) {
-  const body = await request.json() as { query?: string; scope?: 'webpage' | 'scholar'; notebookId?: string };
+  const body = await request.json() as { query?: string; scope?: 'webpage' | 'scholar'; notebookId?: string; provider?: 'arxiv' };
   const access = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
     loginMessage: '请先登录账号，再优化检索式。',
@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
       body.scope === 'scholar' ? 'scholar' : 'webpage',
       llmInvoke,
       request.signal,
+      body.provider === 'arxiv',
     );
     return NextResponse.json({ success: true, ...plan });
   } catch (error) {
