@@ -12,6 +12,7 @@ from agentscope.agent import Agent, ReActConfig
 from agentscope.credential import OpenAICredential
 from agentscope.message import AssistantMsg, TextBlock, ToolResultState, UserMsg
 from agentscope.model import OpenAIChatModel
+from agentscope.permission import PermissionBehavior, PermissionDecision
 from agentscope.skill import Skill
 from agentscope.state import AgentState
 from agentscope.tool import FunctionTool, Toolkit, ToolChunk
@@ -52,12 +53,19 @@ async def main():
         """Prepare a source-grounded editable PPT outline for user confirmation. Does not generate a file."""
         return await invoke("prepare_presentation", {"outline": outline})
 
+    async def generate_report(question: str):
+        """Generate and privately save a report from this turn's selected evidence. Only on explicit user request."""
+        return await invoke("generate_report", {"question": question})
+
     tools = [
         FunctionTool(search_papers, is_read_only=True, is_concurrency_safe=False),
         FunctionTool(open_plugin, is_read_only=True, is_concurrency_safe=False,
                      input_schema={"type":"object","properties":{"plugin":{"type":"string","enum":bootstrap["plugins"]},"request":{"type":"string","maxLength":4000}},"required":["plugin","request"]}),
         FunctionTool(prepare_presentation, is_read_only=True, is_concurrency_safe=False,
                      input_schema={"type":"object","properties":{"outline":{"type":"array","minItems":1,"maxItems":18,"items":{"type":"object","properties":{"title":{"type":"string","minLength":1,"maxLength":80},"focus":{"type":"string","minLength":1,"maxLength":220}},"required":["title","focus"],"additionalProperties":False}}},"required":["outline"],"additionalProperties":False}),
+        FunctionTool(generate_report, is_read_only=False, is_concurrency_safe=False,
+                     permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies ownership, one attempt and versioned saving for this report tool."),
+                     input_schema={"type":"object","properties":{"question":{"type":"string","minLength":1,"maxLength":1200}},"required":["question"],"additionalProperties":False}),
     ]
     skills = [Skill(name=s["id"], description=s["description"], dir="/research-skills/"+s["id"],
                     markdown=s["instructions"], updated_at=0) for s in bootstrap["skills"]]

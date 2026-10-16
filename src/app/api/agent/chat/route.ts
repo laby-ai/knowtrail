@@ -11,6 +11,9 @@ import { isChatHistoryDocument } from '@/lib/chat-history-document';
 import { researchAgentSystemPrompt, runResearchAgent } from '@/lib/research-agent-runtime';
 import type { RagSourceInput } from '@/lib/rag';
 import { isResearchChatSkillId } from '@/lib/research-chat-skills';
+import { POST as generateDeepResearch } from '@/app/api/ai/deep-research/route';
+import { isResearchReportDocument } from '@/lib/research-report-document';
+import { readGeneratedReport } from '@/lib/research-agent-report';
 
 export const runtime = 'nodejs';
 export const maxDuration = 180;
@@ -45,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (saved && isChatHistoryDocument(saved.data)) {
       for (const msg of saved.data.messages.slice(-20)) {
         if (msg.role === 'system' || msg.generation?.status === 'pending') continue;
-        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, presentation: call.presentation }));
+        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, presentation: call.presentation, report: call.report }));
         const content = (msg.content + (toolContext?.length ? '\n工具实际结果：' + JSON.stringify(toolContext) : '')).slice(0, 16000);
         if (content.trim()) history.push({ role: msg.role, content });
       }
@@ -65,7 +68,25 @@ export async function POST(request: NextRequest) {
         try {
           send({ citations: grounded.citations, retrieval: toRetrievalMetadata(grounded) });
           for await (const event of runResearchAgent({ message, skill: typeof skill === 'string' ? skill : undefined,
-            sessionId: `${scope.ownerMemberId}:${scope.notebookId}`, sourceIds: [...new Set(grounded.citations.map(citation => citation.sourceId))], systemPrompt: researchAgentSystemPrompt(base, typeof skill === 'string' ? skill : undefined), history, config, signal })) {
+            sessionId: `${scope.ownerMemberId}:${scope.notebookId}`, sourceIds: [...new Set(grounded.citations.map(citation => citation.sourceId))], systemPrompt: researchAgentSystemPrompt(base, typeof skill === 'string' ? skill : undefined), history, config, signal,
+            generateReport: async question => {
+              const sourceIds = [...new Set(grounded.citations.map(citation => citation.sourceId))];
+              const verified = { ownerMemberId: scope.ownerMemberId!, notebookId: scope.notebookId! };
+              const previous = await readNotebookDocument<unknown>(verified, 'research-report');
+              if (previous && !isResearchReportDocument(previous.data)) throw new Error('已保存报告暂时无法读取，请重试。');
+              const runId = crypto.randomUUID();
+              const headers = new Headers(request.headers);
+              headers.delete('content-length');
+              headers.set('Content-Type', 'application/json');
+              const generated = await generateDeepResearch(new NextRequest(request.url.replace(/\/agent\/chat(?:\?.*)?$/, '/ai/deep-research'), {
+                method: 'POST', headers, signal,
+                body: JSON.stringify({ question, notebookId: scope.notebookId, papers: sourceIds.map(id => ({ id })), persistArtifact: true, runId, expectedRevision: previous?.revision || null }),
+              }));
+              const saved = await readGeneratedReport(generated, runId, signal);
+              const report = saved.data.report!;
+              return { reference: { sourceIds, question, revision: saved.revision, runId, status: report.status }, preview: report.answer.slice(0, 1800) };
+            },
+          })) {
             if (event.content) answer += event.content;
             send(event);
           }
