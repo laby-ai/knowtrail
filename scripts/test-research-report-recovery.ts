@@ -42,6 +42,13 @@ async function main() {
     }
     const content = DEEP_RESEARCH_REQUIRED_SECTIONS.map((name: string) => `## ${name}\n- 模拟记录12条剔除2条后保留10条，仅用于软件验收[1]。`).join('\n\n');
     const encoded = (text: string) => new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
+    if (request.enable_thinking !== false) {
+      return new Response(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: 'fixture: reasoning-only response' }, finish_reason: 'length' }] })}\n\ndata: [DONE]\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
+    }
+    if (mode === 'needs-repair') {
+      mode = 'normal';
+      return new Response(encoded('## 研究问题\n- 模拟记录12条，仅用于软件验收[1]。'), { headers: { 'Content-Type': 'text/event-stream' } });
+    }
     if (mode === 'interrupted') {
       const stream = new ReadableStream<Uint8Array>({ start(controller) {
         controller.enqueue(encoded('## 研究问题\n- 模拟记录12条剔除2条后保留10条，仅用于软件验收[1]。\n'));
@@ -75,7 +82,7 @@ async function main() {
   const generated = await generation.POST(request('ai/deep-research', 'POST', input));
   assert.equal(generated.status, 200);
   const frames = parse(await generated.text());
-  const saved = frames.find(item => item.document)?.document;
+  let saved = frames.find(item => item.document)?.document;
   assert.ok(saved, 'Success must include the server durable-save acknowledgement');
   assert.equal(saved.data.report.status, 'complete');
   assert.equal(saved.data.report.citations.length, 1);
@@ -86,6 +93,13 @@ async function main() {
   assert.equal((await get('b')).status, 404);
   assert.equal((await put(saved.data, saved.revision, '')).status, 401);
   assert.equal((await put({ ...draft, report: {} }, saved.revision)).status, 400);
+  mode = 'needs-repair';
+  const beforeRepair = modelCalls;
+  const repaired = await generation.POST(request('ai/deep-research', 'POST', { ...input, expectedRevision: saved.revision, runId: '00000000-0000-4000-a000-000000000004' }));
+  saved = parse(await repaired.text()).find(item => item.document)?.document;
+  assert.equal(saved?.data.report.status, 'complete', 'The bounded repair must also return usable final text');
+  assert.equal(saved.data.report.researchStatus.repairAttempted, true);
+  assert.equal(modelCalls, beforeRepair + 2, 'Repair stays limited to one additional provider call');
   mode = 'interrupted';
   const abort = new AbortController();
   const interrupted = await generation.POST(request('ai/deep-research', 'POST', { ...input, expectedRevision: saved.revision, runId: '00000000-0000-4000-a000-000000000002' }, 'a', abort.signal));
