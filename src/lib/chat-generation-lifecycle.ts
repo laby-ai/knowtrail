@@ -124,7 +124,7 @@ export function parseStoredChatHistory(raw: string | null): ChatMessage[] {
   }
 }
 
-function isChatMessage(value: unknown): value is ChatMessage {
+export function isChatMessage(value: unknown): value is ChatMessage {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Partial<ChatMessage>;
   if (typeof candidate.id !== 'string' || !candidate.id.trim()) return false;

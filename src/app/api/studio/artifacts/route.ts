@@ -9,8 +9,10 @@ import { PptDeckAccessError, readDeckImage, savePptDeckDocument } from '@/lib/pp
 import { buildStandaloneDeckHtml } from '@/lib/ppt/html-deck-export';
 import { latestDeckExport, readDeckExport, saveDeckExport } from '@/lib/ppt/deck-export-store';
 
+import { isChatHistoryDocument } from '@/lib/chat-history-document';
+
 const headers = { 'Cache-Control': 'private, no-store' };
-const validators = { 'research-report': isResearchReportDocument, 'knowledge-map': isKnowledgeMapDocument, 'data-processing': isDataProcessingDocument, 'image-deck': isImageDeckDocument, 'html-deck': isHtmlDeckDocument };
+const validators = { 'chat-history': isChatHistoryDocument, 'research-report': isResearchReportDocument, 'knowledge-map': isKnowledgeMapDocument, 'data-processing': isDataProcessingDocument, 'image-deck': isImageDeckDocument, 'html-deck': isHtmlDeckDocument };
 function validatorFor(kind: string | null) { return kind && Object.hasOwn(validators, kind) ? validators[kind as keyof typeof validators] : null; }
 
 async function scopeFor(request: NextRequest, notebookId: unknown): Promise<PrivateNotebookScope | { response: Response }> {

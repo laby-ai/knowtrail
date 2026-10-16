@@ -52,6 +52,9 @@ jobs:
       - name: Image and HTML PPT recovery contract
         run: pnpm exec tsx scripts/test-ppt-deck-recovery.ts
 
+      - name: Conversation recovery contract
+        run: pnpm exec tsx scripts/test-chat-history-recovery.ts
+
       - name: Deep research contracts
         run: pnpm run test:deep-research-contract
 

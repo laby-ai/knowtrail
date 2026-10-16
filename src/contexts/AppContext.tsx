@@ -24,11 +24,9 @@ import type {
   KnowledgeMapViewer,
   Citation,
 } from '@/types';
-import {
-  chatHistoryStorageKey,
-  parseStoredChatHistory,
-  serializeChatHistory,
-} from '@/lib/chat-generation-lifecycle';
+import { CHAT_HISTORY_LIMIT } from '@/lib/chat-generation-lifecycle';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyChatHistory, isChatHistoryDocument, legacyChatHistory, type ChatHistoryDocument } from '@/lib/chat-history-document';
 import {
   parseStoredSourceSelection,
   serializeSourceSelection,
@@ -104,6 +102,8 @@ interface AppContextType extends AppState {
   // 让左侧文献库定位并高亮引用对应的证据来源。
   revealPaperRequest: RevealPaperRequest | null;
   revealPaper: (paperId: string, citation?: Citation) => void;
+
+  chatPersistence: ReturnType<typeof usePrivateNotebookDocument<ChatHistoryDocument>>;
 
   // 编辑器操作
   setEditorMode: (mode: EditorMode) => void;
@@ -221,7 +221,8 @@ export function AppProvider({
     selectedPapers: initialSelectedPaperIds,
     activeFolderId: initialFolders[0]?.id || null,
   }));
-  const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+  const chatPersistence = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'chat-history', endpoint: '/api/studio/artifacts?kind=chat-history', empty: emptyChatHistory, validate: isChatHistoryDocument, readLegacy: legacyChatHistory });
+  const { update: updateChatHistory } = chatPersistence;
   const [sourceSelectionLoaded, setSourceSelectionLoaded] = useState(false);
 
   React.useEffect(() => {
@@ -253,33 +254,6 @@ export function AppProvider({
       // Browser storage can be unavailable; the visible selection remains usable in memory.
     }
   }, [sourceSelectionLoaded, state.selectedPapers, storageScopeKey]);
-
-  React.useEffect(() => {
-    let messages: ChatMessage[] = [];
-    try {
-      messages = parseStoredChatHistory(window.localStorage.getItem(chatHistoryStorageKey(storageScopeKey)));
-    } catch {
-      // localStorage can be unavailable in privacy modes; the in-memory chat remains usable.
-    }
-    setState((previous) => ({
-      ...previous,
-      storageScopeKey,
-      chatMessages: messages,
-    }));
-    setChatHistoryLoaded(true);
-  }, [storageScopeKey]);
-
-  React.useEffect(() => {
-    if (!chatHistoryLoaded) return;
-    try {
-      window.localStorage.setItem(
-        chatHistoryStorageKey(storageScopeKey),
-        serializeChatHistory(state.chatMessages),
-      );
-    } catch {
-      // The visible in-memory history remains authoritative when browser storage is unavailable.
-    }
-  }, [chatHistoryLoaded, state.chatMessages, storageScopeKey]);
 
   React.useEffect(() => {
     try {
@@ -419,24 +393,16 @@ export function AppProvider({
   }, []);
 
   const updateChatMessage = useCallback((id: string, updates: Partial<ChatMessage>) => {
-    setState(prev => ({
-      ...prev,
-      chatMessages: prev.chatMessages.map(msg =>
-        msg.id === id ? { ...msg, ...updates } : msg
-      ),
-    }));
-  }, []);
+    updateChatHistory(previous => ({ ...previous, messages: previous.messages.map(message => message.id === id ? { ...message, ...updates } : message) }));
+  }, [updateChatHistory]);
 
   const addChatMessage = useCallback((message: ChatMessage) => {
-    setState(prev => ({
-      ...prev,
-      chatMessages: [...prev.chatMessages, message],
-    }));
-  }, []);
+    updateChatHistory(previous => ({ ...previous, messages: [...previous.messages, message].slice(-CHAT_HISTORY_LIMIT) }));
+  }, [updateChatHistory]);
 
   const clearChat = useCallback(() => {
-    setState(prev => ({ ...prev, chatMessages: [] }));
-  }, []);
+    updateChatHistory(previous => ({ ...previous, messages: [] }));
+  }, [updateChatHistory]);
 
   const setCurrentReport = useCallback((report: Report | null) => {
     setState(prev => ({ ...prev, currentReport: report }));
@@ -686,6 +652,8 @@ export function AppProvider({
 
   const contextValue: AppContextType = {
     ...state,
+    chatMessages: chatPersistence.data.messages,
+    chatPersistence,
     addFolder,
     deleteFolder,
     addPaper,

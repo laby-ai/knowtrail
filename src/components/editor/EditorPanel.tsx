@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { SavedToolStatus } from '@/components/studio/SavedToolStatus';
 import { clientApiPath } from '@/lib/client-api';
 import {
   Send,
@@ -42,8 +43,8 @@ import { DeepResearchPanel } from '@/components/studio/DeepResearchPanel';
 import { HypothesisGenerationPanel } from '@/components/studio/HypothesisGenerationPanel';
 import { ExperimentDesignPanel } from '@/components/studio/ExperimentDesignPanel';
 
-const CHAT_RESPONSE_MAX_TOKENS = 260;
-const CHAT_RESPONSE_TIMEOUT_MS = 45_000;
+const CHAT_RESPONSE_MAX_TOKENS = 2048;
+const CHAT_RESPONSE_TIMEOUT_MS = 90_000;
 
 interface SendQuestionOptions {
   appendUserMessage?: boolean;
@@ -54,11 +55,14 @@ interface SendQuestionOptions {
 export function EditorPanel({ compact = false }: { compact?: boolean }) {
   const {
     folders, chatMessages, addChatMessage, updateChatMessage, clearChat, getSelectedPapers, aiConfig,
-    queuedStudioPrompt, consumeStudioPrompt, storageScopeKey, revealPaper,
+    queuedStudioPrompt, consumeStudioPrompt, storageScopeKey, revealPaper, chatPersistence,
   } = useApp();
 
-  const [inputMessage, setInputMessage] = useState('');
-  const [selectedChatSkill, setSelectedChatSkill] = useState<ResearchChatSkillId | null>(null);
+  const inputMessage = chatPersistence.data.draft;
+  const selectedChatSkill = chatPersistence.data.mode;
+  const setInputMessage = useCallback((draft: string) => chatPersistence.update(previous => ({ ...previous, draft })), [chatPersistence.update]);
+  const setSelectedChatSkill = useCallback((mode: ResearchChatSkillId | null) => chatPersistence.update(previous => ({ ...previous, mode })), [chatPersistence.update]);
+  const historyReady = !chatPersistence.loading && !chatPersistence.readFailed && !chatPersistence.conflict;
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -73,6 +77,13 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [chatMessages]);
+
+  useEffect(() => () => chatAbortRef.current?.abort(), [storageScopeKey]);
+  useEffect(() => {
+    if (!chatPersistence.loading && !isGenerating) {
+      for (const message of chatMessages) if (message.generation?.status === 'pending') updateChatMessage(message.id, { generation: { ...message.generation, status: 'stopped', updatedAt: new Date().toISOString() } });
+    }
+  }, [chatMessages, chatPersistence.loading, isGenerating, updateChatMessage]);
 
   // Generate lightweight follow-up questions after an answer.
   const generateFollowUps = useCallback((lastQuestion: string): string[] => {
@@ -95,7 +106,8 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   // Send a message (used by input and quick buttons)
   const sendQuestion = useCallback(async (question: string, options: SendQuestionOptions = {}) => {
     const normalizedQuestion = question.trim();
-    if (!normalizedQuestion || isGenerating || !researchChatReadiness.ready) return;
+    if (!normalizedQuestion || isGenerating || !historyReady || !researchChatReadiness.ready) return;
+    if (!await chatPersistence.flush()) return;
     if (options.appendUserMessage !== false) {
       const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
       addChatMessage({ id: userMsgId, role: 'user', content: normalizedQuestion, timestamp: new Date().toISOString() });
@@ -233,9 +245,10 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
     } finally {
       window.clearTimeout(timeoutId);
       if (chatAbortRef.current === abortController) chatAbortRef.current = null;
+      if (!abortController.signal.aborted) await chatPersistence.flush();
       setIsGenerating(false);
     }
-  }, [isGenerating, researchChatReadiness.ready, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
+  }, [historyReady, chatPersistence.flush, isGenerating, researchChatReadiness.ready, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
 
   const stopGeneration = useCallback(() => {
     if (!chatAbortRef.current) return;
@@ -265,7 +278,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
 
   // Generate report directly in chat
   const handleGenerateReport = useCallback(async (customOutline = '') => {
-    if (!researchChatReadiness.ready) return;
+    if (!historyReady || !researchChatReadiness.ready || !await chatPersistence.flush()) return;
     const selectedPapers = getSelectedPapers();
     if (selectedPapers.length === 0) {
       addChatMessage({
@@ -277,6 +290,8 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       return;
     }
     setIsGenerating(true);
+    const controller = new AbortController(); chatAbortRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 120_000);
 
     const reportTitle = customOutline.trim()
       ? `请生成文献综述：${customOutline.trim()}`
@@ -296,6 +311,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
 
       const response = await fetch(clientApiPath('/api/ai/report'), {
         method: 'POST',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
           aiConfig,
@@ -329,14 +345,16 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
             const trimmed = line.trim();
             if (trimmed.startsWith('data: ')) {
               const payload = trimmed.slice(6);
-              if (payload === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(payload);
+              const event = parseChatStreamPayload(payload);
+              if (event.kind === 'error') throw new Error(event.error);
+              if (event.kind !== 'event') continue;
+              {
+                const parsed = event.event;
                 if (Array.isArray(parsed.citations)) {
                   serverCitations = parsed.citations as Citation[];
                   updateChatMessage(assistantMsgId, { citations: serverCitations });
                 }
-                if (parsed.retrieval) {
+                if (parsed.retrieval && typeof parsed.retrieval === 'object') {
                   serverRetrieval = parsed.retrieval as RetrievalMetadata;
                   updateChatMessage(assistantMsgId, { retrieval: serverRetrieval });
                 }
@@ -344,11 +362,11 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
                   serverCitationAudit = parsed.citationAudit as CitationAuditResult;
                   updateChatMessage(assistantMsgId, { citationAudit: serverCitationAudit });
                 }
-                if (parsed.content) {
+                if (typeof parsed.content === 'string') {
                   reportText += parsed.content;
                   updateChatMessage(assistantMsgId, { content: reportText });
                 }
-              } catch { /* ignore */ }
+              }
             }
           }
         }
@@ -368,12 +386,15 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       if (!reportText) {
         updateChatMessage(assistantMsgId, { content: '抱歉，报告生成失败，请重试。' });
       }
-    } catch {
-      addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: '抱歉，报告生成服务暂时不可用，请稍后重试。', timestamp: new Date().toISOString() });
+    } catch (error) {
+      addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: controller.signal.aborted ? '生成已中止，已显示内容仍保留。' : error instanceof Error ? error.message : '综述暂时无法生成，请重试。', timestamp: new Date().toISOString() });
     } finally {
+      window.clearTimeout(timeout);
+      if (chatAbortRef.current === controller) chatAbortRef.current = null;
+      await chatPersistence.flush();
       setIsGenerating(false);
     }
-  }, [researchChatReadiness.ready, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
+  }, [historyReady, chatPersistence.flush, researchChatReadiness.ready, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
 
   const submitChatDraft = useCallback(() => {
     const draft = inputMessage.trim();
@@ -390,7 +411,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
 
   const clearChatSkill = useCallback(() => {
     setSelectedChatSkill(null);
-  }, []);
+  }, [setSelectedChatSkill]);
 
   const toggleCitation = useCallback((citationId: string) => {
     setExpandedCitations(prev => { const next = new Set(prev); if (next.has(citationId)) next.delete(citationId); else next.add(citationId); return next; });
@@ -477,6 +498,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
         </div>
       </div>}
 
+      <div data-testid="chat-save-status"><SavedToolStatus saved={chatPersistence} guest={storageScopeKey.startsWith('guest:')} /></div>
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <ChatView
@@ -494,7 +516,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
           quickQuestions={QUICK_QUESTIONS}
           selectedSourceCount={selectedSourceCount}
           totalSourceCount={totalSourceCount}
-          researchChatReadiness={researchChatReadiness}
+          researchChatReadiness={historyReady ? researchChatReadiness : { ...researchChatReadiness, ready: false, message: '请先读取已保存对话。' }}
           onCitationClick={revealPaper}
           onRegenerate={regenerateLastAnswer}
           selectedChatSkill={selectedChatSkill}
