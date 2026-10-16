@@ -90,8 +90,11 @@ def import_runtime(base, target, stream, expected_sha):
                     index[(path.stat().st_size, stat.S_IMODE(path.stat().st_mode), sha(path))] = path
         reusable = {name: index.get((e['size'], e['mode'], e['sha256'])) if immutable(name) else None
                     for name, e in entries.items()}
+        retained_static = [p for p in (base / '.next/static').rglob('*') if p.is_file()
+                           and not p.is_symlink() and p.suffix != '.map'
+                           and p.relative_to(base).as_posix() not in entries]
         needed = sum(((e['size'] + 4095) // 4096) * 4096 for n, e in entries.items() if not reusable[n])
-        needed += len(entries) * 4096 + 8_000_000
+        needed += (len(entries) + len(retained_static)) * 4096 + 8_000_000
         before = shutil.disk_usage(base).free
         if before - needed < FLOOR + RESERVE:
             raise ValueError(f'Insufficient capacity: free={before}, boundedImport={needed}; no files created')
@@ -127,6 +130,12 @@ def import_runtime(base, target, stream, expected_sha):
                 seen.add(name)
             if seen != entries.keys():
                 raise ValueError('Truncated runtime archive')
+            for source in retained_static:
+                if not source.resolve().is_relative_to(base) or source.stat().st_uid != os.getuid():
+                    raise ValueError('Retained static asset has an unexpected owner or path')
+                dest = target / source.relative_to(base)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                os.link(source, dest)
             (target / 'node_modules').symlink_to(deps, target_is_directory=True)
             aliases = {'pg': 'pg', '@aws-sdk/client-s3': '@aws-sdk/client-s3', '@zvec/zvec': '@zvec/zvec'}
             for path in (target / '.next/server').rglob('*.js'):
@@ -143,6 +152,7 @@ def import_runtime(base, target, stream, expected_sha):
                     'candidate': str(target), 'files': len(seen), 'freeBefore': before, 'freeAfter': after,
                     'boundedImportBytes': needed, 'reusedBytes': sum(entries[n]['size'] for n in seen if reusable[n]),
                     'copiedBytes': sum(entries[n]['size'] for n in seen if not reusable[n]),
+                    'retainedPreviousStaticFiles': len(retained_static),
                     'credentialsCopied': False, 'activated': False}
         except BaseException:
             assert target.parent == base.parent and target != base and not target.is_symlink()

@@ -48,6 +48,9 @@ runs Turbopack against that reference. Hashed external package aliases are local
 to the new candidate, so the existing dependency directory is not modified.
 Every streamed file is checked against its manifest. Failure removes only the
 new candidate created by that invocation, after sibling/ownership checks.
+Previous static chunks absent from the new build are retained by hardlink for
+already-open browser pages, as in the existing release procedure. Their directory
+cost is included in the allocation bound; new build paths are never overwritten.
 
 Import does not copy credentials, wire shared data, run a build, change a release
 pointer, start a process or reload PM2. Complete the existing server-only env/data

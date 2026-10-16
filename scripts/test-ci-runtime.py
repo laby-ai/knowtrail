@@ -116,6 +116,9 @@ class ImportRuntime(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == 'linux', 'Native filesystem import is verified on Linux CI')
     def test_materialize_hardlinks_but_keep_runtime_html_private(self):
+        old_static = self.base / '.next/static/previous-page.js'
+        old_static.write_bytes(b'// retained old browser chunk')
+        old_static.chmod(0o644)
         stream, digest = self.archive()
         result = importer.import_runtime(self.base, self.target, stream, digest)
         self.assertTrue(result['ok'])
@@ -129,6 +132,9 @@ class ImportRuntime(unittest.TestCase):
             self.assertEqual((self.base / name).read_bytes(), data)
         self.assertFalse((self.target / '.env.production').exists())
         self.assertEqual((self.target / 'node_modules').resolve(), self.base / 'node_modules')
+        self.assertEqual((self.target / '.next/static/previous-page.js').stat().st_ino,
+                         old_static.stat().st_ino)
+        self.assertEqual(result['retainedPreviousStaticFiles'], 1)
 
     @unittest.skipUnless(sys.platform == 'linux', 'Linux capacity and streaming behavior')
     def test_capacity_refusal_creates_no_candidate(self):
