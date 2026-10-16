@@ -81,7 +81,7 @@ export function MessageItem({
           )}
         </div>
 
-        {message.toolCalls?.map(call => <AgentToolCard key={call.id} call={call} />)}
+        {message.toolCalls?.map(call => <AgentToolCard key={call.id} call={call} messageId={message.id} />)}
 
         {!isUser && message.generation && message.generation.status !== 'completed' && (
           <div

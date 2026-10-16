@@ -11,6 +11,7 @@ import { uploadDiscoveredSourceFiles } from '@/lib/discovered-source-upload';
 import { clientApiRequest } from '@/lib/client-api';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
+import { PresentationSkillCard } from './PresentationSkillCard';
 
 const TABS: Record<ResearchPluginId, StudioTab> = {
   'paper-search': 'paper-search', 'deep-research': 'deep-research',
@@ -20,7 +21,7 @@ const TABS: Record<ResearchPluginId, StudioTab> = {
   report: 'report', 'knowledge-cards': 'flashcards', quiz: 'quiz',
 };
 
-export function AgentToolCard({ call }: { call: ResearchToolCall }) {
+export function AgentToolCard({ call, messageId }: { call: ResearchToolCall; messageId: string }) {
   const [open, setOpen] = useState(false);
   return (
     <section className="agent-tool-card" data-testid="agent-tool-card" data-plugin={call.plugin}>
@@ -32,7 +33,8 @@ export function AgentToolCard({ call }: { call: ResearchToolCall }) {
       {call.status === 'running' && <p role="status">正在处理…</p>}
       {call.status === 'failed' && <p role="alert">{call.error || '本次调用未完成，请重新发送。'}</p>}
       {call.status === 'ready' && call.results && <PaperResults call={call} />}
-      {call.status === 'ready' && !call.results && <>
+      {call.status === 'ready' && call.presentation && <PresentationSkillCard plan={call.presentation} messageId={messageId} callId={call.id} />}
+      {call.status === 'ready' && !call.results && !call.presentation && <>
         <button type="button" className="agent-plugin-open" onClick={() => setOpen(value => !value)} aria-expanded={open}>
           {open ? '收起' : `打开${RESEARCH_PLUGINS[call.plugin]}`}<ChevronDown size={16} />
         </button>

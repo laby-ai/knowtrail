@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     if (saved && isChatHistoryDocument(saved.data)) {
       for (const msg of saved.data.messages.slice(-20)) {
         if (msg.role === 'system' || msg.generation?.status === 'pending') continue;
-        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results }));
+        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, presentation: call.presentation }));
         const content = (msg.content + (toolContext?.length ? '\n工具实际结果：' + JSON.stringify(toolContext) : '')).slice(0, 16000);
         if (content.trim()) history.push({ role: msg.role, content });
       }
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
         try {
           send({ citations: grounded.citations, retrieval: toRetrievalMetadata(grounded) });
           for await (const event of runResearchAgent({ message, skill: typeof skill === 'string' ? skill : undefined,
-            sessionId: `${scope.ownerMemberId}:${scope.notebookId}`, systemPrompt: researchAgentSystemPrompt(base, typeof skill === 'string' ? skill : undefined), history, config, signal })) {
+            sessionId: `${scope.ownerMemberId}:${scope.notebookId}`, sourceIds: [...new Set(grounded.citations.map(citation => citation.sourceId))], systemPrompt: researchAgentSystemPrompt(base, typeof skill === 'string' ? skill : undefined), history, config, signal })) {
             if (event.content) answer += event.content;
             send(event);
           }

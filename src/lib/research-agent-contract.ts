@@ -1,5 +1,6 @@
 import { isDiscoverSearchDocument } from './discover-search-document';
 import type { DiscoveredSourceFileInput } from './discovered-source-file';
+import { sanitizePptOutlineDraft, type PptOutlineDraftItem } from './ppt/outline-draft';
 
 export const RESEARCH_PLUGINS = {
   'paper-search': '论文检索', 'deep-research': '深度研究',
@@ -9,6 +10,25 @@ export const RESEARCH_PLUGINS = {
   report: '报告', 'knowledge-cards': '学习卡', quiz: '测验',
 } as const;
 export type ResearchPluginId = keyof typeof RESEARCH_PLUGINS;
+export interface ResearchPresentationArtifact { id: string; fileName: string; slideCount: number }
+export interface ResearchPresentationPlan {
+  sourceIds: string[];
+  outlineDraft: PptOutlineDraftItem[];
+  artifact?: ResearchPresentationArtifact;
+}
+export function isResearchPresentationPlan(value: unknown): value is ResearchPresentationPlan {
+  if (!value || typeof value !== 'object') return false;
+  const plan = value as Partial<ResearchPresentationPlan>;
+  if (!Array.isArray(plan.sourceIds) || !plan.sourceIds.length || plan.sourceIds.length > 20
+    || !plan.sourceIds.every(id => typeof id === 'string' && /^[\w.-]{1,180}$/.test(id))
+    || new Set(plan.sourceIds).size !== plan.sourceIds.length
+    || !Array.isArray(plan.outlineDraft) || !plan.outlineDraft.length || plan.outlineDraft.length > 18
+    || JSON.stringify(sanitizePptOutlineDraft(plan.outlineDraft)) !== JSON.stringify(plan.outlineDraft)) return false;
+  const artifact = plan.artifact;
+  return artifact === undefined || Boolean(artifact && /^[a-f0-9]{64}$/.test(artifact.id)
+    && typeof artifact.fileName === 'string' && artifact.fileName.length > 0 && artifact.fileName.length <= 180
+    && Number.isInteger(artifact.slideCount) && artifact.slideCount === plan.outlineDraft.length);
+}
 export interface ResearchToolCall {
   id: string;
   plugin: ResearchPluginId;
@@ -16,6 +36,7 @@ export interface ResearchToolCall {
   status: 'running' | 'ready' | 'failed';
   error?: string;
   results?: DiscoveredSourceFileInput[];
+  presentation?: ResearchPresentationPlan;
 }
 export function isResearchPlugin(value: unknown): value is ResearchPluginId {
   return typeof value === 'string' && Object.hasOwn(RESEARCH_PLUGINS, value);
@@ -27,5 +48,6 @@ export function isResearchToolCall(value: unknown): value is ResearchToolCall {
     && typeof call.query === 'string' && call.query.length <= 4000
     && ['running', 'ready', 'failed'].includes(call.status || '')
     && (call.error === undefined || typeof call.error === 'string' && call.error.length <= 1000)
-    && (call.results === undefined || isDiscoverSearchDocument({ query: '', optimizedQuery: '', planKeywords: [], scope: 'scholar', selected: [], provider: 'arxiv', searched: true, results: call.results }));
+    && (call.results === undefined || isDiscoverSearchDocument({ query: '', optimizedQuery: '', planKeywords: [], scope: 'scholar', selected: [], provider: 'arxiv', searched: true, results: call.results }))
+    && (call.presentation === undefined || call.plugin === 'presentation' && call.results === undefined && isResearchPresentationPlan(call.presentation));
 }
