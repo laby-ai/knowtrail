@@ -252,3 +252,5 @@
 }
 
 .quiet-composer [data-testid="research-mode-send"]:disabled { background: #a5c2ff !important; cursor: not-allowed; }
+
+.discover-result-snippet { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }

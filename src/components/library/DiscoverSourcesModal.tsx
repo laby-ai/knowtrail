@@ -469,7 +469,7 @@ export function DiscoverSourcesModal({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-semibold leading-snug text-[var(--text-primary)]">{item.title}</span>
-                        <span className="mt-1 block text-[11px] leading-relaxed text-[var(--text-secondary)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
+                        <span className="discover-result-snippet mt-1 text-[11px] leading-relaxed text-[var(--text-secondary)]">
                           {item.snippet || '(无摘要)'}
                         </span>
                         <span className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-quaternary)]">
