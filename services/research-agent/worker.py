@@ -1,0 +1,94 @@
+"""One AgentScope session per request. Only allowlisted host tools, over stdio.
+
+The host retains SMS credentials, notebook ownership, storage and tool execution.
+No shell, file-system, MCP discovery or arbitrary UI/code tools are exposed.
+"""
+import asyncio
+import json
+import sys
+from uuid import uuid4
+
+from agentscope.agent import Agent, ReActConfig
+from agentscope.credential import OpenAICredential
+from agentscope.message import AssistantMsg, TextBlock, ToolResultState, UserMsg
+from agentscope.model import OpenAIChatModel
+from agentscope.skill import Skill
+from agentscope.state import AgentState
+from agentscope.tool import FunctionTool, Toolkit, ToolChunk
+
+
+def emit(event):
+    print(json.dumps(event, ensure_ascii=False), flush=True)
+
+
+async def main():
+    bootstrap = json.loads(sys.stdin.readline())
+    calls = 0
+
+    async def invoke(name, arguments):
+        nonlocal calls
+        calls += 1
+        if calls > 4:
+            return ToolChunk(content=[TextBlock(text="本轮工具调用次数已到上限。请依据已有结果回答，不再调用工具。")], state=ToolResultState.ERROR)
+        call_id = str(uuid4())
+        emit({"type": "invoke", "id": call_id, "name": name, "arguments": arguments})
+        line = await asyncio.to_thread(sys.stdin.readline)
+        if not line:
+            raise asyncio.CancelledError()
+        result = json.loads(line)
+        if result.get("id") != call_id:
+            raise ValueError("Tool response does not match the pending call")
+        return ToolChunk(content=[TextBlock(text=json.dumps(result["result"], ensure_ascii=False))], state=ToolResultState.SUCCESS if result["result"].get("success") else ToolResultState.ERROR)
+
+    async def search_papers(query: str):
+        """Search academic papers. Returns real candidates, not verified scientific conclusions."""
+        return await invoke("search_papers", {"query": query})
+
+    async def open_plugin(plugin: str, request: str):
+        """Open a research plugin in this conversation. Use the allowed plugin IDs in the system instructions."""
+        return await invoke("open_plugin", {"plugin": plugin, "request": request})
+
+    tools = [
+        FunctionTool(search_papers, is_read_only=True, is_concurrency_safe=False),
+        FunctionTool(open_plugin, is_read_only=True, is_concurrency_safe=False,
+                     input_schema={"type":"object","properties":{"plugin":{"type":"string","enum":bootstrap["plugins"]},"request":{"type":"string","maxLength":4000}},"required":["plugin","request"]}),
+    ]
+    skills = [Skill(name=s["id"], description=s["description"], dir="/research-skills/"+s["id"],
+                    markdown=s["instructions"], updated_at=0) for s in bootstrap["skills"]]
+    config = bootstrap["model"]
+    model = OpenAIChatModel(
+        credential=OpenAICredential(api_key=config["apiKey"], base_url=config["apiBase"]),
+        model=config["name"], max_retries=0,
+        parameters=OpenAIChatModel.Parameters(max_tokens=config["maxTokens"], temperature=0.3, parallel_tool_calls=False),
+        client_kwargs={"timeout": 65.0, "max_retries": 0},
+        extra_body={"enable_thinking": False},
+    )
+    history = []
+    for message in bootstrap["history"]:
+        factory = UserMsg if message["role"] == "user" else AssistantMsg
+        history.append(factory(name=message["role"], content=message["content"]))
+    agent = Agent(name="KnowTrail", system_prompt=bootstrap["systemPrompt"], model=model,
+                  toolkit=Toolkit(tools=tools, skills_or_loaders=skills),
+                  state=AgentState(session_id=bootstrap["sessionId"], context=history),
+                  react_config=ReActConfig(max_iters=7))
+    emit({"type": "ready", "engine": "agentscope", "version": "2.0.10"})
+    async for event in agent.reply_stream(UserMsg(name="user", content=bootstrap["message"])):
+        kind = type(event).__name__
+        if kind == "TextBlockDeltaEvent":
+            emit({"type": "text", "delta": event.delta})
+        elif kind == "ModelCallEndEvent":
+            emit({"type": "usage", "inputTokens": event.input_tokens, "outputTokens": event.output_tokens})
+        elif kind == "ReplyEndEvent":
+            reason = str(event.finished_reason)
+            emit({"type": "end", "reason": reason, "error": "本轮未完成，请重试。" if event.error else None})
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    except Exception:
+        # Never send provider exceptions, secrets, prompts or Python traces to stdout.
+        emit({"type": "error", "error": "研究助手暂时无法完成请求，请重试。"})
+        sys.exit(1)

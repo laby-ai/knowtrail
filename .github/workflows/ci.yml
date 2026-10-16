@@ -34,8 +34,21 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      - name: Setup research agent Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify isolated AgentScope protocol
+        run: |
+          python -m pip install -q -r services/research-agent/requirements.txt
+          python services/research-agent/test_worker.py
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Research agent card persistence
+        run: pnpm exec tsx scripts/test-research-agent-contract.ts
 
       - name: Paper search contracts
         run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects

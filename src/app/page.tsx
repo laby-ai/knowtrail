@@ -11,7 +11,6 @@ import {
   StudioPanel,
 } from '@/components/studio/StudioPanel';
 import {
-  StudioToolSwitcher,
   getVisibleStudioNav,
   shouldHideVirtualClassroom,
   type StudioTab,
@@ -100,7 +99,6 @@ function AcademicPresenterContent({
   onWorkbenchPreferencesChange: (preferences: Partial<WorkbenchPreferences>) => void;
 }) {
   const quiet = paperHostContext.enabled;
-  const [studioOpen, setStudioOpen] = useState(false);
   const activeToolStorageKey = `${ACTIVE_TOOL_STORAGE_KEY}:${storageScopeKey}`;
   const [activeStudioTab, setActiveStudioTab] = useState<StudioTab | null>(() => {
     const visibleTools = getVisibleStudioNav(shouldHideVirtualClassroom());
@@ -128,14 +126,12 @@ function AcademicPresenterContent({
   }, [activeStudioTab, activeToolStorageKey]);
 
   function openStudioWorkspace(tab: StudioTab) {
-    setStudioOpen(true);
     setActiveStudioTab(tab);
     window.sessionStorage.setItem(activeToolStorageKey, tab);
     onWorkbenchPreferencesChange({ activeStudioTool: tab });
   }
 
   function closeStudioWorkspace() {
-    if (quiet) { setStudioOpen(false); return; }
     setActiveStudioTab(null);
     window.sessionStorage.removeItem(activeToolStorageKey);
     onWorkbenchPreferencesChange({ activeStudioTool: null });
@@ -177,18 +173,7 @@ function AcademicPresenterContent({
               onClose={closeStudioWorkspace}
             />
           )}
-          rightRail={quiet ? (
-            <StudioToolSwitcher
-              rail
-              navItems={getVisibleStudioNav(true)}
-              activeTab={studioOpen ? activeStudioTab : null}
-              onSelect={tab => {
-                if (studioOpen && tab === activeStudioTab) closeStudioWorkspace();
-                else openStudioWorkspace(tab);
-              }}
-            />
-          ) : undefined}
-          rightOpen={studioOpen}
+          rightOpen={Boolean(activeStudioTab)}
           onCloseRight={closeStudioWorkspace}
           appearance={quiet ? 'quiet-research' : 'glass'}
           defaultLeftWidth={quiet ? 272 : 280}

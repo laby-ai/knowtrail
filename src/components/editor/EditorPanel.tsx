@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { ResearchComposer, type ResearchComposerRenderer } from './ResearchComposer';
 import { SavedToolStatus } from '@/components/studio/SavedToolStatus';
 import { clientApiPath } from '@/lib/client-api';
 import {
@@ -36,17 +34,13 @@ import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-read
 import type { StudioGenerationState } from '@/lib/studio-generation-readiness';
 import {
   getResearchChatSkill,
-  isWorkspaceResearchChatSkillId,
   type ResearchChatSkillId,
 } from '@/lib/research-chat-skills';
 import { ResearchChatSkillSelector } from './ResearchChatSkillSelector';
-import { PaperSearchPanel } from '@/components/studio/PaperSearchPanel';
-import { DeepResearchPanel } from '@/components/studio/DeepResearchPanel';
-import { HypothesisGenerationPanel } from '@/components/studio/HypothesisGenerationPanel';
-import { ExperimentDesignPanel } from '@/components/studio/ExperimentDesignPanel';
+import { isResearchToolCall, type ResearchToolCall } from '@/lib/research-agent-contract';
 
 const CHAT_RESPONSE_MAX_TOKENS = 2048;
-const CHAT_RESPONSE_TIMEOUT_MS = 90_000;
+const CHAT_RESPONSE_TIMEOUT_MS = 180_000;
 
 interface SendQuestionOptions {
   appendUserMessage?: boolean;
@@ -83,7 +77,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   useEffect(() => () => chatAbortRef.current?.abort(), [storageScopeKey]);
   useEffect(() => {
     if (!chatPersistence.loading && !isGenerating) {
-      for (const message of chatMessages) if (message.generation?.status === 'pending') updateChatMessage(message.id, { generation: { ...message.generation, status: 'stopped', updatedAt: new Date().toISOString() } });
+      for (const message of chatMessages) if (message.generation?.status === 'pending') updateChatMessage(message.id, { generation: { ...message.generation, status: 'stopped', updatedAt: new Date().toISOString() }, toolCalls: message.toolCalls?.map(call => call.status === 'running' ? { ...call, status: 'failed', error: '上次调用已停止，请重新发送。' } : call) });
     }
   }, [chatMessages, chatPersistence.loading, isGenerating, updateChatMessage]);
 
@@ -117,10 +111,6 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
     }
 
     const selectedPapers = getSelectedPapers();
-    if (selectedPapers.length === 0) {
-      addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: '请先在左侧文献库选择要分析的证据来源。', timestamp: new Date().toISOString() });
-      chatAbortRef.current = null; setIsGenerating(false); return;
-    }
 
     setIsGenerating(true);
     const startedAt = new Date().toISOString();
@@ -129,6 +119,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
     if (options.assistantMessageId) {
       updateChatMessage(assistantMsgId, {
         content: '',
+        toolCalls: [],
         citations: undefined,
         retrieval: undefined,
         citationAudit: undefined,
@@ -144,7 +135,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
     const timeoutId = window.setTimeout(() => abortController.abort(), CHAT_RESPONSE_TIMEOUT_MS);
 
     try {
-      const response = await fetch(clientApiPath('/api/ai/chat'), {
+      const response = await fetch(clientApiPath('/api/agent/chat'), {
         method: 'POST',
         signal: abortController.signal,
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
@@ -171,6 +162,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      const agentCalls = new Map<string, ResearchToolCall>();
       let serverCitations: Citation[] = [];
       let serverRetrieval: RetrievalMetadata | undefined;
       let serverCitationAudit: CitationAuditResult | undefined;
@@ -191,6 +183,10 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
               if (parsedPayload.kind === 'done' || parsedPayload.kind === 'ignore') continue;
               if (parsedPayload.kind === 'error') throw new Error(parsedPayload.error);
               const parsed = parsedPayload.event;
+              if (isResearchToolCall(parsed.toolCall)) {
+                agentCalls.set(parsed.toolCall.id, parsed.toolCall);
+                updateChatMessage(assistantMsgId, { toolCalls: [...agentCalls.values()] });
+              }
               if (typeof parsed.content === 'string') {
                   accumulatedContent += parsed.content;
                   streamedContent = accumulatedContent;
@@ -211,10 +207,11 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
             }
           }
         }
-        if (accumulatedContent) {
+        if (accumulatedContent || agentCalls.size) {
+          if (!accumulatedContent) accumulatedContent = '工具已在本轮对话中打开。';
           const citations = serverCitations.length > 0
             ? serverCitations
-            : selectedPapers.map((p) => ({ paperId: p.id, paperShortName: p.shortName, excerpt: p.abstract || '' }));
+            : [];
           updateChatMessage(assistantMsgId, {
             content: accumulatedContent,
             citations,
@@ -235,7 +232,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       const aborted = abortController.signal.aborted || (error instanceof DOMException && error.name === 'AbortError');
       const stoppedByUser = aborted && userStoppedRef.current;
       const errorMessage = error instanceof Error ? error.message : '';
-      const failure = classifyChatFailure({ aborted, stoppedByUser, errorMessage });
+      const failure = classifyChatFailure({ aborted, stoppedByUser, errorMessage, timeoutMs: CHAT_RESPONSE_TIMEOUT_MS });
       const content = stoppedByUser && streamedContent
         ? `${streamedContent}\n\n*(已停止生成)*`
         : failure.content;
@@ -278,138 +275,12 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   }, [queuedStudioPrompt, isGenerating, consumeStudioPrompt, sendQuestion]);
 
   // Generate report directly in chat
-  const handleGenerateReport = useCallback(async (customOutline = '') => {
-    if (chatAbortRef.current || !historyReady || !researchChatReadiness.ready) return;
-    const controller = new AbortController(); chatAbortRef.current = controller; setIsGenerating(true);
-    if (!await chatPersistence.flush() || controller.signal.aborted) { if (chatAbortRef.current === controller) { chatAbortRef.current = null; setIsGenerating(false); } return; }
-    const selectedPapers = getSelectedPapers();
-    if (selectedPapers.length === 0) {
-      addChatMessage({
-        id: `msg-${Date.now()}-${++_msgSeq.current}`,
-        role: 'assistant',
-        content: '请先在左侧文献库上传或选择证据来源，再生成文献综述。',
-        timestamp: new Date().toISOString(),
-      });
-      chatAbortRef.current = null; setIsGenerating(false); return;
-    }
-    setIsGenerating(true);
-    const timeout = window.setTimeout(() => controller.abort(), 120_000);
-
-    const reportTitle = customOutline.trim()
-      ? `请生成文献综述：${customOutline.trim()}`
-      : selectedPapers.length === 1
-        ? `请为《${selectedPapers[0].title}》生成文献综述`
-        : `请为以下 ${selectedPapers.length} 个证据来源生成跨文献综述`;
-
-    const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
-    addChatMessage({ id: userMsgId, role: 'user', content: reportTitle, timestamp: new Date().toISOString() });
-
-    try {
-      const paperObjects = selectedPapers.map((p, i) => ({
-        index: i + 1, id: p.id, title: p.title, authors: p.authors, year: p.year,
-        abstract: p.abstract, content: p.content, rawContent: p.rawContent,
-        shortName: p.shortName, keywords: p.keywords, fileName: p.fileName, fileType: p.fileType,
-      }));
-
-      const response = await fetch(clientApiPath('/api/ai/report'), {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
-        body: JSON.stringify({
-          aiConfig,
-          notebookId,
-          papers: paperObjects,
-          customOutline: customOutline.trim() || undefined,
-          paperList: paperObjects.map((p) => ({ index: p.index, shortName: p.shortName, title: p.title, authors: p.authors, year: p.year })),
-        }),
-      });
-
-      if (!response.ok) throw new Error('报告生成失败');
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let reportText = '';
-      const assistantMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
-      addChatMessage({ id: assistantMsgId, role: 'assistant', content: '', timestamp: new Date().toISOString() });
-
-      if (reader) {
-        let buffer = '';
-        let serverCitations: Citation[] = [];
-        let serverRetrieval: RetrievalMetadata | undefined;
-        let serverCitationAudit: CitationAuditResult | undefined;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.startsWith('data: ')) {
-              const payload = trimmed.slice(6);
-              const event = parseChatStreamPayload(payload);
-              if (event.kind === 'error') throw new Error(event.error);
-              if (event.kind !== 'event') continue;
-              {
-                const parsed = event.event;
-                if (Array.isArray(parsed.citations)) {
-                  serverCitations = parsed.citations as Citation[];
-                  updateChatMessage(assistantMsgId, { citations: serverCitations });
-                }
-                if (parsed.retrieval && typeof parsed.retrieval === 'object') {
-                  serverRetrieval = parsed.retrieval as RetrievalMetadata;
-                  updateChatMessage(assistantMsgId, { retrieval: serverRetrieval });
-                }
-                if (parsed.citationAudit) {
-                  serverCitationAudit = parsed.citationAudit as CitationAuditResult;
-                  updateChatMessage(assistantMsgId, { citationAudit: serverCitationAudit });
-                }
-                if (typeof parsed.content === 'string') {
-                  reportText += parsed.content;
-                  updateChatMessage(assistantMsgId, { content: reportText });
-                }
-              }
-            }
-          }
-        }
-        if (reportText) {
-          const citations = serverCitations.length > 0
-            ? serverCitations
-            : selectedPapers.map((p) => ({ paperId: p.id, paperShortName: p.shortName, excerpt: p.abstract || '' }));
-          updateChatMessage(assistantMsgId, {
-            content: reportText,
-            citations,
-            retrieval: serverRetrieval,
-            citationAudit: serverCitationAudit,
-            followUps: generateFollowUps('综述报告'),
-          });
-        }
-      }
-      if (!reportText) {
-        updateChatMessage(assistantMsgId, { content: '抱歉，报告生成失败，请重试。' });
-      }
-    } catch (error) {
-      addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: controller.signal.aborted ? '生成已中止，已显示内容仍保留。' : error instanceof Error ? error.message : '综述暂时无法生成，请重试。', timestamp: new Date().toISOString() });
-    } finally {
-      window.clearTimeout(timeout);
-      if (chatAbortRef.current === controller) chatAbortRef.current = null;
-      await chatPersistence.flush();
-      setIsGenerating(false);
-    }
-  }, [historyReady, chatPersistence.flush, researchChatReadiness.ready, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
-
   const submitChatDraft = useCallback(() => {
-    const draft = inputMessage.trim();
-    if (isWorkspaceResearchChatSkillId(selectedChatSkill)) return;
-    if (selectedChatSkill === 'literature-review') {
-      void handleGenerateReport(draft);
-      setInputMessage('');
-      return;
-    }
+    const draft = inputMessage.trim() || (selectedChatSkill === 'literature-review' ? '根据当前已选资料撰写文献综述，标注证据与不足。' : '');
     if (!draft) return;
     void sendQuestion(draft, { skill: selectedChatSkill });
     setInputMessage('');
-  }, [handleGenerateReport, inputMessage, selectedChatSkill, sendQuestion]);
+  }, [inputMessage, selectedChatSkill, sendQuestion, setInputMessage]);
 
   const clearChatSkill = useCallback(() => {
     setSelectedChatSkill(null);
@@ -565,8 +436,6 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
   const velocity = useRef(0);
   const isOpen = useRef(false);
   const [panelOpenState, setPanelOpenState] = useState(false);
-  const [composerTarget, setComposerTarget] = useState<HTMLDivElement | null>(null);
-  const [workspaceBusy, setWorkspaceBusy] = useState(false);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
   const PANEL_HEIGHT = 200;
@@ -574,19 +443,16 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
   const panelHeightRef = useRef<HTMLDivElement>(null);
   const hasSelectedSources = selectedSourceCount > 0;
   const activeChatSkill = getResearchChatSkill(selectedChatSkill);
-  const workspaceSkillActive = activeChatSkill?.mode === 'workspace';
-  const canSubmit = hasSelectedSources
-    && researchChatReadiness.ready
-    && !workspaceSkillActive
+  const canSubmit = researchChatReadiness.ready
     && (Boolean(inputMessage.trim()) || activeChatSkill?.allowsEmptyPrompt === true);
   const visibleQuickQuestions = compact ? quickQuestions.slice(0, 4) : quickQuestions;
   useEffect(() => {
-    if (!workspaceSkillActive) chatInputRef.current?.focus();
-  }, [selectedChatSkill, workspaceSkillActive]);
+    chatInputRef.current?.focus();
+  }, [selectedChatSkill]);
   useEffect(() => {
     const input = chatInputRef.current;
     if (input) { input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 140)}px`; }
-  }, [inputMessage, workspaceSkillActive]);
+  }, [inputMessage]);
 
 
   // Merge scrollRef with scrollAreaRef
@@ -741,7 +607,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
   return (
     <div className="h-full flex flex-col">
       {/* Messages */}
-      <div ref={scrollAreaCallbackRef} data-testid="chat-scroll" hidden={workspaceSkillActive} className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+      <div ref={scrollAreaCallbackRef} data-testid="chat-scroll" className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
         <div className="space-y-6 max-w-2xl mx-auto">
           {messages.length === 0 ? (
             <div
@@ -845,14 +711,6 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
         </div>
       </div>
 
-      {workspaceSkillActive && <div className="research-mode-results flex-1 min-h-0 overflow-y-auto" aria-label={`${activeChatSkill.label}结果`}>
-        <div className="mx-auto w-full max-w-3xl">
-          <ResearchChatSkillWorkspace key={`${selectedChatSkill}:${storageScopeKey}`} skillId={selectedChatSkill} renderComposer={options => composerTarget ? createPortal(
-            <ResearchComposer {...options} sources={<ChatSourceSelector disabled={options.busy} />} onBusyChange={setWorkspaceBusy} />, composerTarget, selectedChatSkill
-          ) : null} />
-        </div>
-      </div>}
-
       {/* Liquid pull quick questions panel (only when chat is active) */}
       {!compact && messages.length > 0 && (
         <div
@@ -927,22 +785,19 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
             {researchChatReadiness.message}
           </div>
         )}
-        {(compact || workspaceSkillActive) && <ResearchChatSkillSelector inline={compact} selectedSkillId={selectedChatSkill} onSelect={onSelectChatSkill} onClear={onClearChatSkill} disabled={isGenerating || workspaceBusy} />}
-        <div ref={setComposerTarget} data-testid="research-mode-composer-slot" />
-        {!workspaceSkillActive && <>
+        {compact && <ResearchChatSkillSelector inline={compact} selectedSkillId={selectedChatSkill} onSelect={onSelectChatSkill} onClear={onClearChatSkill} disabled={isGenerating} />}
+        <>
         <div
           data-testid="chat-composer-shell"
           className={`${compact ? 'quiet-composer' : ''} mx-auto w-full rounded-[22px] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-2 shadow-[0_10px_28px_rgba(70,96,128,0.08)] transition focus-within:border-blue-400/55 focus-within:shadow-[0_12px_34px_rgba(59,130,246,0.12)]`}
-          data-workspace-skill={workspaceSkillActive}
+          data-workspace-skill="false"
         >
           {(
             <textarea
               ref={chatInputRef}
               placeholder={!researchChatReadiness.ready
                 ? '文献问答服务配置中...'
-                : hasSelectedSources
-                  ? activeChatSkill?.placeholder || '输入研究问题…'
-                  : '先选择左侧证据来源...'}
+                : activeChatSkill?.placeholder || '输入研究问题…'}
               value={inputMessage}
               rows={1}
               onChange={(e) => {
@@ -957,7 +812,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
                   (e.target as HTMLTextAreaElement).style.height = 'auto';
                 }
               }}
-              disabled={isGenerating || !hasSelectedSources || !researchChatReadiness.ready}
+              disabled={isGenerating || !researchChatReadiness.ready}
               aria-label="输入研究问题"
               className="min-h-[54px] max-h-[140px] w-full resize-none bg-transparent px-3 py-2 text-[14px] leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)] disabled:cursor-not-allowed disabled:opacity-60"
             />
@@ -971,7 +826,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
               disabled={isGenerating}
             />}
             {compact && <ChatSourceSelector disabled={isGenerating} />}
-            {!workspaceSkillActive && (isGenerating ? (
+            {isGenerating ? (
               <button
                 onClick={onStop}
                 aria-label="停止生成"
@@ -990,10 +845,10 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
               >
                 <Send className="h-3.5 w-3.5" />
               </button>
-            ))}
+            )}
           </div>
         </div>
-        </>}
+        </>
       </div>
     </div>
   );
@@ -1018,18 +873,3 @@ function ChatSourceSelector({ disabled }: { disabled: boolean }) {
   );
 }
 
-function ResearchChatSkillWorkspace({ skillId, renderComposer }: { skillId: ResearchChatSkillId | null; renderComposer: ResearchComposerRenderer }) {
-  if (!isWorkspaceResearchChatSkillId(skillId)) return null;
-
-  return (
-    <div
-      data-testid="chat-skill-workspace"
-      className="px-1 pb-2"
-    >
-      {skillId === 'paper-search' && <PaperSearchPanel renderComposer={renderComposer} />}
-      {skillId === 'deep-research' && <DeepResearchPanel renderComposer={renderComposer} />}
-      {skillId === 'hypothesis-generation' && <HypothesisGenerationPanel renderComposer={renderComposer} />}
-      {skillId === 'experiment-design' && <ExperimentDesignPanel renderComposer={renderComposer} />}
-    </div>
-  );
-}

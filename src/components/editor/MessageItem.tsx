@@ -20,6 +20,7 @@ import rehypeKatex from 'rehype-katex';
 import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
 import { copyTextWithFallback } from '@/lib/clipboard';
 import { alignCitationsToAnswerMarkers } from '@/lib/citation-answer-alignment';
+import { AgentToolCard } from './AgentToolCard';
 
 export function MessageItem({
   message,
@@ -73,12 +74,14 @@ export function MessageItem({
           {showPending ? (
             <div className="flex items-center gap-2.5 text-[var(--text-secondary)]">
               <Loader2 className="h-4 w-4 animate-spin text-[var(--accent-blue)]" />
-              <span className="text-sm">正在分析证据来源...</span>
+              <span className="text-sm">正在处理…</span>
             </div>
           ) : (
             renderFormattedText(message.content)
           )}
         </div>
+
+        {message.toolCalls?.map(call => <AgentToolCard key={call.id} call={call} />)}
 
         {!isUser && message.generation && message.generation.status !== 'completed' && (
           <div
