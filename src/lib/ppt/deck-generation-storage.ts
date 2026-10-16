@@ -54,6 +54,18 @@ export async function ownedDeckSources(papers: RagSourceInput[], scope: PrivateN
   }));
 }
 
+export function deckEvidence(papers: RagSourceInput[]) {
+  const evidence = papers.map(paper => [
+    `资料标题：${paper.title || paper.fileName || ''}`,
+    paper.authors?.length ? `文献作者：${paper.authors.join('、')}` : '文献作者：未提供',
+    paper.year ? `发表年份：${paper.year}` : '发表年份：未提供',
+    '书目作者不是汇报人，发表年份不是数据采集年份；其他角色或时间只有原文明示才可使用。',
+    paper.rawContent || '',
+  ].join('\n')).join('\n\n---\n\n');
+  if (evidence.length > 18000) throw new Error('所选资料过长，请缩小资料范围后生成，原文未截断。');
+  return evidence;
+}
+
 export async function finishDeckGeneration(input: DeckPersistenceInput, kind: PptDeckKind, scope: PrivateNotebookScope | undefined, data: PptDeckDocument, signal: AbortSignal) {
   signal.throwIfAborted();
   if (!input.persistArtifact || !scope) return {};

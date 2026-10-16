@@ -1,5 +1,5 @@
 import { parseDeckOutline, parseDeckNarrations } from '@/lib/ppt/deck-json';
-import { cancelDeckRequest, prepareDeckGeneration, ownedDeckSources, finishDeckGeneration, deckRequestFailure, type DeckPersistenceInput } from '@/lib/ppt/deck-generation-storage';
+import { deckEvidence, cancelDeckRequest, prepareDeckGeneration, ownedDeckSources, finishDeckGeneration, deckRequestFailure, type DeckPersistenceInput } from '@/lib/ppt/deck-generation-storage';
 import type { ImageDeckDocument } from '@/lib/ppt/deck-document';
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
@@ -716,8 +716,7 @@ async function generate(request: NextRequest) {
   }
   try {
   if (persistence) papers = await ownedDeckSources(papers, persistence.scope);
-  const fullEvidence = persistence ? papers.map(p => `标题：${p.title}\n${p.rawContent || ''}`).join('\n\n---\n\n') : '';
-  if (fullEvidence.length > 18000) throw new Error('所选资料过长，请缩小资料范围后生成，原文未截断。');
+  const fullEvidence = persistence ? deckEvidence(papers) : '';
   const grounded = await buildGroundedRetrievalContext(
     '生成学术演示文稿大纲、每页核心论点、关键证据、图表线索和可引用结论',
     papers,

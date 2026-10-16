@@ -1,5 +1,5 @@
 import { parseDeckOutline } from '@/lib/ppt/deck-json';
-import { cancelDeckRequest, prepareDeckGeneration, ownedDeckSources, finishDeckGeneration, deckRequestFailure, type DeckPersistenceInput } from '@/lib/ppt/deck-generation-storage';
+import { deckEvidence, cancelDeckRequest, prepareDeckGeneration, ownedDeckSources, finishDeckGeneration, deckRequestFailure, type DeckPersistenceInput } from '@/lib/ppt/deck-generation-storage';
 import type { HtmlDeckDocument } from '@/lib/ppt/deck-document';
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
@@ -57,8 +57,8 @@ async function genOutline(
 {"title": "该页标题(有观点的完整短句优先)", "points": ["该页要呈现的要点/数据,2-4条,必须来自资料"], "layoutHint": "该页版式提示,从这些里选一个: cover | section | keynumber | comparison | grid | chart | quote | closing"}
 
 规划规则:
-- 第 1 页 layoutHint 必须是 cover,只含主标题、副标题、汇报人位。
-- 最后一页 layoutHint 是 closing(结论/致谢)。
+- 第 1 页 layoutHint 必须是 cover,只含资料标题、文献作者和发表年份（原文明示时）。未提供的字段不填，不把文献作者当成汇报人或制作人，不把发表年份当数据采集年份。
+- 最后一页呈现资料支持的结论或使用边界，不加通用致谢、口号或无依据的展望。
 - 中间页面版式要有节奏变化,不要连续三页相同 layoutHint。
 - 数据密集的要点标 keynumber 或 chart;对立观点标 comparison;多要点并列标 grid。
 - 要点里的数字、结论必须能在资料中找到依据,禁止编造。
@@ -158,8 +158,7 @@ async function generate(request: NextRequest) {
   }
   try {
   if (persistence) papers = await ownedDeckSources(papers, persistence.scope);
-  const fullEvidence = persistence ? papers.map(p => `标题：${p.title}\n${p.rawContent || ''}`).join('\n\n---\n\n') : '';
-  if (fullEvidence.length > 18000) throw new Error('所选资料过长，请缩小资料范围后生成，原文未截断。');
+  const fullEvidence = persistence ? deckEvidence(papers) : '';
   const grounded = await buildGroundedRetrievalContext(
     '生成演示文稿大纲、每页核心论点、关键数据、图表线索和可引用结论',
     papers,

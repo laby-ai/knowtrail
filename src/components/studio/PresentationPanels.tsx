@@ -5,7 +5,7 @@ import { emptyImageDeck, isImageDeckDocument } from '@/lib/ppt/deck-document';
 import { requestGeneratedDeck } from '@/lib/ppt/deck-client';
 import { SavedToolStatus } from './SavedToolStatus';
 import { exportImageDeck } from '@/lib/ppt/image-deck-export';
-import { readDeckForExport, saveAndDownloadDeckExport } from '@/lib/ppt/deck-export-client';
+import { downloadExistingDeckExport, readDeckForExport, saveAndDownloadDeckExport } from '@/lib/ppt/deck-export-client';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -239,6 +239,7 @@ function PresentationPanel() {
     try {
       if (!await savedDeck.flush()) throw new Error('当前简报尚未保存，请先重试保存。');
       const version = await readDeckForExport('image-deck', notebookId, savedDeck.revision.current, isImageDeckDocument);
+      if (await downloadExistingDeckExport(version.params)) return;
       if (!version.data.deck) throw new Error('简报内容不完整。');
       await exportImageDeck(version.data.deck.slides, version.data.deck.aspectRatio, blob => saveAndDownloadDeckExport(version.params, blob));
     } catch (err) {

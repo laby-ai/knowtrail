@@ -7,7 +7,7 @@ import { isDataProcessingDocument } from '@/lib/data-processing-document';
 import { isHtmlDeckDocument, isImageDeckDocument, type PptDeckDocument } from '@/lib/ppt/deck-document';
 import { PptDeckAccessError, readDeckImage, savePptDeckDocument } from '@/lib/ppt/deck-store';
 import { buildStandaloneDeckHtml } from '@/lib/ppt/html-deck-export';
-import { readDeckExport, saveDeckExport } from '@/lib/ppt/deck-export-store';
+import { latestDeckExport, readDeckExport, saveDeckExport } from '@/lib/ppt/deck-export-store';
 
 const headers = { 'Cache-Control': 'private, no-store' };
 const validators = { 'research-report': isResearchReportDocument, 'knowledge-map': isKnowledgeMapDocument, 'data-processing': isDataProcessingDocument, 'image-deck': isImageDeckDocument, 'html-deck': isHtmlDeckDocument };
@@ -32,6 +32,9 @@ export async function GET(request: NextRequest) {
   const scope = await scopeFor(request, request.nextUrl.searchParams.get('notebookId'));
   if ('response' in scope) return scope.response;
   try {
+    if ((kind === 'image-deck' || kind === 'html-deck') && request.nextUrl.searchParams.get('exportMeta') === '1') {
+      return NextResponse.json({ export: await latestDeckExport(scope, kind, request.nextUrl.searchParams.get('revision') || '') }, { headers });
+    }
     const exportId = request.nextUrl.searchParams.get('exportId');
     if ((kind === 'image-deck' || kind === 'html-deck') && exportId) {
       const exported = await readDeckExport(scope, kind, request.nextUrl.searchParams.get('revision') || '', exportId);

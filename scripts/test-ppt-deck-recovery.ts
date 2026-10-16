@@ -5,9 +5,9 @@ import path from 'node:path';
 import { savePptDeckDocument, readDeckImage, PptDeckAccessError } from '../src/lib/ppt/deck-store';
 import { isHtmlDeckDocument, isImageDeckDocument, type ImageDeckDocument, type HtmlDeckDocument } from '../src/lib/ppt/deck-document';
 import { NotebookDocumentConflict, readNotebookDocument } from '../src/lib/private-notebook-document';
-import { cancelDeckGeneration, prepareDeckGeneration } from '../src/lib/ppt/deck-generation-storage';
+import { cancelDeckGeneration, deckEvidence, prepareDeckGeneration } from '../src/lib/ppt/deck-generation-storage';
 import { extractHtmlDocument } from '../src/lib/ppt/html-slide-safety';
-import { readDeckExport, saveDeckExport } from '../src/lib/ppt/deck-export-store';
+import { latestDeckExport, readDeckExport, saveDeckExport } from '../src/lib/ppt/deck-export-store';
 import { parseDeckOutline, parseDeckNarrations } from '../src/lib/ppt/deck-json';
 
 async function main() {
@@ -21,6 +21,12 @@ async function main() {
   const data: ImageDeckDocument = { runId, deck: { deckTitle: '模拟记录', activeIndex: 0, history: {}, style: 'academic', detailLevel: 'default', language: 'zh', aspectRatio: '16:9', citations: [], retrieval: null,
     slides: [{ id: 'one', order: 0, title: '12条剔除2条保留10条', content: '导入→检查时间戳→剔除缺失→人工核对', narration: '仅用于软件验收。', imageUrl: 'data:image/png;base64,' + png, citations: [] }] } };
   try {
+    const evidence = deckEvidence([{ title: '模拟记录', authors: ['样本甲'], year: 2022, rawContent: '2024年记录12条，剔除2条后保留10条。' }]);
+    assert(evidence.includes('文献作者：样本甲') && evidence.includes('发表年份：2022'));
+    assert(evidence.includes('作者不是汇报人') && evidence.includes('2024年记录12条'));
+    const missingMetadata = deckEvidence([{ title: '未标注', rawContent: '记录日期2024年。' }]);
+    assert(missingMetadata.includes('文献作者：未提供') && missingMetadata.includes('发表年份：未提供'));
+    assert.throws(() => deckEvidence([{ rawContent: '原'.repeat(18001) }]), /原文未截断/);
     const quoted = { title: '包含"引号"的原文标题', points: ['12条剔除2条后保留10条'] };
     assert.deepEqual(parseDeckOutline(JSON.stringify({ pages: [quoted] }), 1), [quoted]);
     assert.deepEqual(parseDeckNarrations('{"narrations":["仅用于模拟验收。"]}', 1), ['仅用于模拟验收。']);
@@ -58,7 +64,17 @@ async function main() {
     const file = Buffer.from([80, 75, 3, 4, 1, 2]); // Storage protocol only; browser QA opens an actual rendered PPTX.
     const exported = await saveDeckExport(a, 'html-deck', htmlSaved.revision, file);
     assert.deepEqual((await readDeckExport(a, 'html-deck', htmlSaved.revision, exported.id)).buffer, file);
+    assert.equal((await latestDeckExport(a, 'html-deck', htmlSaved.revision))?.id, exported.id);
     await assert.rejects(readDeckExport(b, 'html-deck', htmlSaved.revision, exported.id), PptDeckAccessError);
+    const cacheScope = { ...a, notebookId: 'ppt-export-cache-fixture' };
+    const twoPages = { ...html, deck: { ...html.deck!, slides: [html.deck!.slides[0], html.deck!.slides[0]] } };
+    const cacheDoc = await savePptDeckDocument(cacheScope, 'html-deck', twoPages, null);
+    const cacheFile = await saveDeckExport(cacheScope, 'html-deck', cacheDoc.revision, file);
+    const progressDoc = await savePptDeckDocument(cacheScope, 'html-deck', { ...twoPages, deck: { ...twoPages.deck, activeIndex: 1 } }, cacheDoc.revision);
+    assert.equal((await latestDeckExport(cacheScope, 'html-deck', progressDoc.revision))?.id, cacheFile.id, 'Changing reading position must reuse the same binary');
+    const editedDoc = await savePptDeckDocument(cacheScope, 'html-deck', { ...twoPages, deck: { ...twoPages.deck, deckTitle: '修改后的标题' } }, progressDoc.revision);
+    assert.equal(await latestDeckExport(cacheScope, 'html-deck', editedDoc.revision), null, 'Changed rendered content must not reuse a stale file');
+    await assert.rejects(readDeckExport(cacheScope, 'html-deck', editedDoc.revision, cacheFile.id), PptDeckAccessError);
     assert.deepEqual(await readNotebookDocument(a, 'html-deck'), htmlSaved);
     assert.equal(await readNotebookDocument(b, 'html-deck'), null);
     assert(!isHtmlDeckDocument({ ...html, deck: { ...html.deck, slides: [{ title: 'unsafe', layoutHint: 'grid', html: '<html><script>fetch("https://outside.invalid")</script></html>' }] } }));

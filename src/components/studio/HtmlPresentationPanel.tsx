@@ -5,7 +5,7 @@ import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-documen
 import { emptyHtmlDeck, isHtmlDeckDocument, type HtmlDeckSlide as HtmlSlide } from '@/lib/ppt/deck-document';
 import { requestGeneratedDeck } from '@/lib/ppt/deck-client';
 import { SavedToolStatus } from './SavedToolStatus';
-import { readDeckForExport, saveAndDownloadDeckExport } from '@/lib/ppt/deck-export-client';
+import { downloadExistingDeckExport, readDeckForExport, saveAndDownloadDeckExport } from '@/lib/ppt/deck-export-client';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -301,6 +301,7 @@ export function HtmlPresentationPanel() {
     try {
       if (!await savedDeck.flush()) throw new Error('简报尚未保存，请先重试保存。');
       const version = await readDeckForExport('html-deck', notebookId, savedDeck.revision.current, isHtmlDeckDocument);
+      if (await downloadExistingDeckExport(version.params)) return;
       if (!version.data.deck) throw new Error('简报内容不完整。');
       await exportHtmlDeckToPptx(version.data.deck.slides, version.data.deck.deckTitle, blob => saveAndDownloadDeckExport(version.params, blob));
       setExportNotice(null);
