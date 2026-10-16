@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientRequestError, clientApiPath, clientApiRequest } from '@/lib/client-api';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 
-interface PresentationFile { scopeKey: string; url: string; fileName: string; slideCount?: number }
+interface PresentationFile { scopeKey: string; url: string; fileName: string; slideCount?: number; id?: string }
 
 export function useStructuredPresentationFile(scopeKey: string, notebookId: string | undefined, onError: (message: string | null) => void) {
   const [presentation, setPresentation] = useState<PresentationFile | null>(null);
@@ -13,12 +13,13 @@ export function useStructuredPresentationFile(scopeKey: string, notebookId: stri
   const [attempt, setAttempt] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const scopeKeyRef = useRef(scopeKey);
+  const latestArtifactId = useRef<string | null>(null);
   const downloadController = useRef<AbortController | null>(null);
   const objectUrls = useRef(new Set<string>());
   const pptxUrl = presentation?.scopeKey === scopeKey ? presentation.url : null;
 
   useEffect(() => {
-    scopeKeyRef.current = scopeKey;
+    scopeKeyRef.current = scopeKey; latestArtifactId.current = null;
     downloadController.current?.abort(); downloadController.current = null; setIsDownloading(false);
     const controller = new AbortController();
     setPresentation(null); setRestoreError(null);
@@ -33,7 +34,8 @@ export function useStructuredPresentationFile(scopeKey: string, notebookId: stri
         const artifact = payload.artifact;
         if (!artifact?.id || !/^[a-f0-9]{64}$/.test(artifact.id)) throw new Error('PPT保存信息不完整，请重试。');
         if (controller.signal.aborted || scopeKeyRef.current !== scopeKey) return;
-        setPresentation({ scopeKey, url: clientApiPath(`/api/ai/ppt-v2?${new URLSearchParams({ notebookId, artifactId: artifact.id, download: '1' })}`), fileName: artifact.fileName || 'academic-presentation.pptx', slideCount: artifact.slideCount });
+        latestArtifactId.current = artifact.id;
+        setPresentation({ scopeKey, id: artifact.id, url: clientApiPath(`/api/ai/ppt-v2?${new URLSearchParams({ notebookId, artifactId: artifact.id, download: '1' })}`), fileName: artifact.fileName || 'academic-presentation.pptx', slideCount: artifact.slideCount });
       } catch (error) {
         if (!controller.signal.aborted && scopeKeyRef.current === scopeKey) setRestoreError(error instanceof Error ? error.message : 'PPT暂时无法读取，请重试。');
       } finally {
@@ -54,7 +56,8 @@ export function useStructuredPresentationFile(scopeKey: string, notebookId: stri
     if (artifactId && /^[a-f0-9]{64}$/.test(artifactId) && notebookId) {
       await response.body?.cancel();
       if (signal.aborted || scopeKeyRef.current !== requestScopeKey) return;
-      setPresentation({ scopeKey: requestScopeKey, url: clientApiPath(`/api/ai/ppt-v2?${new URLSearchParams({ notebookId, artifactId, download: '1' })}`), fileName, slideCount });
+      latestArtifactId.current = artifactId;
+      setPresentation({ scopeKey: requestScopeKey, id: artifactId, url: clientApiPath(`/api/ai/ppt-v2?${new URLSearchParams({ notebookId, artifactId, download: '1' })}`), fileName, slideCount });
     } else {
       if (!scopeKey.startsWith('guest:')) throw new Error('PPT缺少保存信息，请刷新后重新读取。');
       const blob = await response.blob();
@@ -89,5 +92,5 @@ export function useStructuredPresentationFile(scopeKey: string, notebookId: stri
     }
   }, [isDownloading, onError, pptxUrl, presentation, scopeKey]);
 
-  return { presentation, setPresentation, pptxUrl, isRestoring, restoreError, retryRestore: () => setAttempt(value => value + 1), isDownloading, handleDownload, scopeKeyRef, acceptResponse };
+  return { presentation, setPresentation, latestArtifactId, pptxUrl, isRestoring, restoreError, retryRestore: () => setAttempt(value => value + 1), isDownloading, handleDownload, scopeKeyRef, acceptResponse };
 }

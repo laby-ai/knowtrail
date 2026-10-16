@@ -76,10 +76,12 @@ export function HypothesisGenerationPanel() {
   const runGeneration = useCallback(async () => {
     const trimmedQuestion = question.trim();
     const papers = getSelectedPapers();
-    if (!trimmedQuestion || papers.length === 0 || status === 'running' || saved.loading || saved.readFailed || saved.conflict || !await saved.flush()) return;
+    if (!trimmedQuestion || papers.length === 0 || abortRef.current || status === 'running' || saved.loading || saved.readFailed || saved.conflict) return;
 
     const controller = new AbortController();
     abortRef.current = controller;
+    setStatus('running');
+    if (!await saved.flush() || controller.signal.aborted) { if (abortRef.current === controller) { abortRef.current = null; setStatus('idle'); } return; }
     const runId = crypto.randomUUID(); const auth = accountAuthHeaders();
     cancelRef.current = () => { void fetch(clientApiPath('/api/ai/hypothesis-generation'), { method: 'DELETE', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ notebookId, runId }), keepalive: true }).catch(() => undefined); };
     setError(null);

@@ -53,7 +53,7 @@ export function StructuredPresentationPanel() {
   const selectedPaperKey = selectedPapers.map(paper => paper.id).join('|');
   const abortControllerRef = useRef<AbortController | null>(null);
   const timersRef = useRef<number[]>([]);
-  const { presentation, setPresentation, pptxUrl, isRestoring, restoreError, retryRestore, isDownloading, handleDownload, scopeKeyRef, acceptResponse } = useStructuredPresentationFile(storageScopeKey, notebookId, setError);
+  const { presentation, setPresentation, latestArtifactId, pptxUrl, isRestoring, restoreError, retryRestore, isDownloading, handleDownload, scopeKeyRef, acceptResponse } = useStructuredPresentationFile(storageScopeKey, notebookId, setError);
   const suggestedOutline = useMemo(
     () => buildStructuredPresentationOutlineDraft(selectedPapers, duration),
     [selectedPaperKey, duration],
@@ -81,8 +81,8 @@ export function StructuredPresentationPanel() {
   ];
 
   const handleGenerate = async () => {
-    if (!generationReadiness.ready) {
-      setError(generationReadiness.message);
+    if (!generationReadiness.ready || abortControllerRef.current || isRestoring || restoreError) {
+      setError(!generationReadiness.ready ? generationReadiness.message : restoreError);
       return;
     }
     const papers = getSelectedPapers();
@@ -98,11 +98,9 @@ export function StructuredPresentationPanel() {
     setError(null);
     setQualityWarning(null);
     setQualitySummary(null);
-    setPresentation(null);
     setElapsedSeconds(0);
     setProgressMsg('正在准备结构化简报生成...');
     setProgressStep('discourse');
-    abortControllerRef.current?.abort();
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
     const requestScopeKey = storageScopeKey;
@@ -182,7 +180,7 @@ export function StructuredPresentationPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
-          notebookId,
+          notebookId, expectedArtifactId: latestArtifactId.current,
           papers: papersPayload,
           aiConfig,
           institution,
@@ -202,6 +200,7 @@ export function StructuredPresentationPanel() {
 
       if (!res.ok) {
         const err = await res.json();
+        if (res.status === 409) retryRestore();
         throw new Error(err.error || '生成失败');
       }
 

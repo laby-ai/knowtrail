@@ -106,8 +106,9 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   // Send a message (used by input and quick buttons)
   const sendQuestion = useCallback(async (question: string, options: SendQuestionOptions = {}) => {
     const normalizedQuestion = question.trim();
-    if (!normalizedQuestion || isGenerating || !historyReady || !researchChatReadiness.ready) return;
-    if (!await chatPersistence.flush()) return;
+    if (!normalizedQuestion || chatAbortRef.current || isGenerating || !historyReady || !researchChatReadiness.ready) return;
+    const abortController = new AbortController(); chatAbortRef.current = abortController; setIsGenerating(true);
+    if (!await chatPersistence.flush() || abortController.signal.aborted) { if (chatAbortRef.current === abortController) { chatAbortRef.current = null; setIsGenerating(false); } return; }
     if (options.appendUserMessage !== false) {
       const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
       addChatMessage({ id: userMsgId, role: 'user', content: normalizedQuestion, timestamp: new Date().toISOString() });
@@ -116,7 +117,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
     const selectedPapers = getSelectedPapers();
     if (selectedPapers.length === 0) {
       addChatMessage({ id: `msg-${Date.now()}-${++_msgSeq.current}`, role: 'assistant', content: '请先在左侧文献库选择要分析的证据来源。', timestamp: new Date().toISOString() });
-      return;
+      chatAbortRef.current = null; setIsGenerating(false); return;
     }
 
     setIsGenerating(true);
@@ -137,8 +138,6 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       addChatMessage(pendingMessage);
     }
     let streamedContent = '';
-    const abortController = new AbortController();
-    chatAbortRef.current = abortController;
     userStoppedRef.current = false;
     const timeoutId = window.setTimeout(() => abortController.abort(), CHAT_RESPONSE_TIMEOUT_MS);
 
@@ -278,7 +277,9 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
 
   // Generate report directly in chat
   const handleGenerateReport = useCallback(async (customOutline = '') => {
-    if (!historyReady || !researchChatReadiness.ready || !await chatPersistence.flush()) return;
+    if (chatAbortRef.current || !historyReady || !researchChatReadiness.ready) return;
+    const controller = new AbortController(); chatAbortRef.current = controller; setIsGenerating(true);
+    if (!await chatPersistence.flush() || controller.signal.aborted) { if (chatAbortRef.current === controller) { chatAbortRef.current = null; setIsGenerating(false); } return; }
     const selectedPapers = getSelectedPapers();
     if (selectedPapers.length === 0) {
       addChatMessage({
@@ -287,10 +288,9 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
         content: '请先在左侧文献库上传或选择证据来源，再生成文献综述。',
         timestamp: new Date().toISOString(),
       });
-      return;
+      chatAbortRef.current = null; setIsGenerating(false); return;
     }
     setIsGenerating(true);
-    const controller = new AbortController(); chatAbortRef.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 120_000);
 
     const reportTitle = customOutline.trim()

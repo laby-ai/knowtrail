@@ -43,6 +43,12 @@ jobs:
       - name: Notebook home usability contract
         run: pnpm run test:notebook-home-usability
 
+      - name: Search and catalog recovery
+        run: pnpm exec tsx scripts/test-discover-search-recovery.ts && pnpm run test:notebook-catalog-store && pnpm exec tsx scripts/test-notebook-catalog-recovery.ts
+
+      - name: Native PPT concurrent persistence
+        run: pnpm exec tsx scripts/test-native-ppt-concurrency.ts
+
       - name: Source metadata recovery contract
         run: pnpm run test:source-metadata-recovery
 

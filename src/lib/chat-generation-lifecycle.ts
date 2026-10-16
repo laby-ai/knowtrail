@@ -85,7 +85,7 @@ export function classifyChatFailure({
   if (aborted) {
     return {
       status: 'timeout',
-      content: '真实模型生成超过 45 秒，已停止等待。请稍后重试，或把问题缩短为更具体的一问。',
+      content: '真实模型生成超过 90 秒，已停止等待。请稍后重试，或把问题缩短为更具体的一问。',
     };
   }
   if (/额度|积分|充值|分配|预占|quota|billing/i.test(errorMessage)) {

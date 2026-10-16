@@ -1,5 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { catalogContentKey } from '@/lib/catalog-content-key';
 import type { WorkbenchPreferences, WorkspaceNotebook } from '@/components/home/workspace-types';
 
 export type NotebookCatalog = {
@@ -7,6 +9,7 @@ export type NotebookCatalog = {
   activeNotebookId: string | null;
   workbenchPreferences?: WorkbenchPreferences;
   updatedAt: string;
+  revision?: string;
 };
 
 type NotebookCatalogFile = {
@@ -27,11 +30,18 @@ function catalogPath(): string {
 async function readStore(): Promise<NotebookCatalogFile> {
   try {
     const parsed = JSON.parse(await readFile(catalogPath(), 'utf8')) as NotebookCatalogFile;
-    if (parsed.version === 1 && parsed.catalogs && typeof parsed.catalogs === 'object') return parsed;
-  } catch {
-    // Missing or invalid stores are recreated on the next account save.
+    if (parsed.version === 1 && parsed.catalogs && typeof parsed.catalogs === 'object' && !Array.isArray(parsed.catalogs)) return parsed;
+    throw new Error('文献本列表格式异常，请稍后重试。');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
   return { version: 1, catalogs: {} };
+}
+
+export class NotebookCatalogConflict extends Error {}
+function withRevision(catalog: NotebookCatalog): NotebookCatalog {
+  const { revision: _revision, ...data } = catalog;
+  return { ...data, revision: createHash('sha256').update(JSON.stringify(data)).digest('hex') };
 }
 
 function cleanNotebook(value: WorkspaceNotebook): WorkspaceNotebook | null {
@@ -83,7 +93,7 @@ function cleanWorkbenchPreferences(value?: WorkbenchPreferences): WorkbenchPrefe
 
 export async function getNotebookCatalog(ownerMemberId: string): Promise<NotebookCatalog | null> {
   const store = await readStore();
-  return store.catalogs[ownerMemberId] || null;
+  return store.catalogs[ownerMemberId] ? withRevision(store.catalogs[ownerMemberId]) : null;
 }
 
 export async function saveNotebookCatalog(
@@ -92,11 +102,13 @@ export async function saveNotebookCatalog(
     notebooks: WorkspaceNotebook[];
     activeNotebookId?: string | null;
     workbenchPreferences?: WorkbenchPreferences;
+    expectedRevision?: string | null;
   },
 ): Promise<NotebookCatalog> {
   let saved!: NotebookCatalog;
   const nextWrite = writeQueue.then(async () => {
     const store = await readStore();
+    const currentRevision = store.catalogs[ownerMemberId] ? withRevision(store.catalogs[ownerMemberId]).revision : null;
     const previousPreferences = store.catalogs[ownerMemberId]?.workbenchPreferences;
     saved = {
       ...cleanCatalog(input),
@@ -105,6 +117,9 @@ export async function saveNotebookCatalog(
         : cleanWorkbenchPreferences(input.workbenchPreferences),
       updatedAt: new Date().toISOString(),
     };
+    const previous = store.catalogs[ownerMemberId];
+    if (previous && catalogContentKey({ ...previous, updatedAt: undefined }) === catalogContentKey({ ...saved, updatedAt: undefined })) { saved = previous; return; }
+    if (input.expectedRevision !== currentRevision) throw new NotebookCatalogConflict('另一页面已修改文献本列表，请先读取已保存列表。');
     store.catalogs[ownerMemberId] = saved;
     const target = catalogPath();
     await mkdir(path.dirname(target), { recursive: true });
@@ -114,5 +129,5 @@ export async function saveNotebookCatalog(
   });
   writeQueue = nextWrite.then(() => undefined, () => undefined);
   await nextWrite;
-  return saved;
+  return withRevision(saved);
 }

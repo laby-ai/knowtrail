@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNotebookCatalogSync } from '@/hooks/use-notebook-catalog-sync';
 import { AppProvider } from '@/contexts/AppContext';
 import { ThreeColumnLayout } from '@/components/layout/ThreeColumnLayout';
 import { LibraryPanel } from '@/components/library/LibraryPanel';
@@ -234,6 +235,12 @@ export default function HomePage() {
     (base: string) => `${base}:${notebookStorageOwner}`,
     [notebookStorageOwner],
   );
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  const [catalogReadError, setCatalogReadError] = useState<string | null>(null);
+  const discardCatalogPending = useRef(false);
+  const catalogSnapshot = useMemo(() => ({ notebooks, activeNotebookId, workbenchPreferences }), [notebooks, activeNotebookId, workbenchPreferences]);
+  const catalogSync = useNotebookCatalogSync(notebookStorageOwner, accountNotebookPersistence, notebooksReady && notebooksStorageOwner === notebookStorageOwner, catalogSnapshot);
+  const { acceptLoaded } = catalogSync;
   const notebookIdsSignature = notebooks.map(notebook => notebook.id).join('|');
 
   useEffect(() => {
@@ -285,7 +292,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!accountSessionReady) return;
     let cancelled = false;
-    setNotebooksReady(false);
+    setNotebooksReady(false); setCatalogReadError(null);
     async function loadNotebooks() {
       if (accountNotebookPersistence) {
         try {
@@ -294,27 +301,22 @@ export default function HomePage() {
               notebooks: WorkspaceNotebook[];
               activeNotebookId: string | null;
               workbenchPreferences?: WorkbenchPreferences;
+              revision: string;
             } | null;
           }>('/api/notebooks', { redirectOnUnauthorized: false });
           if (cancelled) return;
-          if (response.catalog?.notebooks.length) {
-            const nextNotebooks = response.catalog.notebooks
-              .map((notebook, index) => ({ ...notebook, title: normalizeNotebookTitle(notebook.title, index) }));
-            const availableNotebooks = visibleNotebooks(nextNotebooks);
-            setNotebooks(nextNotebooks);
-            setActiveNotebookId(
-              response.catalog.activeNotebookId
-              && availableNotebooks.some(item => item.id === response.catalog?.activeNotebookId)
-                ? response.catalog.activeNotebookId
-                : availableNotebooks[0]?.id || null,
-            );
-            setWorkbenchPreferences(response.catalog.workbenchPreferences || {});
-            setNotebooksStorageOwner(notebookStorageOwner);
-            setNotebooksReady(true);
-            return;
-          }
-        } catch {
-          // Fall back to this browser's account-scoped copy while sync recovers.
+          const stored = response.catalog;
+          const initial = { notebooks: (stored?.notebooks.length ? stored.notebooks : createDefaultNotebooks()).map((notebook, index) => ({ ...notebook, title: normalizeNotebookTitle(notebook.title, index) })), activeNotebookId: stored?.activeNotebookId || null, workbenchPreferences: stored?.workbenchPreferences || {} };
+          const restored = acceptLoaded(initial, stored?.revision || null, Boolean(stored), discardCatalogPending.current);
+          discardCatalogPending.current = false;
+          const available = visibleNotebooks(restored.notebooks);
+          setNotebooks(restored.notebooks);
+          setActiveNotebookId(available.some(item => item.id === restored.activeNotebookId) ? restored.activeNotebookId : available[0]?.id || null);
+          setWorkbenchPreferences(restored.workbenchPreferences);
+          setNotebooksStorageOwner(notebookStorageOwner); setNotebooksReady(true); return;
+        } catch (caught) {
+          if (!cancelled) setCatalogReadError(caught instanceof Error ? caught.message : '文献本列表暂时无法读取，请重试。');
+          return;
         }
       }
       try {
@@ -343,7 +345,7 @@ export default function HomePage() {
     }
     void loadNotebooks();
     return () => { cancelled = true; };
-  }, [accountNotebookPersistence, accountSessionReady, notebookStorageKey, notebookStorageOwner]);
+  }, [accountNotebookPersistence, accountSessionReady, notebookStorageKey, notebookStorageOwner, acceptLoaded, catalogAttempt]);
 
   useEffect(() => {
     if (
@@ -359,15 +361,7 @@ export default function HomePage() {
     } catch {
       // Keep the interface usable in restricted browser storage modes.
     }
-    if (accountNotebookPersistence) {
-      void clientApiFetch('/api/notebooks', {
-        method: 'PUT',
-        redirectOnUnauthorized: false,
-        body: JSON.stringify({ notebooks, activeNotebookId, workbenchPreferences }),
-      }).catch(() => {
-        // The browser copy remains available while account sync recovers.
-      });
-    }
+
   }, [accountNotebookPersistence, accountSessionReady, activeNotebookId, notebookStorageKey, notebookStorageOwner, notebooks, notebooksReady, notebooksStorageOwner, workbenchPreferences]);
 
   const updateWorkbenchPreferences = useCallback((preferences: Partial<WorkbenchPreferences>) => {
@@ -391,7 +385,7 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (entered || showLanding || !accountSessionReady) return;
+    if (entered || showLanding || !accountSessionReady || !notebooksReady || notebooksStorageOwner !== notebookStorageOwner) return;
     if (!accountStatus) return;
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountStatus.authRequired && !accountHeaders.Authorization) return;
@@ -412,7 +406,7 @@ export default function HomePage() {
     }
     void syncNotebookSourceCounts();
     return () => { cancelled = true; };
-  }, [accountSession, accountSessionReady, accountStatus, entered, notebookIdsSignature, showLanding]);
+  }, [accountSession, accountSessionReady, accountStatus, entered, notebookIdsSignature, showLanding, notebooksReady, notebooksStorageOwner, notebookStorageOwner]);
 
   useEffect(() => {
     const applyRouteState = () => {
@@ -602,7 +596,7 @@ export default function HomePage() {
         aria-busy="true"
         aria-label="正在恢复文献本"
       >
-        正在恢复文献本…
+        {catalogReadError ? <div role="alert"><p>{catalogReadError}</p><button onClick={() => setCatalogAttempt(value => value + 1)}>重试读取文献本</button></div> : '正在恢复文献本…'}
       </div>
     );
   }
@@ -615,6 +609,10 @@ export default function HomePage() {
       initialSelectedPaperIds={activeTemplateId ? featuredSelectedPaperIds : []}
     >
       <LiquidGlassProvider>
+        {catalogSync.error && <div role="alert" data-testid="catalog-sync-error" className="fixed left-3 right-3 top-2 z-[90] rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-slate-800">
+          <span>{catalogSync.error}</span>{' '}
+          {catalogSync.conflict ? <button onClick={() => { discardCatalogPending.current = true; setCatalogAttempt(value => value + 1); }}>读取已保存列表</button> : <button onClick={() => void catalogSync.retry()}>重试保存列表</button>}
+        </div>}
         {entered ? (
           <AcademicPresenterContent
             workspaceTitle={activeNotebook.title}

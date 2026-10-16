@@ -3,7 +3,11 @@
 // NotebookLM-style "discover sources": search the web from the library
 // panel, pick results, and ingest them as sources in one step.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useApp } from '@/contexts/AppContext';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyDiscoverSearch, isDiscoverSearchDocument, type SearchProvider } from '@/lib/discover-search-document';
+import { SavedToolStatus } from '@/components/studio/SavedToolStatus';
 import { clientApiPath } from '@/lib/client-api';
 import {
   AlertCircle,
@@ -34,26 +38,38 @@ export function DiscoverSourcesModal({
 }: {
   notebookId?: string;
   onClose: () => void;
-  onIngestFiles: (files: File[]) => Promise<void | number>;
+  onIngestFiles: (files: File[], signal?: AbortSignal) => Promise<void | number>;
   variant?: 'modal' | 'embedded';
   initialScope?: 'webpage' | 'scholar';
 }) {
-  const [query, setQuery] = useState('');
-  const [optimizedQuery, setOptimizedQuery] = useState('');
-  const [planKeywords, setPlanKeywords] = useState<string[]>([]);
-  const [scope, setScope] = useState<'webpage' | 'scholar'>(initialScope);
+  const { storageScopeKey } = useApp();
+  const emptySearch = useCallback(() => ({ ...emptyDiscoverSearch(), scope: initialScope }), [initialScope]);
+  const saved = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'discover-search', endpoint: '/api/studio/artifacts?kind=discover-search', empty: emptySearch, validate: isDiscoverSearchDocument });
+  const { update } = saved;
+  const { query, optimizedQuery, planKeywords, scope, results, searched } = saved.data;
+  const selected = useMemo(() => new Set(saved.data.selected), [saved.data.selected]);
+  const searchProvider = saved.data.provider;
+  const setQuery = useCallback((query: string) => update(p => ({ ...p, query })), [update]);
+  const setOptimizedQuery = useCallback((optimizedQuery: string) => update(p => ({ ...p, optimizedQuery })), [update]);
+  const setPlanKeywords = useCallback((planKeywords: string[]) => update(p => ({ ...p, planKeywords })), [update]);
+  const setScope = useCallback((scope: 'webpage' | 'scholar') => update(p => ({ ...p, scope })), [update]);
+  const setResults = useCallback((results: DiscoverResult[]) => update(p => ({ ...p, results })), [update]);
+  const setSearched = useCallback((searched: boolean) => update(p => ({ ...p, searched })), [update]);
+  const setSelected = useCallback((value: Set<string> | ((previous: Set<string>) => Set<string>)) => update(p => ({ ...p, selected: [...(typeof value === 'function' ? value(new Set(p.selected)) : value)] })), [update]);
+  const setSearchProvider = useCallback((provider: SearchProvider) => update(p => ({ ...p, provider })), [update]);
+  const ready = !saved.loading && !saved.readFailed && !saved.conflict;
+  const requests = useRef(new Set<AbortController>());
+  const live = useRef(true);
+  useEffect(() => { live.current = true; return () => { live.current = false; requests.current.forEach(c => c.abort()); searchSequence.current++; }; }, []);
   const [isSearching, setIsSearching] = useState(false);
-  const [results, setResults] = useState<DiscoverResult[]>([]);
-  const [searched, setSearched] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [searchProvider, setSearchProvider] = useState<'metaso' | 'arxiv' | 'giiisp-paper' | 'dashscope-web' | null>(null);
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>('idle');
   const [ingestProgress, setIngestProgress] = useState({ done: 0, total: 0 });
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const searchSequence = useRef(0);
+  const busy = useRef(false);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -68,14 +84,16 @@ export function DiscoverSourcesModal({
 
   const handleSearch = useCallback(async () => {
     const original = query.trim();
-    if (!original || isSearching) return;
+    if (!original || busy.current || !ready) return;
+    busy.current = true;
     const sequence = ++searchSequence.current;
     setIsSearching(true);
+    const auth = accountAuthHeaders();
+    if (!await saved.flush() || !live.current || sequence !== searchSequence.current) { busy.current = false; if (live.current) setIsSearching(false); return; }
+    const controller = new AbortController(); requests.current.add(controller);
     setError(null);
     setNotice(null);
-    setSearchProvider(null);
     setItemErrors({});
-    setSelected(new Set());
     try {
       let effectiveQuery = optimizedQuery.trim();
       if (!effectiveQuery) {
@@ -90,7 +108,8 @@ export function DiscoverSourcesModal({
         } else {
           const planResponse = await fetch(clientApiPath('/api/discover/optimize-query'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json', ...auth },
             body: JSON.stringify({ query: original, scope, notebookId }),
           });
           plan = await planResponse.json();
@@ -118,7 +137,8 @@ export function DiscoverSourcesModal({
       } else {
         const res = await fetch(clientApiPath('/api/discover/search'), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json', ...auth },
           body: JSON.stringify({ query: effectiveQuery, scope, size: 10, withContent: false, notebookId }),
         });
         const data = await res.json();
@@ -127,17 +147,17 @@ export function DiscoverSourcesModal({
         setResults(Array.isArray(data.results) ? data.results : []);
         setSearchProvider(data.provider === 'arxiv' ? 'arxiv' : 'metaso');
       }
-      setSearched(true);
+      setSelected(new Set()); setSearched(true); await saved.flush();
     } catch (err) {
       if (sequence !== searchSequence.current) return;
       setError(err instanceof Error ? err.message : '搜索失败，请重试');
-      setResults([]);
-      setSearchProvider(null);
-      setSearched(true);
+      setNotice('仍保留上次已保存的检索结果。');
     } finally {
-      setIsSearching(false);
+      requests.current.delete(controller);
+      busy.current = false;
+      if (live.current && sequence === searchSequence.current) setIsSearching(false);
     }
-  }, [query, optimizedQuery, scope, isSearching, notebookId]);
+  }, [query, optimizedQuery, scope, isSearching, notebookId, ready, saved, setOptimizedQuery, setPlanKeywords, setResults, setSearchProvider, setSearched, setSelected]);
 
   const toggleSelect = useCallback((link: string) => {
     setSelected(prev => {
@@ -145,12 +165,17 @@ export function DiscoverSourcesModal({
       if (next.has(link)) next.delete(link); else next.add(link);
       return next;
     });
-  }, []);
+  }, [setSelected]);
 
   const handleIngest = useCallback(async () => {
     const picked = results.filter(r => selected.has(r.link));
-    if (picked.length === 0 || ingestPhase === 'fetching') return;
+    if (picked.length === 0 || busy.current || !ready) return;
+    busy.current = true;
     setIngestPhase('fetching');
+    const controller = new AbortController(); requests.current.add(controller);
+    const auth = accountAuthHeaders();
+    try {
+    if (!await saved.flush() || !live.current || controller.signal.aborted) return;
     setIngestProgress({ done: 0, total: picked.length });
     setItemErrors({});
     setError(null);
@@ -162,14 +187,15 @@ export function DiscoverSourcesModal({
       try {
         const file = await createDiscoveredSourceFile(item, async url => {
           const res = await fetch(clientApiPath('/api/discover/fetch'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+            method: 'POST', signal: controller.signal,
+            headers: { 'Content-Type': 'application/json', ...auth },
             body: JSON.stringify({ url, notebookId }),
           });
           const data = await res.json();
           if (!res.ok || !data.success) throw new Error(data.error || '抓取失败');
           return { title: data.title, text: data.text };
         });
+        if (!live.current || controller.signal.aborted) return;
         files.push(file);
       } catch (err) {
         failures[item.link] = err instanceof Error ? err.message : '抓取失败';
@@ -182,7 +208,9 @@ export function DiscoverSourcesModal({
     if (files.length > 0) {
       let addedCount: number;
       try {
-        const result = await onIngestFiles(files);
+        controller.signal.throwIfAborted();
+        const result = await onIngestFiles(files, controller.signal);
+        if (!live.current || controller.signal.aborted) return;
         addedCount = typeof result === 'number' ? result : files.length;
       } catch (err) {
         setError(err instanceof Error ? err.message : '来源入库失败，请重试。');
@@ -205,8 +233,11 @@ export function DiscoverSourcesModal({
     } else {
       setError('所选来源都未能抓取成功,请换几条结果试试。');
     }
-    setIngestPhase('idle');
-  }, [results, selected, ingestPhase, notebookId, onIngestFiles, onClose, variant]);
+    } finally {
+      requests.current.delete(controller); busy.current = false;
+      if (live.current) setIngestPhase('idle');
+    }
+  }, [results, selected, ingestPhase, notebookId, onIngestFiles, onClose, variant, ready, saved, setSelected]);
 
   return (
     <div
@@ -222,7 +253,8 @@ export function DiscoverSourcesModal({
           : 'flex w-full flex-col gap-3'}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
+        <SavedToolStatus saved={saved} guest={storageScopeKey.startsWith('guest:')} />
+      {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
@@ -244,7 +276,8 @@ export function DiscoverSourcesModal({
             {([['webpage', '网页', Globe2], ['scholar', '学术', GraduationCap]] as const).map(([id, label, Icon]) => (
               <button
                 key={id}
-                onClick={() => setScope(id)}
+                disabled={!ready || isSearching || ingestPhase === 'fetching'}
+                onClick={() => { setScope(id); setOptimizedQuery(''); setPlanKeywords([]); }}
                 className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
                   scope === id ? 'bg-[var(--glass-active)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                 }`}
@@ -260,6 +293,7 @@ export function DiscoverSourcesModal({
             <input
               ref={inputRef}
               value={query}
+              disabled={!ready || isSearching || ingestPhase === 'fetching'}
               onChange={e => {
                 setQuery(e.target.value);
                 setOptimizedQuery('');
@@ -273,7 +307,7 @@ export function DiscoverSourcesModal({
           </div>
           <button
             onClick={() => void handleSearch()}
-            disabled={isSearching || !query.trim()}
+            disabled={isSearching || ingestPhase === 'fetching' || !query.trim() || !ready}
             data-testid="discover-search"
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 text-xs font-semibold text-white transition hover:from-blue-400 hover:to-blue-500 disabled:opacity-45"
           >
@@ -290,6 +324,7 @@ export function DiscoverSourcesModal({
             </div>
             <input
               value={optimizedQuery}
+              disabled={!ready || isSearching || ingestPhase === 'fetching'}
               onChange={event => setOptimizedQuery(event.target.value)}
               onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void handleSearch(); }}
               data-testid="discover-optimized-query"
@@ -367,6 +402,7 @@ export function DiscoverSourcesModal({
                 >
                   <button
                     type="button"
+                    disabled={!ready || ingestPhase === 'fetching' || isSearching}
                     onClick={() => toggleSelect(item.link)}
                     data-testid="discover-result-item"
                     className="w-full px-3.5 py-3 text-left"
@@ -421,7 +457,7 @@ export function DiscoverSourcesModal({
             </span>
             <button
               onClick={() => void handleIngest()}
-              disabled={selected.size === 0 || ingestPhase === 'fetching'}
+              disabled={selected.size === 0 || ingestPhase === 'fetching' || isSearching || !ready}
               data-testid="discover-ingest"
               className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:from-blue-400 hover:to-blue-500 active:scale-[0.97] disabled:opacity-45"
             >

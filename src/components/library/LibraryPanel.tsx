@@ -865,10 +865,10 @@ export function LibraryPanel({
 
   // Discovered web sources arrive as ready-made text files and reuse the
   // regular upload/ingestion pipeline.
-  const handleIngestDiscoveredFiles = useCallback(async (files: File[]) => {
+  const handleIngestDiscoveredFiles = useCallback(async (files: File[], signal?: AbortSignal) => {
     if (files.length === 0) return;
     const targetFolder = ensureUploadTarget();
-    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId });
+    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId, signal });
     if (outcome.papers.length === 0) {
       throw new Error(outcome.errors[0] || '来源入库失败，请重试。');
     }

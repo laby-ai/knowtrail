@@ -11,13 +11,14 @@ import type { PaperInput, PptOptions, SlideSpec } from '@/lib/ppt/academic-types
 import { genAcademicOutline } from '@/lib/ppt/academic-planner';
 import { getLlmCallLogs, llmInvokeObserved, markFallback, markJsonParsed, withLlmCallLogs } from '@/lib/ppt/academic-observability';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
-import { readStructuredPpt, saveStructuredPpt, type StructuredPptArtifact } from '@/lib/structured-ppt-store';
+import { readStructuredPpt, saveStructuredPpt, StructuredPptConflict, type StructuredPptArtifact } from '@/lib/structured-ppt-store';
 import {
   resolveStudioGenerationReadiness,
   studioGenerationUnavailablePayload,
 } from '@/lib/studio-generation-readiness';
 
 const PPT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+const activeGenerations = new Set<string>();
 
 function artifactUrl(notebookId: string, id: string, download = false): string {
   const base = (process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/$/, '');
@@ -180,6 +181,7 @@ export async function POST(request: NextRequest) {
 }
 
 async function generatePpt(request: NextRequest) {
+  let generationKey: string | null = null;
   try {
     const body = await request.json();
     const { papers, institution, closingStyle, presenterName, advisorName, duration, audience, speakerNotes, aiConfig, debugRetrievalOnly } = body as {
@@ -213,6 +215,15 @@ async function generatePpt(request: NextRequest) {
     }
 
     const readiness = resolveStudioGenerationReadiness().structuredPpt;
+    let expectedArtifactId: string | null | undefined;
+    if (!debugRetrievalOnly && scope.ownerMemberId && scope.notebookId) {
+      const key = JSON.stringify([scope.ownerMemberId, scope.notebookId]);
+      if (activeGenerations.has(key)) return NextResponse.json({ error: '此文献本正在生成PPT，请等待完成后重新读取。' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
+      activeGenerations.add(key); generationKey = key;
+      const latest = await readStructuredPpt({ ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId });
+      expectedArtifactId = latest?.artifact.id || null;
+      if (body.expectedArtifactId !== undefined && body.expectedArtifactId !== expectedArtifactId) return NextResponse.json({ error: '另一页面已保存新PPT，请先重新读取。' }, { status: 409, headers: { 'Cache-Control': 'private, no-store' } });
+    }
     if (!debugRetrievalOnly && !readiness.ready) {
       return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
     }
@@ -386,9 +397,10 @@ async function generatePpt(request: NextRequest) {
           fileName,
           slideCount: outline.length,
           sourceIds: papers.map(paper => paper.id).filter((id): id is string => Boolean(id)),
+          expectedArtifactId,
         });
-      } catch {
-        return NextResponse.json({ error: '演示文稿已生成，但保存失败，请稍后重试。' }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } });
+      } catch (error) {
+        return NextResponse.json({ error: error instanceof StructuredPptConflict ? error.message : '演示文稿已生成，但保存失败，请稍后重试。' }, { status: error instanceof StructuredPptConflict ? 409 : 503, headers: { 'Cache-Control': 'private, no-store' } });
       }
     }
 
@@ -409,5 +421,5 @@ async function generatePpt(request: NextRequest) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[PPT-V2] Error:', msg);
     return NextResponse.json({ error: `PPT生成失败: ${msg}` }, { status: 500 });
-  }
+  } finally { if (generationKey) activeGenerations.delete(generationKey); }
 }

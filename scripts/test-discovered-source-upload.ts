@@ -60,6 +60,10 @@ async function main() {
     /上传失败\(HTTP 502\)/,
   );
 
+  const unknown = await uploadDiscoveredSourceFiles({ files: [new File(['x'], 'x.txt')], request: async () => Response.json({ results: [{ ...outcome.papers[0], year: undefined, authors: [] }] }) });
+  assert.equal(unknown.papers.length, 1); assert.equal(unknown.papers[0].year, undefined);
+  const aborted = new AbortController(); aborted.abort();
+  await assert.rejects(() => uploadDiscoveredSourceFiles({ files: [new File(['x'], 'x.txt')], signal: aborted.signal, request: async () => { throw new Error('must not call'); } }), /abort/i);
   let fetchCount = 0;
   const openSourceFile = await createDiscoveredSourceFile({
     title: 'Open Candidate',

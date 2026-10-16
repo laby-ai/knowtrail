@@ -1,4 +1,5 @@
 import type { WorkspaceNotebook } from '@/components/home/workspace-types';
+import { clientApiPath } from '@/lib/client-api';
 
 type SourceCountMap = Record<string, number>;
 
@@ -15,7 +16,7 @@ export async function loadNotebookSourceCounts({
   const entries = await Promise.all(uniqueNotebookIds.map(async notebookId => {
     try {
       const params = new URLSearchParams({ notebookId });
-      const response = await request(`/api/ingestion/sources?${params.toString()}`, {
+      const response = await request(clientApiPath(`/api/ingestion/sources?${params.toString()}`), {
         cache: 'no-store',
         headers,
       });

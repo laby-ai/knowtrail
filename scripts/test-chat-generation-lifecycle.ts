@@ -79,7 +79,7 @@ assert.equal(bounded[0]?.id, 'message-3');
 
 assert.deepEqual(classifyChatFailure({ aborted: true, stoppedByUser: false }), {
   status: 'timeout',
-  content: '真实模型生成超过 45 秒，已停止等待。请稍后重试，或把问题缩短为更具体的一问。',
+  content: '真实模型生成超过 90 秒，已停止等待。请稍后重试，或把问题缩短为更具体的一问。',
 });
 assert.deepEqual(classifyChatFailure({ aborted: true, stoppedByUser: true }), {
   status: 'stopped',

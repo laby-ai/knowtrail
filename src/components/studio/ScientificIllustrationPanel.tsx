@@ -114,9 +114,11 @@ export function ScientificIllustrationPanel() {
       setMessage('本次没有提交生成任务。');
       return;
     }
-    if (!formReady || status === 'running' || saved.loading || saved.readFailed || saved.conflict || !await saved.flush()) return;
+    if (!formReady || controllerRef.current || status === 'running' || saved.loading || saved.readFailed || saved.conflict) return;
     const controller = new AbortController();
     controllerRef.current = controller;
+    setStatus('running');
+    if (!await saved.flush() || controller.signal.aborted) { if (controllerRef.current === controller) { controllerRef.current = null; setStatus('idle'); } return; }
     const runId = crypto.randomUUID(); const auth = accountAuthHeaders();
     cancelRef.current = () => { void fetch(clientApiPath('/api/ai/scientific-illustration'), { method: 'DELETE', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ notebookId, runId }), keepalive: true }).catch(() => undefined); };
     let timedOut = false;
@@ -210,6 +212,7 @@ export function ScientificIllustrationPanel() {
         <textarea
           data-testid="scientific-illustration-purpose"
           value={purpose}
+          disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
           onChange={event => setPurpose(event.target.value)}
           rows={3}
           className="apple-textarea w-full"
@@ -224,6 +227,7 @@ export function ScientificIllustrationPanel() {
             <button
               key={option.id}
               type="button"
+              disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
               aria-pressed={figureKind === option.id}
               onClick={() => setFigureKind(option.id)}
               className={`rounded-lg border p-2 text-left transition-colors ${figureKind === option.id ? 'border-cyan-400/50 bg-cyan-500/10' : 'border-[var(--border-subtle)] bg-[var(--glass-subtle)]'}`}
@@ -242,6 +246,7 @@ export function ScientificIllustrationPanel() {
             <button
               key={option}
               type="button"
+              disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
               aria-pressed={aspectRatio === option}
               onClick={() => setAspectRatio(option)}
               className={`rounded-lg border px-3 py-2 text-[11px] font-semibold ${aspectRatio === option ? 'border-cyan-400/50 bg-cyan-500/10 text-cyan-200' : 'border-[var(--border-subtle)] text-[var(--text-secondary)]'}`}
@@ -257,6 +262,7 @@ export function ScientificIllustrationPanel() {
         <input
           data-testid="scientific-illustration-labels"
           value={requiredLabels}
+          disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
           onChange={event => setRequiredLabels(event.target.value)}
           className="apple-input w-full"
           placeholder="样本进入，质量控制，特征提取，结果复核"

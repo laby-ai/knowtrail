@@ -12,6 +12,7 @@ async function main() {
     assert.equal(await getNotebookCatalog('member-a'), null);
 
     const saved = await saveNotebookCatalog('member-a', {
+      expectedRevision: null,
       notebooks: [
         {
           id: 'default-workspace',

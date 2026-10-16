@@ -45,7 +45,7 @@ function paperFromUploadResult(value: unknown): { paper?: Paper; error?: string 
   if (!Array.isArray(result.keywords) || !result.keywords.every(keyword => typeof keyword === 'string')) {
     return { error: '服务器返回的关键词字段无效' };
   }
-  if (typeof result.year !== 'number' || !Number.isFinite(result.year)) return { error: '服务器返回的年份字段无效' };
+  if (result.year !== undefined && (typeof result.year !== 'number' || !Number.isFinite(result.year))) return { error: '服务器返回的年份字段无效' };
   if (typeof result.fileSize !== 'number' || !Number.isFinite(result.fileSize)) return { error: '服务器返回的文件大小无效' };
 
   return {
@@ -82,20 +82,25 @@ export async function uploadDiscoveredSourceFiles({
   files,
   notebookId,
   request = fetch,
+  signal,
 }: {
   files: File[];
   notebookId?: string;
   request?: UploadRequest;
+  signal?: AbortSignal;
 }): Promise<DiscoveredSourceUploadOutcome> {
   if (files.length === 0) return { papers: [], errors: [] };
 
+  signal?.throwIfAborted();
+  const auth = accountAuthHeaders();
   const formData = new FormData();
   files.forEach(file => formData.append('files', file));
   if (notebookId) formData.append('notebookId', notebookId);
 
   const response = await request(clientApiPath('/api/upload'), {
     method: 'POST',
-    headers: accountAuthHeaders(),
+    headers: auth,
+    signal,
     body: formData,
   });
   if (!response.ok) throw new Error(`上传失败(HTTP ${response.status})`);
@@ -107,6 +112,7 @@ export async function uploadDiscoveredSourceFiles({
     throw new Error('上传服务返回了无法解析的响应');
   }
 
+  signal?.throwIfAborted();
   const papers: Paper[] = [];
   const errors: string[] = [];
   for (const result of payload.results || []) {

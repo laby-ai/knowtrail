@@ -24,13 +24,14 @@ export function PaperSearchPanel() {
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
 
-  const ingestFiles = useCallback(async (files: File[]) => {
+  const ingestFiles = useCallback(async (files: File[], signal?: AbortSignal) => {
     setUploadSummary(null);
-    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId });
+    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId, signal });
     if (outcome.papers.length === 0) {
       throw new Error(outcome.errors[0] || '来源入库失败，请重试。');
     }
 
+    signal?.throwIfAborted();
     const targetFolderId = activeFolderId || addFolder('论文检索');
     setActiveFolder(targetFolderId);
     outcome.papers.forEach(paper => {

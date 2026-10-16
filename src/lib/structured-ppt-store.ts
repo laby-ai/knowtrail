@@ -49,14 +49,29 @@ async function atomicWrite(file: string, data: string | Buffer): Promise<void> {
   }
 }
 
-export async function saveStructuredPpt(input: StructuredPptScope & {
+export class StructuredPptConflict extends Error {}
+const writes = new Map<string, Promise<void>>();
+type SaveInput = StructuredPptScope & {
   buffer: Buffer;
   fileName: string;
   slideCount: number;
   sourceIds: string[];
-}): Promise<StructuredPptArtifact> {
+  expectedArtifactId?: string | null;
+};
+export async function saveStructuredPpt(input: SaveInput): Promise<StructuredPptArtifact> {
+  const key = scopeDirectory(input);
+  let saved!: StructuredPptArtifact;
+  const running = (writes.get(key) || Promise.resolve()).then(async () => { saved = await writeStructuredPpt(input); });
+  const settled = running.then(() => undefined, () => undefined);
+  writes.set(key, settled);
+  try { await running; return saved; } finally { if (writes.get(key) === settled) writes.delete(key); }
+}
+async function writeStructuredPpt(input: SaveInput): Promise<StructuredPptArtifact> {
   const directory = scopeDirectory(input);
   const id = createHash('sha256').update(input.buffer).digest('hex');
+  const latest = await readStructuredPpt(input);
+  if (latest?.artifact.id === id) return latest.artifact;
+  if (input.expectedArtifactId !== undefined && input.expectedArtifactId !== (latest?.artifact.id || null)) throw new StructuredPptConflict('另一页面已保存新PPT，请先重新读取。');
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const existing = await readJson(path.join(directory, `${id}.json`)) as StructuredPptArtifact | null;
   const artifact: StructuredPptArtifact = existing || {
@@ -86,7 +101,8 @@ export async function readStructuredPpt(
   const directory = scopeDirectory(scope);
   const latest = artifactId ? null : await readJson(path.join(directory, 'latest.json')) as { id?: string } | null;
   const id = artifactId || latest?.id;
-  if (!id || !/^[a-f0-9]{64}$/.test(id)) return null;
+  if (!latest && !artifactId) return null;
+  if (!id || !/^[a-f0-9]{64}$/.test(id)) throw new Error('演示文稿版本记录异常，请稍后重试。');
   const artifact = await readJson(path.join(directory, `${id}.json`)) as StructuredPptArtifact | null;
   if (!artifact || artifact.id !== id || artifact.ownerMemberId !== scope.ownerMemberId || artifact.notebookId !== scope.notebookId) return null;
   const buffer = await readFile(path.join(directory, `${id}.pptx`));
