@@ -7,20 +7,19 @@ import {
   promoteReleaseWithRollback,
   validateReleaseHealth,
 } from './lib/release-env-gate.mjs';
+import { applyClipboardModelSecrets } from './lib/real-env-setup.mjs';
 
 const fakeSecret = 'test-only-secret-value';
 const validEnv = [
-  'ARK_API_BASE=https://ark.example.com/api/v3',
-  `ARK_API_KEY=${fakeSecret}`,
-  'ARK_MODEL=doubao-test',
-  'ACCOUNT_CENTER_API_BASE=http://127.0.0.1:8088',
-  'ACCOUNT_CENTER_TENANT_ID=tenant-test',
-  'ACCOUNT_CENTER_DEFAULT_MEMBER_ID=member-test',
-  'ACCOUNT_CENTER_APP_KEY=app-test',
-  'ACCOUNT_CENTER_CREDENTIAL_KEY=credential-test',
-  `ACCOUNT_CENTER_CLIENT_SECRET=${fakeSecret}`,
-  'ACCOUNT_CENTER_REQUIRE_AUTH=true',
+  `KNOWTRAIL_OBSERVABILITY_HASH_KEY=${fakeSecret.repeat(2)}`,
+  'OPENAI_COMPAT_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1',
+  `OPENAI_COMPAT_API_KEY=${fakeSecret}`,
+  'OPENAI_COMPAT_MODEL=qwen3.7-plus',
+  `DASHSCOPE_API_KEY=${fakeSecret}`,
+  'DASHSCOPE_IMAGE_MODEL=qwen-image-2.0',
+  'LOCAL_USAGE_QUOTA_PATH=/opt/knowtrail/shared/usage/usage.json',
   'SOURCE_STORE_PATH=/opt/knowtrail/shared/sources/sources.json',
+  'LOCAL_FILE_STORAGE_DIR=/opt/knowtrail/shared/uploads',
   'ZVEC_STORE_PATH=/opt/knowtrail/shared/zvec',
   'STUDIO_JOB_STORE_PATH=/opt/knowtrail/shared/studio-jobs/jobs.json',
   'SCIENTIFIC_ILLUSTRATION_STORE_DIR=/opt/knowtrail/shared/scientific-illustrations',
@@ -29,6 +28,22 @@ const validEnv = [
 
 const tempDir = await mkdtemp(path.join(os.tmpdir(), 'lingbi-release-env-gate-'));
 try {
+  const clipboardValues = new Map();
+  const fakeBailianKey = ['sk', 'testonly0123456789abcdef'].join('-');
+  const fakeSitianToken = [
+    'eyJ0ZXN0IjoidHJ1ZSJ9',
+    'eyJzdWIiOiJmaXh0dXJlIn0',
+    'fixture-signature',
+  ].join('.');
+  const clipboardSummary = applyClipboardModelSecrets(
+    clipboardValues,
+    `${fakeBailianKey} ${fakeSitianToken}`,
+  );
+  assert.equal(clipboardValues.get('OPENAI_COMPAT_MODEL'), 'qwen3.7-plus');
+  assert.equal(clipboardValues.get('DASHSCOPE_IMAGE_MODEL'), 'qwen-image-2.0');
+  assert(!JSON.stringify(clipboardSummary).includes(fakeBailianKey));
+  assert(!JSON.stringify(clipboardSummary).includes(fakeSitianToken));
+
   const sourcePath = path.join(tempDir, 'stable.env');
   const targetPath = path.join(tempDir, 'release', '.env.production');
   await writeFile(sourcePath, validEnv, 'utf8');
@@ -43,7 +58,7 @@ try {
   assert.deepEqual(summary.missingGroups, []);
 
   const incompletePath = path.join(tempDir, 'incomplete.env');
-  await writeFile(incompletePath, validEnv.replace(/^ARK_API_KEY=.*\n/m, ''), 'utf8');
+  await writeFile(incompletePath, validEnv.replace(/^OPENAI_COMPAT_API_KEY=.*\n/m, ''), 'utf8');
   await chmod(incompletePath, 0o600);
   await assert.rejects(
     () => prepareReleaseEnvironment({ sourcePath: incompletePath, targetPath }),
@@ -54,13 +69,39 @@ try {
     },
   );
 
+  const missingObservabilityKeyPath = path.join(tempDir, 'missing-observability-key.env');
+  await writeFile(
+    missingObservabilityKeyPath,
+    validEnv.replace(/^KNOWTRAIL_OBSERVABILITY_HASH_KEY=.*\n/m, ''),
+    'utf8',
+  );
+  await chmod(missingObservabilityKeyPath, 0o600);
+  await assert.rejects(
+    () => prepareReleaseEnvironment({ sourcePath: missingObservabilityKeyPath, targetPath }),
+    /observability-identity-hash-key/,
+  );
+
+  const missingImageProviderPath = path.join(tempDir, 'missing-image-provider.env');
+  await writeFile(
+    missingImageProviderPath,
+    validEnv.replace(/^DASHSCOPE_API_KEY=.*\n/m, ''),
+    'utf8',
+  );
+  await chmod(missingImageProviderPath, 0o600);
+  await assert.rejects(
+    () => prepareReleaseEnvironment({ sourcePath: missingImageProviderPath, targetPath }),
+    /bailian-image-api-key/,
+  );
+
   const health = {
     ok: true,
     capabilities: {
       accountBoundModelConfig: true,
       serverFallbackModelConfigured: true,
+      bailianImageProviderConfigured: true,
       vectorStore: { path: '/opt/knowtrail/shared/zvec' },
       sourceStore: { path: '/opt/knowtrail/shared/sources/sources.json' },
+      localUploadStore: { path: '/opt/knowtrail/shared/uploads', writable: true },
       studioJobStore: { path: '/opt/knowtrail/shared/studio-jobs/jobs.json' },
       scientificIllustrationStore: {
         path: '/opt/knowtrail/shared/scientific-illustrations',
@@ -79,6 +120,13 @@ try {
       capabilities: { ...health.capabilities, serverFallbackModelConfigured: false },
     }, { sharedRoot: '/opt/knowtrail/shared' }),
     /serverFallbackModelConfigured/,
+  );
+  assert.throws(
+    () => validateReleaseHealth({
+      ...health,
+      capabilities: { ...health.capabilities, bailianImageProviderConfigured: false },
+    }, { sharedRoot: '/opt/knowtrail/shared' }),
+    /bailianImageProviderConfigured/,
   );
   assert.throws(
     () => validateReleaseHealth({

@@ -12,6 +12,7 @@ type AIUsageReservationOptions = {
   promptContext?: string;
   memberId?: string;
   idempotencyKey?: string;
+  quotaExempt?: boolean;
 };
 
 export type AIUsageReservation = {
@@ -61,7 +62,19 @@ export function accountUsageErrorMessage(error: unknown, fallback: string) {
 }
 
 export async function reserveAIUsage(options: AIUsageReservationOptions): Promise<AIUsageReservation | null> {
-  if (!isAccountBillingConfigured(options.memberId)) return null;
+  if (options.quotaExempt) return null;
+
+  if (!isAccountBillingConfigured(options.memberId)) {
+    const { localUsageQuotaConfigured, reserveLocalUsage } = await import('@/lib/local-usage-quota');
+    if (!localUsageQuotaConfigured() || !options.memberId) return null;
+    const local = await reserveLocalUsage({ memberId: options.memberId, productArea: options.productArea || 'ai.text' });
+    return {
+      requestId: `local:${options.route}:${Date.now()}`,
+      estimatedUnits: 1,
+      settle: async () => local.settle(),
+      release: local.release,
+    };
+  }
 
   const client = createAccountClient();
   const tenantId = envValue('ACCOUNT_CENTER_TENANT_ID');

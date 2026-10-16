@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { buildSourceChunks, type RagSourceInput, type SourceChunk } from '@/lib/rag';
 import { embedTexts } from '@/lib/ai-service';
 import { upsertSourceChunks } from '@/lib/vector-store';
@@ -57,7 +58,7 @@ export type {
   VectorIndexRecord,
 } from '@/lib/source-store/types';
 
-const nodeRequire = createRequire(import.meta.url);
+const nodeRequire = createRequire(path.join(process.cwd(), 'package.json'));
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -896,6 +897,24 @@ export async function getIngestionSource(id: string, scope: { ownerMemberId?: st
     sourceMatchesOwner(source, scope.ownerMemberId) &&
     sourceMatchesNotebook(source, scope.notebookId)
   ));
+}
+
+export async function deleteIngestionSource(
+  id: string,
+  scope: { ownerMemberId?: string; notebookId?: string } = {},
+): Promise<boolean> {
+  let deleted = false;
+  await getSourceStoreAdapter().mutate(store => {
+    const sources = store.sources.filter(source => {
+      const matches = source.id === id &&
+        sourceMatchesOwner(source, scope.ownerMemberId) &&
+        sourceMatchesNotebook(source, scope.notebookId);
+      if (matches) deleted = true;
+      return !matches;
+    });
+    return deleted ? { ...store, sources } : store;
+  });
+  return deleted;
 }
 
 export async function updateSourceMinerUStatus(

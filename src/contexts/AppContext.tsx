@@ -29,6 +29,11 @@ import {
   parseStoredChatHistory,
   serializeChatHistory,
 } from '@/lib/chat-generation-lifecycle';
+import {
+  parseStoredSourceSelection,
+  serializeSourceSelection,
+  sourceSelectionStorageKey,
+} from '@/lib/source-selection-storage';
 
 export type CitationReveal = Pick<Citation, 'chunkId' | 'chunkIndex' | 'page' | 'excerpt' | 'sourceTitle' | 'paperShortName'>;
 
@@ -217,6 +222,37 @@ export function AppProvider({
     activeFolderId: initialFolders[0]?.id || null,
   }));
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+  const [sourceSelectionLoaded, setSourceSelectionLoaded] = useState(false);
+
+  React.useEffect(() => {
+    let selectedPapers = [...initialSelectedPaperIds];
+    try {
+      selectedPapers = parseStoredSourceSelection(
+        window.localStorage.getItem(sourceSelectionStorageKey(storageScopeKey)),
+        initialSelectedPaperIds,
+      );
+    } catch {
+      // Browser storage can be unavailable; the visible selection remains usable in memory.
+    }
+    setState(previous => ({
+      ...previous,
+      storageScopeKey,
+      selectedPapers,
+    }));
+    setSourceSelectionLoaded(true);
+  }, [initialSelectedPaperIds, storageScopeKey]);
+
+  React.useEffect(() => {
+    if (!sourceSelectionLoaded) return;
+    try {
+      window.localStorage.setItem(
+        sourceSelectionStorageKey(storageScopeKey),
+        serializeSourceSelection(state.selectedPapers),
+      );
+    } catch {
+      // Browser storage can be unavailable; the visible selection remains usable in memory.
+    }
+  }, [sourceSelectionLoaded, state.selectedPapers, storageScopeKey]);
 
   React.useEffect(() => {
     let messages: ChatMessage[] = [];

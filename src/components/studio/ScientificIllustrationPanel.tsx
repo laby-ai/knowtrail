@@ -5,6 +5,7 @@ import NextImage from 'next/image';
 import { AlertTriangle, Download, Image as ImageIcon, Loader2, Square } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
+import { useScopedStudioState } from '@/hooks/use-scoped-studio-state';
 import { clientApiDownloadBlob, clientApiRequest } from '@/lib/client-api';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type {
@@ -66,10 +67,10 @@ export function ScientificIllustrationPanel() {
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const controllerRef = useRef<AbortController | null>(null);
   const previewUrlRef = useRef('');
-  const [purpose, setPurpose] = useState('');
-  const [figureKind, setFigureKind] = useState<ScientificIllustrationKind>('workflow');
-  const [aspectRatio, setAspectRatio] = useState<ScientificIllustrationAspectRatio>('16:9');
-  const [requiredLabels, setRequiredLabels] = useState('');
+  const [purpose, setPurpose] = useScopedStudioState(storageScopeKey, 'scientific-illustration', 'purpose', '');
+  const [figureKind, setFigureKind] = useScopedStudioState<ScientificIllustrationKind>(storageScopeKey, 'scientific-illustration', 'figure-kind', 'workflow');
+  const [aspectRatio, setAspectRatio] = useScopedStudioState<ScientificIllustrationAspectRatio>(storageScopeKey, 'scientific-illustration', 'aspect-ratio', '16:9');
+  const [requiredLabels, setRequiredLabels] = useScopedStudioState(storageScopeKey, 'scientific-illustration', 'required-labels', '');
   const [status, setStatus] = useState<PanelStatus>('idle');
   const [message, setMessage] = useState('选定来源并说明作图目的后开始。');
   const [error, setError] = useState<string | null>(null);

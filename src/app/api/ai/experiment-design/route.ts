@@ -14,7 +14,7 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
 type ExperimentDesignRequest = {
@@ -88,9 +88,7 @@ export async function POST(request: NextRequest) {
   });
   if (!scope.ok) return scope.response;
 
-  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
-  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-  const runtimeConfig = runtimeConfigResult;
+  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
   const retrievalQuery = `研究问题：${question}\n待验证假设：${hypothesis}\n请检索与实验单位、处理/对照、主要结局、偏倚、混杂和可行性相关的证据。`;
   const grounded = await buildGroundedRetrievalContext(retrievalQuery, papers, runtimeConfig, {
     topK: 12,
@@ -129,6 +127,7 @@ export async function POST(request: NextRequest) {
       inputText: `${question}\n${hypothesis}`,
       promptContext: grounded.promptContext,
       memberId: scope.ownerMemberId,
+      quotaExempt: scope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {

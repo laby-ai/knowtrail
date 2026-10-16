@@ -16,7 +16,7 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
 type DeepResearchRequest = {
@@ -61,9 +61,7 @@ export async function POST(request: NextRequest) {
   });
   if (!scope.ok) return scope.response;
 
-  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
-  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-  const runtimeConfig = runtimeConfigResult;
+  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
   const retrievalQuery = `深度研究问题：${question}\n请检索与研究边界、主要结论、争议和待核验问题有关的证据。`;
   const grounded = await buildGroundedRetrievalContext(retrievalQuery, papers, runtimeConfig, {
     topK: 12,
@@ -95,6 +93,7 @@ export async function POST(request: NextRequest) {
       inputText: question,
       promptContext: grounded.promptContext,
       memberId: scope.ownerMemberId,
+      quotaExempt: scope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {

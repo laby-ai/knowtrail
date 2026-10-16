@@ -18,12 +18,12 @@ export interface DiscoveredSource {
   date: string;
   authors: string[];
   score?: string;
-  provider: 'metaso' | 'arxiv';
+  provider: 'metaso' | 'arxiv' | 'giiisp-paper' | 'dashscope-web';
   verificationStatus: 'candidate' | 'open-source-candidate';
 }
 
 export interface DiscoverSearchResult {
-  provider: 'metaso' | 'arxiv';
+  provider: 'metaso' | 'arxiv' | 'giiisp-paper' | 'dashscope-web';
   results: DiscoveredSource[];
   total: number;
 }

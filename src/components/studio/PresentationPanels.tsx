@@ -46,7 +46,6 @@ import { PresentationModeSelector, type PresentationMode } from './PresentationM
 import { StructuredPresentationPanel } from './StructuredPresentationPanel';
 import { HtmlPresentationPanel } from './HtmlPresentationPanel';
 import { SlideAnnotationEditor } from './SlideAnnotationEditor';
-import { ImagePptGenerationFeedback } from './ImagePptGenerationFeedback';
 
 export function PresentationWorkspacePanel({ initialMode = 'image' }: { initialMode?: PresentationMode }) {
   const [mode, setMode] = useState<PresentationMode>(initialMode);
@@ -503,14 +502,47 @@ function PresentationPanel() {
       </div>
 
       {/* ── Generate button ── */}
-      <ImagePptGenerationFeedback
-        readiness={generationReadiness}
-        notice={generationNotice}
-        error={generationError}
-        isGenerating={isGenerating}
-        hasSelectedPapers={hasSelectedPapers}
-        onRetry={handleGenerate}
-      />
+      {!generationReadiness.ready && (
+        <div data-testid="image-ppt-readiness" className="rounded-xl border border-amber-400/25 bg-amber-500/5 p-3 text-xs leading-relaxed text-amber-200">
+          {generationReadiness.message}
+        </div>
+      )}
+      {generationNotice && !isGenerating && (
+        <div className="liquid-glass-card p-3 text-xs text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+          {generationNotice}
+        </div>
+      )}
+
+      {generationError && !isGenerating && (
+        <div
+          data-testid="image-ppt-error"
+          className="liquid-glass-card p-4 space-y-3 border border-rose-400/35 bg-rose-500/10"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">图片 PPT 生成失败</p>
+              <p className="break-words text-xs leading-relaxed text-[var(--text-secondary)]">
+                {generationError}
+              </p>
+              <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                {/图片服务暂时繁忙|HTTP\s*429|rate.?limit/i.test(generationError)
+                  ? '图片服务当前较忙，请稍后重试。'
+                  : '文本模型已进入生成流程，但账号绑定的图片模型暂时不可用。请稍后重试或联系服务方检查模型配置。'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            data-testid="image-ppt-retry"
+            onClick={handleGenerate}
+            disabled={!hasSelectedPapers || !generationReadiness.ready}
+            className="liquid-glass-btn px-3 py-2 text-xs text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            重试生成
+          </button>
+        </div>
+      )}
 
       <button
         data-testid="image-ppt-generate"
@@ -591,7 +623,7 @@ function PresentationPanel() {
 
       {/* ── Slides preview ── */}
       {slides.length > 0 ? (
-        <div className="space-y-4" data-testid="image-ppt-result">
+        <div className="space-y-4">
           {/* Main preview */}
           {currentSlide && (
             <div

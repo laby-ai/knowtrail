@@ -22,6 +22,16 @@ async function main() {
   assert.match(studioUi, /正在生成演示文稿，可随时取消/, 'PPT generation should explain that the user can cancel while waiting.');
   assert.match(studioUi, /正在准备结构化简报生成/, 'Academic PPT generation should expose a staged long-task status without implementation jargon.');
   assert.match(studioUi, /请先在左侧选择资料/, 'Studio generation buttons should expose a clear no-source title.');
+  assert.match(
+    structuredPresentationPanel,
+    /clientApiRequest\('\/api\/ai\/ppt-v2',[\s\S]*timeoutMs:\s*300_000/,
+    'Academic PPT generation must outlive the shared 20-second request timeout.',
+  );
+  assert.match(
+    structuredPresentationPanel,
+    /生成等待超时，服务可能仍在处理资料。请稍后重试/,
+    'Academic PPT timeout feedback should be actionable Chinese copy.',
+  );
 
   const cancelButtons = studioUi.match(/取消生成/g) || [];
   assert.ok(cancelButtons.length >= 2, 'Image PPT and structured PPT flows should expose cancel controls.');

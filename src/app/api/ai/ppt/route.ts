@@ -4,14 +4,13 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import { allowRequestRuntimeAIConfig, hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
 import type { RagSourceInput } from '@/lib/rag';
 import type { RuntimeAIConfig } from '@/types';
-import { bailianProfileFromRuntimeConfig, resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
-import { generateBailianWanImage } from '@/lib/bailian-wan-image';
 import { DETAIL_LEVEL_SPECS, getStyleDescription, PPT_LANG_INSTRUCTION } from '@/lib/ppt/image-ppt-style';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import {
   resolveStudioGenerationReadiness,
   studioGenerationUnavailablePayload,
 } from '@/lib/studio-generation-readiness';
+import { generateSlideImage } from '@/lib/ppt/image-generation';
 
 // ============================================================
 // Banana Slides PPT Generation Pipeline (Strict Alignment)
@@ -21,8 +20,9 @@ import {
 // ============================================================
 
 // --- 思坦AI 配置 ---
-const SITIAN_API_BASE = process.env.SITIAN_API_BASE || 'http://images.sitianai.com';
+const SITIAN_API_BASE = process.env.SITIAN_API_BASE || 'https://images.sitianai.com';
 const SITIAN_API_TOKEN = process.env.SITIAN_API_TOKEN || '';
+const SITIAN_IMAGE_PROVIDER_REQUIRED = process.env.SITIAN_IMAGE_PROVIDER_REQUIRED === 'true';
 
 interface SitianResponse {
   success: boolean;
@@ -241,17 +241,19 @@ async function generateImage(prompt: string, options?: {
   negativePrompt?: string;
   referenceImageBase64?: string;
   runtimeConfig?: Partial<RuntimeAIConfig>;
+  signal?: AbortSignal;
 }): Promise<string | null> {
-  const memberProfile = bailianProfileFromRuntimeConfig(options?.runtimeConfig || {});
-  if (memberProfile) {
-    const image = await generateBailianWanImage(prompt, memberProfile, { aspectRatio: options?.aspectRatio });
-    return image.toString('base64');
+  if (process.env.DASHSCOPE_API_KEY?.trim()) {
+    return generateSlideImage(prompt, options);
   }
   // 1. 优先尝试思坦AI
   if (SITIAN_API_TOKEN) {
     console.log('[生图] 尝试思坦AI...');
     const result = await generateSitianImage(prompt, options);
     if (result) return result;
+    if (SITIAN_IMAGE_PROVIDER_REQUIRED) {
+      throw new Error('指定的科研图像服务暂时不可用，请稍后重试。');
+    }
     console.log('[生图] 思坦AI失败，改用真实 OpenAI-compatible 图片模型...');
   } else {
     console.log('[生图] 未配置思坦AI Token，使用真实 OpenAI-compatible 图片模型...');
@@ -583,8 +585,7 @@ ${outlineLines}
 }
 
 // ============================================================
-// Step 4: Generate images in parallel using 思坦AI
-// Batched concurrency (like banana-slides ThreadPoolExecutor max_workers=8)
+// Step 4: Generate images with controlled provider concurrency
 // ============================================================
 async function genImagesParallel(
   prompts: string[],
@@ -592,8 +593,9 @@ async function genImagesParallel(
   aspectRatio: string = '16:9',
   refImageBase64?: string,
   runtimeConfig?: Partial<RuntimeAIConfig>,
+  signal?: AbortSignal,
 ): Promise<ImageGenerationResult[]> {
-  const CONCURRENCY = 3; // 并发数（每日额度500张）
+  const CONCURRENCY = process.env.DASHSCOPE_API_KEY?.trim() ? 1 : 3; // 百炼逐页生图，避免突发限流
   const results: ImageGenerationResult[] = new Array(prompts.length).fill(null).map(() => ({ imageBase64: null }));
   let completed = 0;
 
@@ -608,6 +610,7 @@ async function genImagesParallel(
           negativePrompt: '文字模糊、低质量、变形、水印、签名、多余装饰、排版混乱',
           referenceImageBase64: refImageBase64,
           runtimeConfig,
+          signal,
         });
         if (base64Data) {
           console.log(`[PPT] ✓ 第 ${globalIdx + 1}/${prompts.length} 页成功 (${(base64Data.length / 1024).toFixed(0)}KB)`);
@@ -743,12 +746,11 @@ export async function POST(request: NextRequest) {
     aiConfig,
     debugRetrievalOnly,
   } = body;
-  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
-  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-  const runtimeConfig = runtimeConfigResult;
+  const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
     loginMessage: '请先登录账号，再生成演示文稿。',
+    requireAuthenticatedPaperHost: true,
   });
   if (!scope.ok) return scope.response;
 
@@ -883,16 +885,19 @@ export async function POST(request: NextRequest) {
         const prompts = genPrompts(outline, descResults, styleDesc, language, aspectRatio);
 
         // ── Stage 4: Generate Images (PARALLEL with progress) ──
-        sendEvent({ stage: 'image', status: 'generating', message: '正在并行生成幻灯片图片...', imageTotal: prompts.length });
+        sendEvent({ stage: 'image', status: 'generating', message: '正在生成幻灯片图片...', imageTotal: prompts.length });
         const imageResults = await genImagesParallel(prompts, (completed, total) => {
           sendEvent({ stage: 'image', status: 'progress', message: `图片生成中... ${completed}/${total}`, imageCompleted: completed, imageTotal: total });
-        }, aspectRatio, refImageBase64, runtimeConfig);
+        }, aspectRatio, refImageBase64, runtimeConfig, request.signal);
         const imageUrls = imageResults.map(result => result.imageBase64);
 
         const successCount = imageUrls.filter(u => u !== null).length;
         sendEvent({ stage: 'image', status: 'done', message: `图片生成完成 ${successCount}/${imageUrls.length}` });
         if (successCount !== imageUrls.length) {
           const firstError = imageResults.find(result => result.error)?.error;
+          if (/HTTP\s*429|rate.?limit|too many requests/i.test(firstError || '')) {
+            throw new Error(`图片服务暂时繁忙，已完成 ${successCount}/${imageUrls.length} 页，本次未完成，请稍后重试。`);
+          }
           throw new Error(`图片生成失败：${successCount}/${imageUrls.length} 页成功。${firstError ? `首个错误：${firstError}` : '请检查账号绑定的图片模型服务。'}`);
         }
 

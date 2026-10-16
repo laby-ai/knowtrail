@@ -1,6 +1,6 @@
 'use client';
 
-import { clientApiRequest } from '@/lib/client-api';
+import { ClientRequestError, clientApiRequest } from '@/lib/client-api';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -176,6 +176,7 @@ export function StructuredPresentationPanel() {
           outlineDraft,
         }),
         signal: abortController.signal,
+        timeoutMs: 300_000,
       });
       timers.forEach(clearTimeout);
 
@@ -211,7 +212,10 @@ export function StructuredPresentationPanel() {
       setProgressStep('');
     } catch (e: unknown) {
       const aborted = abortController.signal.aborted || (e instanceof DOMException && e.name === 'AbortError');
-      setError(aborted ? '已取消生成，可以调整设置后重新开始。' : e instanceof Error ? e.message : '生成失败');
+      const message = e instanceof ClientRequestError && e.code === 'timeout'
+        ? '生成等待超时，服务可能仍在处理资料。请稍后重试；已确认的大纲仍会保留。'
+        : e instanceof Error ? e.message : '生成失败';
+      setError(aborted ? '已取消生成，可以调整设置后重新开始。' : message);
       setQualityWarning(null);
       setQualitySummary(null);
       setProgressMsg('');

@@ -79,10 +79,6 @@ async function resolveSmokeApp(tempDir) {
       INTERNAL_APP_ORIGIN: '',
       SOURCE_STORE_PATH: path.join(tempDir, 'sources.json'),
       ZVEC_STORE_PATH: path.join(tempDir, 'zvec'),
-      ARK_API_BASE: 'https://models.example.test/v1',
-      ARK_API_KEY: 'workbench-ui-smoke-key',
-      ARK_MODEL: 'workbench-ui-text-model',
-      ARK_IMAGE_MODEL: 'workbench-ui-image-model',
       ALLOW_INSECURE_API_BASE: 'true',
       ALLOW_PRIVATE_API_BASE: 'true',
     },
@@ -114,6 +110,12 @@ async function expectVisible(locator, message) {
 async function expectDisabled(locator, message) {
   const disabled = await locator.isDisabled().catch(() => false);
   assert(disabled, message);
+}
+
+async function openStudioTool(page, testId) {
+  const backButton = page.getByTestId('studio-back-to-directory');
+  if (await backButton.isVisible().catch(() => false)) await backButton.click();
+  await page.getByTestId(testId).click();
 }
 
 function assertServerManagedAIConfig(config, routeName) {
@@ -169,7 +171,7 @@ async function main() {
     await page.goto(`${appOrigin}/#workbench`, { waitUntil: 'networkidle' });
     await expectVisible(page.getByText('产物中心', { exact: true }), 'Product center did not render');
 
-    await page.getByTestId('studio-nav-presentation').click();
+    await openStudioTool(page, 'studio-nav-presentation');
     const noSourceButton = page.getByRole('button', { name: /先选择(资料|文献)/ }).first();
     await expectVisible(noSourceButton, 'No-source PPT guard did not render');
     await expectDisabled(noSourceButton, 'No-source PPT guard should be disabled');
@@ -179,7 +181,7 @@ async function main() {
     await expectVisible(noSourceAcademic, 'No-source academic report guard did not render');
     await expectDisabled(noSourceAcademic, 'No-source academic report guard should be disabled');
 
-    await page.getByTestId('studio-nav-knowledge').click();
+    await openStudioTool(page, 'studio-nav-knowledge');
     const noSourceKnowledgeMap = page.getByTestId('knowledge-map-generate');
     await expectVisible(noSourceKnowledgeMap, 'No-source knowledge-map guard did not render');
     await expectDisabled(noSourceKnowledgeMap, 'No-source knowledge-map guard should be disabled');
@@ -191,7 +193,7 @@ async function main() {
         .filter({ hasText: /已选 1 个文献来源|已选 1 篇/ }),
       'Uploaded source was not auto-selected',
     );
-    await page.getByTestId('studio-nav-presentation').click();
+    await openStudioTool(page, 'studio-nav-presentation');
     await expectVisible(page.getByTestId('image-ppt-generate'), 'PPT generate button did not become available after source selection');
 
     const pptHits = await interceptLongTask(page, '/api/ai/ppt', '/api/ai/ppt');
@@ -217,7 +219,7 @@ async function main() {
     await expectVisible(page.getByText('已取消生成，可以调整设置后重新开始。'), 'Academic report cancel recovery copy did not render');
     assert(pptV2Hits() >= 1, 'Academic PPT generation request was not issued');
 
-    await page.getByTestId('studio-nav-knowledge').click();
+    await openStudioTool(page, 'studio-nav-knowledge');
     const knowledgeMapGenerate = page.getByTestId('knowledge-map-generate');
     await expectVisible(knowledgeMapGenerate, 'Knowledge-map generate button did not render after source selection');
     if (await knowledgeMapGenerate.isDisabled()) throw new Error('Knowledge-map generate button stayed disabled after source selection');

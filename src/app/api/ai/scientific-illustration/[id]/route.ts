@@ -8,6 +8,7 @@ export async function GET(
 ) {
   const accountScope = await resolveAccountNotebookScope(request, {
     loginMessage: '请先登录后再查看科研示意图。',
+    requireAuthenticatedPaperHost: true,
   });
   if (!accountScope.ok) return accountScope.response;
 

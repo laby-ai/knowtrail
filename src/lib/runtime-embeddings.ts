@@ -8,7 +8,7 @@ import {
 import { buildOpenAIHeaders, fetchWithTransientRetry } from '@/lib/runtime-ai-http';
 
 interface OpenAIEmbeddingsResponse {
-  data?: Array<{ embedding?: number[] }> | { embedding?: number[] };
+  data?: Array<{ index?: number; embedding?: number[] }> | { embedding?: number[] };
 }
 
 function resolveRuntimeEmbeddingModel(runtimeConfig?: Partial<RuntimeAIConfig>): string {
@@ -22,7 +22,15 @@ function isMultimodalEmbeddingModel(model: string): boolean {
 
 function extractEmbeddings(payload: OpenAIEmbeddingsResponse): number[][] {
   if (Array.isArray(payload.data)) {
-    return payload.data
+    const rows = [...payload.data];
+    if (rows.some(item => item.index !== undefined)) {
+      const indices = rows.map(item => item.index);
+      if (indices.some(index => !Number.isInteger(index) || index! < 0 || index! >= rows.length) || new Set(indices).size !== rows.length) {
+        throw new Error('向量模型返回了无效或重复的输入索引。');
+      }
+      rows.sort((a, b) => a.index! - b.index!);
+    }
+    return rows
       .map(item => item.embedding)
       .filter((value): value is number[] => Array.isArray(value));
   }
@@ -88,13 +96,21 @@ export async function embedTexts(
     return embeddings;
   }
 
-  const res = await fetchWithTransientRetry(endpoint, {
-    method: 'POST',
-    headers: buildOpenAIHeaders(resolvedRuntimeConfig.apiKey),
-    body: JSON.stringify({
-      model,
-      input: normalizedInputs,
-    }),
-  }, { label: 'openai-compatible embeddings' });
-  return parseEmbeddingResponse(res, resolvedRuntimeConfig.apiKey, normalizedInputs.length);
+  const batchSize = /^qwen3\.7-text-embedding(?:-flash)?$/.test(model) ? 20 : normalizedInputs.length;
+  const embeddings: number[][] = [];
+  for (let offset = 0; offset < normalizedInputs.length; offset += batchSize) {
+    const batch = normalizedInputs.slice(offset, offset + batchSize);
+    const res = await fetchWithTransientRetry(endpoint, {
+      method: 'POST',
+      headers: buildOpenAIHeaders(resolvedRuntimeConfig.apiKey),
+      body: JSON.stringify({ model, input: batch }),
+    }, { label: 'openai-compatible embeddings' });
+    const vectors = await parseEmbeddingResponse(res, resolvedRuntimeConfig.apiKey, batch.length);
+    const dimension = embeddings[0]?.length || vectors[0].length;
+    if (vectors.some(vector => vector.length !== dimension)) {
+      throw new Error('向量模型返回了不一致的向量维度。');
+    }
+    embeddings.push(...vectors);
+  }
+  return embeddings;
 }

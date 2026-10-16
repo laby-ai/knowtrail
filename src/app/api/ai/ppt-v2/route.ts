@@ -1,24 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
+import { buildGroundedRetrievalContext, toRetrievalMetadata, type GroundedRetrievalContext } from '@/lib/grounded-retrieval';
 import { formatPptOutlineDraftForPrompt, sanitizePptOutlineDraft } from '@/lib/ppt/outline-draft';
 import { readMinerUFiguresFromDisk, runMinerUExtraction, type MinerUFigureInput } from '@/lib/ppt/mineru-figures';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { downloadToTemp, isUsingObjectStorage } from '@/lib/storage';
 import type { RuntimeAIConfig } from '@/types';
 import path from 'path';
 import { buildAcademicPptx } from '@/lib/ppt/academic-renderer';
 import type { PaperInput, PptOptions, SlideSpec } from '@/lib/ppt/academic-types';
 import { genAcademicOutline } from '@/lib/ppt/academic-planner';
-import { llmCallLogs, llmInvokeObserved, markFallback, markJsonParsed, resetLlmCallLogs } from '@/lib/ppt/academic-observability';
+import { getLlmCallLogs, llmInvokeObserved, markFallback, markJsonParsed, withLlmCallLogs } from '@/lib/ppt/academic-observability';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import { readStructuredPpt, saveStructuredPpt, type StructuredPptArtifact } from '@/lib/structured-ppt-store';
 import {
   resolveStudioGenerationReadiness,
   studioGenerationUnavailablePayload,
 } from '@/lib/studio-generation-readiness';
 
+const PPT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+function artifactUrl(notebookId: string, id: string, download = false): string {
+  const base = (process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/$/, '');
+  const query = new URLSearchParams({ notebookId, artifactId: id });
+  if (download) query.set('download', '1');
+  return `${base}/api/ai/ppt-v2?${query}`;
+}
+
+export async function GET(request: NextRequest) {
+  const scope = await resolveAccountNotebookScope(request, {
+    notebookId: request.nextUrl.searchParams.get('notebookId'),
+    loginMessage: '请先登录，再打开演示文稿。',
+    requireAuthenticatedPaperHost: true,
+  });
+  if (!scope.ok) return scope.response;
+  const headers = { 'Cache-Control': 'private, no-store' };
+  if (!scope.ownerMemberId) return NextResponse.json({ error: '请先登录。' }, { status: 401, headers });
+  if (!scope.notebookId) return NextResponse.json({ error: '请先打开文献本。' }, { status: 400, headers });
+  try {
+    const saved = await readStructuredPpt({ ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId }, request.nextUrl.searchParams.get('artifactId') || undefined);
+    if (!saved) return NextResponse.json({ error: '未找到已保存的演示文稿。' }, { status: 404, headers });
+    const { artifact, buffer } = saved;
+    const downloadUrl = artifactUrl(scope.notebookId, artifact.id, true);
+    if (request.nextUrl.searchParams.get('download') === '1') {
+      return new NextResponse(new Uint8Array(buffer), {
+        headers: {
+          ...headers,
+          'Content-Type': PPT_CONTENT_TYPE,
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(artifact.fileName)}"`,
+          'Content-Length': String(buffer.length),
+          'Content-Location': downloadUrl,
+          'X-Content-SHA256': artifact.id,
+        },
+      });
+    }
+    return NextResponse.json({
+      artifact: { id: artifact.id, fileName: artifact.fileName, bytes: artifact.bytes, slideCount: artifact.slideCount, sourceIds: artifact.sourceIds, createdAt: artifact.createdAt },
+      downloadUrl,
+    }, { headers });
+  } catch {
+    return NextResponse.json({ error: '演示文稿暂时无法读取，请稍后重试。' }, { status: 503, headers });
+  }
+}
+
 // ── Grounded outline helpers ──
-function buildGroundedOutlinePapers(papers: PaperInput[], promptContext: string): PaperInput[] {
-  if (!promptContext) return papers;
+function buildGroundedOutlinePapers(papers: PaperInput[], grounded: GroundedRetrievalContext): PaperInput[] {
+  if (!grounded.promptContext) return papers;
   const first = papers[0];
   if (!first) return papers;
   const authors = Array.isArray(first.authors) ? first.authors.join(', ') : '';
@@ -30,6 +76,19 @@ fileName: ${p.fileName || ''}
 authors: ${pAuthors}
 year: ${p.year || ''}`;
   }).join('\n\n');
+  const prefix = `【资料元信息】\n${meta}\n\n【检索证据】\n`;
+  const parts: string[] = [];
+  let remaining = 18000 - prefix.length;
+  for (const [index, citation] of grounded.citations.entries()) {
+    // Citation snippets are for display; PPT needs the complete selected, scoped chunk.
+    const chunk = grounded.chunks.find(item => item.id === citation.chunkId && item.sourceId === citation.sourceId);
+    const part = `[${index + 1}] ${citation.sourceTitle}\nsourceId: ${citation.sourceId}\nchunkId: ${citation.chunkId}\n摘录:\n${chunk?.text || citation.excerpt}`;
+    if (part.length + 7 > remaining) throw new Error('资料片段超出演示文稿的单次范围，请缩小所选资料范围');
+    parts.push(part);
+    remaining -= part.length + 7;
+  }
+  if (!parts.length) throw new Error('资料片段超出演示文稿的单次范围，请缩小所选资料范围');
+  const content = prefix + parts.join('\n\n---\n\n');
 
   return [{
     ...first,
@@ -37,8 +96,8 @@ year: ${p.year || ''}`;
     authors: first.authors?.length ? first.authors : (authors ? [authors] : ['Lingbi Retrieval']),
     year: first.year || new Date().getFullYear(),
     abstract: first.abstract || '基于持久化 source/chunk 检索生成的学术报告 PPT 证据大纲。',
-    content: `【资料元信息】\n${meta}\n\n【检索证据】\n${promptContext}`,
-    rawContent: `【资料元信息】\n${meta}\n\n【检索证据】\n${promptContext}`,
+    content,
+    rawContent: content,
   }];
 }
 
@@ -118,9 +177,10 @@ Do NOT wrap in markdown code fences. Output ONLY the JSON array.`;
 }
 
 export async function POST(request: NextRequest) {
-  // ── Clear LLM observability logs for this request ──
-  resetLlmCallLogs();
+  return withLlmCallLogs(() => generatePpt(request));
+}
 
+async function generatePpt(request: NextRequest) {
   try {
     const body = await request.json();
     const { papers, institution, closingStyle, presenterName, advisorName, duration, audience, speakerNotes, aiConfig, debugRetrievalOnly } = body as {
@@ -142,8 +202,12 @@ export async function POST(request: NextRequest) {
     const scope = await resolveAccountNotebookScope(request, {
       notebookId: body.notebookId,
       loginMessage: '请先登录账号，再生成结构化演示文稿。',
+      requireAuthenticatedPaperHost: true,
     });
     if (!scope.ok) return scope.response;
+    if (!debugRetrievalOnly && scope.ownerMemberId && !scope.notebookId) {
+      return NextResponse.json({ error: '请先打开文献本，再生成演示文稿。' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
+    }
 
     if (!papers || papers.length === 0) {
       return NextResponse.json({ error: '请先选择文献' }, { status: 400 });
@@ -154,9 +218,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(studioGenerationUnavailablePayload(readiness), { status: 503 });
     }
 
-    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
-    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-    const runtimeConfig = runtimeConfigResult;
+    const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
     const grounded = await buildGroundedRetrievalContext(
       '为学术报告 PPT 解析论证结构、研究背景、科学问题、方法、结果、讨论、结论和可引用证据',
       papers,
@@ -232,7 +294,7 @@ export async function POST(request: NextRequest) {
     console.log('[PPT-V2] Step 1/4: Running ArcDeck-Enhanced pipeline...');
     const allMineruFigures = enrichedPapers.flatMap(p => p.mineruFigures || []);
     console.log(`[PPT-V2] allMineruFigures count: ${allMineruFigures.length}`);
-    const outlinePapers = buildGroundedOutlinePapers(enrichedPapers, grounded.promptContext);
+    const outlinePapers = buildGroundedOutlinePapers(enrichedPapers, grounded);
     console.log(`[PPT-V2] Grounded retrieval mode=${grounded.retrievalMode}, citations=${grounded.citations.length}, promptContext=${grounded.promptContext.length} chars`);
     const outline = await genAcademicOutline(outlinePapers, {
       institution: (institution as PptOptions['institution']) || 'generic',
@@ -271,6 +333,7 @@ export async function POST(request: NextRequest) {
     console.log(`[PPT-V2] Step 3/3: Done! ${fileName} (${(buffer.length / 1024).toFixed(1)} KB)`);
 
     // ── LLM Observability Summary ──
+    const llmCallLogs = getLlmCallLogs();
     const fallbackStages = llmCallLogs.filter(l => l.fallbackTriggered).map(l => l.stage);
     const failedStages = llmCallLogs.filter(l => !l.success).map(l => l.stage);
     const llmSummary = {
@@ -314,11 +377,32 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    let artifact: StructuredPptArtifact | undefined;
+    if (scope.ownerMemberId && scope.notebookId) {
+      try {
+        artifact = await saveStructuredPpt({
+          ownerMemberId: scope.ownerMemberId,
+          notebookId: scope.notebookId,
+          buffer,
+          fileName,
+          slideCount: outline.length,
+          sourceIds: papers.map(paper => paper.id).filter((id): id is string => Boolean(id)),
+        });
+      } catch {
+        return NextResponse.json({ error: '演示文稿已生成，但保存失败，请稍后重试。' }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } });
+      }
+    }
+
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'Content-Type': PPT_CONTENT_TYPE,
         'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+        'Cache-Control': 'private, no-store',
+        ...(artifact && scope.notebookId ? {
+          'Content-Location': artifactUrl(scope.notebookId, artifact.id, true),
+          'X-PPT-Artifact-Id': artifact.id,
+        } : {}),
         'X-LLM-Observability': encodeURIComponent(JSON.stringify(llmSummary)),
       },
     });

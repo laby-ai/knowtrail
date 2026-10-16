@@ -1,6 +1,7 @@
 'use client';
 
 import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { clientApiPath } from '@/lib/client-api';
 import type { FileType, Paper } from '@/types';
 
 export type UploadRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -92,7 +93,7 @@ export async function uploadDiscoveredSourceFiles({
   files.forEach(file => formData.append('files', file));
   if (notebookId) formData.append('notebookId', notebookId);
 
-  const response = await request('/api/upload', {
+  const response = await request(clientApiPath('/api/upload'), {
     method: 'POST',
     headers: accountAuthHeaders(),
     body: formData,

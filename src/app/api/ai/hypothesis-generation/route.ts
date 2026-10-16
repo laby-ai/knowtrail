@@ -13,7 +13,7 @@ import {
   parseHypothesisGenerationOutput,
 } from '@/lib/hypothesis-generation-contract';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
 type HypothesisGenerationRequest = {
@@ -56,9 +56,7 @@ export async function POST(request: NextRequest) {
   });
   if (!scope.ok) return scope.response;
 
-  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
-  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-  const runtimeConfig = runtimeConfigResult;
+  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
   const retrievalQuery = `研究问题：${question}\n请检索可支持或反驳研究假设、竞争解释和可验证预测的证据。`;
   const grounded = await buildGroundedRetrievalContext(retrievalQuery, papers, runtimeConfig, {
     topK: 12,
@@ -90,6 +88,7 @@ export async function POST(request: NextRequest) {
       inputText: question,
       promptContext: grounded.promptContext,
       memberId: scope.ownerMemberId,
+      quotaExempt: scope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {

@@ -13,6 +13,8 @@ import {
   resolveClassroomProxyTarget,
   shouldProxyMissingClassroomAsset,
 } from './lib/virtual-classroom/proxy-target';
+import { resolveLocalUploadsDir } from './lib/local-file-storage';
+import { PaperHostSessionError, paperHostSessionVerificationConfigured, verifiedPaperHostWorkspace } from './lib/verified-paper-host-session';
 
 const runtimeEnv = process.env.APP_RUNTIME_ENV || process.env.NODE_ENV || 'production';
 const dev = runtimeEnv !== 'production';
@@ -36,6 +38,7 @@ const app = next({ dev, hostname: bindHost, port });
 const handle = app.getRequestHandler();
 
 const publicDir = path.resolve(process.cwd(), 'public');
+const localUploadsDir = resolveLocalUploadsDir();
 const mainNextStaticDir = path.resolve(process.cwd(), '.next', 'static');
 const runtimePublicPrefixes = ['/uploads/', '/mineru-figures/'];
 const classroomRuntimeOrigin = (process.env.VIRTUAL_CLASSROOM_INTERNAL_ORIGIN || '').trim().replace(/\/$/, '');
@@ -65,10 +68,14 @@ function resolveRuntimePublicPath(pathname: string): string | null {
     return null;
   }
 
-  const relativePath = decodedPathname.replace(/^\/+/, '');
-  const absolutePath = path.resolve(publicDir, relativePath);
-  const relativeToPublic = path.relative(publicDir, absolutePath);
-  if (relativeToPublic.startsWith('..') || path.isAbsolute(relativeToPublic)) return null;
+  const isUpload = decodedPathname.startsWith('/uploads/');
+  const rootDir = isUpload ? localUploadsDir : publicDir;
+  const relativePath = isUpload
+    ? decodedPathname.slice('/uploads/'.length)
+    : decodedPathname.replace(/^\/+/, '');
+  const absolutePath = path.resolve(rootDir, relativePath);
+  const relativeToRoot = path.relative(rootDir, absolutePath);
+  if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) return null;
   return absolutePath;
 }
 
@@ -134,15 +141,41 @@ app.prepare().then(() => {
       }
       if (proxyClassroomRuntime(req, res, pathname, observation.logError)) return;
 
-      const runtimeFilePath = resolveRuntimePublicPath(pathname);
+      const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/$/, '');
+      const runtimePathname = basePath && pathname.startsWith(`${basePath}/uploads/`) ? pathname.slice(basePath.length) : pathname;
+      const runtimeFilePath = resolveRuntimePublicPath(runtimePathname);
       if (runtimeFilePath && (req.method === 'GET' || req.method === 'HEAD')) {
+        const privateUpload = runtimePathname.startsWith('/uploads/') && paperHostSessionVerificationConfigured();
+        if (privateUpload) {
+          res.setHeader('Cache-Control', 'private, no-store');
+          try {
+            const headers = new Headers();
+            for (const name of ['cookie', 'userid', 'token']) {
+              const value = req.headers[name];
+              if (value) headers.set(name, Array.isArray(value) ? value.join('; ') : value);
+            }
+            const workspaceKey = await verifiedPaperHostWorkspace(headers);
+            const { listIngestionSources } = await import('./lib/ingestion-store');
+            const sources = await listIngestionSources({ ownerMemberId: `paper-host:${workspaceKey}` });
+            const uploadPath = decodeURIComponent(runtimePathname);
+            if (!sources.some(source => source.storageKey === uploadPath || source.fileUrl === uploadPath)) {
+              res.statusCode = 404;
+              res.end('文件不存在或无权访问。');
+              return;
+            }
+          } catch (error) {
+            res.statusCode = error instanceof PaperHostSessionError ? error.status : 503;
+            res.end(error instanceof PaperHostSessionError ? error.message : '暂时无法读取文件，请稍后重试。');
+            return;
+          }
+        }
         const fileStat = await stat(runtimeFilePath).catch(() => null);
         if (fileStat?.isFile()) {
           const contentType = mimeTypes[path.extname(runtimeFilePath).toLowerCase()] || 'application/octet-stream';
           res.statusCode = 200;
           res.setHeader('Content-Type', contentType);
           res.setHeader('Content-Length', String(fileStat.size));
-          res.setHeader('Cache-Control', 'public, max-age=3600');
+          res.setHeader('Cache-Control', privateUpload ? 'private, no-store' : 'public, max-age=3600');
           if (req.method === 'HEAD') {
             res.end();
             return;

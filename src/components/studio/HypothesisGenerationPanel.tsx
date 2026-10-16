@@ -5,6 +5,7 @@ import { clientApiRequest } from '@/lib/client-api';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, FlaskConical, Lightbulb } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { useScopedStudioState } from '@/hooks/use-scoped-studio-state';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { HypothesisCard } from '@/lib/hypothesis-generation-contract';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
@@ -48,7 +49,7 @@ export function HypothesisGenerationPanel() {
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useScopedStudioState(storageScopeKey, 'hypothesis-generation', 'question', '');
   const [hypotheses, setHypotheses] = useState<HypothesisCard[]>([]);
   const [citations, setCitations] = useState<Citation[]>([]);
   const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(null);

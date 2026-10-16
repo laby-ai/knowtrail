@@ -300,6 +300,7 @@ function validateStructure(
   structure: StructureDraft[],
   options?: PptOptions,
 ): StructureDraft[] {
+  if (options?.outlineDraft?.length) return structure;
   const duration = options?.duration || 20;
   const { hardCap: maxSlideCap } = calcPageLimits(duration);
   let result = [...structure];
@@ -357,6 +358,51 @@ function validateStructure(
 // For each slide in the structure, generate bullets/layout/emphasis
 // This is done in batches to avoid overloading the LLM
 // ────────────────────────────────────────────────────────────────
+function parseNativeContent(raw: Record<string, unknown>, source: string): Pick<SlideSpec, 'table' | 'flow'> {
+  if (raw.table == null && raw.flow == null) return {};
+  if (raw.table != null && raw.flow != null) throw new Error('每页只能放一张表格或一个流程');
+  if (!Array.isArray(raw.bullets) || !raw.bullets.length || raw.bullets.length > 3 || raw.bullets.some(item => typeof item !== 'string')) {
+    throw new Error('表格或流程需保留1至3条简短说明和必要限定');
+  }
+  const normalize = (text: string): string => text.replace(/\s+/g, '');
+  const checkSource = (quote: unknown, values: string[]): string => {
+    if (typeof quote !== 'string' || !quote.trim() || !normalize(source).includes(normalize(quote))) {
+      throw new Error('表格或流程缺少可核对的原文');
+    }
+    const text = normalize(quote);
+    let position = 0;
+    for (const value of values) {
+      position = text.indexOf(normalize(value), position);
+      if (position < 0) throw new Error('表格数值或流程顺序与原文不符');
+      position += normalize(value).length;
+    }
+    return quote.trim();
+  };
+  const strings = (value: unknown, min: number, max: number): string[] => {
+    if (!Array.isArray(value) || value.length < min || value.length > max ||
+        value.some(cell => typeof cell !== 'string' || !cell.trim() || cell.length > 32)) {
+      throw new Error('表格或流程超出单页容量，请减少条目或缩短原文标签');
+    }
+    return value.map(cell => (cell as string).trim());
+  };
+  if (raw.table != null) {
+    const value = raw.table as Record<string, unknown>;
+    const headers = strings(value.headers, 2, 4);
+    if (!Array.isArray(value.rows) || value.rows.length < 1 || value.rows.length > 6) {
+      throw new Error('表格需要1至6行数据');
+    }
+    const rows = value.rows.map(row => strings(row, headers.length, headers.length));
+    if (headers.length === 4 && [...headers, ...rows.flat()].some(cell => cell.length > 24)) {
+      throw new Error('四列表格的单元格最多24字，请缩短原文标签');
+    }
+    return { table: { headers, rows, sourceText: checkSource(value.sourceText, [...headers, ...rows.flat()]) } };
+  }
+  const value = raw.flow as Record<string, unknown>;
+  const steps = strings(value.steps, 2, 5);
+  if (steps.some(step => step.length > 24)) throw new Error('流程步骤最多24字，请缩短原文标签');
+  return { flow: { steps, sourceText: checkSource(value.sourceText, steps) } };
+}
+
 async function fillSlideContent(
   structure: StructureDraft[],
   papers: PaperInput[],
@@ -375,8 +421,10 @@ async function fillSlideContent(
   const audienceDesc = audienceLabels[audience] || audienceLabels.researchers;
 
   // Prepare paper content excerpts for reference
+  let remainingContentChars = 18000;
   const paperContent = papers.map((p) => {
-    const content = (p.rawContent || p.content || '').slice(0, 2500);
+    const content = (p.rawContent || p.content || '').slice(0, remainingContentChars);
+    remainingContentChars -= content.length;
     return `【${p.title}】\n${content}`;
   }).join('\n---\n');
 
@@ -421,15 +469,15 @@ async function fillSlideContent(
 
   for (let batchStart = 0; batchStart < structure.length; batchStart += BATCH_SIZE) {
     const batchStructure = structure.slice(batchStart, batchStart + BATCH_SIZE);
-    const structureOnlyTypes: SlideSpec['type'][] = ['cover', 'author', 'toc', 'closing'];
+    const structureOnlyTypes: SlideSpec['type'][] = ['cover', 'author', 'toc'];
     if (batchStructure.every(item => structureOnlyTypes.includes(item.type))) {
       allResults.push(...batchStructure.map(item => ({
         type: item.type,
         title: item.title,
-        bullets: item.type === 'closing' ? ['核心结论已经形成可追溯验证链路', '后续重点是持续提升真实用户路径体验', '感谢关注灵笔的产品化演进'] : [],
+        bullets: [],
         note: '',
         figureLabel: item.figureLabel,
-        layout: (item.type === 'closing' ? 'quote_highlight' : 'title_only') as LayoutType,
+        layout: 'title_only' as LayoutType,
       })));
       continue;
     }
@@ -441,7 +489,13 @@ async function fillSlideContent(
 
 ## 任务
 为每页生成：bullets（要点）、layout（布局）、emphasisIndices（强调索引）、note（备注）。
+若本页需比较原文数据，另输出 table: {"headers":["原文列名"],"rows":[["原文单元格"]],"sourceText":"包含完整表头和各行的原文连续摘录"}。
+若本页需说明有先后关系的步骤，另输出 flow: {"steps":["原文步骤"],"sourceText":"含完整步骤及先后关系的原文连续摘录"}。
+每页最多一种结构。table仅2至4列、1至6行，单元格最多32字（四列表格最多24字）；flow仅2至5步、每步最多24字。按原文顺序逐字摘取表头、单元格和步骤，保留单位、分母和模拟等限定；不要改写、换算、凑数据或拼接不同原文的关系。资料无适合结构则省略，不强行制作。结构页用一个简短要点说明适用条件，不能把表格和流程重复抄成要点。
 **不修改 type 和 title，只填写内容字段。**
+仅输出“本批PPT页面”中的页面，每页恰好一个对象，不输出其他页面。
+内容以所给资料和用户确认的大纲为准。保留数值、单位、限定条件及来源标记；没有依据的作者、实验、提升百分比和研究结论不得补写。
+结尾页总结当前资料支持的结论，不写产品宣传、能力自述或通用的下一步口号。
 
 ## 演讲约束
 - 演讲时长：${duration} 分钟
@@ -461,18 +515,16 @@ ${discourseFull}
 ${figureFull}
 
 ## 内容密度规则（必须严格遵守）
-- **每页生成 3 个 bullets**，封面和致谢页可以为空
+- 每页根据资料实际支持的内容生成1至3个要点，不为凑数补写事实
 - **每个 bullet 必须是完整陈述句（15-45字）**，禁止碎片化关键词
 - **figure_ 类型页面必须有 3 个分析性要点**（"该图展示了X"、"关键发现是Y"、"数据表明Z"）
-- **background 页面必须包含完整因果链**：领域价值→未解挑战→本文思路（3步，每步≥25字）
-- **gap 页面必须包含 ≥3 个递进层次**：现有局限→核心挑战→研究机会
-- **method 页面必须展开技术细节**：核心思路→关键步骤→实验设计
+- 只有资料确实包含研究空白、方法或实验时才展开这些内容；概念笔记按原有事实说明
 
 ## 禁止模式
 ❌ bullets: ["背景", "方法", "结果"] （关键词碎片）
 ❌ bullets: ["本文提出了一种新方法"] （一句话概括）
 ❌ bullets: ["接下来看实验结果"] （过渡废话）
-✅ bullets: ["本文提出的X方法通过Y机制解决了Z问题", "与baseline相比提升了A%", "在B数据集上达到SOTA"]
+要点必须有资料依据，不能套用提升百分比或SOTA等无来源表述。
 
 ## 布局选择规则
 - title_only: 封面、致谢
@@ -498,8 +550,9 @@ ${figureFull}
         {
           model: 'doubao-seed-2-0-pro-260215',
           temperature: 0.4,
+          thinking: 'disabled',
           timeoutMs: fillSlideTimeoutMs,
-          maxTokens: 700,
+          maxTokens: 1200,
           runtimeConfig: options?.runtimeConfig,
         },
       );
@@ -520,13 +573,15 @@ ${figureFull}
         arr = JSON.parse(repaired);
       }
       if (!Array.isArray(arr)) { markJsonParsed(`fillSlideContent_${batchStart}`, false); throw new Error('not an array'); }
+      if (arr.length !== batchStructure.length) throw new Error('模型返回页数与当前批次不一致');
       markJsonParsed(`fillSlideContent_${batchStart}`, true);
 
       const batchResults = (arr as Record<string, unknown>[]).map((s, idx): EnhancedSlideSpec => {
         const structItem = batchStructure[idx];
         return {
-          type: validTypes.includes(s.type as SlideSpec['type']) ? (s.type as SlideSpec['type']) : (structItem?.type || 'synthesis'),
-          title: String(s.title || structItem?.title || ''),
+          ...parseNativeContent(s, paperContent),
+          type: structItem?.type || (validTypes.includes(s.type as SlideSpec['type']) ? (s.type as SlideSpec['type']) : 'synthesis'),
+          title: structItem?.title || String(s.title || ''),
           bullets: Array.isArray(s.bullets) && s.bullets.length > 0
             ? s.bullets.map(String)
             : (structItem ? buildContextualFallbackBullets(structItem, papers, defaultBullets) : ['该页将基于资料证据继续展开']),
@@ -569,15 +624,15 @@ async function criticSlidePlan(
   const targetPages = Math.round(duration / 1.5);
   const maxPages = targetPages + 3;
   const issues: string[] = [];
-  const requiredTypes: SlideSpec['type'][] = ['cover', 'background', 'method', 'result', 'conclusion'];
+  const requiredTypes: SlideSpec['type'][] = options?.outlineDraft?.length ? [] : ['cover', 'background', 'method', 'result', 'conclusion'];
   const slideTypes = new Set(slides.map(s => s.type));
   for (const type of requiredTypes) {
     if (!slideTypes.has(type)) issues.push(`缺少 ${type} 类型页面`);
   }
-  const thinSlides = slides.filter(s => s.type !== 'cover' && s.type !== 'closing' && (s.bullets.length < 2 || s.bullets.join('').length < 60));
+  const thinSlides = slides.filter(s => s.type !== 'cover' && s.type !== 'closing' && !s.table && !s.flow && (s.bullets.length < 2 || s.bullets.join('').length < 60));
   if (thinSlides.length > 0) issues.push(`存在 ${thinSlides.length} 页内容过薄，需要补足证据 bullet`);
   if (slides.length > maxPages) issues.push(`页数 ${slides.length} 超出 ${duration} 分钟建议上限 ${maxPages}`);
-  if (slides.length < Math.max(4, targetPages - 2)) issues.push(`页数 ${slides.length} 低于 ${duration} 分钟建议目标 ${targetPages}`);
+  if (!options?.outlineDraft?.length && slides.length < Math.max(4, targetPages - 2)) issues.push(`页数 ${slides.length} 低于 ${duration} 分钟建议目标 ${targetPages}`);
   const discourseTypes = new Set(discourse.map(d => d.type));
   for (const type of ['gap', 'method', 'result', 'conclusion'] as DiscourseSection['type'][]) {
     if (!discourseTypes.has(type)) issues.push(`论证结构缺少 ${type} 信息块`);
@@ -599,11 +654,12 @@ function normalizeRawSlideArray(value: unknown): Record<string, unknown>[] {
   return unwrapped.filter(item => item && typeof item === 'object' && !Array.isArray(item)) as Record<string, unknown>[];
 }
 
-function mapRawSlidesToSpecs(rawSlides: Record<string, unknown>[]): EnhancedSlideSpec[] {
+function mapRawSlidesToSpecs(rawSlides: Record<string, unknown>[], papers: PaperInput[]): EnhancedSlideSpec[] {
   const validTypes: SlideSpec['type'][] = ['cover','author','toc','background','gap','roadmap','method','result','discussion','conclusion','figure_overview','figure_detail','figure_evidence','mechanism','synthesis','citation','closing'];
   const validLayouts: LayoutType[] = ['full_text','text_right_figure_left','text_left_figure_right','figure_centered','two_column','title_only','bullet_heavy','quote_highlight'];
 
   return rawSlides.map((s): EnhancedSlideSpec => ({
+    ...parseNativeContent(s, papers.map(p => p.rawContent || p.content || '').join('\n')),
     type: validTypes.includes(s.type as SlideSpec['type']) ? (s.type as SlideSpec['type']) : 'synthesis',
     title: String(s.title || ''),
     bullets: Array.isArray(s.bullets) ? s.bullets.map(String) : [],
@@ -616,6 +672,12 @@ function mapRawSlidesToSpecs(rawSlides: Record<string, unknown>[]): EnhancedSlid
 }
 
 function isUnsafeRefinedPlan(refined: EnhancedSlideSpec[], original: EnhancedSlideSpec[]): string {
+  for (const slide of original.filter(s => s.table || s.flow)) {
+    const replacement = refined.find(s => s.title === slide.title);
+    if (!replacement || JSON.stringify(replacement.table) !== JSON.stringify(slide.table) || JSON.stringify(replacement.flow) !== JSON.stringify(slide.flow)) {
+      return 'refined plan changed source-backed table or flow';
+    }
+  }
   const minSlides = Math.min(4, original.length);
   if (refined.length < minSlides) return `refined plan too short: ${refined.length}/${original.length}`;
   if (original.some(s => s.type === 'cover') && !refined.some(s => s.type === 'cover')) return 'refined plan dropped cover slide';
@@ -628,6 +690,7 @@ async function refineSlidePlan(
   issues: string[],
   discourse: DiscourseSection[],
   figureInventory: FigureInventory[],
+  papers: PaperInput[],
   options?: PptOptions,
 ): Promise<EnhancedSlideSpec[]> {
   if (issues.length === 0) return slides;
@@ -679,7 +742,7 @@ ${figureInventory.map(f => `${f.label} (${f.slideType})`).join(', ') || '无'}
     if (arr.length === 0) { markJsonParsed('refineSlidePlan', false); throw new Error('not an array'); }
     markJsonParsed('refineSlidePlan', true);
 
-    const refined = mapRawSlidesToSpecs(arr);
+    const refined = mapRawSlidesToSpecs(arr, papers);
     const unsafeReason = isUnsafeRefinedPlan(refined, slides);
     if (unsafeReason) throw new Error(unsafeReason);
     return refined;
@@ -758,9 +821,9 @@ export async function genAcademicOutline(papers: PaperInput[], options?: PptOpti
   console.log(`[PPT-V2] Critic score: ${critique.score}/10, issues: ${critique.issues.length}`);
 
   // Stage 5: Refine only when the deterministic quality gate fails.
-  if (critique.score < 8) {
+  if (critique.score < 8 && !options?.outlineDraft?.length) {
     console.log('[PPT-V2] Stage 5: Refining slides...');
-    let refined = await refineSlidePlan(slides, critique.issues, discourse, figureInventory, options);
+    let refined = await refineSlidePlan(slides, critique.issues, discourse, figureInventory, papers, options);
     console.log(`[PPT-V2] Refined plan: ${refined.length} slides`);
     // If refine returned same slides (fallback), try one more time with simplified prompt
     if (refined === slides) {
@@ -782,7 +845,7 @@ export async function genAcademicOutline(papers: PaperInput[], options?: PptOpti
           const arr = normalizeRawSlideArray(JSON.parse(jsonMatch[0]));
           if (arr.length > 0) {
             markJsonParsed('refineSlidePlanRetry', true);
-            const retryRefined = mapRawSlidesToSpecs(arr);
+            const retryRefined = mapRawSlidesToSpecs(arr, papers);
             const unsafeReason = isUnsafeRefinedPlan(retryRefined, slides);
             if (unsafeReason) {
               markFallback('refineSlidePlanRetry', unsafeReason);
@@ -807,7 +870,7 @@ export async function genAcademicOutline(papers: PaperInput[], options?: PptOpti
   const targetDuration = options?.duration || 20;
   const { targetPages, hardCap: maxSlideCap } = calcPageLimits(targetDuration);
   console.log(`[PPT-V2] Post-plan: Merging thin slides (target=${targetPages}, maxCap=${maxSlideCap} from ${targetDuration}min)...`);
-  slides = mergeThinSlides(slides, maxSlideCap);
+  if (!options?.outlineDraft?.length) slides = mergeThinSlides(slides, maxSlideCap);
   console.log(`[PPT-V2] After merge: ${slides.length} slides (cap=${maxSlideCap})`);
 
   // Stage 6: Commitment check (non-blocking, skip on timeout)
@@ -836,7 +899,7 @@ export async function genAcademicOutline(papers: PaperInput[], options?: PptOpti
   );
   const existingFigureLabels = new Set(existingFigureSlides.map(s => s.figureLabel).filter(Boolean));
 
-  if (figureInventory.length > 0 && existingFigureSlides.length < figureInventory.length) {
+  if (!options?.outlineDraft?.length && figureInventory.length > 0 && existingFigureSlides.length < figureInventory.length) {
     const figuresToInject = figureInventory.filter(f => !existingFigureLabels.has(f.label));
     // How many figure slides can we inject without exceeding the hard cap?
     const remainingSlots = Math.max(0, HARD_CAP - slides.length);
@@ -890,7 +953,7 @@ export async function genAcademicOutline(papers: PaperInput[], options?: PptOpti
 
   // ── FINAL HARD CAP — Absolute last resort ──
   // No matter what happened above, we NEVER exceed the duration-based limit
-  if (slides.length > HARD_CAP) {
+  if (!options?.outlineDraft?.length && slides.length > HARD_CAP) {
     const cover = slides.find(s => s.type === 'cover');
     const closing = slides.find(s => s.type === 'closing');
     const middle = slides.filter(s => s.type !== 'cover' && s.type !== 'closing');

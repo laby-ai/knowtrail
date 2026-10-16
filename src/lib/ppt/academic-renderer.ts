@@ -191,18 +191,10 @@ export async function buildAcademicPptx(
   const mainPaper = papers[0];
   const buildCitation = (): string => {
     if (!mainPaper) return '';
-    const firstAuth = mainPaper.authors[0] || 'Unknown';
-    // Corresponding author (usually last, marked with *)
-    let corrAuth = mainPaper.authors[mainPaper.authors.length - 1] || '';
-    if (corrAuth === firstAuth && mainPaper.authors.length > 1) {
-      corrAuth = mainPaper.authors[1] || '';
-    }
-    const rest = mainPaper.authors.length > 2 ? '; et al.' : '';
-    // Use journal name as-is (CASSI abbreviation should be pre-processed in upload/analyze)
-    const journal = mainPaper.journal || '';
-    const year = mainPaper.year || new Date().getFullYear();
-    const doi = mainPaper.doi ? ` doi:${mainPaper.doi}` : '';
-    return `${firstAuth}.; ${corrAuth}*.${rest} ${journal} ${year}.${doi}`;
+    const authors = mainPaper.authors.filter(author => author.trim() && !/^(unknown|未解析作者|未知作者)$/i.test(author.trim()));
+    return [authors.join(', '), mainPaper.title, mainPaper.journal,
+      mainPaper.year ? String(mainPaper.year) : '', mainPaper.doi ? `doi:${mainPaper.doi}` : '']
+      .filter(Boolean).join('. ');
   };
   const citation = buildCitation();
 
@@ -267,7 +259,6 @@ export async function buildAcademicPptx(
   for (let idx = 0; idx < slides.length; idx++) {
     const spec = slides[idx];
     const slide = pptx.addSlide();
-    pptxSlideRefs.push(slide);
     const pageNum = idx + 1;
     console.log(`[PPT-V2] Building slide ${pageNum}: type=${spec.type}, title=${(spec.title||'').slice(0,40)}, figureLabel=${spec.figureLabel||'none'}`);
 
@@ -290,11 +281,11 @@ export async function buildAcademicPptx(
       const instName = { generic: '学术文献报告', ustc: '中国科学技术大学', 'ustc-suzhou': '中国科大苏州', ucas: '中国科学院大学', ipc: '中科院物理所' }[options?.institution || 'generic'] || '学术文献报告';
       slide.addText(instName, { x: 0.8, y: 0.3, w: 8.4, h: 0.5, fontSize: 14, fontFace: BODY_FONT, color: C.white, bold: true });
       // Title
-      const paperTitle = papers[0]?.title || spec.title;
+      const paperTitle = spec.title || papers[0]?.title;
       slide.addText(paperTitle, { x: 0.8, y: 1.6, w: 8.4, h: 1.6, fontSize: 26, fontFace: TITLE_FONT, color: C.black, bold: true, lineSpacingMultiple: 1.3 });
       // Metadata table
       const metaRows: Record<string, unknown>[][] = [];
-      if (papers[0]?.authors) metaRows.push([{ text: '作者: ', options: { fontSize: 11, fontFace: BODY_FONT, color: C.gray, bold: true } }, { text: papers[0].authors, options: { fontSize: 11, fontFace: BODY_FONT, color: C.dark } }]);
+      if (papers[0]?.authors?.length) metaRows.push([{ text: '作者: ', options: { fontSize: 11, fontFace: BODY_FONT, color: C.gray, bold: true } }, { text: papers[0].authors.join(', '), options: { fontSize: 11, fontFace: BODY_FONT, color: C.dark } }]);
       if (options?.presenterName) metaRows.push([{ text: '汇报人: ', options: { fontSize: 11, fontFace: BODY_FONT, color: C.gray, bold: true } }, { text: options.presenterName, options: { fontSize: 11, fontFace: BODY_FONT, color: C.dark } }]);
       if (options?.advisorName) metaRows.push([{ text: '指导老师: ', options: { fontSize: 11, fontFace: BODY_FONT, color: C.gray, bold: true } }, { text: options.advisorName, options: { fontSize: 11, fontFace: BODY_FONT, color: C.dark } }]);
       if (papers[0]?.year) metaRows.push([{ text: '年份: ', options: { fontSize: 11, fontFace: BODY_FONT, color: C.gray, bold: true } }, { text: String(papers[0].year), options: { fontSize: 11, fontFace: BODY_FONT, color: C.dark } }]);
@@ -322,11 +313,7 @@ export async function buildAcademicPptx(
     // ── CLOSING PAGE ──
     if (spec.type === 'closing') {
       slide.background = { color: C.primary };
-      const closingBullets = (spec.bullets && spec.bullets.length >= 3 ? spec.bullets : [
-        '资料源、检索证据和 Studio 产物已经形成同一条可追溯链路',
-        '知识卡片、报告、播客和 PPT 均应复用 grounded context 与 citation audit',
-        '下一步重点是持续降低长任务耗时，并把真实产物质量纳入发布门禁',
-      ]).slice(0, 3);
+      const closingBullets = (spec.bullets || []).slice(0, 3);
       slide.addText(spec.title || '结论与下一步', { x: 0.7, y: 0.65, w: 8.6, h: 0.6, fontSize: 28, fontFace: TITLE_FONT, color: C.white, bold: true, align: 'center' });
       slide.addShape(pptx.ShapeType.rect, { x: 1.05, y: 1.45, w: 7.9, h: 0.02, fill: { color: 'FFFFFF', transparency: 35 } });
       closingBullets.forEach((bullet, i) => {
@@ -356,7 +343,6 @@ export async function buildAcademicPptx(
           fit: 'shrink',
         });
       });
-      slide.addText('感谢聆听，欢迎基于引用来源继续追问', { x: 1, y: 4.15, w: 8, h: 0.45, fontSize: 14, fontFace: BODY_FONT, color: 'FFFFFF', transparency: 20, align: 'center' });
       if (options?.presenterName) {
         slide.addText(`汇报人: ${options.presenterName}`, { x: 1, y: 4.65, w: 8, h: 0.4, fontSize: 12, fontFace: BODY_FONT, color: 'FFFFFF', transparency: 40, align: 'center' });
       }
@@ -388,7 +374,7 @@ export async function buildAcademicPptx(
       gap:         { accentColor: 'DC2626',      sectionLabel: '研究问题', icon: '' },
       roadmap:     { accentColor: C.rule,       sectionLabel: '论文概览', icon: '' },
       method:      { accentColor: C.primary,    sectionLabel: '研究方法', icon: '' },
-      result:      { accentColor: '16A34A',      sectionLabel: '实验结果', icon: '' },
+      result:      { accentColor: '16A34A',      sectionLabel: '结果与证据', icon: '' },
       discussion:  { accentColor: '7C3AED',      sectionLabel: '讨论分析', icon: '' },
       conclusion:  { accentColor: C.dark,       sectionLabel: '核心结论', icon: '' },
       mechanism:   { accentColor: C.rule,       sectionLabel: '机制原理', icon: '' },
@@ -407,6 +393,33 @@ export async function buildAcademicPptx(
     slide.addText(spec.title, { x: 0.8, y: 0.5, w: 8.4, h: 0.65, fontSize: 22, fontFace: TITLE_FONT, color: C.black, bold: true });
     // Accent bar under title
     slide.addShape(pptx.ShapeType.rect, { x: 0.8, y: 1.15, w: 1.2, h: 0.05, fill: { color: cfg.accentColor } });
+
+    // Keep comparison cells and simple sequential relations editable in the exported file.
+    if (spec.table || spec.flow) {
+      const caption = (spec.bullets || []).join('\n');
+      if (caption) slide.addText(caption, { x: 0.8, y: 1.4, w: 11.7, h: 1.1, fontFace: BODY_FONT, fontSize: 16, color: C.gray, valign: 'top', paraSpaceAfter: 3 });
+      if (spec.table) {
+        const rows: PptxGenJS.TableRow[] = [
+          spec.table.headers.map(text => ({ text, options: { bold: true, color: C.white, fill: C.primary } })),
+          ...spec.table.rows.map(row => row.map(text => ({ text }))),
+        ];
+        slide.addTable(rows, { x: 0.8, y: 2.65, w: 11.7, colW: Array(spec.table.headers.length).fill(11.7 / spec.table.headers.length), rowH: 0.6, autoPage: false, fontFace: BODY_FONT, fontSize: 15, color: C.dark, margin: 0.08, border: { type: 'solid', color: C.subtleGray, pt: 1 }, valign: 'middle' });
+      } else if (spec.flow) {
+        const gap = 0.38;
+        const width = (11.7 - gap * (spec.flow.steps.length - 1)) / spec.flow.steps.length;
+        spec.flow.steps.forEach((step, i) => {
+          const x = 0.8 + i * (width + gap);
+          slide.addShape(pptx.ShapeType.roundRect, { x, y: 3.1, w: width, h: 1.6, fill: { color: C.lightGray }, line: { color: C.primary, width: 1.2 } });
+          slide.addText(step, { x: x + 0.1, y: 3.25, w: width - 0.2, h: 1.3, fontFace: BODY_FONT, fontSize: 18, color: C.dark, align: 'center', valign: 'middle', margin: 0.05 });
+          if (i < spec.flow!.steps.length - 1) slide.addShape(pptx.ShapeType.line, { x: x + width, y: 3.9, w: gap, h: 0, line: { color: C.primary, width: 1.5, endArrowType: 'triangle' } });
+        });
+      }
+      slide.addNotes((spec.table || spec.flow)!.sourceText);
+      addCitationFooter(slide);
+      addPageNumber(slide, idx + 1, slides.length);
+      pptxSlideRefs.push(slide);
+      continue;
+    }
 
     // ── Figure handling (if this page has a figure) ──
     const figPath = findMinerUFigurePath(options?.mineruFigures ?? [], spec.figureLabel, idx);

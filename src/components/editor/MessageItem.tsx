@@ -11,6 +11,7 @@ import {
   Check,
   CornerUpRight,
   RefreshCw,
+  UserRound,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,6 +19,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
 import { copyTextWithFallback } from '@/lib/clipboard';
+import { alignCitationsToAnswerMarkers } from '@/lib/citation-answer-alignment';
 
 export function MessageItem({
   message,
@@ -26,7 +28,9 @@ export function MessageItem({
   isPending = false,
   onCitationClick,
   onRegenerate,
+  compact = false,
 }: {
+  compact?: boolean;
   message: ChatMessage;
   isExpanded: boolean;
   onToggleExpand: () => void;
@@ -40,6 +44,9 @@ export function MessageItem({
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const isCopyable = !isUser && hasContent
     && (!message.generation || message.generation.status === 'completed');
+  const displayedCitations = message.citations
+    ? alignCitationsToAnswerMarkers(message.content, message.citations)
+    : [];
 
   const handleCopy = async () => {
     const copied = await copyTextWithFallback(message.content);
@@ -50,14 +57,14 @@ export function MessageItem({
   return (
     <div
       data-testid={`chat-message-${message.id}`}
-      className={`flex items-start gap-4 ${isUser ? 'flex-row-reverse' : ''} animate-fade-in-up`}
+      className={`quiet-message ${isUser ? 'quiet-message-user' : 'quiet-message-assistant'} flex items-start gap-4 ${isUser ? 'flex-row-reverse' : ''} animate-fade-in-up`}
     >
       <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
         isUser ? 'liquid-glass-inset' : 'bg-blue-500/10'
       }`}>
-        {isUser ? <span className="text-xs font-semibold text-[var(--text-tertiary)]">U</span> : <Sparkles className="h-4 w-4 text-blue-400" />}
+        {isUser ? (compact ? <UserRound size={20} /> : <span className="text-xs font-semibold text-[var(--text-tertiary)]">U</span>) : <Sparkles className="h-4 w-4 text-blue-400" />}
       </div>
-      <div className={`flex-1 ${isUser ? 'text-right' : ''}`}>
+      <div className={`quiet-message-body flex-1 ${isUser ? 'text-right' : ''}`}>
         <div className={`inline-block text-left rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed max-w-[85%] ${
           isUser
             ? 'liquid-glass-static text-[var(--text-primary)]'
@@ -83,7 +90,7 @@ export function MessageItem({
         )}
 
         {!isUser && hasContent && message.generation?.status !== 'pending' && (
-          <div className="flex items-center gap-1 mt-1.5 ml-1">
+          <div className={`quiet-message-actions ${displayedCitations.length ? 'quiet-actions-with-citations' : ''} flex items-center gap-1 mt-1.5 ml-1`}>
             {isCopyable && (
               <button
                 onClick={handleCopy}
@@ -111,7 +118,7 @@ export function MessageItem({
           </div>
         )}
 
-        {!isUser && (message.retrieval || (message.citationAudit && message.citationAudit.status !== 'none')) && (
+        {!isUser && (!compact || message.retrieval?.degraded || (message.citationAudit && !['none', 'pass'].includes(message.citationAudit.status))) && (message.retrieval || (message.citationAudit && message.citationAudit.status !== 'none')) && (
           <SourceStatusLine
             retrieval={message.retrieval}
             audit={message.citationAudit}
@@ -119,11 +126,11 @@ export function MessageItem({
           />
         )}
 
-        {message.citations && message.citations.length > 0 && (
-          <div className="mt-2">
-            <button onClick={onToggleExpand} className="text-[11px] text-zinc-600 hover:text-blue-400 transition-colors flex items-center gap-1">
+        {displayedCitations.length > 0 && (
+          <div className="quiet-message-citations mt-2">
+            <button onClick={onToggleExpand} className="quiet-citation-toggle text-[11px] text-zinc-600 hover:text-blue-400 transition-colors flex items-center gap-1">
               <LinkIcon className="h-3 w-3" />
-              {isExpanded ? '隐藏来源' : `${message.citations.length} 个引用来源`}
+              {isExpanded ? '隐藏来源' : `${displayedCitations.length} 个引用来源`}
               <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
             {isExpanded && (
@@ -133,7 +140,7 @@ export function MessageItem({
                     {getReadableRetrievalDetail(message.retrieval)}
                   </div>
                 )}
-                {message.citations.map((citation, idx) => {
+                {displayedCitations.map((citation, idx) => {
                   const targetPaperId = citation.paperId || citation.sourceId;
                   const clickable = Boolean(targetPaperId && onCitationClick);
                   const locator = getCitationLocator(citation);
@@ -319,7 +326,7 @@ function renderFormattedText(content: string) {
         },
         pre: ({ children }) => <pre className="bg-[var(--bg-tertiary)] rounded-lg p-3 my-2 overflow-x-auto text-xs">{children}</pre>,
         a: ({ children, href }) => <a href={href} className="text-[var(--accent-blue)] underline hover:opacity-80" target="_blank" rel="noopener noreferrer">{children}</a>,
-        table: ({ children }) => <table className="w-full border-collapse my-2 text-xs">{children}</table>,
+        table: ({ children }) => <div className="quiet-table-scroll"><table className="w-full border-collapse my-2 text-xs">{children}</table></div>,
         th: ({ children }) => <th className="border border-[var(--border-subtle)] px-2 py-1 bg-[var(--glass-subtle)] text-left font-semibold">{children}</th>,
         td: ({ children }) => <td className="border border-[var(--border-subtle)] px-2 py-1">{children}</td>,
         sup: ({ children }) => <sup className="citation-sup ml-0.5 text-[var(--accent-blue)]">{children}</sup>,

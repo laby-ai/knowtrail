@@ -3,12 +3,16 @@ import { execFile } from 'child_process';
 import { readFile, unlink, mkdir } from 'fs/promises';
 import path from 'path';
 import { llmStream } from '@/lib/ai-service';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { hasRuntimeAIProvider, resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
 const MAX_PAGES = 20;
 const DPI = 200;
 const CONCURRENT_VISION = 3;
+
+function hasServerFallbackModel(): boolean {
+  return hasRuntimeAIProvider(resolveServerRuntimeAIConfig());
+}
 
 /**
  * 将 PDF 页面渲染为图片后，用视觉模型识别内容（文字 + 图表）
@@ -27,9 +31,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少 PDF 数据' }, { status: 400 });
     }
 
-    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
-    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-    const runtimeConfig = runtimeConfigResult;
+    if (!hasRuntimeAIProvider(aiConfig) && !hasServerFallbackModel()) {
+      return NextResponse.json({
+        success: false,
+        content: '',
+        pagesAnalyzed: 0,
+        skipped: true,
+        reason: '未配置视觉模型，已跳过 PDF 视觉识别。',
+      });
+    }
 
     const pagesToProcess = Math.min(maxPages || MAX_PAGES, MAX_PAGES);
 
@@ -134,7 +144,7 @@ export async function POST(request: NextRequest) {
                 temperature: 0.2,
                 thinking: 'disabled',
                 vision: true,
-              }, undefined, runtimeConfig);
+              }, undefined, aiConfig);
 
               for await (const chunk of stream) {
                 if (chunk) pageText += chunk;

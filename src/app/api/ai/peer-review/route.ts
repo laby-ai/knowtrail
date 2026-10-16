@@ -14,7 +14,7 @@ import {
   type PeerReviewPerspective,
 } from '@/lib/peer-review-contract';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
 type PeerReviewRequest = {
@@ -67,9 +67,7 @@ export async function POST(request: NextRequest) {
   });
   if (!accountScope.ok) return accountScope.response;
 
-  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
-  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-  const runtimeConfig = runtimeConfigResult;
+  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
   const grounded = papers.length > 0
     ? await buildGroundedRetrievalContext(
       `论文审查范围：${scope}\n审查视角：${reviewPerspective}\n请匹配与稿件方法、结果解释、证据边界和可复现性相关的来源片段。`,
@@ -97,6 +95,7 @@ export async function POST(request: NextRequest) {
       inputText: manuscript,
       promptContext: `${scope}\n${grounded?.promptContext || 'no external sources selected'}`,
       memberId: accountScope.ownerMemberId,
+      quotaExempt: accountScope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {

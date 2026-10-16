@@ -7,6 +7,7 @@ import { AlertCircle, CheckCircle2, FileSearch, Search } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useApp } from '@/contexts/AppContext';
+import { useScopedStudioState } from '@/hooks/use-scoped-studio-state';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Citation, CitationAuditResult, Paper, RetrievalMetadata } from '@/types';
@@ -57,7 +58,7 @@ export function DeepResearchPanel() {
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useScopedStudioState(storageScopeKey, 'deep-research', 'question', '');
   const [answer, setAnswer] = useState('');
   const [citations, setCitations] = useState<Citation[]>([]);
   const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(null);

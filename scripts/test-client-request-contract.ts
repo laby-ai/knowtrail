@@ -19,8 +19,14 @@ class MemoryStorage {
 
 const localStorage = new MemoryStorage();
 const sessionStorage = new MemoryStorage();
-const location = { pathname: '/lingbi/workbench', search: '', hash: '', replace: () => {} };
-Object.assign(globalThis, { window: { localStorage, sessionStorage, location } });
+const redirects: string[] = [];
+const parentMessages: Array<{ payload: unknown; origin: string }> = [];
+const location = { pathname: '/lingbi/workbench', search: '', hash: '', replace: (url: string) => redirects.push(url) };
+const parent = { postMessage: (payload: unknown, origin: string) => parentMessages.push({ payload, origin }) };
+Object.assign(globalThis, {
+  window: { localStorage, sessionStorage, location, parent },
+  document: { referrer: 'http://ucas.sitianai.com/#/research-agent' },
+});
 
 const contract = JSON.parse(fs.readFileSync(new URL('../contracts/stoneai-request-v1.json', import.meta.url), 'utf8'));
 assert.equal(contract.version, 'stoneai-request-v1');
@@ -85,6 +91,23 @@ await assert.rejects(Promise.race([
   new Promise((_, reject) => setTimeout(() => reject(new Error('stream abort was not propagated')), 50)),
 ]), /aborted/);
 assert.equal(streamAbortObserved, true, 'caller cancellation must reach fetch after response headers arrive');
+
+globalThis.fetch = (async () => new Response(
+  JSON.stringify({
+    error: '请先登录后再使用高成本生成。',
+    errorType: 'paper_host_login_required',
+  }),
+  { status: 401, headers: { 'content-type': 'application/json' } },
+)) as typeof fetch;
+await assert.rejects(
+  clientApiFetch('/api/ai/ppt'),
+  (error: unknown) => error instanceof ClientRequestError && error.code === 'unauthorized',
+);
+assert.deepEqual(parentMessages, [{
+  payload: { type: 'paper-web:request-login' },
+  origin: 'http://ucas.sitianai.com',
+}]);
+assert.deepEqual(redirects, [], 'Embedded guest login must be delegated to the paper-web host.');
 
 globalThis.fetch = (async () => new Response(
   JSON.stringify({ error: 'permission_denied' }),

@@ -5,6 +5,7 @@ import {
   inferPptOutlineDraftSlideType,
   sanitizePptOutlineDraft,
 } from '../src/lib/ppt/outline-draft';
+import { FEATURED_NOTEBOOKS } from '../src/components/home/featured-notebooks';
 
 const built = buildPptOutlineDraft([
   {
@@ -26,6 +27,38 @@ const built = buildPptOutlineDraft([
 assert.equal(built[0].title, '封面与汇报目标');
 assert.equal(built.at(-1)?.title, '综合判断与行动建议');
 assert.ok(built.some(item => item.sourceLabel === '资料一'), 'draft should include selected source label');
+
+const placeholderDraft = buildPptOutlineDraft([
+  {
+    id: 'unparsed-source',
+    title: '2026：谱写高等教育数字化“十五五”新篇章-中国教育和科研计算机网CERNET',
+    shortName: '未解析作者. 2026',
+    authors: [],
+    year: 2026,
+    keywords: [],
+    abstract: '标题：2026：谱写高等教育数字化“十五五”新篇章-中国教育和科研计算机网CERNET 摘要：该文件包含了关于2026：谱写高等教育数字化“十五五”新篇章-中国教育和科研计算机网CERNET的',
+    content: '',
+    fileName: 'cernet.txt',
+    fileType: 'txt',
+    fileSize: 256,
+    uploadTime: '2026-09-01T00:00:00.000Z',
+  },
+], 12);
+const placeholderSlide = placeholderDraft[1];
+
+assert.doesNotMatch(placeholderSlide.title, /未解析作者/, 'generic parser labels must not become slide titles');
+assert.doesNotMatch(placeholderSlide.sourceLabel, /未解析作者/, 'generic parser labels must not become source labels');
+assert.doesNotMatch(placeholderSlide.focus, /该文件包含了/, 'placeholder extraction prose must not become slide focus');
+assert.doesNotMatch(placeholderSlide.focus, /的$/, 'slide focus must not end on a dangling function word');
+
+const learningNotebook = FEATURED_NOTEBOOKS.find(item => item.id === 'featured-ai-learning');
+assert.ok(learningNotebook, 'AI learning featured notebook should exist');
+const learningDraft = buildPptOutlineDraft(learningNotebook.papers, 12);
+assert.doesNotMatch(
+  learningDraft.map(item => `${item.title} ${item.focus}`).join('\n'),
+  /灵笔/,
+  'featured notebook PPT output must use the current research workbench name',
+);
 
 const sanitized = sanitizePptOutlineDraft([
   {
