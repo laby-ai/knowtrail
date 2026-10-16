@@ -1,6 +1,6 @@
 'use client';
 
-import { ClientRequestError, clientApiRequest } from '@/lib/client-api';
+import { ClientRequestError, clientApiDownloadBlob, clientApiPath, clientApiRequest } from '@/lib/client-api';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -33,7 +33,17 @@ export function StructuredPresentationPanel() {
   const [progressMsg, setProgressMsg] = useState('');
   const [progressStep, setProgressStep] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [pptxUrl, setPptxUrl] = useState<string | null>(null);
+  const [presentation, setPresentation] = useState<{
+    scopeKey: string;
+    url: string;
+    fileName: string;
+    slideCount?: number;
+  } | null>(null);
+  const pptxUrl = presentation?.scopeKey === storageScopeKey ? presentation.url : null;
+  const [isRestoring, setIsRestoring] = useState(true);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [qualityWarning, setQualityWarning] = useState<string | null>(null);
   const [qualitySummary, setQualitySummary] = useState<string | null>(null);
@@ -53,6 +63,10 @@ export function StructuredPresentationPanel() {
   const hasSelectedPapers = selectedPapers.length > 0;
   const selectedPaperKey = selectedPapers.map(paper => paper.id).join('|');
   const abortControllerRef = useRef<AbortController | null>(null);
+  const downloadControllerRef = useRef<AbortController | null>(null);
+  const scopeKeyRef = useRef(storageScopeKey);
+  const timersRef = useRef<number[]>([]);
+  const objectUrlsRef = useRef(new Set<string>());
   const suggestedOutline = useMemo(
     () => buildStructuredPresentationOutlineDraft(selectedPapers, duration),
     [selectedPaperKey, duration],
@@ -62,6 +76,63 @@ export function StructuredPresentationPanel() {
     setOutlineDraft(suggestedOutline);
     setOutlineConfirmed(false);
   }, [suggestedOutline]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setPresentation(null);
+    setRestoreError(null);
+    if (!notebookId || storageScopeKey.startsWith('guest:')) {
+      setIsRestoring(false);
+      return () => controller.abort();
+    }
+    setIsRestoring(true);
+    void (async () => {
+      try {
+        const response = await clientApiRequest(`/api/ai/ppt-v2?${new URLSearchParams({ notebookId })}`, {
+          headers: accountAuthHeaders(),
+          signal: controller.signal,
+          redirectOnUnauthorized: false,
+        });
+        if (controller.signal.aborted) return;
+        if (response.status === 404) return;
+        const payload = await response.json() as {
+          error?: string;
+          artifact?: { id?: string; fileName?: string; slideCount?: number };
+        };
+        if (!response.ok) throw new Error(payload.error || 'PPT暂时无法读取，请重试。');
+        const artifact = payload.artifact;
+        if (!artifact?.id || !/^[a-f0-9]{64}$/.test(artifact.id)) {
+          throw new Error('PPT保存信息不完整，请重试。');
+        }
+        if (controller.signal.aborted || scopeKeyRef.current !== storageScopeKey) return;
+        setPresentation({
+          scopeKey: storageScopeKey,
+          url: clientApiPath(`/api/ai/ppt-v2?${new URLSearchParams({ notebookId, artifactId: artifact.id, download: '1' })}`),
+          fileName: artifact.fileName || 'academic-presentation.pptx',
+          slideCount: artifact.slideCount,
+        });
+      } catch (requestError) {
+        if (!controller.signal.aborted && scopeKeyRef.current === storageScopeKey) {
+          setRestoreError(requestError instanceof Error ? requestError.message : 'PPT暂时无法读取，请重试。');
+        }
+      } finally {
+        if (!controller.signal.aborted && scopeKeyRef.current === storageScopeKey) setIsRestoring(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [notebookId, restoreAttempt, storageScopeKey]);
+
+  useEffect(() => {
+    scopeKeyRef.current = storageScopeKey;
+    const objectUrls = objectUrlsRef.current;
+    return () => {
+      abortControllerRef.current?.abort();
+      downloadControllerRef.current?.abort();
+      timersRef.current.forEach(clearTimeout);
+      objectUrls.forEach(url => URL.revokeObjectURL(url));
+      objectUrls.clear();
+    };
+  }, [storageScopeKey]);
 
   // User-facing generation stages.
   const PIPELINE_STAGES: StudioJobProgressStage[] = [
@@ -92,13 +163,15 @@ export function StructuredPresentationPanel() {
     setError(null);
     setQualityWarning(null);
     setQualitySummary(null);
-    setPptxUrl(null);
+    setPresentation(null);
     setElapsedSeconds(0);
     setProgressMsg('正在准备结构化简报生成...');
     setProgressStep('discourse');
     abortControllerRef.current?.abort();
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
+    const requestScopeKey = storageScopeKey;
+    const isCurrentRequest = () => !abortController.signal.aborted && scopeKeyRef.current === requestScopeKey;
 
     // Build papers payload with fileUrl/fileType/fileName for MinerU enrichment on backend
     const papersPayload = papers.map(p => ({
@@ -125,7 +198,7 @@ export function StructuredPresentationPanel() {
     for (const p of papers) {
       if (p.fileType === 'pdf') {
         try {
-          const res = await clientApiRequest(`/api/mineru/extract?paperId=${encodeURIComponent(p.id)}`);
+          const res = await clientApiRequest(`/api/mineru/extract?paperId=${encodeURIComponent(p.id)}`, { signal: abortController.signal });
           if (res.ok) {
             const data = await res.json();
             if (data.figures?.length > 0) {
@@ -136,6 +209,16 @@ export function StructuredPresentationPanel() {
       }
     }
 
+    if (!isCurrentRequest()) {
+      if (scopeKeyRef.current === requestScopeKey) {
+        setIsGenerating(false);
+        setProgressMsg('');
+        setProgressStep('');
+        setError('已取消生成，可以调整设置后重新开始。');
+      }
+      return;
+    }
+
     // Show MinerU status
     if (totalFigures > 0) {
       setMineruStatus(`已提取 ${totalFigures} 张资料图表，将插入 PPT`);
@@ -144,6 +227,7 @@ export function StructuredPresentationPanel() {
     }
 
     const timers: number[] = [];
+    timersRef.current = timers;
     try {
       timers.push(window.setInterval(() => {
         setElapsedSeconds(seconds => seconds + 1);
@@ -179,6 +263,7 @@ export function StructuredPresentationPanel() {
         timeoutMs: 300_000,
       });
       timers.forEach(clearTimeout);
+      if (!isCurrentRequest()) return;
 
       if (!res.ok) {
         const err = await res.json();
@@ -205,12 +290,29 @@ export function StructuredPresentationPanel() {
         } catch { /* ignore parse errors */ }
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setPptxUrl(url);
+      const artifactId = res.headers.get('X-PPT-Artifact-Id');
+      const fileName = decodeURIComponent(res.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1] || 'academic-presentation.pptx');
+      if (artifactId && /^[a-f0-9]{64}$/.test(artifactId) && notebookId) {
+        await res.body?.cancel();
+        if (!isCurrentRequest()) return;
+        setPresentation({
+          scopeKey: requestScopeKey,
+          url: clientApiPath(`/api/ai/ppt-v2?${new URLSearchParams({ notebookId, artifactId, download: '1' })}`),
+          fileName,
+          slideCount: outlineDraft.length,
+        });
+      } else {
+        if (!storageScopeKey.startsWith('guest:')) throw new Error('PPT缺少保存信息，请刷新后重新读取。');
+        const blob = await res.blob();
+        if (!isCurrentRequest()) return;
+        const url = URL.createObjectURL(blob);
+        objectUrlsRef.current.add(url);
+        setPresentation({ scopeKey: requestScopeKey, url, fileName });
+      }
       setProgressMsg('');
       setProgressStep('');
     } catch (e: unknown) {
+      if (scopeKeyRef.current !== requestScopeKey) return;
       const aborted = abortController.signal.aborted || (e instanceof DOMException && e.name === 'AbortError');
       const message = e instanceof ClientRequestError && e.code === 'timeout'
         ? '生成等待超时，服务可能仍在处理资料。请稍后重试；已确认的大纲仍会保留。'
@@ -222,8 +324,11 @@ export function StructuredPresentationPanel() {
       setProgressStep('');
     } finally {
       timers.forEach(clearTimeout);
-      if (abortControllerRef.current === abortController) abortControllerRef.current = null;
-      setIsGenerating(false);
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+        setIsGenerating(false);
+        setMineruStatus('');
+      }
     }
   };
 
@@ -233,12 +338,42 @@ export function StructuredPresentationPanel() {
     abortControllerRef.current?.abort();
   };
 
-  const handleDownload = () => {
-    if (!pptxUrl) return;
-    const a = document.createElement('a');
-    a.href = pptxUrl;
-    a.download = 'academic-presentation.pptx';
-    a.click();
+  const handleDownload = async () => {
+    if (!pptxUrl || !presentation || isDownloading) return;
+    const requestScopeKey = storageScopeKey;
+    const controller = new AbortController();
+    downloadControllerRef.current?.abort();
+    downloadControllerRef.current = controller;
+    setIsDownloading(true);
+    setError(null);
+    try {
+      let url = pptxUrl;
+      if (!url.startsWith('blob:')) {
+        const blob = await clientApiDownloadBlob(url, { headers: accountAuthHeaders(), signal: controller.signal, timeoutMs: 60_000 });
+        if (controller.signal.aborted || scopeKeyRef.current !== requestScopeKey) return;
+        url = URL.createObjectURL(blob);
+        objectUrlsRef.current.add(url);
+        const downloadUrl = url;
+        window.setTimeout(() => {
+          URL.revokeObjectURL(downloadUrl);
+          objectUrlsRef.current.delete(downloadUrl);
+        }, 1000);
+      }
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = presentation.fileName;
+      link.click();
+    } catch (requestError) {
+      if (!controller.signal.aborted && scopeKeyRef.current === requestScopeKey) {
+        setError(requestError instanceof Error ? requestError.message : 'PPT下载失败，请重试。');
+        if (requestError instanceof ClientRequestError && [401, 403].includes(requestError.status || 0)) setPresentation(null);
+      }
+    } finally {
+      if (downloadControllerRef.current === controller) {
+        downloadControllerRef.current = null;
+        setIsDownloading(false);
+      }
+    }
   };
 
   const longTaskHint = elapsedSeconds >= 120
@@ -277,7 +412,7 @@ export function StructuredPresentationPanel() {
       </div>
 
       {/* Options */}
-      {!isGenerating && !pptxUrl && (
+      {!isGenerating && !pptxUrl && !isRestoring && (
         <>
         <div className="w-full max-w-[420px] space-y-3 mb-5">
           {/* Institution selector */}
@@ -422,9 +557,17 @@ export function StructuredPresentationPanel() {
       {error && (
         <div className="text-red-400 text-xs mb-3 px-4 py-2.5 liquid-glass-static rounded-xl max-w-[420px] text-center !border-red-500/20">{error}</div>
       )}
+      {restoreError && (
+        <div role="alert" data-testid="academic-ppt-restore-error" className="max-w-[420px] mb-3 text-center text-sm text-red-500">
+          <p>{restoreError}</p>
+          <button onClick={() => setRestoreAttempt(attempt => attempt + 1)} className="mt-2 underline">重新读取</button>
+        </div>
+      )}
 
       {/* Generating state with staged progress */}
-      {isGenerating ? (
+      {isRestoring ? (
+        <p role="status" data-testid="academic-ppt-restoring" className="text-sm text-[var(--text-tertiary)]">正在读取已保存的PPT…</p>
+      ) : isGenerating ? (
         <div className="flex flex-col items-center gap-4 max-w-[420px] w-full">
           <StudioJobProgress
             title="结构化 PPT 生成中"
@@ -442,8 +585,9 @@ export function StructuredPresentationPanel() {
         <div className="flex flex-col gap-3 w-full max-w-[340px]" data-testid="academic-ppt-success">
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl liquid-glass-static !border-emerald-500/20">
             <Check className="w-5 h-5 text-emerald-400" />
-            <span className="text-sm text-emerald-400 font-medium">PPT生成完成</span>
+            <span className="text-sm text-emerald-400 font-medium break-all">{presentation?.fileName}</span>
           </div>
+          {presentation?.slideCount && <p className="text-xs text-[var(--text-tertiary)]">{presentation.slideCount} 页</p>}
           {qualitySummary && (
             <div
               data-testid="academic-ppt-quality-summary"
@@ -459,13 +603,14 @@ export function StructuredPresentationPanel() {
           )}
           <button
             onClick={handleDownload}
+            disabled={isDownloading}
             data-testid="academic-ppt-download"
             className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-sm transition-all active:scale-[0.97]"
           >
-            下载PPT文件
+            {isDownloading ? '正在下载…' : '下载PPT文件'}
           </button>
           <button
-            onClick={() => { setPptxUrl(null); setQualityWarning(null); setQualitySummary(null); }}
+            onClick={() => { setPresentation(null); setQualityWarning(null); setQualitySummary(null); }}
             className="w-full py-2.5 rounded-xl liquid-glass-btn hover:bg-[var(--glass-hover)] text-[var(--text-tertiary)] text-sm"
           >
             返回
@@ -481,7 +626,7 @@ export function StructuredPresentationPanel() {
           )}
           <button
             onClick={handleGenerate}
-            disabled={!hasSelectedPapers || !outlineConfirmed || !generationReadiness.ready}
+            disabled={!hasSelectedPapers || !outlineConfirmed || !generationReadiness.ready || Boolean(restoreError)}
             data-testid="academic-ppt-generate"
             className="liquid-glass-btn w-full px-8 py-3.5 !rounded-xl !bg-gradient-to-r !from-amber-500 !to-amber-600 hover:!from-amber-400 hover:!to-amber-500 !text-black !font-semibold text-sm !border-0 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:!from-amber-500 disabled:hover:!to-amber-600"
             title={!generationReadiness.ready ? generationReadiness.message : hasSelectedPapers ? outlineConfirmed ? '生成结构化资料简报' : '请先确认简报大纲' : '请先在左侧选择资料'}
