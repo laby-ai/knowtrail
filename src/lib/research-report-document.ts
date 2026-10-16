@@ -6,6 +6,7 @@ export interface ResearchStatusPayload {
   retrievalLimits?: string[];
   removedUncitedClaims?: number;
   repairAttempted?: boolean;
+  outputConstraint?: { status: string; characters: number; maxCharacters: number | null; warning?: string };
 }
 
 export interface ResearchReport {

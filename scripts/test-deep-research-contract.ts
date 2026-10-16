@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   DEEP_RESEARCH_REQUIRED_SECTIONS,
+  DEEP_RESEARCH_SYSTEM_PROMPT,
+  auditDeepResearchLength,
+  deepResearchCharacterLimit,
   buildDeepResearchPrompt,
   buildDeepResearchRepairPrompt,
   classifyDeepResearchAnswer,
@@ -17,13 +20,16 @@ const prompt = buildDeepResearchPrompt({
 });
 
 assert.match(prompt, /证据合成方法如何降低结论偏差/, 'Prompt should preserve the research question.');
-assert.match(prompt, /只能基于已选来源/, 'Prompt should state the selected-source boundary.');
+const request = JSON.parse(prompt);
+assert.equal(request.task.question, '证据合成方法如何降低结论偏差？');
+assert.match(DEEP_RESEARCH_SYSTEM_PROMPT, /仅使用当前已选证据/, 'System policy should state the selected-source boundary.');
 for (const section of DEEP_RESEARCH_REQUIRED_SECTIONS) {
-  assert.match(prompt, new RegExp(section), `Prompt should require section: ${section}`);
+  assert.match(DEEP_RESEARCH_SYSTEM_PROMPT, new RegExp(section), `System policy should require section: ${section}`);
 }
 assert.match(prompt, /\[1\]/, 'Prompt should preserve numbered evidence markers.');
-assert.match(prompt, /每个二级标题下只写带证据编号的独立陈述/, 'Prompt should constrain every section body to cited claims.');
-assert.match(prompt, /任何不含引用编号的陈述都会使报告判定为未完成/, 'Prompt should explain the fail-closed citation audit.');
+assert.match(DEEP_RESEARCH_SYSTEM_PROMPT, /每个二级标题下只写带证据编号的独立陈述/, 'Prompt should constrain every section body to cited claims.');
+assert.match(DEEP_RESEARCH_SYSTEM_PROMPT, /任何不含引用编号的陈述都会使报告判定为未完成/, 'Prompt should explain the fail-closed citation audit.');
+assert.doesNotMatch(request.evidenceContext, /写作规则|每个事实判断/);
 assert.doesNotMatch(prompt, /本报告已完成全网检索|以下来源已核验全文/, 'Prompt must not claim unsupported search or full-text verification.');
 
 const repairPrompt = buildDeepResearchRepairPrompt({
@@ -31,12 +37,16 @@ const repairPrompt = buildDeepResearchRepairPrompt({
   evidenceContext: '[1] Evidence synthesis methods\n摘录: preregistration reduces selective reporting.',
   sourceCount: 1,
 });
-assert.match(repairPrompt, /上一版报告未通过引用覆盖审计/);
-assert.match(repairPrompt, /每个章节只写 1 至 2 条/);
-assert.match(repairPrompt, /每条只能有一个句号/);
-for (const section of DEEP_RESEARCH_REQUIRED_SECTIONS) {
-  assert.match(repairPrompt, new RegExp(`## ${section}`));
-}
+assert.match(repairPrompt, /未通过章节、引用或篇幅检查/);
+assert.match(repairPrompt, /每章优先一条有据短句/);
+assert.doesNotMatch(repairPrompt, /仅写一个可由证据支持的单句陈述\[1\]/, 'Repair must not offer a copyable fake-evidence skeleton.');
+assert.equal(deepResearchCharacterLimit('九节合计250字以内'), 250);
+assert.equal(deepResearchCharacterLimit('最多300字，结论50字以内'), 300, 'A section limit must not replace the whole-report budget.');
+assert.equal(deepResearchCharacterLimit('结论50字以内'), null);
+assert.equal(deepResearchCharacterLimit('核对12条记录，保留10条'), null);
+assert.equal(auditDeepResearchLength('## 问题\n- 数据[1]。', '不超过10字').status, 'pass');
+assert.equal(auditDeepResearchLength('## 问题\n- 数据[1]。'.repeat(10), '不超过10字').status, 'too-long');
+assert.equal(classifyDeepResearchAnswer({ citationCount: 1, citationAuditStatus: 'pass', sectionCoverageStatus: 'pass', outputConstraintStatus: 'too-long' }), 'incomplete');
 
 assert.equal(classifyDeepResearchAnswer({
   citationCount: 0,

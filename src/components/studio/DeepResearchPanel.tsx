@@ -332,7 +332,7 @@ export function DeepResearchPanel({ renderComposer }: { renderComposer?: Researc
             <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
               {status === 'complete'
                 ? `报告结构与引用编号检查通过；关键结论仍建议定位来源核验原文。${researchStatus?.removedUncitedClaims ? ` 已移除 ${researchStatus.removedUncitedClaims} 条无引用陈述。` : ''}`
-                : '当前为未完成研究草稿，不能直接作为已核验报告。请补齐缺失章节或引用后再使用。'}
+                : researchStatus?.outputConstraint?.warning || '当前为未完成研究草稿，不能直接作为已核验报告。请补齐缺失章节或引用后再使用。'}
             </p>
           </div>
 
