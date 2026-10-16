@@ -107,6 +107,7 @@ export interface ChatMessage {
   citationAudit?: CitationAuditResult;
   followUps?: string[];
   generation?: ChatGenerationState;
+  toolCalls?: import('@/lib/research-agent-contract').ResearchToolCall[];
   timestamp: string;
 }
 

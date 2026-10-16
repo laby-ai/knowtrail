@@ -49,12 +49,9 @@ assert.match(
 assert.match(editorSource, /clearChatSkill/, 'The selected Skill should be removable without clearing the draft');
 assert.match(editorSource, /sendQuestion\(draft, \{ skill: selectedChatSkill \}\)/, 'Normal chat submissions should use the selected Skill');
 assert.match(editorSource, /skill: options\.skill \|\| undefined/, 'Chat requests should send the selected Skill to the server');
-assert.match(editorSource, /handleGenerateReport\(draft\)/, 'The literature review Skill should reuse the grounded report flow');
-assert.match(editorSource, /data-testid="chat-skill-workspace"/, 'Structured Skills should open their real workspace above the composer');
-assert.match(editorSource, /<PaperSearchPanel\b[^>]*\/>/, 'Paper search should retain its real source discovery workspace');
-assert.match(editorSource, /<DeepResearchPanel\b[^>]*\/>/, 'Deep research should retain its grounded report workspace');
-assert.match(editorSource, /<HypothesisGenerationPanel\b[^>]*\/>/, 'Hypothesis generation should retain its structured generation workspace');
-assert.match(editorSource, /<ExperimentDesignPanel\b[^>]*\/>/, 'Experiment design should retain its structured protocol workspace');
+assert.match(editorSource, /clientApiPath\('\/api\/agent\/chat'\)/, 'All Skill submissions should use the AgentScope orchestration endpoint');
+assert.doesNotMatch(editorSource, /chat-skill-workspace|hidden=\{workspaceSkillActive\}/, 'Choosing a Skill must keep the existing conversation visible');
+assert.match(read('src/components/editor/MessageItem.tsx'), /AgentToolCard/, 'Tool results should be attached to their conversation turn');
 assert.match(chatRouteSource, /resolveResearchChatSkillInstruction\(skill\)/, 'The chat route should resolve server-owned Skill instructions');
 assert.match(chatRouteSource, /skillInstruction/, 'The server should add the Skill instruction without exposing it as user text');
 assert.match(
@@ -68,9 +65,9 @@ console.log(JSON.stringify({
   checked: [
     'all eight research Skills are directly visible in the conversation composer',
     'the selected Skill is visible and removable',
-    'structured Skills open their real center workspaces',
+    'Skill selection keeps the current conversation visible',
     'chat submissions carry the selected Skill',
-    'literature review reuses the grounded report flow',
+    'all submissions reuse server-owned evidence and instructions',
     'server-owned Skill instructions shape model behavior',
     'right product directory does not duplicate chat-first tools',
   ],

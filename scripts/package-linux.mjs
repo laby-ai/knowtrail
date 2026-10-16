@@ -173,6 +173,7 @@ mkdirSync(appDir, { recursive: true });
   'dist',
   'src',
   'scripts',
+  'services/research-agent',
   'deploy',
 ].forEach(entry => copyEntry(entry));
 
