@@ -1,12 +1,14 @@
 import { NextRequest } from 'next/server';
 import { prepareResearchReportPersistence, type ReportPersistenceRequest } from '@/lib/research-report-persistence';
-import { llmStream, SYSTEM_PROMPTS } from '@/lib/ai-service';
+import { llmStream } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { auditCitationMarkers, auditCitationSectionCoverage } from '@/lib/citation-audit';
 import {
   DEEP_RESEARCH_REQUIRED_SECTIONS,
+  DEEP_RESEARCH_SYSTEM_PROMPT,
+  auditDeepResearchLength,
   buildDeepResearchPrompt,
   buildDeepResearchRepairPrompt,
   classifyDeepResearchAnswer,
@@ -150,7 +152,7 @@ export async function POST(request: NextRequest) {
         });
 
         for await (const chunk of taskObservation.observeProvider(llmStream([
-          { role: 'system', content: SYSTEM_PROMPTS.reportGeneration },
+          { role: 'system', content: DEEP_RESEARCH_SYSTEM_PROMPT },
           { role: 'user', content: prompt },
         ], {
           model: modelName,
@@ -184,10 +186,12 @@ export async function POST(request: NextRequest) {
             emit({ replaceContent: answerText });
           }
         }
+        let outputConstraint = auditDeepResearchLength(answerText, question);
         let answerStatus = classifyDeepResearchAnswer({
           citationCount: grounded.citations.length,
           citationAuditStatus: citationAudit.status,
           sectionCoverageStatus: sectionCoverage.status,
+          outputConstraintStatus: outputConstraint.status,
         });
         if (answerStatus !== 'complete') {
           repairAttempted = true;
@@ -195,7 +199,7 @@ export async function POST(request: NextRequest) {
             progress: {
               stage: 'repairing',
               progress: 94,
-              message: '引用覆盖未通过，正在基于原始证据进行一次保守重写。',
+            message: '章节、引用或篇幅未通过，正在基于原始证据进行一次保守重写。',
             },
           });
           let repairedAnswer = '';
@@ -205,7 +209,7 @@ export async function POST(request: NextRequest) {
             sourceCount: papers.length,
           });
           for await (const chunk of taskObservation.observeProvider(llmStream([
-            { role: 'system', content: SYSTEM_PROMPTS.reportGeneration },
+            { role: 'system', content: DEEP_RESEARCH_SYSTEM_PROMPT },
             { role: 'user', content: repairPrompt },
           ], {
             model: modelName,
@@ -226,10 +230,12 @@ export async function POST(request: NextRequest) {
             sectionCoverage = auditCitationSectionCoverage(repairedAnswer, [...DEEP_RESEARCH_REQUIRED_SECTIONS]);
           }
           answerText = repairedAnswer;
+          outputConstraint = auditDeepResearchLength(answerText, question);
           answerStatus = classifyDeepResearchAnswer({
             citationCount: grounded.citations.length,
             citationAuditStatus: citationAudit.status,
             sectionCoverageStatus: sectionCoverage.status,
+            outputConstraintStatus: outputConstraint.status,
           });
           emit({ replaceContent: answerText });
         }
@@ -242,6 +248,7 @@ export async function POST(request: NextRequest) {
             sectionCoverage,
             removedUncitedClaims,
             repairAttempted,
+            outputConstraint,
             retrievalLimits: [
               '报告仅基于当前选定来源及其可检索片段。',
               '引用线索未替代全文核验。',

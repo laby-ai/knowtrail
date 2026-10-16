@@ -40,7 +40,7 @@ export function ReportSkillCard({ reference }: { reference: ResearchReportRefere
     {error && <><p role="alert">{error}</p><button type="button" className="agent-plugin-open" onClick={() => setAttempt(value => value + 1)}>重新读取报告</button></>}
     {report && <>
       <p className="text-xs text-[var(--text-secondary)]">{reference.sourceIds.length} 份来源 · {report.citations.length} 条引用</p>
-      {report.status !== 'complete' && <p role="status" className="text-xs text-amber-700">已保留未完成草稿，需补充章节或引用。</p>}
+      {report.status !== 'complete' && <p role="status" className="text-xs text-amber-700">{report.researchStatus?.outputConstraint?.warning || '已保留未完成草稿，需补充章节或引用。'}</p>}
       <button type="button" className="agent-plugin-open" aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? '收起报告' : '查看本轮报告'}</button>
       {open && <div className="space-y-3 break-words" data-testid="agent-report-content">
         <div className="space-y-3 overflow-x-auto text-sm leading-relaxed [&_h2]:font-semibold [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-1"><ReactMarkdown remarkPlugins={[remarkGfm]}>{report.answer}</ReactMarkdown></div>

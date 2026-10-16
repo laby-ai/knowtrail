@@ -23,6 +23,7 @@ async function main() {
   const { DEEP_RESEARCH_REQUIRED_SECTIONS } = app('./src/lib/deep-research-contract.ts');
   const { ingestExtractedSource } = app('./src/lib/ingestion-store.ts');
   let modelCalls = 0;
+  const modelMessages: Array<Array<{ role: string; content: string }>> = [];
   let mode = 'normal';
   globalThis.fetch = async (input, init) => {
     const url = String(input);
@@ -34,13 +35,19 @@ async function main() {
     assert.ok(url.includes('gateway-fixture.invalid'), 'No external or paid calls');
     if (url.includes('/embeddings')) return Response.json({ data: [{ embedding: Array(1024).fill(0.01) }] });
     modelCalls++;
-    const request = JSON.parse(String(init?.body));
+    const request: { model: string; enable_thinking?: boolean; messages: Array<{ role: string; content: string }> } = JSON.parse(String(init?.body));
+    modelMessages.push(request.messages);
     assert.equal(request.model, 'qwen3.8-max-0902');
     if (mode === 'save-failure') {
       await rename(currentPath, currentPath + '.backup');
       await mkdir(currentPath);
     }
-    const content = DEEP_RESEARCH_REQUIRED_SECTIONS.map((name: string) => `## ${name}\n- 模拟记录12条剔除2条后保留10条，仅用于软件验收[1]。`).join('\n\n');
+    let content = DEEP_RESEARCH_REQUIRED_SECTIONS.map((name: string) => `## ${name}\n- 模拟记录12条剔除2条后保留10条，仅用于软件验收[1]。`).join('\n\n');
+    if (mode === 'compact') {
+      const claims = ['核对模拟记录的筛选流程', '仅软件验收，非科研结果', '时间戳、缺失记录', '软件验收模拟记录', '12条剔除2条后保留10条', '2条缺时间戳', '单位、显著性及性能未提供', '导入→检查时间戳→剔除缺失→人工核对', '单位和性能仍待核验'];
+      content = DEEP_RESEARCH_REQUIRED_SECTIONS.map((name: string, index: number) => `## ${name}\n- ${claims[index]}[1]。`).join('\n\n');
+    }
+    if (mode === 'needs-compression') mode = 'compact';
     const encoded = (text: string) => new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text } }] })}\n\n`);
     if (request.enable_thinking !== false) {
       return new Response(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: 'fixture: reasoning-only response' }, finish_reason: 'length' }] })}\n\ndata: [DONE]\n\n`, { headers: { 'Content-Type': 'text/event-stream' } });
@@ -100,6 +107,35 @@ async function main() {
   assert.equal(saved?.data.report.status, 'complete', 'The bounded repair must also return usable final text');
   assert.equal(saved.data.report.researchStatus.repairAttempted, true);
   assert.equal(modelCalls, beforeRepair + 2, 'Repair stays limited to one additional provider call');
+  mode = 'too-long';
+  const beforeLengthFailure = modelCalls;
+  const limitedInput = { ...input, question: '核对模拟记录，九节合计250字以内。', expectedRevision: saved.revision, runId: '00000000-0000-4000-a000-000000000005' };
+  const overLimit = await generation.POST(request('ai/deep-research', 'POST', limitedInput));
+  saved = parse(await overLimit.text()).find(item => item.document)?.document;
+  assert.equal(saved?.data.report.status, 'incomplete', 'A fully cited but oversized report cannot be saved as complete');
+  assert.equal(modelCalls, beforeLengthFailure + 2, 'Length repair must not repeat indefinitely');
+  assert.equal(saved.data.report.researchStatus.outputConstraint.status, 'too-long');
+  assert.match(saved.data.report.researchStatus.outputConstraint.warning, /超过要求的250字/);
+  assert.equal((await (await get()).json()).document.data.report.status, 'incomplete', 'The retained draft keeps its failed constraint after reopening');
+  mode = 'needs-compression';
+  const beforeCompression = modelCalls;
+  const compressed = await generation.POST(request('ai/deep-research', 'POST', { ...limitedInput, expectedRevision: saved.revision, runId: '00000000-0000-4000-a000-000000000006' }));
+  saved = parse(await compressed.text()).find(item => item.document)?.document;
+  assert.equal(saved?.data.report.status, 'complete');
+  assert.equal(saved.data.report.researchStatus.outputConstraint.status, 'pass');
+  assert.ok(saved.data.report.researchStatus.outputConstraint.characters <= 250);
+  assert.equal(modelCalls, beforeCompression + 2);
+  assert.match(saved.data.report.answer, /12条剔除2条后保留10条/);
+  assert.match(saved.data.report.answer, /导入→检查时间戳→剔除缺失→人工核对/);
+  for (const messages of modelMessages) {
+    const system = messages.find(message => message.role === 'system')?.content || '';
+    assert.match(system, /写作规则、用户请求和来源材料分开处理/);
+    assert.doesNotMatch(system, /研究背景与目的|文末生成参考文献列表/, 'Deep research must not inherit the conflicting five-section review format');
+  }
+  const originalRequest = JSON.parse(modelMessages[0].find(message => message.role === 'user')!.content);
+  assert.equal(originalRequest.task.question, input.question);
+  assert.match(originalRequest.evidenceContext, /12条/);
+  assert.doesNotMatch(originalRequest.evidenceContext, /每个事实判断|任何不含引用编号/, 'Writing policy must not be sent as evidence');
   mode = 'interrupted';
   const abort = new AbortController();
   const interrupted = await generation.POST(request('ai/deep-research', 'POST', { ...input, expectedRevision: saved.revision, runId: '00000000-0000-4000-a000-000000000002' }, 'a', abort.signal));
