@@ -9,10 +9,11 @@ import { PptDeckAccessError, readDeckImage, savePptDeckDocument } from '@/lib/pp
 import { buildStandaloneDeckHtml } from '@/lib/ppt/html-deck-export';
 import { latestDeckExport, readDeckExport, saveDeckExport } from '@/lib/ppt/deck-export-store';
 
+import { isHypothesisDocument, isExperimentDocument } from '@/lib/research-design-document';
 import { isChatHistoryDocument } from '@/lib/chat-history-document';
 
 const headers = { 'Cache-Control': 'private, no-store' };
-const validators = { 'chat-history': isChatHistoryDocument, 'research-report': isResearchReportDocument, 'knowledge-map': isKnowledgeMapDocument, 'data-processing': isDataProcessingDocument, 'image-deck': isImageDeckDocument, 'html-deck': isHtmlDeckDocument };
+const validators = { 'hypothesis-generation': isHypothesisDocument, 'experiment-design': isExperimentDocument, 'chat-history': isChatHistoryDocument, 'research-report': isResearchReportDocument, 'knowledge-map': isKnowledgeMapDocument, 'data-processing': isDataProcessingDocument, 'image-deck': isImageDeckDocument, 'html-deck': isHtmlDeckDocument };
 function validatorFor(kind: string | null) { return kind && Object.hasOwn(validators, kind) ? validators[kind as keyof typeof validators] : null; }
 
 async function scopeFor(request: NextRequest, notebookId: unknown): Promise<PrivateNotebookScope | { response: Response }> {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
       const image = await readDeckImage(scope, assetId);
       return new Response(new Uint8Array(image.buffer), { headers: { ...headers, 'Content-Type': image.contentType, 'X-Content-Type-Options': 'nosniff' } });
     }
-    const download = (kind === 'data-processing' || kind === 'html-deck') && request.nextUrl.searchParams.get('download') === '1';
+    const download = (kind === 'data-processing' || kind === 'html-deck' || kind === 'experiment-design') && request.nextUrl.searchParams.get('download') === '1';
     const revision = request.nextUrl.searchParams.get('revision');
     if ((download || revision) && !/^[a-f0-9]{64}$/.test(revision || '')) return NextResponse.json({ error: '下载版本不完整，请重新读取。' }, { status: 400, headers });
     const saved = await readNotebookDocument(scope, kind, revision || undefined);
@@ -55,6 +56,9 @@ export async function GET(request: NextRequest) {
     if (!validate(saved.data)) throw new Error('Invalid saved document');
     if (download && isHtmlDeckDocument(saved.data) && saved.data.deck) {
       return new Response(buildStandaloneDeckHtml(saved.data.deck.slides, saved.data.deck.deckTitle), { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(saved.data.deck.deckTitle.replace(/[\\/:*?"<>|]/g, '_') + '.html')}` } });
+    }
+    if (download && isExperimentDocument(saved.data) && saved.data.result) {
+      return new Response(saved.data.result.artifactMarkdown, { headers: { ...headers, 'Content-Type': 'text/markdown; charset=utf-8', 'Content-Disposition': `attachment; filename="experiment-preregistration.md"` } });
     }
     if (download && isDataProcessingDocument(saved.data) && saved.data.plan) {
       return new Response(saved.data.plan.artifactMarkdown, { headers: { ...headers, 'Content-Type': 'text/markdown; charset=utf-8', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(saved.data.plan.artifactFileName)}` } });

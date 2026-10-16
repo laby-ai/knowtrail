@@ -73,6 +73,9 @@ jobs:
       - name: Data processing recovery contract
         run: pnpm exec tsx scripts/test-data-processing-recovery.ts
 
+      - name: Research design recovery contract
+        run: pnpm exec tsx scripts/test-research-design-recovery.ts
+
       - name: Experiment design contracts
         run: pnpm run test:experiment-design-contract
 

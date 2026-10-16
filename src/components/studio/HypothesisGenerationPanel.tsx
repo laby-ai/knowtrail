@@ -1,11 +1,14 @@
 'use client';
 
-import { clientApiRequest } from '@/lib/client-api';
+import { clientApiPath, clientApiRequest } from '@/lib/client-api';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, FlaskConical, Lightbulb } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { useScopedStudioState } from '@/hooks/use-scoped-studio-state';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyHypothesis, isHypothesisDocument, legacyHypothesis, type HypothesisDocument } from '@/lib/research-design-document';
+import type { NotebookDocument } from '@/lib/private-notebook-document';
+import { SavedToolStatus } from './SavedToolStatus';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { HypothesisCard } from '@/lib/hypothesis-generation-contract';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
@@ -49,12 +52,17 @@ export function HypothesisGenerationPanel() {
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
-  const [question, setQuestion] = useScopedStudioState(storageScopeKey, 'hypothesis-generation', 'question', '');
-  const [hypotheses, setHypotheses] = useState<HypothesisCard[]>([]);
-  const [citations, setCitations] = useState<Citation[]>([]);
-  const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(null);
-  const [hypothesisStatus, setHypothesisStatus] = useState<HypothesisStatusPayload | null>(null);
-  const [status, setStatus] = useState<PanelStatus>('idle');
+  const saved = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'hypothesis-generation', endpoint: '/api/studio/artifacts?kind=hypothesis-generation', empty: emptyHypothesis, validate: isHypothesisDocument, readLegacy: legacyHypothesis });
+  const question = saved.data.question;
+  const setQuestion = (value: string) => saved.update(previous => ({ ...previous, question: value }));
+  const hypotheses = saved.data.result?.hypotheses || [];
+  const citations = saved.data.result?.citations || [];
+  const retrieval = saved.data.result?.retrieval || null;
+  const hypothesisStatus = saved.data.result?.status || null;
+  const [runStatus, setStatus] = useState<PanelStatus>('idle');
+  const status = runStatus === 'idle' && saved.data.result ? hypothesisStatus?.answerStatus === 'complete' ? 'complete' : 'incomplete' : runStatus;
+  const cancelRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { cancelRef.current?.(); abortRef.current?.abort(); }, []);
   const [stage, setStage] = useState('retrieving');
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('填写研究问题后开始。');
@@ -68,14 +76,12 @@ export function HypothesisGenerationPanel() {
   const runGeneration = useCallback(async () => {
     const trimmedQuestion = question.trim();
     const papers = getSelectedPapers();
-    if (!trimmedQuestion || papers.length === 0 || status === 'running') return;
+    if (!trimmedQuestion || papers.length === 0 || status === 'running' || saved.loading || saved.readFailed || saved.conflict || !await saved.flush()) return;
 
     const controller = new AbortController();
     abortRef.current = controller;
-    setHypotheses([]);
-    setCitations([]);
-    setRetrieval(null);
-    setHypothesisStatus(null);
+    const runId = crypto.randomUUID(); const auth = accountAuthHeaders();
+    cancelRef.current = () => { void fetch(clientApiPath('/api/ai/hypothesis-generation'), { method: 'DELETE', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ notebookId, runId }), keepalive: true }).catch(() => undefined); };
     setError(null);
     setStatus('running');
     setStage('retrieving');
@@ -84,6 +90,7 @@ export function HypothesisGenerationPanel() {
 
     let finalHypotheses: HypothesisCard[] = [];
     let finalStatus: HypothesisStatusPayload | null = null;
+    let finalCitations: Citation[] = []; let finalRetrieval: RetrievalMetadata | null = null; let received = false;
     try {
       const response = await clientApiRequest('/api/ai/hypothesis-generation', {
         method: 'POST',
@@ -93,6 +100,7 @@ export function HypothesisGenerationPanel() {
         signal: controller.signal,
         body: JSON.stringify({
           question: trimmedQuestion,
+          persistArtifact: !storageScopeKey.startsWith('guest:'), runId, expectedRevision: saved.revision.current,
           notebookId,
           papers: papers.map(toPaperRequest),
         }),
@@ -122,6 +130,7 @@ export function HypothesisGenerationPanel() {
           const raw = dataLines.join('\n');
           if (raw === '[DONE]') continue;
           const payload = JSON.parse(raw) as {
+            document?: NotebookDocument<HypothesisDocument>; unsavedDocument?: HypothesisDocument; saveError?: string;
             hypotheses?: HypothesisCard[];
             citations?: Citation[];
             retrieval?: RetrievalMetadata;
@@ -134,21 +143,24 @@ export function HypothesisGenerationPanel() {
             setProgress(payload.progress.progress || 0);
             setMessage(payload.progress.message || '正在生成研究假设。');
           }
-          if (payload.citations) setCitations(payload.citations);
-          if (payload.retrieval) setRetrieval(payload.retrieval);
+          if (payload.citations) finalCitations = payload.citations;
+          if (payload.retrieval) finalRetrieval = payload.retrieval;
           if (payload.hypotheses) {
             finalHypotheses = payload.hypotheses;
-            setHypotheses(payload.hypotheses);
           }
           if (payload.hypothesisStatus) {
             finalStatus = payload.hypothesisStatus;
-            setHypothesisStatus(payload.hypothesisStatus);
           }
+          if (controller.signal.aborted) return;
+          if (payload.document && isHypothesisDocument(payload.document.data)) { saved.acceptSaved(payload.document); received = true; finalHypotheses = payload.document.data.result?.hypotheses || []; finalStatus = payload.document.data.result?.status || null; }
+          if (payload.unsavedDocument && isHypothesisDocument(payload.unsavedDocument)) { saved.updateLocal(() => payload.unsavedDocument!); received = true; }
+          if (payload.saveError) setError(payload.saveError);
           if (payload.error) throw new Error(payload.error);
         }
       }
 
       if (finalHypotheses.length === 0) throw new Error('没有生成通过结构检查的研究假设。');
+      if (!received) saved.update(previous => ({ ...previous, result: { runId, hypotheses: finalHypotheses, citations: finalCitations, retrieval: finalRetrieval, status: finalStatus || { answerStatus: 'incomplete' } } }));
       const completed = finalStatus?.answerStatus === 'complete';
       setStatus(completed ? 'complete' : 'incomplete');
       setStage('auditing');
@@ -163,16 +175,17 @@ export function HypothesisGenerationPanel() {
       setStatus(finalHypotheses.length > 0 ? 'incomplete' : stopped ? 'idle' : 'error');
       setMessage(userMessage);
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
+      if (abortRef.current === controller) { abortRef.current = null; cancelRef.current = null; }
     }
-  }, [getSelectedPapers, notebookId, question, status]);
+  }, [getSelectedPapers, notebookId, question, status, saved, storageScopeKey]);
 
-  const stopGeneration = useCallback(() => abortRef.current?.abort(), []);
+  const stopGeneration = useCallback(() => { cancelRef.current?.(); abortRef.current?.abort(); }, []);
   const missingEvidence = selectedPapers.length === 0;
   const invalidMarkers = hypothesisStatus?.invalidEvidenceMarkers || [];
 
   return (
     <div className="space-y-4" data-testid="hypothesis-generation-panel">
+      <SavedToolStatus saved={saved} guest={storageScopeKey.startsWith('guest:')} />
       <div>
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
           <Lightbulb className="h-4 w-4 text-amber-500" />
@@ -195,7 +208,7 @@ export function HypothesisGenerationPanel() {
           value={question}
           onChange={event => setQuestion(event.target.value)}
           maxLength={1200}
-          disabled={status === 'running'}
+          disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
           data-testid="hypothesis-generation-question"
           placeholder="例如：哪些可检验机制可能解释不同研究中观察到的结果差异？"
           className="mt-1.5 min-h-24 w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text-primary)] outline-none transition focus:border-amber-400/60"
@@ -205,7 +218,7 @@ export function HypothesisGenerationPanel() {
       <button
         type="button"
         onClick={() => void runGeneration()}
-        disabled={missingEvidence || !question.trim() || status === 'running'}
+        disabled={missingEvidence || !question.trim() || status === 'running' || saved.loading || saved.readFailed || saved.conflict}
         data-testid="hypothesis-generation-start"
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-3 py-2.5 text-sm font-medium text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-45"
       >
