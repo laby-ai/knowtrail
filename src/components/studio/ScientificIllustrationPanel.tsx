@@ -5,8 +5,12 @@ import NextImage from 'next/image';
 import { AlertTriangle, Download, Image as ImageIcon, Loader2, Square } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
-import { useScopedStudioState } from '@/hooks/use-scoped-studio-state';
-import { clientApiDownloadBlob, clientApiRequest } from '@/lib/client-api';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyIllustration, isIllustrationDocument, legacyIllustration, type IllustrationDocument, type IllustrationResult as ScientificIllustrationResult } from '@/lib/scientific-illustration-document';
+import type { NotebookDocument } from '@/lib/private-notebook-document';
+import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { SavedToolStatus } from './SavedToolStatus';
+import { clientApiPath, clientApiDownloadBlob, clientApiRequest } from '@/lib/client-api';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type {
   ScientificIllustrationAspectRatio,
@@ -15,23 +19,6 @@ import type {
 import type { Paper } from '@/types';
 
 type PanelStatus = 'idle' | 'running' | 'complete' | 'error';
-
-interface ScientificIllustrationResult {
-  id: string;
-  imageUrl: string;
-  downloadUrl: string;
-  mimeType: string;
-  width: number | null;
-  height: number | null;
-  bytes: number;
-  purpose: string;
-  figureKind: ScientificIllustrationKind;
-  aspectRatio: ScientificIllustrationAspectRatio;
-  sourceLabels: string[];
-  createdAt: string;
-  reviewRequired: boolean;
-  boundary: string;
-}
 
 const FIGURE_KINDS: Array<{ id: ScientificIllustrationKind; label: string; desc: string }> = [
   { id: 'conceptual-framework', label: '概念框架', desc: '概念、变量和关系' },
@@ -67,14 +54,18 @@ export function ScientificIllustrationPanel() {
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const controllerRef = useRef<AbortController | null>(null);
   const previewUrlRef = useRef('');
-  const [purpose, setPurpose] = useScopedStudioState(storageScopeKey, 'scientific-illustration', 'purpose', '');
-  const [figureKind, setFigureKind] = useScopedStudioState<ScientificIllustrationKind>(storageScopeKey, 'scientific-illustration', 'figure-kind', 'workflow');
-  const [aspectRatio, setAspectRatio] = useScopedStudioState<ScientificIllustrationAspectRatio>(storageScopeKey, 'scientific-illustration', 'aspect-ratio', '16:9');
-  const [requiredLabels, setRequiredLabels] = useScopedStudioState(storageScopeKey, 'scientific-illustration', 'required-labels', '');
+  const saved = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'scientific-illustration', endpoint: '/api/studio/artifacts?kind=scientific-illustration', empty: emptyIllustration, validate: isIllustrationDocument, readLegacy: legacyIllustration });
+  const { purpose, figureKind, aspectRatio, requiredLabels } = saved.data.form;
+  const setPurpose = (value: string) => saved.update(p => ({ ...p, form: { ...p.form, purpose: value } }));
+  const setFigureKind = (value: ScientificIllustrationKind) => saved.update(p => ({ ...p, form: { ...p.form, figureKind: value } }));
+  const setAspectRatio = (value: ScientificIllustrationAspectRatio) => saved.update(p => ({ ...p, form: { ...p.form, aspectRatio: value } }));
+  const setRequiredLabels = (value: string) => saved.update(p => ({ ...p, form: { ...p.form, requiredLabels: value } }));
+  const result = saved.data.result;
+  const [imageAttempt, setImageAttempt] = useState(0);
+  const cancelRef = useRef<(() => void) | null>(null);
   const [status, setStatus] = useState<PanelStatus>('idle');
-  const [message, setMessage] = useState('选定来源并说明作图目的后开始。');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ScientificIllustrationResult | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
 
   const labels = useMemo(() => parseLabels(requiredLabels), [requiredLabels]);
@@ -83,7 +74,7 @@ export function ScientificIllustrationPanel() {
     [selectedPapers],
   );
   const formReady = selectedPapers.length > 0 && purpose.trim().length >= 8 && labels.length <= 6;
-  const canGenerate = formReady && generationReadiness.ready;
+  const canGenerate = formReady && generationReadiness.ready && !saved.loading && !saved.readFailed && !saved.conflict;
 
   const replacePreviewUrl = useCallback((next: string) => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -92,20 +83,29 @@ export function ScientificIllustrationPanel() {
   }, []);
 
   useEffect(() => () => {
-    controllerRef.current?.abort();
+    cancelRef.current?.(); controllerRef.current?.abort();
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
   }, []);
 
   const fetchImageBlob = useCallback(async (url: string, signal?: AbortSignal) => {
     const blob = await clientApiDownloadBlob(url, {
       cache: 'no-store',
-      signal,
+      signal, timeoutMs: 60_000,
     });
     if (!/^image\/(?:png|jpeg|webp)$/i.test(blob.type) || blob.size === 0) {
       throw new Error('服务未返回有效的 PNG、JPEG 或 WebP 图片。');
     }
     return blob;
   }, []);
+
+  const resultUrl = result?.imageUrl || '';
+  useEffect(() => {
+    const controller = new AbortController(); replacePreviewUrl('');
+    if (resultUrl) void fetchImageBlob(resultUrl, controller.signal).then(blob => {
+      if (!controller.signal.aborted) replacePreviewUrl(URL.createObjectURL(blob));
+    }).catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : '图片暂时无法读取，请重试。'); });
+    return () => controller.abort();
+  }, [resultUrl, imageAttempt, fetchImageBlob, replacePreviewUrl]);
 
   const startGeneration = useCallback(async () => {
     if (!generationReadiness.ready) {
@@ -114,9 +114,11 @@ export function ScientificIllustrationPanel() {
       setMessage('本次没有提交生成任务。');
       return;
     }
-    if (!formReady || status === 'running') return;
+    if (!formReady || status === 'running' || saved.loading || saved.readFailed || saved.conflict || !await saved.flush()) return;
     const controller = new AbortController();
     controllerRef.current = controller;
+    const runId = crypto.randomUUID(); const auth = accountAuthHeaders();
+    cancelRef.current = () => { void fetch(clientApiPath('/api/ai/scientific-illustration'), { method: 'DELETE', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ notebookId, runId }), keepalive: true }).catch(() => undefined); };
     let timedOut = false;
     const timeout = window.setTimeout(() => {
       timedOut = true;
@@ -125,8 +127,6 @@ export function ScientificIllustrationPanel() {
     setStatus('running');
     setMessage('正在调用真实图片模型并检查返回文件。');
     setError(null);
-    setResult(null);
-    replacePreviewUrl('');
 
     try {
       const response = await clientApiRequest('/api/ai/scientific-illustration', {
@@ -134,24 +134,27 @@ export function ScientificIllustrationPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           purpose: purpose.trim(),
+          persistArtifact: !storageScopeKey.startsWith('guest:'), runId, expectedRevision: saved.revision.current,
           figureKind,
           aspectRatio,
           requiredLabels: labels,
           papers: getSelectedPapers().map(toPaperRequest),
           notebookId,
         }),
-        signal: controller.signal,
+        signal: controller.signal, timeoutMs: 210_000,
       });
       if (!response.ok) throw new Error(await readError(response));
-      const payload = await response.json() as { data?: ScientificIllustrationResult };
+      const payload = await response.json() as { data?: ScientificIllustrationResult; document?: NotebookDocument<IllustrationDocument>; unsavedDocument?: IllustrationDocument; saveError?: string };
       if (!payload.data?.imageUrl || !payload.data.downloadUrl) {
         throw new Error('服务未返回可预览和下载的科研示意图。');
       }
-      const blob = await fetchImageBlob(payload.data.imageUrl, controller.signal);
-      replacePreviewUrl(URL.createObjectURL(blob));
-      setResult(payload.data);
+      if (controller.signal.aborted) return;
+      if (payload.document && isIllustrationDocument(payload.document.data)) saved.acceptSaved(payload.document);
+      else if (payload.unsavedDocument && isIllustrationDocument(payload.unsavedDocument)) saved.updateLocal(() => payload.unsavedDocument!);
+      else saved.update(p => ({ ...p, runId, result: payload.data! }));
+      if (payload.saveError) setError(payload.saveError);
       setStatus('complete');
-      setMessage('真实图片文件已生成；请复核科学含义、标签和文字后再用于论文或汇报。');
+      setMessage('');
     } catch (requestError) {
       if (controller.signal.aborted) {
         setStatus('idle');
@@ -163,29 +166,26 @@ export function ScientificIllustrationPanel() {
       }
     } finally {
       window.clearTimeout(timeout);
-      if (controllerRef.current === controller) controllerRef.current = null;
+      if (controllerRef.current === controller) { controllerRef.current = null; cancelRef.current = null; }
     }
-  }, [aspectRatio, fetchImageBlob, figureKind, formReady, generationReadiness, getSelectedPapers, labels, notebookId, purpose, replacePreviewUrl, status]);
+  }, [aspectRatio, fetchImageBlob, figureKind, formReady, generationReadiness, getSelectedPapers, labels, notebookId, purpose, replacePreviewUrl, status, saved, storageScopeKey]);
 
   const downloadImage = useCallback(async () => {
     if (!result) return;
     try {
-      const blob = await fetchImageBlob(result.downloadUrl);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `scientific-illustration-${result.id}.${result.mimeType === 'image/jpeg' ? 'jpg' : result.mimeType.split('/')[1]}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      const response = await clientApiRequest(result.downloadUrl, { method: 'HEAD', headers: accountAuthHeaders(), timeoutMs: 60_000 });
+      if (!response.ok) throw new Error(await readError(response));
+      if (!response.headers.get('Content-Type')?.startsWith('image/')) throw new Error('图片文件类型异常，请重试读取。');
+      const link = document.createElement('a'); link.href = clientApiPath(result.downloadUrl);
+      link.download = `scientific-illustration-${result.id}.png`; document.body.appendChild(link); link.click(); link.remove();
     } catch (downloadError) {
       setError(downloadError instanceof Error ? downloadError.message : '图片下载失败。');
     }
-  }, [fetchImageBlob, result]);
+  }, [result]);
 
   return (
     <div className="space-y-4" data-testid="scientific-illustration-panel">
+      <SavedToolStatus saved={saved} guest={storageScopeKey.startsWith('guest:')} />
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10">
           <ImageIcon className="h-4 w-4 text-cyan-300" />
@@ -296,7 +296,7 @@ export function ScientificIllustrationPanel() {
         {status === 'running' && (
           <button
             type="button"
-            onClick={() => controllerRef.current?.abort()}
+            onClick={() => { cancelRef.current?.(); controllerRef.current?.abort(); }}
             className="btn-secondary px-3"
             aria-label="停止生成"
           >
@@ -306,6 +306,7 @@ export function ScientificIllustrationPanel() {
       </div>
       <p className="text-[10px] leading-relaxed text-[var(--text-quaternary)]" data-testid="scientific-illustration-status">{message}</p>
 
+      {result && !previewUrl && status !== 'running' && <button type="button" className="text-xs underline" onClick={() => { setError(null); setImageAttempt(x => x + 1); }}>重试加载图片</button>}
       {result && previewUrl && (
         <section className="space-y-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] p-3" data-testid="scientific-illustration-result">
           <div className="overflow-hidden rounded-md border border-[var(--border-subtle)] bg-white">

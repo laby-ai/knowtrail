@@ -12,8 +12,11 @@ import { latestDeckExport, readDeckExport, saveDeckExport } from '@/lib/ppt/deck
 import { isHypothesisDocument, isExperimentDocument } from '@/lib/research-design-document';
 import { isChatHistoryDocument } from '@/lib/chat-history-document';
 
+import { isIllustrationDocument } from '@/lib/scientific-illustration-document';
+import { readScientificIllustration } from '@/lib/scientific-illustration-store';
+
 const headers = { 'Cache-Control': 'private, no-store' };
-const validators = { 'hypothesis-generation': isHypothesisDocument, 'experiment-design': isExperimentDocument, 'chat-history': isChatHistoryDocument, 'research-report': isResearchReportDocument, 'knowledge-map': isKnowledgeMapDocument, 'data-processing': isDataProcessingDocument, 'image-deck': isImageDeckDocument, 'html-deck': isHtmlDeckDocument };
+const validators = { 'scientific-illustration': isIllustrationDocument, 'hypothesis-generation': isHypothesisDocument, 'experiment-design': isExperimentDocument, 'chat-history': isChatHistoryDocument, 'research-report': isResearchReportDocument, 'knowledge-map': isKnowledgeMapDocument, 'data-processing': isDataProcessingDocument, 'image-deck': isImageDeckDocument, 'html-deck': isHtmlDeckDocument };
 function validatorFor(kind: string | null) { return kind && Object.hasOwn(validators, kind) ? validators[kind as keyof typeof validators] : null; }
 
 async function scopeFor(request: NextRequest, notebookId: unknown): Promise<PrivateNotebookScope | { response: Response }> {
@@ -88,6 +91,10 @@ export async function PUT(request: NextRequest) {
     const scope = await scopeFor(request, body.notebookId);
     if ('response' in scope) return scope.response;
     if (!validate(body.data) || (body.expectedRevision !== null && typeof body.expectedRevision !== 'string')) return NextResponse.json({ error: '内容或保存版本不完整，请重新读取。' }, { status: 400, headers });
+    if (kind === 'scientific-illustration' && isIllustrationDocument(body.data) && body.data.result) {
+      const image = await readScientificIllustration(body.data.result.id, scope.ownerMemberId);
+      if (image.metadata.notebookId !== scope.notebookId) throw new PptDeckAccessError('科研示意图不存在。', 404);
+    }
     const document = kind === 'image-deck' || kind === 'html-deck'
       ? await savePptDeckDocument(scope, kind, body.data as PptDeckDocument, body.expectedRevision)
       : await saveNotebookDocument(scope, kind, body.data, body.expectedRevision);

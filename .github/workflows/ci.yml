@@ -88,6 +88,9 @@ jobs:
       - name: Peer review contracts
         run: pnpm run test:peer-review-contract
 
+      - name: Scientific illustration recovery
+        run: pnpm exec tsx scripts/test-scientific-illustration-recovery.ts
+
       - name: Scientific illustration contracts
         run: pnpm run test:scientific-illustration-contract
 

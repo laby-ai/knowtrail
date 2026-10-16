@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { access, constants, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -21,6 +21,7 @@ export interface ScientificIllustrationMetadata {
   width: number | null;
   height: number | null;
   bytes: number;
+  sha256?: string;
 }
 
 function storeDir(): string {
@@ -65,6 +66,7 @@ export async function saveScientificIllustration(input: {
     sourceLabels: input.sourceLabels,
     createdAt: new Date().toISOString(),
     ...info,
+    sha256: createHash('sha256').update(input.image).digest('hex'),
   };
   const dir = storeDir();
   await mkdir(dir, { recursive: true });
@@ -92,7 +94,7 @@ export async function readScientificIllustration(
   if (metadata.id !== id || !['png', 'jpg', 'webp'].includes(metadata.extension)) {
     throw new Error('科研示意图元数据无效。');
   }
-  if (metadata.ownerMemberId && metadata.ownerMemberId !== ownerMemberId) {
+  if (!metadata.ownerMemberId || metadata.ownerMemberId !== ownerMemberId) {
     throw new Error('无权访问该科研示意图。');
   }
   const imagePath = path.join(storeDir(), `${id}.${metadata.extension}`);
@@ -100,5 +102,6 @@ export async function readScientificIllustration(
     throw new Error('科研示意图文件不存在。');
   });
   inspectGeneratedImage(image);
+  if (image.length !== metadata.bytes || metadata.sha256 && createHash('sha256').update(image).digest('hex') !== metadata.sha256) throw new Error('科研示意图文件校验失败。');
   return { metadata, imagePath, image };
 }
