@@ -94,7 +94,7 @@ assert.match(pageSource, /sessionStorage\.setItem\(activeToolStorageKey, tab\)/,
 assert.match(pageSource, /onWorkbenchPreferencesChange\(\{ activeStudioTool: tab \}\)/, 'Workbench should sync the active tool into account preferences');
 assert.match(studioPanelSource, /export function StudioWorkspacePanel/, 'Studio should expose the focused workspace independently from the right directory');
 assert.match(studioPanelSource, /data-testid="studio-back-to-directory"/, 'Focused workspaces should provide a stable return action');
-assert.match(studioPanelSource, /data-testid="studio-back-to-directory"[\s\S]*?aria-label=\{compact \? "收起工具" : "返回产物中心"\}/, 'Focused workspaces should label the return destination without relying on an icon alone');
+assert.match(studioPanelSource, /data-testid="studio-back-to-directory"[\s\S]*?aria-label="返回工具列表"/, 'Focused workspaces should label the return destination without relying on an icon alone');
 assert.match(studioPanelSource, /data-testid="studio-directory-scroll"/, 'The product directory should own its scrolling');
 assert.match(studioPanelSource, /data-testid="studio-workspace-scroll"/, 'The focused workspace should own its scrolling');
 assert.doesNotMatch(studioPanelSource, /切换入口只打开对应工作区，检索或生成需在下方明确操作。/, 'Studio should not describe the removed appended-workspace interaction');
