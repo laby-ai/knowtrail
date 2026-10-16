@@ -94,11 +94,28 @@ def import_runtime(base, target, stream, expected_sha):
                     index[(path.stat().st_size, stat.S_IMODE(path.stat().st_mode), sha(path))] = path
         reusable = {name: index.get((e['size'], e['mode'], e['sha256'])) if immutable(name) else None
                     for name, e in entries.items()}
+        public = (base / 'public').resolve()
+        public_entries = {n: e for n, e in entries.items() if n.startswith('public/')}
+        public_files = list(public.rglob('*')) if public.exists() else []
+        borrow_public = bool(public_entries) and public.is_relative_to(base.parent) and not any(
+            p.is_symlink() and p.is_dir() for p in public_files)
+        if borrow_public:
+            existing = {p.relative_to(public).as_posix(): p.resolve() for p in public_files if p.is_file()}
+            borrow_public = existing.keys() == {n[7:] for n in public_entries} and all(
+                p.is_relative_to(base.parent) and p.stat().st_uid == os.getuid() and p.stat().st_gid == os.getgid()
+                and sha(p) == public_entries['public/' + name]['sha256']
+                for name, p in existing.items())
+        if borrow_public:
+            reusable.update({n: existing[n[7:]] for n in public_entries})
         retained_static = [p for p in (base / '.next/static').rglob('*') if p.is_file()
                            and not p.is_symlink() and p.suffix != '.map'
                            and p.relative_to(base).as_posix() not in entries]
         needed = sum(((e['size'] + 4095) // 4096) * 4096 for n, e in entries.items() if not reusable[n])
-        needed += (len(entries) + len(retained_static)) * 4096 + 8_000_000
+        paths = list(entries) + [p.relative_to(base).as_posix() for p in retained_static]
+        directories = {str(parent) for name in paths for parent in PurePosixPath(name).parents}
+        needed += len(directories) * 4096 + len(paths) * 512 + 2_000_000
+        if borrow_public:
+            needed += len(public_entries) * 4096
         before = shutil.disk_usage(base).free
         if before - needed < FLOOR + RESERVE:
             raise ValueError(f'Insufficient capacity: free={before}, boundedImport={needed}; no files created')
@@ -117,14 +134,21 @@ def import_runtime(base, target, stream, expected_sha):
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 digest = hashlib.sha256()
                 reuse = reusable[name]
+                public_reference = borrow_public and name.startswith('public/')
                 with destination.open('xb') if reuse is None else open(os.devnull, 'wb') as out:
                     for chunk in iter(lambda: source.read(1024 * 1024), b''):
                         digest.update(chunk)
                         if reuse is None:
                             out.write(chunk)
+                            if shutil.disk_usage(base).free < FLOOR + RESERVE:
+                                raise ValueError('Capacity changed during streamed allocation')
                 if digest.hexdigest() != entry['sha256']:
                     raise ValueError('Streamed file hash mismatch')
-                if reuse:
+                if public_reference:
+                    if sha(reuse) != entry['sha256']:
+                        raise ValueError('Referenced public snapshot changed')
+                    destination.symlink_to(reuse)
+                elif reuse:
                     if (sha(reuse) != entry['sha256'] or reuse.stat().st_uid != os.getuid()
                             or reuse.stat().st_gid != os.getgid()):
                         raise ValueError('Reusable file changed or has a different owner')
@@ -157,6 +181,7 @@ def import_runtime(base, target, stream, expected_sha):
                     'boundedImportBytes': needed, 'reusedBytes': sum(entries[n]['size'] for n in seen if reusable[n]),
                     'copiedBytes': sum(entries[n]['size'] for n in seen if not reusable[n]),
                     'retainedPreviousStaticFiles': len(retained_static),
+                    'publicSnapshotReference': str(public) if borrow_public else None,
                     'credentialsCopied': False, 'activated': False}
         except BaseException:
             assert target.parent == base.parent and target != base and not target.is_symlink()

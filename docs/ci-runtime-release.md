@@ -53,6 +53,14 @@ runs Turbopack against that reference. Hashed external package aliases are local
 to the new candidate, so the existing dependency directory is not modified.
 Every streamed file is checked against its manifest. Failure removes only the
 new candidate created by that invocation, after sibling/ownership checks.
+When the complete public-asset filename/hash snapshot is unchanged, individual
+verified files may reference the retained release instead of copying about 15 MB.
+Their existing owner/modes are preserved without chmod; no directory is borrowed
+and no unlisted file becomes visible. References must stay inside retained
+releases and are never used for uploads or account data. New/copy code stays at
+the normalized CI permissions; mismatched legacy code modes are not hardlinked.
+Allocation includes copied data blocks, directory/entry costs and metadata
+allowance, followed by a free-space check during each streamed MiB and on completion.
 Previous static chunks absent from the new build are retained by hardlink for
 already-open browser pages, as in the existing release procedure. Their directory
 cost is included in the allocation bound; new build paths are never overwritten.

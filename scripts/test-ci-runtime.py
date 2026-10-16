@@ -140,6 +140,29 @@ class ImportRuntime(unittest.TestCase):
                          old_static.stat().st_ino)
         self.assertEqual(result['retainedPreviousStaticFiles'], 1)
 
+    @unittest.skipUnless(sys.platform == 'linux', 'Linux retained public-asset references')
+    def test_public_snapshot_reuse_never_exposes_unlisted_files(self):
+        name = 'public/verified.txt'
+        self.files[name] = b'verified public fixture'
+        original = self.base / name
+        original.parent.mkdir()
+        original.write_bytes(self.files[name])
+        original.chmod(0o666)
+        self.manifest['files'].append({'path': name, 'size': len(self.files[name]), 'mode': 0o644,
+                                      'sha256': hashlib.sha256(self.files[name]).hexdigest()})
+        stream, digest = self.archive()
+        result = importer.import_runtime(self.base, self.target, stream, digest)
+        self.assertTrue((self.target / name).is_symlink())
+        self.assertTrue(result['publicSnapshotReference'])
+        self.assertEqual(original.stat().st_mode & 0o777, 0o666)
+        self.target = self.base.parent / 'candidate-with-extra-public-file'
+        (original.parent / 'unlisted-private.txt').write_bytes(b'dedicated exclusion fixture')
+        stream, digest = self.archive()
+        result = importer.import_runtime(self.base, self.target, stream, digest)
+        self.assertFalse((self.target / name).is_symlink())
+        self.assertFalse((self.target / 'public/unlisted-private.txt').exists())
+        self.assertIsNone(result['publicSnapshotReference'])
+
     @unittest.skipUnless(sys.platform == 'linux', 'Linux capacity and streaming behavior')
     def test_capacity_refusal_creates_no_candidate(self):
         stream, digest = self.archive()
