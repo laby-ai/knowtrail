@@ -94,7 +94,7 @@ assert.match(pageSource, /sessionStorage\.setItem\(activeToolStorageKey, tab\)/,
 assert.match(pageSource, /onWorkbenchPreferencesChange\(\{ activeStudioTool: tab \}\)/, 'Workbench should sync the active tool into account preferences');
 assert.match(studioPanelSource, /export function StudioWorkspacePanel/, 'Studio should expose the focused workspace independently from the right directory');
 assert.match(studioPanelSource, /data-testid="studio-back-to-directory"/, 'Focused workspaces should provide a stable return action');
-assert.match(studioPanelSource, /data-testid="studio-back-to-directory"[\s\S]*?aria-label="返回产物中心"/, 'Focused workspaces should label the return destination without relying on an icon alone');
+assert.match(studioPanelSource, /data-testid="studio-back-to-directory"[\s\S]*?aria-label=\{compact \? "收起工具" : "返回产物中心"\}/, 'Focused workspaces should label the return destination without relying on an icon alone');
 assert.match(studioPanelSource, /data-testid="studio-directory-scroll"/, 'The product directory should own its scrolling');
 assert.match(studioPanelSource, /data-testid="studio-workspace-scroll"/, 'The focused workspace should own its scrolling');
 assert.doesNotMatch(studioPanelSource, /切换入口只打开对应工作区，检索或生成需在下方明确操作。/, 'Studio should not describe the removed appended-workspace interaction');
@@ -211,8 +211,8 @@ assert.match(presentationModeSelectorSource, /data-testid=\{`presentation-mode-\
 assert.match(presentationModeSelectorSource, /<span>PPT 制作<\/span>/, 'PPT detail panel should use the approved product name');
 assert.doesNotMatch(`${knowledgeMapPanelSource}\n${knowledgeMapWorkspaceSource}`, /['">]资料脉络[<'"]/, 'Knowledge-map UI should consistently use the approved research-context name');
 assert.match(virtualClassroomPanelSource, /课堂服务未连接/, 'Virtual classroom should expose its unavailable runtime state');
-assert.match(presentationModeSelectorSource, /id: 'image'[\s\S]*label: '图片页简报'/, 'PPT mode selector should keep the image PPT option');
-assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结构化 PPT'/, 'PPT mode selector should keep the structured PPT option');
+assert.match(presentationModeSelectorSource, /id: 'image'[\s\S]*label: '图片页'/, 'PPT mode selector should keep the image PPT option');
+assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '可编辑 PPT'/, 'PPT mode selector should keep the structured PPT option');
 
 console.log(JSON.stringify({
   ok: true,
