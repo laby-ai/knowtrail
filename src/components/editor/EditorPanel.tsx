@@ -860,5 +860,3 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
     </div>
   );
 }
-
-
