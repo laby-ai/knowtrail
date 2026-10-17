@@ -72,6 +72,15 @@ jobs:
       - name: Source text fidelity through retrieval
         run: pnpm exec tsx scripts/test-source-text-fidelity.ts
 
+      - name: Provide the existing PDF renderer for CI
+        run: |
+          if ! command -v pdfinfo || ! command -v pdftoppm; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends poppler-utils
+          fi
+          pdfinfo -v
+          pdftoppm -v
+
       - name: PDF text fidelity with supplemental vision
         run: |
           pnpm exec tsx scripts/test-pdf-source-fidelity.ts
