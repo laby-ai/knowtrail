@@ -5,6 +5,8 @@ import { isResearchDesignDocument } from './research-agent-design';
 import type { ResearchDesignDocument } from './research-design-document';
 import { isGeneratedKnowledgeMap } from './research-agent-map';
 import type { KnowledgeMapDocument } from './knowledge-map-document';
+import { isDataPlanInput, isGeneratedDataPlan, type DataPlanInput } from './research-agent-data';
+import type { DataProcessingDocument } from './data-processing-document';
 
 export const RESEARCH_PLUGINS = {
   'paper-search': '论文检索', 'deep-research': '深度研究',
@@ -25,6 +27,21 @@ export interface ResearchDesignReference extends ResearchReportReference {
   kind: 'hypothesis-generation' | 'experiment-design';
 }
 export interface ResearchKnowledgeMapReference extends ResearchReportReference { deepExtract: boolean }
+export interface ResearchDataPlanReference extends ResearchReportReference, DataPlanInput {}
+export function isResearchDataPlanReference(value: unknown): value is ResearchDataPlanReference {
+  if (!isResearchReportReference(value)) return false;
+  const v = value as ResearchDataPlanReference;
+  return v.status === 'complete' && v.sourceIds.length === 1 && v.sourceIds[0] === v.sourceId
+    && isDataPlanInput({ sourceId: v.sourceId, question: v.question, sampleUnit: v.sampleUnit, taskFamily: v.taskFamily, targetColumn: v.targetColumn, splitColumn: v.splitColumn });
+}
+export interface PendingDataPlan extends Omit<ResearchDataPlanReference, 'revision' | 'status'> { data: DataProcessingDocument; expectedRevision: string | null }
+export function isPendingDataPlan(value: unknown): value is PendingDataPlan {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as PendingDataPlan;
+  return isResearchDataPlanReference({ ...v, revision: v.expectedRevision || '0'.repeat(64), status: 'complete' })
+    && (v.expectedRevision === null || /^[a-f0-9]{64}$/.test(v.expectedRevision))
+    && isGeneratedDataPlan(v.data, v.runId, v) && JSON.stringify(v.data).length <= 500_000;
+}
 export function isResearchKnowledgeMapReference(value: unknown): value is ResearchKnowledgeMapReference {
   return isResearchReportReference(value) && typeof (value as ResearchKnowledgeMapReference).deepExtract === 'boolean';
 }
@@ -98,6 +115,8 @@ export interface ResearchToolCall {
   pendingDesign?: PendingResearchDesign;
   knowledgeMap?: ResearchKnowledgeMapReference;
   pendingKnowledgeMap?: PendingKnowledgeMap;
+  dataPlan?: ResearchDataPlanReference;
+  pendingDataPlan?: PendingDataPlan;
 }
 export function isResearchPlugin(value: unknown): value is ResearchPluginId {
   return typeof value === 'string' && Object.hasOwn(RESEARCH_PLUGINS, value);
@@ -115,5 +134,7 @@ export function isResearchToolCall(value: unknown): value is ResearchToolCall {
     && (call.design === undefined || call.results === undefined && call.presentation === undefined && call.report === undefined && isResearchDesignReference(call.design) && call.plugin === call.design.kind)
     && (call.pendingDesign === undefined || call.status === 'failed' && call.results === undefined && call.presentation === undefined && call.report === undefined && call.design === undefined && isPendingResearchDesign(call.pendingDesign) && call.plugin === call.pendingDesign.kind)
     && (call.knowledgeMap === undefined || call.plugin === 'knowledge-map' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && isResearchKnowledgeMapReference(call.knowledgeMap))
-    && (call.pendingKnowledgeMap === undefined || call.status === 'failed' && call.plugin === 'knowledge-map' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && isPendingKnowledgeMap(call.pendingKnowledgeMap));
+    && (call.pendingKnowledgeMap === undefined || call.status === 'failed' && call.plugin === 'knowledge-map' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && isPendingKnowledgeMap(call.pendingKnowledgeMap))
+    && (call.dataPlan === undefined || call.status === 'ready' && call.plugin === 'data-processing' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.pendingDataPlan && isResearchDataPlanReference(call.dataPlan))
+    && (call.pendingDataPlan === undefined || call.status === 'failed' && call.plugin === 'data-processing' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && isPendingDataPlan(call.pendingDataPlan));
 }

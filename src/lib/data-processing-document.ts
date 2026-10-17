@@ -1,6 +1,7 @@
 import type { DataProcessingPlan, DataProcessingRequest } from '@/lib/data-processing-plan';
 
 export interface DataProcessingDocument extends DataProcessingRequest {
+  generation?: { runId: string };
   sourceId: string;
   targetColumn: string;
   splitColumn: string;
@@ -11,6 +12,7 @@ export const emptyDataProcessing = (): DataProcessingDocument => ({ sourceId: ''
 export function isDataProcessingDocument(value: unknown): value is DataProcessingDocument {
   if (!value || typeof value !== 'object') return false;
   const data = value as Partial<DataProcessingDocument>;
+  if (data.generation !== undefined && (!data.generation || typeof data.generation.runId !== 'string' || !/^[a-f0-9-]{36}$/i.test(data.generation.runId))) return false;
   if (typeof data.sourceId !== 'string' || typeof data.question !== 'string' || data.question.length > 1200 || typeof data.sampleUnit !== 'string' || data.sampleUnit.length > 200 ||
     !['description', 'prediction', 'comparison', 'trend'].includes(data.taskFamily || '') || typeof data.targetColumn !== 'string' || typeof data.splitColumn !== 'string') return false;
   const plan = data.plan;

@@ -15,6 +15,7 @@ import { PresentationSkillCard } from './PresentationSkillCard';
 import { ReportSkillCard } from './ReportSkillCard';
 import { ResearchDesignSkillCard, RetryResearchDesignSave } from './ResearchDesignSkillCard';
 import { KnowledgeMapSkillCard, RetryKnowledgeMapSave } from './KnowledgeMapSkillCard';
+import { DataPlanSkillCard, RetryDataPlanSave } from './DataPlanSkillCard';
 
 const TABS: Record<ResearchPluginId, StudioTab> = {
   'paper-search': 'paper-search', 'deep-research': 'deep-research',
@@ -37,12 +38,14 @@ export function AgentToolCard({ call, messageId }: { call: ResearchToolCall; mes
       {call.status === 'failed' && <p role="alert">{call.error || '本次调用未完成，请重新发送。'}</p>}
       {call.status === 'failed' && call.pendingDesign && <RetryResearchDesignSave pending={call.pendingDesign} messageId={messageId} callId={call.id} />}
       {call.status === 'failed' && call.pendingKnowledgeMap && <RetryKnowledgeMapSave pending={call.pendingKnowledgeMap} messageId={messageId} callId={call.id} />}
+      {call.status === 'failed' && call.pendingDataPlan && <RetryDataPlanSave pending={call.pendingDataPlan} messageId={messageId} callId={call.id} />}
       {call.status === 'ready' && call.results && <PaperResults call={call} />}
       {call.status === 'ready' && call.presentation && <PresentationSkillCard plan={call.presentation} messageId={messageId} callId={call.id} />}
       {call.status === 'ready' && call.report && <ReportSkillCard reference={call.report} />}
       {call.status === 'ready' && call.design && <ResearchDesignSkillCard reference={call.design} />}
       {call.status === 'ready' && call.knowledgeMap && <KnowledgeMapSkillCard reference={call.knowledgeMap} />}
-      {call.status === 'ready' && !call.results && !call.presentation && !call.report && !call.design && !call.knowledgeMap && <>
+      {call.status === 'ready' && call.dataPlan && <DataPlanSkillCard reference={call.dataPlan} />}
+      {call.status === 'ready' && !call.results && !call.presentation && !call.report && !call.design && !call.knowledgeMap && !call.dataPlan && <>
         <button type="button" className="agent-plugin-open" onClick={() => setOpen(value => !value)} aria-expanded={open}>
           {open ? '收起' : `打开${RESEARCH_PLUGINS[call.plugin]}`}<ChevronDown size={16} />
         </button>

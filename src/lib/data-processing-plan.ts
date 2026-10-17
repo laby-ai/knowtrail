@@ -141,7 +141,7 @@ export function buildDataProcessingPlan(input: DataProcessingRequest, paper: Pap
   const target = input.targetColumn ? preview.columns.find(column => column.name === input.targetColumn) : undefined;
   const inputColumns = preview.columns
     .map(column => column.name)
-    .filter(name => name !== input.targetColumn);
+    .filter(name => name !== input.targetColumn && name !== input.splitColumn && !isIdentifierColumn(name));
   const warnings: string[] = [];
   for (const column of preview.columns) {
     if (column.missingCount > 0) warnings.push(`${column.name} 缺失 ${column.missingCount} 行，处理方式需在切分后确定。`);
@@ -151,6 +151,7 @@ export function buildDataProcessingPlan(input: DataProcessingRequest, paper: Pap
   if (preview.sampledRowCount < preview.rowCount) {
     warnings.push(`字段统计只采样前 ${preview.sampledRowCount} 行，完整处理前需重新扫描全部 ${preview.rowCount} 行。`);
   }
+  if (preview.columns.length < preview.columnCount) warnings.push(`本轮仅诊断前 ${preview.columns.length} 列，表格共 ${preview.columnCount} 列；其余字段尚未检查。`);
   if (preview.rowCount < 30 && input.taskFamily !== 'description') warnings.push('当前行数较少，模型评估不稳定，应优先报告不确定性。');
   if (warnings.length === 0) warnings.push('采样范围内未发现明显缺失或混合类型；仍需核对重复、单位和异常范围。');
 
