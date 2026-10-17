@@ -168,8 +168,12 @@ export async function POST(request: NextRequest) {
               return { reference: { kind: input.kind, sourceIds, question: input.question, revision: saved.revision, runId, status: result.status.answerStatus === 'complete' ? 'complete' as const : 'incomplete' as const }, preview: preview.slice(0, 1800) };
             },
             generateReport: async question => {
-              const sourceIds = [...new Set(grounded.citations.map(citation => citation.sourceId))];
+              const sourceIds = [...new Set(selected.map(paper => paper.id).filter((id): id is string => typeof id === 'string'))];
               const verified = { ownerMemberId: scope.ownerMemberId!, notebookId: scope.notebookId! };
+              if (!sourceIds.length || sourceIds.length > 20) throw new Error('报告需要选择1至20份本人资料。');
+              for (const id of sourceIds) {
+                if (!await getIngestionSource(id, verified)) throw new Error('所选资料不属于当前文献本或暂不可读。');
+              }
               const previous = await readNotebookDocument<unknown>(verified, 'research-report');
               if (previous && !isResearchReportDocument(previous.data)) throw new Error('已保存报告暂时无法读取，请重试。');
               const runId = crypto.randomUUID();
