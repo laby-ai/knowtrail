@@ -17,6 +17,9 @@ import { POST as generateHypothesis } from '@/app/api/ai/hypothesis-generation/r
 import { POST as generateExperiment } from '@/app/api/ai/experiment-design/route';
 import { readGeneratedDesign, isResearchDesignDocument, ResearchDesignSaveError } from '@/lib/research-agent-design';
 import { readGeneratedReport } from '@/lib/research-agent-report';
+import { POST as generateKnowledgeMap } from '@/app/api/ai/knowledge-map/route';
+import { readGeneratedKnowledgeMap } from '@/lib/research-agent-map';
+import { isKnowledgeMapDocument } from '@/lib/knowledge-map-document';
 
 export const runtime = 'nodejs';
 export const maxDuration = 180;
@@ -51,7 +54,7 @@ export async function POST(request: NextRequest) {
     if (saved && isChatHistoryDocument(saved.data)) {
       for (const msg of saved.data.messages.slice(-20)) {
         if (msg.role === 'system' || msg.generation?.status === 'pending') continue;
-        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, presentation: call.presentation, report: call.report, design: call.design }));
+        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, presentation: call.presentation, report: call.report, design: call.design, knowledgeMap: call.knowledgeMap }));
         const content = (msg.content + (toolContext?.length ? '\n工具实际结果：' + JSON.stringify(toolContext) : '')).slice(0, 16000);
         if (content.trim()) history.push({ role: msg.role, content });
       }
@@ -72,6 +75,18 @@ export async function POST(request: NextRequest) {
           send({ citations: grounded.citations, retrieval: toRetrievalMetadata(grounded) });
           for await (const event of runResearchAgent({ message, skill: typeof skill === 'string' ? skill : undefined,
             sessionId: `${scope.ownerMemberId}:${scope.notebookId}`, sourceIds: [...new Set(grounded.citations.map(citation => citation.sourceId))], systemPrompt: researchAgentSystemPrompt(base, typeof skill === 'string' ? skill : undefined), history, config, signal,
+            generateKnowledgeMap: async input => {
+              const sourceIds = [...new Set(grounded.citations.map(c => c.sourceId))];
+              const verified = { ownerMemberId: scope.ownerMemberId!, notebookId: scope.notebookId! };
+              const previous = await readNotebookDocument<unknown>(verified, 'knowledge-map');
+              if (previous && !isKnowledgeMapDocument(previous.data)) throw new Error('已保存研究脉络暂时无法读取。');
+              const runId = crypto.randomUUID();
+              const headers = new Headers(request.headers); headers.delete('content-length'); headers.set('Content-Type', 'application/json');
+              const generated = await generateKnowledgeMap(new NextRequest(request.url.replace(/\/agent\/chat(?:\?.*)?$/, '/ai/knowledge-map'), { method: 'POST', headers, signal, body: JSON.stringify({ ...input, runId, notebookId: scope.notebookId, papers: sourceIds.map(id => ({ id })), persistArtifact: true, expectedRevision: previous?.revision || null }) }));
+              const saved = await readGeneratedKnowledgeMap(generated, runId, input, previous?.revision || null, signal);
+              const session = saved.data.session!;
+              return { reference: { ...input, sourceIds, runId, revision: saved.revision, status: session.citationAudit.status === 'pass' ? 'complete' as const : 'incomplete' as const }, preview: `${input.deepExtract ? '深度提取' : '快速抽取'}；${session.map.nodes.length}个节点，${session.map.edges.length}条关系。\n${session.map.nodes.map(n => n.label + ': ' + n.summary).join('\n')}`.slice(0, 1800) };
+            },
             generateDesign: async input => {
               const sourceIds = [...new Set(grounded.citations.map(citation => citation.sourceId))];
               const verified = { ownerMemberId: scope.ownerMemberId!, notebookId: scope.notebookId! };

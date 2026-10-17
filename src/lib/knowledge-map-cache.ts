@@ -33,7 +33,7 @@ function stablePaperSignature(paper: RagSourceInput) {
 export function knowledgeMapCacheKey(
   papers: RagSourceInput[],
   aiConfig?: Partial<RuntimeAIConfig>,
-  scope: { ownerMemberId?: string; notebookId?: string } = {},
+  scope: { ownerMemberId?: string; notebookId?: string; question?: string; deepExtract?: boolean } = {},
 ): string {
   const signature = {
     version: CACHE_VERSION,
@@ -42,6 +42,7 @@ export function knowledgeMapCacheKey(
     papers: papers.map(stablePaperSignature),
     model: aiConfig?.model || '',
     apiBase: aiConfig?.apiBase || '',
+    ...(scope.question?.trim() || scope.deepExtract ? { intent: { question: scope.question?.trim() || '', deepExtract: Boolean(scope.deepExtract) } } : {}),
   };
   return crypto.createHash('sha256').update(JSON.stringify(signature)).digest('hex').slice(0, 32);
 }
@@ -53,7 +54,7 @@ function cachePath(key: string): string {
 export async function readKnowledgeMapCache(
   papers: RagSourceInput[],
   aiConfig?: Partial<RuntimeAIConfig>,
-  scope?: { ownerMemberId?: string; notebookId?: string },
+  scope?: { ownerMemberId?: string; notebookId?: string; question?: string; deepExtract?: boolean },
 ): Promise<KnowledgeMapCacheHit | undefined> {
   const key = knowledgeMapCacheKey(papers, aiConfig, scope);
   try {
@@ -84,7 +85,7 @@ export async function writeKnowledgeMapCache(
   papers: RagSourceInput[],
   aiConfig: Partial<RuntimeAIConfig> | undefined,
   response: KnowledgeMapResponse,
-  scope?: { ownerMemberId?: string; notebookId?: string },
+  scope?: { ownerMemberId?: string; notebookId?: string; question?: string; deepExtract?: boolean },
 ): Promise<{ key: string; storedAt: string }> {
   const key = knowledgeMapCacheKey(papers, aiConfig, scope);
   const storedAt = new Date().toISOString();

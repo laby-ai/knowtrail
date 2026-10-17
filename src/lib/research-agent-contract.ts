@@ -3,6 +3,8 @@ import type { DiscoveredSourceFileInput } from './discovered-source-file';
 import { sanitizePptOutlineDraft, type PptOutlineDraftItem } from './ppt/outline-draft';
 import { isResearchDesignDocument } from './research-agent-design';
 import type { ResearchDesignDocument } from './research-design-document';
+import { isGeneratedKnowledgeMap } from './research-agent-map';
+import type { KnowledgeMapDocument } from './knowledge-map-document';
 
 export const RESEARCH_PLUGINS = {
   'paper-search': '论文检索', 'deep-research': '深度研究',
@@ -21,6 +23,21 @@ export interface ResearchReportReference {
 }
 export interface ResearchDesignReference extends ResearchReportReference {
   kind: 'hypothesis-generation' | 'experiment-design';
+}
+export interface ResearchKnowledgeMapReference extends ResearchReportReference { deepExtract: boolean }
+export function isResearchKnowledgeMapReference(value: unknown): value is ResearchKnowledgeMapReference {
+  return isResearchReportReference(value) && typeof (value as ResearchKnowledgeMapReference).deepExtract === 'boolean';
+}
+export interface PendingKnowledgeMap extends Omit<ResearchKnowledgeMapReference, 'revision' | 'status'> {
+  data: KnowledgeMapDocument;
+  expectedRevision: string | null;
+}
+export function isPendingKnowledgeMap(value: unknown): value is PendingKnowledgeMap {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as PendingKnowledgeMap;
+  return isResearchKnowledgeMapReference({ ...v, revision: v.expectedRevision || '0'.repeat(64), status: 'incomplete' })
+    && (v.expectedRevision === null || /^[a-f0-9]{64}$/.test(v.expectedRevision))
+    && isGeneratedKnowledgeMap(v.data, v.runId, v) && JSON.stringify(v.data).length <= 500_000;
 }
 export function isResearchDesignReference(value: unknown): value is ResearchDesignReference {
   return isResearchReportReference(value) && ['hypothesis-generation', 'experiment-design'].includes((value as ResearchDesignReference).kind);
@@ -79,6 +96,8 @@ export interface ResearchToolCall {
   report?: ResearchReportReference;
   design?: ResearchDesignReference;
   pendingDesign?: PendingResearchDesign;
+  knowledgeMap?: ResearchKnowledgeMapReference;
+  pendingKnowledgeMap?: PendingKnowledgeMap;
 }
 export function isResearchPlugin(value: unknown): value is ResearchPluginId {
   return typeof value === 'string' && Object.hasOwn(RESEARCH_PLUGINS, value);
@@ -94,5 +113,7 @@ export function isResearchToolCall(value: unknown): value is ResearchToolCall {
     && (call.presentation === undefined || call.plugin === 'presentation' && call.results === undefined && isResearchPresentationPlan(call.presentation))
     && (call.report === undefined || call.plugin === 'report' && call.results === undefined && call.presentation === undefined && isResearchReportReference(call.report))
     && (call.design === undefined || call.results === undefined && call.presentation === undefined && call.report === undefined && isResearchDesignReference(call.design) && call.plugin === call.design.kind)
-    && (call.pendingDesign === undefined || call.status === 'failed' && call.results === undefined && call.presentation === undefined && call.report === undefined && call.design === undefined && isPendingResearchDesign(call.pendingDesign) && call.plugin === call.pendingDesign.kind);
+    && (call.pendingDesign === undefined || call.status === 'failed' && call.results === undefined && call.presentation === undefined && call.report === undefined && call.design === undefined && isPendingResearchDesign(call.pendingDesign) && call.plugin === call.pendingDesign.kind)
+    && (call.knowledgeMap === undefined || call.plugin === 'knowledge-map' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && isResearchKnowledgeMapReference(call.knowledgeMap))
+    && (call.pendingKnowledgeMap === undefined || call.status === 'failed' && call.plugin === 'knowledge-map' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && isPendingKnowledgeMap(call.pendingKnowledgeMap));
 }
