@@ -405,6 +405,8 @@ export function LibraryPanel({
     aiConfig,
     storageScopeKey,
     revealPaperRequest,
+    sourceSyncState: ingestionSyncState,
+    setSourceSyncState: setIngestionSyncState,
   } = useApp();
 
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -420,7 +422,6 @@ export function LibraryPanel({
   const [skippedFilesNotice, setSkippedFilesNotice] = useState<string | null>(null);
   const [sourceMutationError, setSourceMutationError] = useState<string | null>(null);
   const [uploadTargetFolderId, setUploadTargetFolderId] = useState<string | null>(null);
-  const [ingestionSyncState, setIngestionSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
   const [pastedSourceText, setPastedSourceText] = useState('');
@@ -524,11 +525,11 @@ export function LibraryPanel({
     };
   }, [accountAuthRequired, accountSession?.token, citationFocus, notebookId]);
 
-  const syncIngestionSources = useCallback(async () => {
+  const syncIngestionSources = useCallback(async (force = false) => {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountAuthRequired && !accountHeaders.Authorization) return;
     const now = Date.now();
-    if (ingestionSyncInFlightRef.current || now - lastIngestionSyncAtRef.current < 5000) return;
+    if (ingestionSyncInFlightRef.current || (!force && now - lastIngestionSyncAtRef.current < 5000)) return;
     ingestionSyncInFlightRef.current = true;
     lastIngestionSyncAtRef.current = now;
     const knownPapers = new Map<string, Paper>();
@@ -546,6 +547,7 @@ export function LibraryPanel({
       const sources = data.sources || [];
 
       const missingSources = sources.filter(source => !knownPapers.has(source.id));
+      let detailReadFailed = false;
       let importFolderId = activeFolderId || folders[0]?.id || null;
       if (missingSources.length > 0 && !importFolderId) {
         importFolderId = addFolder('文献库');
@@ -561,10 +563,10 @@ export function LibraryPanel({
           cache: 'no-store',
           headers: accountHeaders,
         });
-        if (!detailResponse.ok) continue;
+        if (!detailResponse.ok) { detailReadFailed = true; continue; }
         const detailData = await detailResponse.json() as { source?: IngestionSourceDetail };
         const detail = detailData.source;
-        if (!detail) continue;
+        if (!detail) { detailReadFailed = true; continue; }
         const rawContent = (detail.chunks || [])
           .map(chunk => chunk.text || '')
           .filter(Boolean)
@@ -648,13 +650,13 @@ export function LibraryPanel({
           });
         }
       }
-      setIngestionSyncState('idle');
+      setIngestionSyncState(detailReadFailed ? 'error' : 'idle');
     } catch {
       setIngestionSyncState('error');
     } finally {
       ingestionSyncInFlightRef.current = false;
     }
-  }, [accountAuthRequired, accountSession?.token, activeFolderId, addFolder, addPaper, folders, notebookId, setActiveFolder, updatePaper]);
+  }, [accountAuthRequired, accountSession?.token, activeFolderId, addFolder, addPaper, folders, notebookId, setActiveFolder, setIngestionSyncState, updatePaper]);
 
   useEffect(() => {
     void syncIngestionSources();
@@ -1028,6 +1030,7 @@ export function LibraryPanel({
             <p className={`${compact && ingestionSyncState !== 'error' ? 'hidden' : ''} mt-0.5 text-[11px] text-[var(--text-tertiary)]`}>
               {totalPapers} 个来源{ingestionSyncState === 'syncing' ? ' · 同步中' : ingestionSyncState === 'error' ? ' · 状态同步失败' : ''}
             </p>
+            {ingestionSyncState === 'error' && <button type="button" className="mt-1 text-xs underline" onClick={() => void syncIngestionSources(true)}>重试读取资料</button>}
           </div>
           <div className="flex items-center gap-1.5">
             <button
@@ -1046,6 +1049,7 @@ export function LibraryPanel({
                 <DropdownMenuItem onSelect={() => setIsCreatingFolder(true)}>新建文献分组</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => folders.flatMap(folder => folder.papers).filter(paper => !selectedPapers.includes(paper.id)).forEach(paper => togglePaperSelection(paper.id))}>全选资料</DropdownMenuItem>
                 <DropdownMenuItem onSelect={clearSelection}>清除选择</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void syncIngestionSources(true)}>重新读取资料</DropdownMenuItem>
                 {selectedPapers.length >= 2 && <DropdownMenuItem onSelect={() => setIsSourceMatrixOpen(true)}>文献矩阵</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu> : <button

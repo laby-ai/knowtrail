@@ -27,6 +27,7 @@ import type {
 import { CHAT_HISTORY_LIMIT } from '@/lib/chat-generation-lifecycle';
 import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
 import { emptyChatHistory, isChatHistoryDocument, legacyChatHistory, type ChatHistoryDocument } from '@/lib/chat-history-document';
+import type { StudioGenerationState } from '@/lib/studio-generation-readiness';
 import {
   parseStoredSourceSelection,
   serializeSourceSelection,
@@ -99,6 +100,9 @@ interface AppContextType extends AppState {
   clearSelection: () => void;
   setActiveFolder: (folderId: string | null) => void;
   getSelectedPapers: () => Paper[];
+  sourceReadiness: StudioGenerationState;
+  sourceSyncState: 'idle' | 'syncing' | 'error';
+  setSourceSyncState: (value: 'idle' | 'syncing' | 'error') => void;
   // 让左侧文献库定位并高亮引用对应的证据来源。
   revealPaperRequest: RevealPaperRequest | null;
   revealPaper: (paperId: string, citation?: Citation) => void;
@@ -224,6 +228,16 @@ export function AppProvider({
   const chatPersistence = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'chat-history', endpoint: '/api/studio/artifacts?kind=chat-history', empty: emptyChatHistory, validate: isChatHistoryDocument, readLegacy: legacyChatHistory });
   const { update: updateChatHistory } = chatPersistence;
   const [sourceSelectionLoaded, setSourceSelectionLoaded] = useState(false);
+  const [sourceSyncState, setSourceSyncState] = useState<'idle' | 'syncing' | 'error'>('syncing');
+  const availableSourceIds = new Set(state.folders.flatMap(folder => folder.papers.map(paper => paper.id)));
+  const missingSelectedCount = state.selectedPapers.filter(id => !availableSourceIds.has(id)).length;
+  const sourceReadiness: StudioGenerationState = {
+    ready: sourceSelectionLoaded && missingSelectedCount === 0,
+    message: !sourceSelectionLoaded ? '正在恢复资料选择…' : missingSelectedCount > 0
+      ? sourceSyncState === 'syncing' ? `正在读取 ${missingSelectedCount} 份已选资料，完成后可发送。`
+        : `有 ${missingSelectedCount} 份已选资料暂不可用，可在“资料操作”中重新读取或清除选择。`
+      : '',
+  };
 
   React.useEffect(() => {
     let selectedPapers = [...initialSelectedPaperIds];
@@ -664,6 +678,9 @@ export function AppProvider({
     clearSelection,
     setActiveFolder,
     getSelectedPapers,
+    sourceReadiness,
+    sourceSyncState,
+    setSourceSyncState,
     revealPaperRequest,
     revealPaper,
     setEditorMode,
