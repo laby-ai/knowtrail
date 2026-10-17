@@ -148,12 +148,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
           aiConfig,
           maxTokens: CHAT_RESPONSE_MAX_TOKENS,
           skill: options.skill || undefined,
-          papers: selectedPapers.map(p => ({
-            id: p.id,
-            title: p.title, authors: p.authors, year: p.year,
-            abstract: p.abstract, content: p.content, rawContent: p.rawContent, shortName: p.shortName,
-            fileName: p.fileName, fileType: p.fileType,
-          })),
+          papers: selectedPapers.map(p => ({ id: p.id })),
         }),
       });
 

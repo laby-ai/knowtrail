@@ -485,7 +485,7 @@ export async function POST(request: NextRequest) {
         const keywords = Array.isArray(analysis?.keywords) ? analysis.keywords : ['原始数据'];
         const abstract = typeof analysis?.abstract === 'string' ? analysis.abstract : `该文件包含了关于${title}的原始资料与数据记录。`;
         const content = typeof analysis?.content === 'string' ? analysis.content : abstract;
-        const rawContent = isImageType(ext) ? '' : fileContent.slice(0, 50000);
+        const rawContent = isImageType(ext) ? '' : fileContent;
         const shortName = [authors[0], year].filter(Boolean).join('. ') || title;
         const journal = typeof analysis?.journal === 'string' ? analysis.journal : '';
         const doi = typeof analysis?.doi === 'string' ? analysis.doi : '';

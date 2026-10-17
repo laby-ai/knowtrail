@@ -7,8 +7,6 @@ export const maxDuration = 60;
 // Fetch a discovered web page server-side and reduce it to readable text so
 // the client can ingest it as a source through the normal upload pipeline.
 
-const MAX_TEXT_CHARS = 60_000;
-
 function htmlToReadableText(html: string): { title: string; text: string } {
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   const title = titleMatch ? decodeEntities(titleMatch[1]).replace(/\s+/g, ' ').trim() : '';
@@ -35,7 +33,7 @@ function htmlToReadableText(html: string): { title: string; text: string } {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  return { title, text: text.slice(0, MAX_TEXT_CHARS) };
+  return { title, text };
 }
 
 function decodeEntities(value: string): string {
@@ -76,8 +74,8 @@ export async function POST(request: NextRequest) {
     signal = AbortSignal.any([request.signal, AbortSignal.timeout(Number(process.env.DISCOVER_FETCH_TIMEOUT_MS || 20_000))]);
     const { buffer, contentType } = await fetchPublicSource(parsed, signal);
     const html = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
-    const { title, text } = contentType.includes('text/plain')
-      ? { title: '', text: html.slice(0, MAX_TEXT_CHARS) }
+    const { title, text } = contentType.toLowerCase().includes('text/plain')
+      ? { title: '', text: html }
       : htmlToReadableText(html);
 
     if (text.length < 80) {
