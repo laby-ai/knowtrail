@@ -111,7 +111,10 @@ async def main():
                      input_schema={"type":"object","properties":{"kind":{"type":"string","enum":["hypothesis-generation","experiment-design"]},"question":{"type":"string","minLength":1,"maxLength":1200},"experiment":{"type":"object","properties":{"hypothesis":{"type":"string","minLength":1,"maxLength":1200},"experimentalUnit":{"type":"string","minLength":1,"maxLength":1200},"arms":{"type":"array","minItems":2,"maxItems":8,"items":{"type":"string","minLength":1,"maxLength":1200}},"primaryOutcome":{"type":"string","minLength":1,"maxLength":1200},"constraints":{"type":"string","maxLength":1200},"alpha":{"type":"number","exclusiveMinimum":0,"exclusiveMaximum":1},"targetPower":{"type":"number","exclusiveMinimum":0,"exclusiveMaximum":1}},"required":["hypothesis","experimentalUnit","arms","primaryOutcome","constraints","alpha","targetPower"],"additionalProperties":False}},"required":["kind","question"],"additionalProperties":False}),
     ]
     skills = [Skill(name=s["id"], description=s["description"], dir="/research-skills/"+s["id"],
-                    markdown=s["instructions"], updated_at=0) for s in bootstrap["skills"]]
+                    markdown=s["instructions"], updated_at=0) for s in bootstrap["skills"]
+              if not bootstrap.get("inlineReview") or s["id"] == "literature-review"]
+    if bootstrap.get("inlineReview"):
+        tools = []
     config = bootstrap["model"]
     model = OpenAIChatModel(
         credential=OpenAICredential(api_key=config["apiKey"], base_url=config["apiBase"]),
