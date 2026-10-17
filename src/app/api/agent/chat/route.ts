@@ -24,7 +24,7 @@ import { isKnowledgeMapDocument } from '@/lib/knowledge-map-document';
 import { POST as generateDataPlan } from '@/app/api/data-processing/plan/route';
 import { readGeneratedDataPlan } from '@/lib/research-agent-data';
 import { isDataProcessingDocument } from '@/lib/data-processing-document';
-import { buildDataTablePreviewForPaper } from '@/lib/data-table-preview';
+import { buildDataTablePreviewFromText, type DataTablePreview } from '@/lib/data-table-preview';
 import { getIngestionSource } from '@/lib/ingestion-store';
 
 export const runtime = 'nodejs';
@@ -54,11 +54,11 @@ export async function POST(request: NextRequest) {
     const grounded: GroundedRetrievalContext = selected.length
       ? await buildGroundedRetrievalContext(message, selected, config, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId })
       : { chunks: [], citations: [], promptContext: '', retrievalMode: 'empty', persistedSourceCount: 0, vectorIndexedSourceCount: 0, degraded: false };
-    const tables = [];
+    const tables: Array<Pick<DataTablePreview, 'rowCount' | 'sampledRowCount' | 'columnCount' | 'columns'> & { sourceId: string; title: string; fileType: string }> = [];
     for (const id of [...new Set(selected.map(p => p.id).filter((id): id is string => typeof id === 'string'))].slice(0, 20)) {
       const source = await getIngestionSource(id, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId });
       if (!source || !['csv', 'xlsx'].includes(source.fileType)) continue;
-      const preview = buildDataTablePreviewForPaper({ ...source, authors: [], year: 0, abstract: '', shortName: source.title, keywords: [], uploadTime: source.createdAt, fileType: source.fileType === 'xlsx' ? 'xlsx' : 'csv' });
+      const preview = buildDataTablePreviewFromText(source.rawContent || source.content || '');
       if (preview) tables.push({ sourceId: id, title: source.title, fileType: source.fileType, rowCount: preview.rowCount, sampledRowCount: preview.sampledRowCount, columnCount: preview.columnCount, columns: preview.columns });
     }
     const saved = await readNotebookDocument<unknown>({ ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId }, 'chat-history');
