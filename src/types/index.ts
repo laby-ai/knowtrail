@@ -127,6 +127,7 @@ export interface CitationAuditResult {
   citationCount: number;
   markerCount: number;
   warning?: string;
+  sourceCoverage?: { covered: number; total: number };
 }
 
 export interface Citation {

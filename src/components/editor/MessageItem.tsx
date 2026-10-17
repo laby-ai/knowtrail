@@ -252,12 +252,16 @@ function SourceStatusLine({
           精确到 {citationCount} 个证据片段
         </span>
       )}
+      {audit?.sourceCoverage && audit.sourceCoverage.covered < audit.sourceCoverage.total && (
+        <p role="status" className="basis-full leading-relaxed text-[var(--text-secondary)]">{audit.warning}</p>
+      )}
     </div>
   );
 }
 
 function getReadableAuditLabel(audit?: CitationAuditResult) {
   if (!audit || audit.status === 'none') return '来源待校验';
+  if (audit.sourceCoverage && audit.sourceCoverage.covered < audit.sourceCoverage.total) return `来源 ${audit.sourceCoverage.covered}/${audit.sourceCoverage.total}`;
   if (audit.status === 'pass') return '来源已校验';
   if (audit.status === 'invalid-markers') return '引用需检查';
   return '引用待补充';
