@@ -163,6 +163,7 @@ export interface ResearchToolCall {
   learningProgress?: LearningProgress;
   illustration?: ResearchIllustrationReference;
   pendingIllustration?: PendingIllustration;
+  ingestedSources?: Array<{ link: string; sourceId: string }>;
 }
 export function isResearchPlugin(value: unknown): value is ResearchPluginId {
   return typeof value === 'string' && Object.hasOwn(RESEARCH_PLUGINS, value);
@@ -175,6 +176,7 @@ export function isResearchToolCall(value: unknown): value is ResearchToolCall {
     && ['running', 'ready', 'failed'].includes(call.status || '')
     && (call.error === undefined || typeof call.error === 'string' && call.error.length <= 1000)
     && (call.results === undefined || isDiscoverSearchDocument({ query: '', optimizedQuery: '', planKeywords: [], scope: 'scholar', selected: [], provider: 'arxiv', searched: true, results: call.results }))
+    && (call.ingestedSources === undefined || call.status === 'ready' && call.plugin === 'paper-search' && Array.isArray(call.ingestedSources) && call.ingestedSources.length <= 20 && new Set(call.ingestedSources.map(s => s?.link)).size === call.ingestedSources.length && call.ingestedSources.every(s => s && typeof s.link === 'string' && call.results?.some(r => r.link === s.link) && typeof s.sourceId === 'string' && /^[\w.-]{1,180}$/.test(s.sourceId)))
     && (call.presentation === undefined || call.plugin === 'presentation' && call.results === undefined && isResearchPresentationPlan(call.presentation))
     && (call.report === undefined || call.plugin === 'report' && call.results === undefined && call.presentation === undefined && isResearchReportReference(call.report))
     && (call.design === undefined || call.results === undefined && call.presentation === undefined && call.report === undefined && isResearchDesignReference(call.design) && call.plugin === call.design.kind)
