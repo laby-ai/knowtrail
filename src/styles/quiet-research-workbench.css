@@ -318,6 +318,9 @@
 .studio-modal-title { flex: 1; min-width: 0; font-size: 20px; font-weight: 600; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-modal-header > button { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: #f2f5f9; color: #526581; }
 .studio-modal-header > button:hover { background: #e5edf8; }
+.studio-modal-header > .studio-source-picker { width: auto; height: 34px; padding: 0 10px; border: 1px solid #dce5f2; border-radius: 8px; gap: 6px; background: #fff; font-size: 13px; white-space: nowrap; }
+.studio-source-picker > svg { width: 14px; height: 14px; }
+.notebook-source-menu { max-width: calc(100vw - 24px); background: #fff; color: #17243d; }
 .studio-modal-mount, .studio-modal-tool-host { flex: 1; min-height: 0; height: auto; }
 .quiet-studio-dialog [data-testid="studio-workspace-scroll"] { flex: none; max-height: min(680px, calc(100dvh - 148px)); padding: 24px 28px; }
 .quiet-studio-dialog [data-testid="studio-tool-content"] { max-width: 960px; margin: 0 auto; }

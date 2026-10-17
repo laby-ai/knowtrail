@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useApp } from '@/contexts/AppContext';
+import { NotebookSourceSelector } from '@/components/layout/NotebookSourceSelector';
 import type { StudioSavedOutput } from '@/lib/studio-saved-outputs';
 import { StudioSavedOutputs } from './StudioSavedOutputs';
 import { StudioOutputViewer } from './StudioOutputViewer';
@@ -80,6 +81,7 @@ export function StudioModalWorkbench({ activeTab, onSelect, onClose, navItems, r
         <div className="studio-modal-header">
           {Icon && <Icon size={22} aria-hidden="true" />}
           <DialogTitle className="studio-modal-title">{output?.title || nav?.label || '工作室'}</DialogTitle>
+          {!output && <NotebookSourceSelector compact />}
           <button type="button" data-testid="studio-modal-close" aria-label="关闭工作室弹窗" onClick={close}><X size={20} /></button>
         </div>
         {output ? <div className="studio-modal-output" data-testid="studio-output-modal">
