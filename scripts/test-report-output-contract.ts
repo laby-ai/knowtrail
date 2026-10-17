@@ -11,16 +11,24 @@ type ModelRequest = {
 };
 
 async function main() {
-  let requests = 0, generatedQuestion = '', fabricatedReply = false, decision = 'generate';
+  let requests = 0, generatedQuestion = '', fabricatedReply = false, historyCheck = false;
   const gateway = createServer(async (request, response) => {
     const bytes: Buffer[] = [];
     for await (const part of request) bytes.push(Buffer.from(part));
     const body = JSON.parse(Buffer.concat(bytes).toString()) as ModelRequest;
     requests++;
+    if (historyCheck) {
+      assert.equal(body.model, 'qwen3.8-max-0902');
+      assert.ok(body.messages.some(message=>message.role==='tool' && JSON.stringify(message.content).includes('a'.repeat(64))), 'Verified report versions use the native tool-result role');
+      assert.ok(!body.messages.some(message=>message.role==='assistant' && JSON.stringify(message.content).includes('a'.repeat(64))), 'Report version metadata is not assistant prose');
+      response.writeHead(200, {'Content-Type':'text/event-stream'});
+      response.end('data: '+JSON.stringify({id:'native-report-history',object:'chat.completion.chunk',created:1,model:body.model,choices:[{index:0,delta:{role:'assistant',content:'已有版本可在卡片查看。'},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n');
+      return;
+    }
     assert.equal(body.model, 'qwen3.8-flash');
     assert.ok(!JSON.stringify(body.messages).includes('伪造旧版本'), 'Admission cannot learn save claims from assistant history');
     assert.equal(body.tools[0].function.name, 'select_report_action');
-    const message = fabricatedReply ? {role:'assistant',content:'报告已保存，revision:伪造旧版本'} : {role:'assistant',content:null,tool_calls:[{id:'route-report',type:'function',function:{name:'select_report_action',arguments:JSON.stringify({action:decision})}}]};
+    const message = fabricatedReply ? {role:'assistant',content:'报告已保存，revision:伪造旧版本'} : {role:'assistant',content:null,tool_calls:[{id:'route-report',type:'function',function:{name:'select_report_action',arguments:JSON.stringify({action:'generate'})}}]};
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({id:'report-admission',object:'chat.completion',created:1,model:body.model,choices:[{index:0,message,finish_reason:fabricatedReply?'stop':'tool_calls'}]}));
   });
@@ -53,7 +61,9 @@ async function main() {
     assert.equal(failed.filter(event=>event.toolCall?.status==='failed').length,1);
     assert.ok(!failed.some(event=>event.content || event.toolCall?.report));
     assert.equal(requests,3,'No model follow-up or automatic generation retry after save failure');
-    console.log(JSON.stringify({ok:true,actualAgentScope:true,originalRequestPreserved:true,savedCardIsFinalResult:true,fabricatedSaveRejected:true,saveFailureKept:true,modelRequests:requests,paidCalls:0}));
+    historyCheck=true;
+    for await (const event of runResearchAgent({...input,message:'先说明上次产物的版本。',history:[{role:'assistant',content:'',reports:[{id:ready.id,reference:ready.report!}]}]})) assert.ok(!event.toolCall);
+    console.log(JSON.stringify({ok:true,actualAgentScope:true,originalRequestPreserved:true,savedCardIsFinalResult:true,fabricatedSaveRejected:true,saveFailureKept:true,nativeReportHistory:true,modelRequests:requests,paidCalls:0}));
   } finally { await new Promise<void>(resolve=>gateway.close(()=>resolve())); }
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

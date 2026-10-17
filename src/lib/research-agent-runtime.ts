@@ -21,7 +21,7 @@ import { resolveOpenAIChatEndpoint } from './runtime-ai-config';
 
 export interface ResearchAgentInput {
   message: string; skill?: string; sessionId: string; systemPrompt: string;
-  history: { role: 'user' | 'assistant'; content: string }[];
+  history: { role: 'user' | 'assistant'; content: string; reports?: { id: string; reference: ResearchReportReference }[] }[];
   config: Partial<RuntimeAIConfig>; signal: AbortSignal;
   sourceIds?: string[];
   dataSourceIds?: string[];

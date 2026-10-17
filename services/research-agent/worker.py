@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from agentscope.agent import Agent, ReActConfig
 from agentscope.credential import OpenAICredential
-from agentscope.message import AssistantMsg, Msg, TextBlock, ToolResultState, UserMsg
+from agentscope.message import AssistantMsg, Msg, TextBlock, ToolCallBlock, ToolResultBlock, ToolResultState, UserMsg
 from agentscope.model import OpenAIChatModel
 from agentscope.permission import PermissionBehavior, PermissionDecision
 from agentscope.skill import Skill
@@ -134,7 +134,12 @@ async def main():
     history = []
     for message in bootstrap["history"]:
         factory = UserMsg if message["role"] == "user" else AssistantMsg
-        history.append(factory(name=message["role"], content=message["content"]))
+        content = [TextBlock(text=message["content"])] if message["content"] else []
+        for report in message.get("reports", []):
+            reference = report["reference"]
+            content.extend([ToolCallBlock(id=report["id"], name="generate_report", input=json.dumps({"question": reference["question"]}, ensure_ascii=False)),
+                            ToolResultBlock(id=report["id"], name="generate_report", state=ToolResultState.SUCCESS, output=json.dumps({"success": True, "report": reference}, ensure_ascii=False))])
+        history.append(factory(name=message["role"], content=content))
     toolkit = Toolkit(tools=tools, skills_or_loaders=skills)
     state = AgentState(session_id=bootstrap["sessionId"], context=history)
     emit({"type": "ready", "engine": "agentscope", "version": "2.0.10"})

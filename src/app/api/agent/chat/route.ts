@@ -8,7 +8,7 @@ import { reserveAIUsage, accountUsageErrorMessage } from '@/lib/account-ai-billi
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { readNotebookDocument } from '@/lib/private-notebook-document';
 import { isChatHistoryDocument } from '@/lib/chat-history-document';
-import { researchAgentSystemPrompt, runResearchAgent } from '@/lib/research-agent-runtime';
+import { researchAgentSystemPrompt, runResearchAgent, type ResearchAgentInput } from '@/lib/research-agent-runtime';
 import type { RagSourceInput } from '@/lib/rag';
 import { isResearchChatSkillId } from '@/lib/research-chat-skills';
 import { POST as generateDeepResearch } from '@/app/api/ai/deep-research/route';
@@ -94,13 +94,19 @@ export async function POST(request: NextRequest) {
     }
     const saved = await readNotebookDocument<unknown>({ ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId }, 'chat-history');
     if (saved && !isChatHistoryDocument(saved.data)) throw new Error('已保存对话暂时无法读取，请重试。');
-    const history: { role: 'user' | 'assistant'; content: string }[] = [];
+    const history: ResearchAgentInput['history'] = [];
     if (saved && isChatHistoryDocument(saved.data)) {
       for (const msg of saved.data.messages.slice(-20)) {
         if (msg.role === 'system' || msg.generation?.status === 'pending') continue;
         const toolContext = msg.toolCalls?.filter(call => call.status === 'ready' && call.plugin !== 'report').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, ingestedSources: call.ingestedSources, presentation: call.presentation, design: call.design, knowledgeMap: call.knowledgeMap, dataPlan: call.dataPlan, learning: call.learning, illustration: call.illustration }));
+        const reports: NonNullable<ResearchAgentInput['history'][number]['reports']> = [];
+        if (msg.role === 'assistant') for (const call of msg.toolCalls || []) {
+          if (call.status !== 'ready' || !call.report) continue;
+          const version = await readNotebookDocument<unknown>({ ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId }, 'research-report', call.report.revision);
+          if (version && isResearchReportDocument(version.data) && version.data.report?.runId === call.report.runId) reports.push({ id: call.id, reference: { ...call.report, question: version.data.report.question, status: version.data.report.status } });
+        }
         const content = (msg.content + (toolContext?.length ? '\n工具实际结果：' + JSON.stringify(toolContext) : '')).slice(0, 16000);
-        if (content.trim()) history.push({ role: msg.role, content });
+        if (content.trim() || reports.length) history.push({ role: msg.role, content, reports });
       }
     }
     if (history.at(-1)?.role === 'user' && history.at(-1)?.content === message) history.pop();
