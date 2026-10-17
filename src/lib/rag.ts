@@ -79,6 +79,8 @@ function sourceText(source: RagSourceInput): string {
 }
 
 function inferPage(text: string): number | undefined {
+  const renderedPages = new Set([...text.matchAll(/^--- 第(\d+)页 ---$/gm)].map(match => Number(match[1])));
+  if (renderedPages.size) return renderedPages.size === 1 ? [...renderedPages][0] : undefined;
   const match = text.match(/(?:第\s*|page\s*|p\.\s*|幻灯片\s*)(\d{1,4})/i);
   return match ? Number(match[1]) : undefined;
 }
