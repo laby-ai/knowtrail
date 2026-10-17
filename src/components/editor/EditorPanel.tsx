@@ -133,6 +133,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       addChatMessage(pendingMessage);
     }
     let streamedContent = '';
+    let serverError = '';
     const agentCalls = new Map<string, ResearchToolCall>();
     userStoppedRef.current = false;
     const timeoutId = window.setTimeout(() => abortController.abort(), CHAT_RESPONSE_TIMEOUT_MS);
@@ -154,7 +155,8 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(typeof payload.error === 'string' ? payload.error : 'AI 请求失败');
+        serverError = typeof payload.error === 'string' ? payload.error : 'AI 请求失败';
+        throw new Error(serverError);
       }
 
       const reader = response.body?.getReader();
@@ -178,7 +180,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
               const payload = trimmed.slice(6);
               const parsedPayload = parseChatStreamPayload(payload);
               if (parsedPayload.kind === 'done' || parsedPayload.kind === 'ignore') continue;
-              if (parsedPayload.kind === 'error') throw new Error(parsedPayload.error);
+              if (parsedPayload.kind === 'error') { serverError = parsedPayload.error; throw new Error(serverError); }
               const parsed = parsedPayload.event;
               if (isResearchToolCall(parsed.toolCall)) {
                 agentCalls.set(parsed.toolCall.id, parsed.toolCall);
@@ -237,7 +239,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       const failure = classifyChatFailure({ aborted, stoppedByUser, errorMessage, timeoutMs: CHAT_RESPONSE_TIMEOUT_MS });
       const content = stoppedByUser && streamedContent
         ? `${streamedContent}\n\n*(已停止生成)*`
-        : failure.content;
+        : !aborted && serverError ? serverError : failure.content;
       updateChatMessage(assistantMsgId, {
         content,
         toolCalls: [...agentCalls.values()].map(call => call.status === 'running' ? { ...call, status: 'failed', error: stoppedByUser ? '本次调用已停止，请检查已保存结果后重试。' : '本次调用未完成，请检查已保存结果后重试。' } : call),
