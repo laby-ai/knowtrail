@@ -7,7 +7,7 @@ import { saveScientificIllustration } from '@/lib/scientific-illustration-store'
 import { generateSlideImage, resolveImageModelName, resolveImageRuntimeConfig } from '@/lib/ppt/image-generation';
 import { resolveStudioGenerationReadiness, studioGenerationUnavailablePayload } from '@/lib/studio-generation-readiness';
 import { readNotebookDocument, saveNotebookDocument, NotebookDocumentConflict } from '@/lib/private-notebook-document';
-import { emptyIllustration, isIllustrationDocument, type IllustrationDocument, type IllustrationResult } from '@/lib/scientific-illustration-document';
+import { isIllustrationDocument, type IllustrationDocument, type IllustrationResult } from '@/lib/scientific-illustration-document';
 import { getIngestionSource } from '@/lib/ingestion-store';
 import { sourceBibliography } from '@/lib/source-bibliography';
 
@@ -61,11 +61,12 @@ export async function POST(request: NextRequest) {
     const image = Buffer.from(generated.replace(/^data:image\/(?:png|jpe?g|webp);base64,/i, '').trim(), 'base64');
     const metadata = await saveScientificIllustration({ image, ...scope, purpose: input.purpose, figureKind: input.figureKind, aspectRatio: input.aspectRatio, sourceLabels: input.papers.map(paper => paper.shortName) });
     if (reservation) await reservation.settle(1); finalized = true;
+    signal.throwIfAborted();
     const base = (process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/$/, '');
     const imageUrl = `${base}/api/ai/scientific-illustration/${metadata.id}?${new URLSearchParams({ notebookId: scope.notebookId })}`;
     const result: IllustrationResult = { id: metadata.id, imageUrl, downloadUrl: imageUrl + '&download=1', mimeType: metadata.mimeType, width: metadata.width, height: metadata.height, bytes: metadata.bytes, purpose: metadata.purpose, figureKind: metadata.figureKind, aspectRatio: metadata.aspectRatio, sourceLabels: metadata.sourceLabels, createdAt: metadata.createdAt, reviewRequired: true, boundary: '科研示意图，不是数据图表；科学含义、标签和文字仍需人工复核。' };
     if (!persist) return Response.json({ data: result }, { headers });
-    const data: IllustrationDocument = { runId, form: previous?.data.form || { ...emptyIllustration().form, purpose: input.purpose, figureKind: input.figureKind, aspectRatio: input.aspectRatio, requiredLabels: input.requiredLabels.join('、') }, result };
+    const data: IllustrationDocument = { runId, form: { purpose: input.purpose, figureKind: input.figureKind, aspectRatio: input.aspectRatio, requiredLabels: input.requiredLabels.join('、') }, result };
     try { return Response.json({ data: result, document: await saveNotebookDocument(scope, 'scientific-illustration', data, expectedRevision as string | null) }, { headers }); }
     catch (error) { return Response.json({ data: result, unsavedDocument: data, saveError: error instanceof NotebookDocumentConflict ? error.message : '图片已生成但尚未保存，请重试保存。' }, { headers }); }
   } catch (error) {

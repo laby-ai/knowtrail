@@ -81,7 +81,14 @@ async def main():
         """Generate source-grounded study cards or card-based review and privately save this turn's version."""
         return await invoke("generate_learning_materials", {"kind": kind, "question": question})
 
+    async def generate_illustration(purpose: str, figureKind: str, aspectRatio: str, requiredLabels: list[str]):
+        """Generate one selected-source schematic and privately save this turn's image. Always requires human review."""
+        return await invoke("generate_illustration", {"purpose": purpose, "figureKind": figureKind, "aspectRatio": aspectRatio, "requiredLabels": requiredLabels})
+
     tools = [
+        FunctionTool(generate_illustration, is_read_only=False, is_concurrency_safe=False,
+                     permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies selected sources, ownership, one image attempt and private version saving."),
+                     input_schema={"type":"object","properties":{"purpose":{"type":"string","minLength":8,"maxLength":1200},"figureKind":{"type":"string","enum":["workflow","conceptual-framework","method-diagram","mechanism-schematic"]},"aspectRatio":{"type":"string","enum":["1:1","4:3","16:9"]},"requiredLabels":{"type":"array","maxItems":6,"items":{"type":"string","minLength":1,"maxLength":40}}},"required":["purpose","figureKind","aspectRatio","requiredLabels"],"additionalProperties":False}),
         FunctionTool(generate_learning_materials, is_read_only=False, is_concurrency_safe=False,
                      permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies selected sources, ownership, one attempt and private version saving."),
                      input_schema={"type":"object","properties":{"kind":{"type":"string","enum":["knowledge-cards","quiz"]},"question":{"type":"string","minLength":1,"maxLength":1200}},"required":["kind","question"],"additionalProperties":False}),
