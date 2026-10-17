@@ -84,7 +84,7 @@
 .quiet-library-pane:hover .quiet-library-toggle, .quiet-library-toggle:focus-visible, .quiet-workbench-shell[data-library-collapsed="true"] .quiet-library-toggle { opacity: 1; }
 .quiet-library-toggle:hover { background: #eaf1fb; }
 .quiet-main-pane { container-type: inline-size; min-width: 0; flex: 1; overflow: hidden; }
-.quiet-tools-pane { flex: 0 0 clamp(280px, 23vw, 340px); min-width: 0; overflow: hidden; border-left: 1px solid var(--border-subtle); background: #fff; }
+.quiet-tools-pane { flex: 0 0 clamp(300px, 23vw, 400px); min-width: 0; overflow: hidden; border-left: 1px solid var(--border-subtle); background: #fff; }
 .quiet-tools-pane [data-testid="studio-tool-switcher"] > button { min-height: 84px; padding: 12px 10px; background: #f8fafd; }
 .quiet-tools-pane [data-testid="studio-tool-switcher"] > button > span { align-items: flex-start; }
 .quiet-tools-pane [data-testid="studio-tool-switcher"] > button > span > span:last-child > span:first-child { font-size: 14px; line-height: 20px; }
@@ -280,3 +280,72 @@
 .agent-plugin-open { display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: fit-content; min-height: 34px; padding: 5px 12px; border: 1px solid var(--border-subtle); border-radius: 8px; color: var(--accent-blue); font-size: 13px; }
 .agent-plugin-open:disabled { opacity: .45; cursor: not-allowed; }
 .agent-plugin-window { margin-top: 12px; height: min(65vh, 640px); min-height: 340px; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 10px; }
+
+/* The directory stays in the third column; tool forms live in a centered dialog. */
+.studio-modal-directory { padding: 24px 22px; }
+.studio-modal-directory > h2 { margin: 0 0 20px; font-size: 22px; line-height: 30px; font-weight: 650; color: #17243d; }
+.studio-modal-directory [data-testid="studio-tool-switcher"] { gap: 14px; }
+.quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button { min-height: 82px; padding: 14px 10px; border-radius: 12px; background: #f8fafd; }
+.quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button > span { align-items: center; gap: 10px; }
+.quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button > span > span:first-child { width: 34px; height: 34px; }
+.quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button svg { width: 24px; height: 24px; color: #345d9b; }
+.quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button > span > span:last-child > span:first-child { font-size: 16px; line-height: 24px; font-weight: 550; }
+.quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button > span > span:last-child > span:last-child { display: none; }
+.studio-saved-outputs { margin-top: 26px; padding-top: 22px; border-top: 1px solid #e1e8f2; }
+.studio-saved-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; margin-bottom: 16px; }
+.studio-saved-heading h3 { font-size: 19px; line-height: 28px; font-weight: 600; }
+.studio-saved-heading > span, .studio-saved-outputs > p { font-size: 12px; line-height: 1.7; color: #72829b; }
+.studio-saved-output { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 74px; margin-bottom: 10px; padding: 12px 14px; border: 1px solid #e1e8f2; border-radius: 12px; background: #fff; text-align: left; }
+.studio-saved-output:hover { background: #f4f8ff; border-color: #c5d7f4; }
+.studio-saved-output > svg { flex-shrink: 0; color: #5678ab; }
+.studio-saved-output > span { min-width: 0; }
+.studio-saved-output strong { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 15px; font-weight: 550; line-height: 24px; }
+.studio-saved-output small { display: block; margin-top: 2px; font-size: 12px; color: #72829b; }
+.studio-output-errors { font-size: 12px; line-height: 1.7; color: #9a4b18; }
+.studio-output-errors > button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 0; color: #245dcb; }
+.quiet-studio-dialog {
+  --bg-primary: #fff; --bg-card: #fff; --glass-subtle: #f5f8fc; --glass-hover: #edf3fc;
+  --glass-border: #e1e8f2; --border-subtle: #e1e8f2; --border-hover: #c6d8f4;
+  --text-primary: #17243d; --text-secondary: #40516a; --text-tertiary: #72829b;
+  --text-quaternary: #72829b; --accent-blue: #2d68f8; --accent-primary: #2d68f8;
+  display: flex; flex-direction: column; gap: 0; width: calc(100vw - 64px); max-width: 1080px;
+  height: min(820px, calc(100dvh - 64px)); max-height: calc(100dvh - 64px); padding: 0;
+  border: 1px solid #dce5f2; border-radius: 22px; background: #fff; color: #17243d;
+  box-shadow: 0 24px 100px rgb(21 40 66 / 18%); overflow: hidden;
+}
+.studio-modal-header { display: flex; align-items: center; gap: 12px; flex-shrink: 0; min-height: 76px; padding: 20px 28px; border-bottom: 1px solid #e7edf5; }
+.studio-modal-header > svg { flex-shrink: 0; color: #345d9b; }
+.studio-modal-title { flex: 1; min-width: 0; font-size: 20px; font-weight: 600; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-modal-header > button { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: #f2f5f9; color: #526581; }
+.studio-modal-header > button:hover { background: #e5edf8; }
+.studio-modal-mount, .studio-modal-tool-host { flex: 1; min-height: 0; height: 100%; }
+.quiet-studio-dialog [data-testid="studio-workspace-scroll"] { padding: 24px 28px; }
+.quiet-studio-dialog [data-testid="studio-tool-content"] { max-width: 960px; margin: 0 auto; }
+.studio-modal-tool-host > [hidden] { display: none; }
+.studio-modal-output { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; padding: 20px 28px 28px; font-size: 16px; line-height: 1.7; }
+.studio-output-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; color: #72829b; font-size: 13px; }
+.studio-output-prose h1, .studio-output-prose h2, .studio-output-prose h3 { margin: 24px 0 12px; font-size: 21px; line-height: 1.5; font-weight: 600; }
+.studio-output-prose p, .studio-output-prose ul, .studio-output-prose ol { margin-bottom: 14px; }
+.studio-output-prose ul { list-style: disc; padding-left: 24px; }
+.studio-output-prose ol { list-style: decimal; padding-left: 24px; }
+.studio-output-prose table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.studio-output-prose td, .studio-output-prose th { border: 1px solid #e1e8f2; padding: 10px 14px; }
+.studio-output-learning-card { border: 1px solid #e1e8f2; border-radius: 12px; padding: 18px; }
+.studio-output-learning-card h3 { font-weight: 600; margin-bottom: 10px; }
+.quiet-studio-dialog button:focus-visible, .studio-modal-directory button:focus-visible, .quiet-studio-dialog a:focus-visible { outline: 2px solid #2d68f8; outline-offset: 3px; }
+@media (max-width: 1450px) and (min-width: 768px) {
+  .studio-modal-directory { padding: 20px 16px; }
+  .studio-modal-directory [data-testid="studio-tool-switcher"] { gap: 10px; }
+  .quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button > span { gap: 7px; }
+  .quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button > span > span:first-child { width: 26px; height: 30px; }
+  .quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button > span > span:last-child > span:first-child { font-size: 14px; }
+}
+@media (max-width: 767px) {
+  .quiet-studio-dialog { width: calc(100vw - 20px); height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); max-width: none; border-radius: 16px; }
+  .studio-modal-header { min-height: 64px; padding: 14px 16px; gap: 8px; }
+  .studio-modal-title { font-size: 18px; }
+  .quiet-studio-dialog [data-testid="studio-workspace-scroll"], .studio-modal-output { padding: 18px 16px; }
+  .studio-modal-output { font-size: 15px; }
+  .studio-output-toolbar { align-items: flex-start; }
+  .studio-modal-directory { padding: 20px 16px; }
+}
