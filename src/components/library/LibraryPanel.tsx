@@ -312,9 +312,12 @@ function findCitationContextSnippet(
     (excerpt && normalizeEvidenceText(chunk.text).includes(excerpt.slice(0, Math.min(excerpt.length, 80))))
   ));
   if (!matched?.text) return null;
+  const text = matched.text.replace(/\s+/g, ' ').trim();
+  const citedText = citation.excerpt?.replace(/\s+/g, ' ').trim();
+  const citedOffset = citedText ? text.indexOf(citedText) : -1;
   return {
     locator: citationChunkLocator(matched, citation),
-    text: matched.text,
+    text: citedOffset >= 0 ? text.slice(citedOffset, citedOffset + Math.max(180, citedText!.length)) : matched.text,
   };
 }
 
@@ -1347,7 +1350,7 @@ export function LibraryPanel({
                                   <span>{citationContext.snippet.locator}</span>
                                 </div>
                                 <p className="mt-1 text-[var(--text-secondary)]">
-                                  &ldquo;{truncateEvidenceText(citationContext.snippet.text, 180)}&rdquo;
+                                  &ldquo;{truncateEvidenceText(citationContext.snippet.text, 360)}&rdquo;
                                 </p>
                               </div>
                             )}
