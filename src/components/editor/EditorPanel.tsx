@@ -784,7 +784,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
 
       {/* Input */}
       <div className="quiet-composer-region px-6 pb-5 pt-3 border-t border-[var(--border-subtle)]">
-        {!sourceReadiness.ready && <p role="status" data-testid="chat-source-readiness" className="px-1 pb-2 text-xs text-[var(--text-secondary)]">{sourceReadiness.message}</p>}
+        {!sourceReadiness.ready && <p role="status" data-testid="chat-source-loading" className="px-1 pb-2 text-xs text-[var(--text-secondary)]">{sourceReadiness.message}</p>}
         {!researchChatReadiness.ready && (
           <div data-testid="chat-model-readiness" className="mx-auto mb-2 max-w-3xl rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-200">
             {researchChatReadiness.message}
