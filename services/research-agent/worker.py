@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from agentscope.agent import Agent, ReActConfig
 from agentscope.credential import OpenAICredential
-from agentscope.message import AssistantMsg, TextBlock, ToolResultState, UserMsg
+from agentscope.message import AssistantMsg, Msg, TextBlock, ToolResultState, UserMsg
 from agentscope.model import OpenAIChatModel
 from agentscope.permission import PermissionBehavior, PermissionDecision
 from agentscope.skill import Skill
@@ -112,8 +112,8 @@ async def main():
     ]
     skills = [Skill(name=s["id"], description=s["description"], dir="/research-skills/"+s["id"],
                     markdown=s["instructions"], updated_at=0) for s in bootstrap["skills"]
-              if not bootstrap.get("inlineReview") or s["id"] == "literature-review"]
-    if bootstrap.get("inlineReview"):
+              if not bootstrap.get("inlineSkill") or s["id"] == bootstrap["inlineSkill"]]
+    if bootstrap.get("inlineSkill"):
         tools = []
     config = bootstrap["model"]
     model = OpenAIChatModel(
@@ -132,9 +132,15 @@ async def main():
                   state=AgentState(session_id=bootstrap["sessionId"], context=history),
                   react_config=ReActConfig(max_iters=7))
     emit({"type": "ready", "engine": "agentscope", "version": "2.0.10"})
-    async for event in agent.reply_stream(UserMsg(name="user", content=bootstrap["message"])):
+    # Tool-bearing intermediate text is not the final writing body.
+    inline = bool(bootstrap.get("inlineSkill"))
+    async for event in agent.reply_stream(UserMsg(name="user", content=bootstrap["message"]), yield_final_msg=inline):
         kind = type(event).__name__
-        if kind == "TextBlockDeltaEvent":
+        if inline and isinstance(event, Msg):
+            final_text = event.get_text_content()
+            if event.role == "assistant" and final_text:
+                emit({"type": "text", "delta": final_text})
+        elif kind == "TextBlockDeltaEvent" and not inline:
             emit({"type": "text", "delta": event.delta})
         elif kind == "ModelCallEndEvent":
             emit({"type": "usage", "inputTokens": event.input_tokens, "outputTokens": event.output_tokens})
