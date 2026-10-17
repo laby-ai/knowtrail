@@ -16,6 +16,7 @@ from agentscope.permission import PermissionBehavior, PermissionDecision
 from agentscope.skill import Skill
 from agentscope.state import AgentState
 from agentscope.tool import FunctionTool, Toolkit, ToolChunk
+from report_dispatch import dispatch_report
 
 
 def emit(event):
@@ -134,11 +135,14 @@ async def main():
     for message in bootstrap["history"]:
         factory = UserMsg if message["role"] == "user" else AssistantMsg
         history.append(factory(name=message["role"], content=message["content"]))
-    agent = Agent(name="KnowTrail", system_prompt=bootstrap["systemPrompt"], model=model,
-                  toolkit=Toolkit(tools=tools, skills_or_loaders=skills),
-                  state=AgentState(session_id=bootstrap["sessionId"], context=history),
-                  react_config=ReActConfig(max_iters=7))
+    toolkit = Toolkit(tools=tools, skills_or_loaders=skills)
+    state = AgentState(session_id=bootstrap["sessionId"], context=history)
     emit({"type": "ready", "engine": "agentscope", "version": "2.0.10"})
+    if await dispatch_report(bootstrap, toolkit, state, emit):
+        return
+    agent = Agent(name="KnowTrail", system_prompt=bootstrap["systemPrompt"], model=model,
+                  toolkit=toolkit, state=state,
+                  react_config=ReActConfig(max_iters=7))
     # Tool-bearing intermediate text is not the final writing body.
     inline = bool(bootstrap.get("inlineSkill"))
     async for event in agent.reply_stream(UserMsg(name="user", content=bootstrap["message"]), yield_final_msg=True):

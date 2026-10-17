@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     if (saved && isChatHistoryDocument(saved.data)) {
       for (const msg of saved.data.messages.slice(-20)) {
         if (msg.role === 'system' || msg.generation?.status === 'pending') continue;
-        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, ingestedSources: call.ingestedSources, presentation: call.presentation, report: call.report, design: call.design, knowledgeMap: call.knowledgeMap, dataPlan: call.dataPlan, learning: call.learning, illustration: call.illustration }));
+        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready' && call.plugin !== 'report').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, ingestedSources: call.ingestedSources, presentation: call.presentation, design: call.design, knowledgeMap: call.knowledgeMap, dataPlan: call.dataPlan, learning: call.learning, illustration: call.illustration }));
         const content = (msg.content + (toolContext?.length ? '\n工具实际结果：' + JSON.stringify(toolContext) : '')).slice(0, 16000);
         if (content.trim()) history.push({ role: msg.role, content });
       }

@@ -90,7 +90,7 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
     input.signal.throwIfAborted();
     processHandle.stdin.write(JSON.stringify({
       message: input.message, systemPrompt: input.systemPrompt, sessionId: input.sessionId, history: input.history, plugins: Object.keys(RESEARCH_PLUGINS), inlineSkill, canReadEvidence: Boolean(input.readTextEvidence),
-      model: { apiKey: input.config.apiKey, apiBase: endpoint.replace(/\/chat\/completions$/, ''), name: input.config.model, maxTokens: 2048 },
+      model: { apiKey: input.config.apiKey, apiBase: endpoint.replace(/\/chat\/completions$/, ''), name: input.config.model, auxModel: process.env.OPENAI_COMPAT_AUX_MODEL?.trim(), maxTokens: 2048 },
       skills: [{ id: 'scientific-illustration', description: '按本人已选原文生成一张需人工核对的示意图，私有保存并重开本轮版本。', instructions: illustrationSkill }, { id: 'grounded-learning', description: '从本人资料生成学习卡或卡片内容复习，保存并重开本轮版本。', instructions: learningSkill }, { id: 'data-processing', description: '从本人已选CSV/XLSX诊断并生成私有可恢复方案，不执行训练或统计检验。', instructions: dataSkill }, { id: 'knowledge-map', description: '生成有来源依据的研究脉络，保存本人版本并在本轮对话恢复。', instructions: mapSkill }, ...RESEARCH_CHAT_SKILLS.map(skill => ({ id: skill.id, description: skill.description,
         instructions: skill.id === 'academic-writing' ? academicWritingSkill : skill.id === 'literature-review' ? literatureReviewSkill : `# ${skill.label}\n${skill.description}\n${resolveResearchChatSkillInstruction(skill.id)}\n${skill.id === 'paper-search' ? '使用 search_papers 取得实际候选，保持题目、作者、年份、链接与摘要原意。' : skill.id === 'deep-research' ? '阅读 grounded-report Skill，按用户明确请求调用 generate_report。' : ['hypothesis-generation', 'experiment-design'].includes(skill.id) ? '阅读 research-design Skill，参数齐全且明确要求生成时调用 generate_research_design。' : `需要专用产物时使用 open_plugin；窗口ID按系统提供的清单，不从输入生成其他ID。`}\n禁止编造来源、数值、科研结论或工具成功状态。` })), { id: 'editable-ppt', description: '从已选资料准备可编辑 PPT 大纲，确认后原生生成、保存与重开。', instructions: pptSkill }, { id: 'grounded-report', description: '从已选资料生成报告，保存本人版本并在对话重开。', instructions: reportSkill }, { id: 'research-design', description: '基于来源生成可证伪假设或采集前实验协议，保存本人版本。', instructions: designSkill }],
     }) + '\n');
@@ -236,7 +236,7 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
       yield { toolCall: { ...call } };
       // The saved report card is the result. Do not spend another model call
       // paraphrasing its save state into an unrelated, uncited chat answer.
-      if (call.status === 'ready' && call.report) {
+      if (event.name === 'generate_report') {
         yield { replaceContent: '' };
         ended = true;
         break;
