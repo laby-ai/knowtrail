@@ -41,7 +41,7 @@ export function MessageItem({
 }) {
   const isUser = message.role === 'user';
   const reportResult = !isUser && Boolean(message.toolCalls?.length
-    && message.toolCalls.every(call => call.plugin === 'report'));
+    && message.toolCalls.every(call => call.plugin === 'report' && (call.status !== 'ready' || Boolean(call.report))));
   const hasContent = message.content.trim().length > 0;
   const showPending = !isUser && isPending && !hasContent;
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
