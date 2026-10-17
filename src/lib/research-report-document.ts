@@ -1,4 +1,5 @@
 import type { Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
+import { auditDeepResearchLength } from './deep-research-contract';
 
 export interface ResearchStatusPayload {
   answerStatus?: 'complete' | 'incomplete' | 'no-evidence';
@@ -22,6 +23,14 @@ export interface ResearchReport {
 
 export interface ResearchReportDocument { questionDraft: string; report: ResearchReport | null }
 export const emptyResearchReport = (): ResearchReportDocument => ({ questionDraft: '', report: null });
+
+export function researchReportLengthWarning(report: Pick<ResearchReport, 'question' | 'answer'> | null): string | undefined {
+  if (!report) return undefined;
+  const audit = auditDeepResearchLength(report.answer, report.question);
+  return audit.status === 'too-long'
+    ? `报告共${audit.characters}字，超过要求的${audit.maxCharacters}字；请按草稿核对。`
+    : undefined;
+}
 
 export function researchReportDocument(report: ResearchReport): ResearchReportDocument {
   return { questionDraft: report.question, report: {
