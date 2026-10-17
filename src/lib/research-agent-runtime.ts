@@ -18,6 +18,7 @@ import type { RuntimeAIConfig, RetrievalMetadata } from '@/types';
 import { toRetrievalMetadata, type GroundedRetrievalContext } from './grounded-retrieval';
 import type { GroundedCitation } from './rag';
 import { resolveOpenAIChatEndpoint } from './runtime-ai-config';
+import { auditDeepResearchLength, deepResearchCharacterLimit } from './deep-research-contract';
 
 export interface ResearchAgentInput {
   message: string; skill?: string; sessionId: string; systemPrompt: string;
@@ -74,6 +75,8 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
   const literatureReviewSkill = await readFile(path.join(process.cwd(), 'services/research-agent/skills/literature-review/SKILL.md'), 'utf8');
   const academicWritingSkill = await readFile(path.join(process.cwd(), 'services/research-agent/skills/academic-writing/SKILL.md'), 'utf8');
   const inlineSkill = input.skill === 'literature-review' || input.skill === 'academic-writing' ? input.skill : undefined;
+  const characterLimit = deepResearchCharacterLimit(input.message);
+  const systemPrompt = characterLimit === null ? input.systemPrompt : `${input.systemPrompt}\n本轮对话最终正文总计不超过${characterLimit}字，含标题、标点、引用编号，不含空白和Markdown行首标记。先为数字、单位、必要限定和引用留出篇幅，再写正文；不附加写作过程、重复提示或“如需修改请告知”等尾句。不能靠截断事实或删去限定凑字。独立工具产物沿其自身输出契约。`;
   const processHandle = spawn(python, ['-u', path.join(process.cwd(), 'services/research-agent/worker.py')], {
     stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
     env: { NODE_ENV: process.env.NODE_ENV || 'production', PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' },
@@ -89,7 +92,7 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
   try {
     input.signal.throwIfAborted();
     processHandle.stdin.write(JSON.stringify({
-      message: input.message, systemPrompt: input.systemPrompt, sessionId: input.sessionId, history: input.history, plugins: Object.keys(RESEARCH_PLUGINS), inlineSkill, canReadEvidence: Boolean(input.readTextEvidence),
+      message: input.message, systemPrompt, sessionId: input.sessionId, history: input.history, plugins: Object.keys(RESEARCH_PLUGINS), inlineSkill, canReadEvidence: Boolean(input.readTextEvidence),
       model: { apiKey: input.config.apiKey, apiBase: endpoint.replace(/\/chat\/completions$/, ''), name: input.config.model, auxModel: process.env.OPENAI_COMPAT_AUX_MODEL?.trim(), maxTokens: 2048 },
       skills: [{ id: 'scientific-illustration', description: '按本人已选原文生成一张需人工核对的示意图，私有保存并重开本轮版本。', instructions: illustrationSkill }, { id: 'grounded-learning', description: '从本人资料生成学习卡或卡片内容复习，保存并重开本轮版本。', instructions: learningSkill }, { id: 'data-processing', description: '从本人已选CSV/XLSX诊断并生成私有可恢复方案，不执行训练或统计检验。', instructions: dataSkill }, { id: 'knowledge-map', description: '生成有来源依据的研究脉络，保存本人版本并在本轮对话恢复。', instructions: mapSkill }, ...RESEARCH_CHAT_SKILLS.map(skill => ({ id: skill.id, description: skill.description,
         instructions: skill.id === 'academic-writing' ? academicWritingSkill : skill.id === 'literature-review' ? literatureReviewSkill : `# ${skill.label}\n${skill.description}\n${resolveResearchChatSkillInstruction(skill.id)}\n${skill.id === 'paper-search' ? '使用 search_papers 取得实际候选，保持题目、作者、年份、链接与摘要原意。' : skill.id === 'deep-research' ? '阅读 grounded-report Skill，按用户明确请求调用 generate_report。' : ['hypothesis-generation', 'experiment-design'].includes(skill.id) ? '阅读 research-design Skill，参数齐全且明确要求生成时调用 generate_research_design。' : `需要专用产物时使用 open_plugin；窗口ID按系统提供的清单，不从输入生成其他ID。`}\n禁止编造来源、数值、科研结论或工具成功状态。` })), { id: 'editable-ppt', description: '从已选资料准备可编辑 PPT 大纲，确认后原生生成、保存与重开。', instructions: pptSkill }, { id: 'grounded-report', description: '从已选资料生成报告，保存本人版本并在对话重开。', instructions: reportSkill }, { id: 'research-design', description: '基于来源生成可证伪假设或采集前实验协议，保存本人版本。', instructions: designSkill }],
@@ -102,14 +105,16 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
     let dataAttempted = false;
     let learningAttempted = false;
     let illustrationAttempted = false;
+    let answer = '';
+    let hasSavedArtifact = false;
     for await (const line of lines) {
       input.signal.throwIfAborted();
       if (line.length > 2_000_000) throw new Error('研究结果过大，请缩小任务范围。');
       let event: Record<string, unknown>;
       try { event = JSON.parse(line) as Record<string, unknown>; } catch { continue; }
       if (event.type === 'ready') yield { engine: 'agentscope' };
-      if (event.type === 'text' && typeof event.delta === 'string') yield { content: event.delta };
-      if (event.type === 'replace' && typeof event.content === 'string') yield { replaceContent: event.content };
+      if (event.type === 'text' && typeof event.delta === 'string') { answer += event.delta; yield { content: event.delta }; }
+      if (event.type === 'replace' && typeof event.content === 'string') { answer = event.content; yield { replaceContent: event.content }; }
       if (event.type === 'usage') yield { usage: { inputTokens: Number(event.inputTokens) || 0, outputTokens: Number(event.outputTokens) || 0 } };
       if (event.type === 'error') throw new Error('研究助手暂时无法完成请求，请重试。');
       if (event.type === 'end') {
@@ -234,9 +239,11 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
         result = { success: false, error: call.error };
       }
       yield { toolCall: { ...call } };
+      hasSavedArtifact ||= Boolean(call.report || call.design || call.knowledgeMap || call.dataPlan || call.learning || call.illustration);
       // The saved report card is the result. Do not spend another model call
       // paraphrasing its save state into an unrelated, uncited chat answer.
       if (event.name === 'generate_report') {
+        answer = '';
         yield { replaceContent: '' };
         ended = true;
         break;
@@ -245,6 +252,11 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
     }
     input.signal.throwIfAborted();
     if (spawnError || !ended) throw new Error('研究助手连接中断，已有结果已保留，请重试。');
+    // AgentScope may emit the final Msg after ReplyEndEvent, especially inline.
+    if (characterLimit !== null && !hasSavedArtifact && answer.trim()) {
+      const audit = auditDeepResearchLength(answer, input.message);
+      if (audit.status === 'too-long') throw new Error(`本次回答共${audit.characters}字，超过要求的${characterLimit}字，尚未达标。草稿保留在下方，可点击重新生成；不会自动重试。\n\n${answer}`);
+    }
   } finally {
     input.signal.removeEventListener('abort', stop);
     stop();
