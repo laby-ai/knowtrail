@@ -38,6 +38,7 @@ async function main() {
   const saved = await readGeneratedKnowledgeMap(Response.json(payload), runId, input, null, signal);
   assert(saved.data.session.map.nodes.length > 0);
   assert.equal(saved.data.session.citations[0].paperId, paper.id);
+  assert(saved.data.session.map.title.includes(paper.title), 'ID-only requests must use the verified source title');
   await assert.rejects(readGeneratedKnowledgeMap(Response.json(payload), runId.replace(/1$/, '2'), input, null, signal));
   await assert.rejects(readGeneratedKnowledgeMap(Response.json(payload), runId, { ...input, deepExtract: true }, null, signal));
   await assert.rejects(readGeneratedKnowledgeMap(Response.json(payload), runId, { ...input, question: '另一问题' }, null, signal));
