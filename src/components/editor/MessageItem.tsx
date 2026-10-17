@@ -40,12 +40,14 @@ export function MessageItem({
   onRegenerate?: () => void;
 }) {
   const isUser = message.role === 'user';
+  const reportResult = !isUser && Boolean(message.toolCalls?.length
+    && message.toolCalls.every(call => call.plugin === 'report'));
   const hasContent = message.content.trim().length > 0;
   const showPending = !isUser && isPending && !hasContent;
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const isCopyable = !isUser && hasContent
     && (!message.generation || message.generation.status === 'completed');
-  const displayedCitations = message.citations
+  const displayedCitations = !reportResult && message.citations
     ? alignCitationsToAnswerMarkers(message.content, message.citations)
     : [];
 
@@ -66,7 +68,7 @@ export function MessageItem({
         {isUser ? (compact ? <UserRound size={20} /> : <span className="text-xs font-semibold text-[var(--text-tertiary)]">U</span>) : <Sparkles className="h-4 w-4 text-blue-400" />}
       </div>
       <div className={`quiet-message-body flex-1 ${isUser ? 'text-right' : ''}`}>
-        <div className={`inline-block text-left rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed max-w-[85%] ${
+        {!reportResult && <div className={`inline-block text-left rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed max-w-[85%] ${
           isUser
             ? 'liquid-glass-static text-[var(--text-primary)]'
             : 'ai-bubble-gradient text-[var(--text-primary)]'
@@ -79,11 +81,11 @@ export function MessageItem({
           ) : (
             renderFormattedText(message.content)
           )}
-        </div>
+        </div>}
 
         {message.toolCalls?.map(call => <AgentToolCard key={call.id} call={call} messageId={message.id} />)}
 
-        {!isUser && message.generation && message.generation.status !== 'completed' && (
+        {!isUser && message.generation && message.generation.status !== 'completed' && (!reportResult || message.generation.status !== 'pending') && (
           <div
             data-testid="chat-generation-status"
             className="mt-1.5 ml-1 text-[11px] text-[var(--text-tertiary)]"
@@ -92,7 +94,7 @@ export function MessageItem({
           </div>
         )}
 
-        {!isUser && hasContent && message.generation?.status !== 'pending' && (
+        {!isUser && !reportResult && hasContent && message.generation?.status !== 'pending' && (
           <div className={`quiet-message-actions ${displayedCitations.length ? 'quiet-actions-with-citations' : ''} flex items-center gap-1 mt-1.5 ml-1`}>
             {isCopyable && (
               <button
@@ -121,7 +123,7 @@ export function MessageItem({
           </div>
         )}
 
-        {!isUser && (!compact || message.retrieval?.degraded || (message.citationAudit && !['none', 'pass'].includes(message.citationAudit.status))) && (message.retrieval || (message.citationAudit && message.citationAudit.status !== 'none')) && (
+        {!isUser && !reportResult && (!compact || message.retrieval?.degraded || (message.citationAudit && !['none', 'pass'].includes(message.citationAudit.status))) && (message.retrieval || (message.citationAudit && message.citationAudit.status !== 'none')) && (
           <SourceStatusLine
             retrieval={message.retrieval}
             audit={message.citationAudit}

@@ -9,6 +9,7 @@ import {
   DEEP_RESEARCH_REQUIRED_SECTIONS,
   DEEP_RESEARCH_SYSTEM_PROMPT,
   auditDeepResearchLength,
+  deepResearchSectionBudget,
   buildDeepResearchPrompt,
   buildDeepResearchRepairPrompt,
   classifyDeepResearchAnswer,
@@ -56,6 +57,11 @@ export async function POST(request: NextRequest) {
   }
   if (papers.length === 0) {
     return jsonError('请先在左侧文献库选择至少一个证据来源。', 'deep_research_sources_required', 400);
+  }
+
+  const sectionBudget = deepResearchSectionBudget(question);
+  if (sectionBudget !== null && sectionBudget < 5) {
+    return jsonError('字数上限不足以容纳九节标题、正文和引用，请提高总字数后再生成。', 'deep_research_length_too_small', 422);
   }
 
   const scope = await resolveAccountNotebookScope(request, {
@@ -207,6 +213,7 @@ export async function POST(request: NextRequest) {
             question,
             evidenceContext: grounded.promptContext,
             sourceCount: papers.length,
+            previousAnswer: answerText,
           });
           for await (const chunk of taskObservation.observeProvider(llmStream([
             { role: 'system', content: DEEP_RESEARCH_SYSTEM_PROMPT },

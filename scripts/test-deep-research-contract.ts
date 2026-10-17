@@ -6,6 +6,7 @@ import {
   DEEP_RESEARCH_SYSTEM_PROMPT,
   auditDeepResearchLength,
   deepResearchCharacterLimit,
+  deepResearchSectionBudget,
   buildDeepResearchPrompt,
   buildDeepResearchRepairPrompt,
   classifyDeepResearchAnswer,
@@ -41,6 +42,21 @@ assert.match(repairPrompt, /未通过章节、引用或篇幅检查/);
 assert.match(repairPrompt, /每章优先一条有据短句/);
 assert.doesNotMatch(repairPrompt, /仅写一个可由证据支持的单句陈述\[1\]/, 'Repair must not offer a copyable fake-evidence skeleton.');
 assert.equal(deepResearchCharacterLimit('九节合计250字以内'), 250);
+assert.equal(deepResearchCharacterLimit('报告总共不超过250字，注明软件验收'), 250);
+assert.equal(deepResearchCharacterLimit('请写一份250字以内的报告'), 250);
+assert.equal(deepResearchCharacterLimit('写报告，控制在250字以内'), 250);
+assert.equal(deepResearchCharacterLimit('总字数最多250字，每节30字以内'), 250);
+assert.equal(deepResearchCharacterLimit('每节30字以内'), null);
+assert.equal(deepResearchCharacterLimit('主要结论部分限50字以内'), null);
+const budgeted = JSON.parse(buildDeepResearchPrompt({question:'报告总共不超过250字',evidenceContext:'12条模拟记录剔除2条，保留10条[1]。',sourceCount:1}));
+assert.equal(budgeted.task.maxCharacters, 250);
+assert.equal(budgeted.task.sectionCharacters, deepResearchSectionBudget('250字以内'));
+assert.ok(budgeted.task.sectionCharacters * 9 + DEEP_RESEARCH_REQUIRED_SECTIONS.join('').length <= 250);
+const oversizedDraft='保留10条、单位µmol/L[1]。'.repeat(30);
+const lengthRepair=buildDeepResearchRepairPrompt({question:'报告总共不超过250字',evidenceContext:'仅有本轮片段',sourceCount:1,previousAnswer:oversizedDraft});
+assert.ok(lengthRepair.includes(oversizedDraft));
+assert.ok(lengthRepair.includes('"status":"too-long"'));
+assert.ok(lengthRepair.includes('"maxCharacters":250'));
 assert.equal(deepResearchCharacterLimit('最多300字，结论50字以内'), 300, 'A section limit must not replace the whole-report budget.');
 assert.equal(deepResearchCharacterLimit('结论50字以内'), null);
 assert.equal(deepResearchCharacterLimit('核对12条记录，保留10条'), null);

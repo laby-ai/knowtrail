@@ -34,7 +34,7 @@ export function AgentToolCard({ call, messageId }: { call: ResearchToolCall; mes
       <div className="agent-tool-heading">
         {call.status === 'running' ? <Loader2 size={17} className="animate-spin" /> : <Search size={17} />}
         <strong>{RESEARCH_PLUGINS[call.plugin]}</strong>
-        <span className="min-w-0 flex-1 truncate">{call.query}</span>
+        {call.plugin !== 'report' && <span className="min-w-0 flex-1 truncate">{call.query}</span>}
       </div>
       {call.status === 'running' && <p role="status">正在处理…</p>}
       {call.status === 'failed' && <p role="alert">{call.error || '本次调用未完成，请重新发送。'}</p>}

@@ -186,8 +186,8 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
         } else if (event.name === 'generate_report') {
           if (reportAttempted) throw new Error('本轮已尝试生成报告，不会自动重复生成。请查看本轮状态后重新发送。');
           reportAttempted = true;
-          if (!input.sourceIds?.length || query.length > 1200 || !input.generateReport) throw new Error('请先选择本人的文字资料，并将报告问题控制在1200字以内。');
-          const generated = await input.generateReport(query);
+          if (!input.sourceIds?.length || input.message.trim().length > 1200 || !input.generateReport) throw new Error('请先选择本人的文字资料，并将报告问题控制在1200字以内。');
+          const generated = await input.generateReport(input.message.trim());
           if (!isResearchReportReference(generated.reference)) throw new Error('报告保存信息不完整，请重试读取。');
           call.report = generated.reference;
           result = { success: true, plugin, status: generated.reference.status === 'complete' ? 'report-saved' : 'draft-saved', preview: generated.preview, instruction: '报告已保存并挂在本轮卡片。提示用户查看报告，不要重复生成或把未完成草稿称为完整报告。引用编号通过不代表科学正确性已全面核验。' };
@@ -234,6 +234,13 @@ export async function* runResearchAgent(input: ResearchAgentInput): AsyncGenerat
         result = { success: false, error: call.error };
       }
       yield { toolCall: { ...call } };
+      // The saved report card is the result. Do not spend another model call
+      // paraphrasing its save state into an unrelated, uncited chat answer.
+      if (call.status === 'ready' && call.report) {
+        yield { replaceContent: '' };
+        ended = true;
+        break;
+      }
       if (!processHandle.stdin.destroyed) processHandle.stdin.write(JSON.stringify({ id, result }) + '\n');
     }
     input.signal.throwIfAborted();
