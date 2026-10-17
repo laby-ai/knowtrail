@@ -1,6 +1,8 @@
 import { isDiscoverSearchDocument } from './discover-search-document';
 import type { DiscoveredSourceFileInput } from './discovered-source-file';
 import { sanitizePptOutlineDraft, type PptOutlineDraftItem } from './ppt/outline-draft';
+import { isResearchDesignDocument } from './research-agent-design';
+import type { ResearchDesignDocument } from './research-design-document';
 
 export const RESEARCH_PLUGINS = {
   'paper-search': '论文检索', 'deep-research': '深度研究',
@@ -16,6 +18,25 @@ export interface ResearchReportReference {
   revision: string;
   runId: string;
   status: 'complete' | 'incomplete';
+}
+export interface ResearchDesignReference extends ResearchReportReference {
+  kind: 'hypothesis-generation' | 'experiment-design';
+}
+export function isResearchDesignReference(value: unknown): value is ResearchDesignReference {
+  return isResearchReportReference(value) && ['hypothesis-generation', 'experiment-design'].includes((value as ResearchDesignReference).kind);
+}
+export interface PendingResearchDesign extends Omit<ResearchDesignReference, 'revision' | 'status'> {
+  data: ResearchDesignDocument;
+  expectedRevision: string | null;
+}
+export function isPendingResearchDesign(value: unknown): value is PendingResearchDesign {
+  if (!value || typeof value !== 'object') return false;
+  const draft = value as PendingResearchDesign;
+  return isResearchDesignReference({ ...draft, revision: draft.expectedRevision || '0'.repeat(64), status: 'incomplete' })
+    && (draft.expectedRevision === null || /^[a-f0-9]{64}$/.test(draft.expectedRevision))
+    && isResearchDesignDocument(draft.data, draft.kind) && draft.data.result?.runId === draft.runId
+    && ('question' in draft.data ? draft.data.question : draft.data.form.question) === draft.question
+    && JSON.stringify(draft.data).length <= 500_000;
 }
 export function isResearchReportReference(value: unknown): value is ResearchReportReference {
   if (!value || typeof value !== 'object') return false;
@@ -56,6 +77,8 @@ export interface ResearchToolCall {
   results?: DiscoveredSourceFileInput[];
   presentation?: ResearchPresentationPlan;
   report?: ResearchReportReference;
+  design?: ResearchDesignReference;
+  pendingDesign?: PendingResearchDesign;
 }
 export function isResearchPlugin(value: unknown): value is ResearchPluginId {
   return typeof value === 'string' && Object.hasOwn(RESEARCH_PLUGINS, value);
@@ -69,5 +92,7 @@ export function isResearchToolCall(value: unknown): value is ResearchToolCall {
     && (call.error === undefined || typeof call.error === 'string' && call.error.length <= 1000)
     && (call.results === undefined || isDiscoverSearchDocument({ query: '', optimizedQuery: '', planKeywords: [], scope: 'scholar', selected: [], provider: 'arxiv', searched: true, results: call.results }))
     && (call.presentation === undefined || call.plugin === 'presentation' && call.results === undefined && isResearchPresentationPlan(call.presentation))
-    && (call.report === undefined || call.plugin === 'report' && call.results === undefined && call.presentation === undefined && isResearchReportReference(call.report));
+    && (call.report === undefined || call.plugin === 'report' && call.results === undefined && call.presentation === undefined && isResearchReportReference(call.report))
+    && (call.design === undefined || call.results === undefined && call.presentation === undefined && call.report === undefined && isResearchDesignReference(call.design) && call.plugin === call.design.kind)
+    && (call.pendingDesign === undefined || call.status === 'failed' && call.results === undefined && call.presentation === undefined && call.report === undefined && call.design === undefined && isPendingResearchDesign(call.pendingDesign) && call.plugin === call.pendingDesign.kind);
 }
