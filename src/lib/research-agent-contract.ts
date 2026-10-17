@@ -9,6 +9,8 @@ import { isDataPlanInput, isGeneratedDataPlan, type DataPlanInput } from './rese
 import type { DataProcessingDocument } from './data-processing-document';
 import { isLearningInput, isGeneratedLearning, type LearningInput } from './research-agent-learning';
 import type { LearningMaterials } from './learning-materials';
+import { isIllustrationInput, isGeneratedIllustration, type IllustrationInput } from './research-agent-illustration';
+import type { IllustrationDocument } from './scientific-illustration-document';
 
 export const RESEARCH_PLUGINS = {
   'paper-search': '论文检索', 'deep-research': '深度研究',
@@ -31,6 +33,22 @@ export interface ResearchDesignReference extends ResearchReportReference {
 export interface ResearchKnowledgeMapReference extends ResearchReportReference { deepExtract: boolean }
 export interface ResearchDataPlanReference extends ResearchReportReference, DataPlanInput {}
 export interface ResearchLearningReference extends ResearchReportReference, LearningInput {}
+export interface ResearchIllustrationReference extends Omit<ResearchReportReference, 'question'>, IllustrationInput { imageId: string }
+export function isResearchIllustrationReference(value: unknown): value is ResearchIllustrationReference {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as ResearchIllustrationReference;
+  return isResearchReportReference({ ...v, question: v.purpose }) && v.status === 'incomplete' && v.sourceIds.length <= 12
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v.imageId)
+    && isIllustrationInput({ purpose: v.purpose, figureKind: v.figureKind, aspectRatio: v.aspectRatio, requiredLabels: v.requiredLabels });
+}
+export interface PendingIllustration extends Omit<ResearchIllustrationReference, 'revision' | 'status'> { data: IllustrationDocument; expectedRevision: string | null }
+export function isPendingIllustration(value: unknown): value is PendingIllustration {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as PendingIllustration;
+  return isResearchIllustrationReference({ ...v, revision: v.expectedRevision || '0'.repeat(64), status: 'incomplete' })
+    && (v.expectedRevision === null || /^[a-f0-9]{64}$/.test(v.expectedRevision))
+    && isGeneratedIllustration(v.data, v.runId, v) && v.data.result.id === v.imageId && JSON.stringify(v.data).length <= 500_000;
+}
 export function isResearchLearningReference(value: unknown): value is ResearchLearningReference {
   return isResearchReportReference(value) && isLearningInput({ kind: (value as ResearchLearningReference).kind, question: value.question });
 }
@@ -143,6 +161,8 @@ export interface ResearchToolCall {
   learning?: ResearchLearningReference;
   pendingLearning?: PendingLearning;
   learningProgress?: LearningProgress;
+  illustration?: ResearchIllustrationReference;
+  pendingIllustration?: PendingIllustration;
 }
 export function isResearchPlugin(value: unknown): value is ResearchPluginId {
   return typeof value === 'string' && Object.hasOwn(RESEARCH_PLUGINS, value);
@@ -165,5 +185,7 @@ export function isResearchToolCall(value: unknown): value is ResearchToolCall {
     && (call.pendingDataPlan === undefined || call.status === 'failed' && call.plugin === 'data-processing' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && isPendingDataPlan(call.pendingDataPlan))
     && (call.learning === undefined || call.status === 'ready' && call.plugin === call.learning.kind && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && !call.pendingDataPlan && !call.pendingLearning && isResearchLearningReference(call.learning))
     && (call.pendingLearning === undefined || call.status === 'failed' && call.plugin === call.pendingLearning.kind && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && !call.pendingDataPlan && !call.learning && isPendingLearning(call.pendingLearning))
-    && (call.learningProgress === undefined || Boolean(call.learning && isLearningProgress(call.learningProgress)));
+    && (call.learningProgress === undefined || Boolean(call.learning && isLearningProgress(call.learningProgress)))
+    && (call.illustration === undefined || call.status === 'ready' && call.plugin === 'scientific-illustration' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && !call.pendingDataPlan && !call.learning && !call.pendingLearning && !call.pendingIllustration && isResearchIllustrationReference(call.illustration))
+    && (call.pendingIllustration === undefined || call.status === 'failed' && call.plugin === 'scientific-illustration' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && !call.pendingDataPlan && !call.learning && !call.pendingLearning && !call.illustration && isPendingIllustration(call.pendingIllustration));
 }
