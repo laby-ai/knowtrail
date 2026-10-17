@@ -6,6 +6,7 @@ import { ClientRequestError, clientApiRequest } from '@/lib/client-api';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { NotebookDocument } from '@/lib/private-notebook-document';
 import { studioSessionStorageKey } from '@/lib/studio-session-storage';
+import { announceStudioOutputSaved } from '@/lib/studio-output-events';
 
 interface PendingDocument<T> { data: T; expectedRevision: string | null }
 interface Options<T> {
@@ -78,7 +79,7 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
     return payload.document;
   }, [endpoint, notebookId, validate]);
 
-  const acceptSaved = useCallback((saved: NotebookDocument<T>) => {
+  const acceptSaved = useCallback((saved: NotebookDocument<T>, announce = true) => {
     if (!active.current) return;
     revision.current = saved.revision;
     clearPending();
@@ -87,7 +88,8 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
     setReadFailed(false);
     setConflict(false);
     blocked.current = false;
-  }, [clearPending, remember]);
+    if (announce && !guest) announceStudioOutputSaved(scopeKey, toolId);
+  }, [clearPending, guest, remember, scopeKey, toolId]);
 
   const save = useCallback((): Promise<boolean> => {
     if (timer.current !== null) window.clearTimeout(timer.current);
@@ -104,6 +106,7 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
           const next = pending.current;
           const saved = await write(next, controller.signal);
           if (!active.current || controller.signal.aborted) return false;
+          announceStudioOutputSaved(scopeKey, toolId);
           revision.current = saved.revision;
           if (pending.current === next) { remember(saved.data); clearPending(); }
           else if (pending.current) cachePending({ data: pending.current.data, expectedRevision: saved.revision });
@@ -128,7 +131,7 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
     })();
     task.current = running;
     return running;
-  }, [cachePending, clearPending, guest, remember, write]);
+  }, [cachePending, clearPending, guest, remember, scopeKey, toolId, write]);
 
   useEffect(() => {
     active.current = true;
@@ -160,7 +163,7 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
           cachePending(cachedPending);
           revision.current = cachedPending.expectedRevision;
           acceptSaved(await write(cachedPending, controller.signal));
-        } else if (saved) acceptSaved(saved);
+        } else if (saved) acceptSaved(saved, false);
         else if (local) acceptSaved(await write({ data: local, expectedRevision: null }, controller.signal));
         else remember(empty());
       } catch (caught) {

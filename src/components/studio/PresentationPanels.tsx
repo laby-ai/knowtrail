@@ -51,8 +51,10 @@ import { StructuredPresentationPanel } from './StructuredPresentationPanel';
 import { HtmlPresentationPanel } from './HtmlPresentationPanel';
 import { SlideAnnotationEditor } from './SlideAnnotationEditor';
 
-export function PresentationWorkspacePanel({ initialMode = 'image' }: { initialMode?: PresentationMode }) {
-  const [mode, setMode] = useState<PresentationMode>(initialMode);
+export function PresentationWorkspacePanel({ initialMode = 'image', mode: selectedMode, onModeChange }: { initialMode?: PresentationMode; mode?: PresentationMode; onModeChange?: (mode: PresentationMode) => void }) {
+  const [localMode, setLocalMode] = useState<PresentationMode>(initialMode);
+  const mode = selectedMode ?? localMode;
+  const setMode = (next: PresentationMode) => { setLocalMode(next); onModeChange?.(next); };
 
   return (
     <div className="space-y-5" data-testid="presentation-workspace-panel">

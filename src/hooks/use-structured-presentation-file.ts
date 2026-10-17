@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ClientRequestError, clientApiPath, clientApiRequest } from '@/lib/client-api';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { announceStudioOutputSaved } from '@/lib/studio-output-events';
 
 interface PresentationFile { scopeKey: string; url: string; fileName: string; slideCount?: number; id?: string }
 
@@ -61,6 +62,7 @@ export function useStructuredPresentationFile(scopeKey: string, notebookId: stri
       if (signal.aborted || scopeKeyRef.current !== requestScopeKey) return;
       latestArtifactId.current = artifactId;
       setPresentation({ scopeKey: requestScopeKey, id: artifactId, url: clientApiPath(`/api/ai/ppt-v2?${new URLSearchParams({ notebookId, artifactId, download: '1' })}`), fileName, slideCount });
+      announceStudioOutputSaved(requestScopeKey, 'structured-ppt');
       return { id: artifactId, fileName, slideCount };
     } else {
       if (!scopeKey.startsWith('guest:')) throw new Error('PPT缺少保存信息，请刷新后重新读取。');

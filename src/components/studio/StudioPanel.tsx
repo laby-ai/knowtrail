@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { StudioModalWorkbench } from './StudioModalWorkbench';
+import type { PresentationMode } from './PresentationModeSelector';
 import { KnowledgeMapPanel } from './KnowledgeMapPanel';
 import { PresentationWorkspacePanel } from './PresentationPanels';
 import { VirtualClassroomPanel } from './VirtualClassroomPanel';
@@ -25,7 +27,6 @@ import {
 } from './StudioToolSwitcher';
 
 export const ACTIVE_TOOL_STORAGE_KEY = 'knowtrail:studio-active-tool';
-
 export function StudioPanel({
   compact = false,
   activeTab,
@@ -47,6 +48,9 @@ export function StudioPanel({
   useEffect(() => {
     setHideVirtualClassroom(shouldHideVirtualClassroom());
   }, []);
+
+  if (compact) return <StudioModalWorkbench activeTab={activeTab} onSelect={onSelect} onClose={onClose} navItems={visibleNavItems}
+    renderTool={(tab, mode, onModeChange) => <StudioWorkspacePanel compact inDialog activeTab={tab} onClose={onClose} presentationMode={mode} onPresentationModeChange={onModeChange} />} />;
 
   if (activeTab) {
     return (
@@ -86,15 +90,20 @@ export function StudioPanel({
     </div>
   );
 }
-
 export function StudioWorkspacePanel({
   compact = false,
+  inDialog = false,
   activeTab,
   onClose,
+  presentationMode,
+  onPresentationModeChange,
 }: {
   compact?: boolean;
+  inDialog?: boolean;
   activeTab: StudioTab;
   onClose: () => void;
+  presentationMode?: PresentationMode;
+  onPresentationModeChange?: (mode: PresentationMode) => void;
 }) {
   const navItem: StudioNavItem = STUDIO_NAV.find(item => item.id === activeTab) ?? STUDIO_NAV[0];
   const NavIcon = navItem.icon;
@@ -105,7 +114,7 @@ export function StudioWorkspacePanel({
       className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]"
       data-density={compact ? 'compact' : 'default'}
     >
-      <div
+      {!inDialog && <div
         data-testid="studio-workspace-header"
         className={compact
           ? 'flex shrink-0 items-center gap-3 border-b border-[#E4E9F1] px-4 py-3'
@@ -135,7 +144,7 @@ export function StudioWorkspacePanel({
         <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--glass-border)] bg-gradient-to-br ${navItem.accent}`}>
           <NavIcon className="h-4 w-4 text-[var(--text-secondary)]" />
         </div>
-      </div>
+      </div>}
 
       <div
         data-testid="studio-workspace-scroll"
@@ -155,7 +164,7 @@ export function StudioWorkspacePanel({
             {activeTab === 'text-polishing' && <TextPolishingPanel />}
             {activeTab === 'scientific-illustration' && <ScientificIllustrationPanel />}
             {activeTab === 'peer-review' && <PeerReviewPanel />}
-            {activeTab === 'presentation' && <PresentationWorkspacePanel />}
+            {activeTab === 'presentation' && <PresentationWorkspacePanel mode={presentationMode} onModeChange={onPresentationModeChange} />}
             {activeTab === 'knowledge' && <KnowledgeMapPanel />}
             {activeTab === 'report' && <DeepResearchPanel />}
             {activeTab === 'flashcards' && <LearningArtifactsPanel mode="flashcards" />}

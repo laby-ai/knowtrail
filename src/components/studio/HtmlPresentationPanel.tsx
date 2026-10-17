@@ -46,7 +46,7 @@ const MAX_REPAIR_ROUNDS = 2;
 
 
 
-function ScaledSlideFrame({ html, className }: { html: string; className?: string }) {
+export function ScaledSlideFrame({ html, className, title = 'slide-preview' }: { html: string; className?: string; title?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.3);
 
@@ -69,7 +69,7 @@ function ScaledSlideFrame({ html, className }: { html: string; className?: strin
       <iframe
         srcDoc={html}
         sandbox="allow-same-origin"
-        title="slide-preview"
+        title={title}
         className="pointer-events-none absolute left-0 top-0 border-0 bg-white"
         style={{ width: 1280, height: 720, transform: `scale(${scale})`, transformOrigin: 'top left' }}
       />

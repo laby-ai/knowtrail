@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { SavedToolStatus } from '@/components/studio/SavedToolStatus';
+import { NotebookSourceSelector } from '@/components/layout/NotebookSourceSelector';
 import { clientApiPath } from '@/lib/client-api';
 import {
   Send,
@@ -13,10 +14,9 @@ import {
   FileSearch,
   Square,
   Trash2,
-  FolderPlus,
   MoreHorizontal,
 } from 'lucide-react';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useApp } from '@/contexts/AppContext';
 import type { ChatMessage, Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
 import { MessageItem } from './MessageItem';
@@ -832,7 +832,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
               onClear={onClearChatSkill}
               disabled={isGenerating}
             />}
-            {compact && <ChatSourceSelector disabled={isGenerating} />}
+            {compact && <NotebookSourceSelector disabled={isGenerating} />}
             {isGenerating ? (
               <button
                 onClick={onStop}
@@ -860,23 +860,3 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
     </div>
   );
 }
-
-function ChatSourceSelector({ disabled }: { disabled: boolean }) {
-  const { folders, selectedPapers, togglePaperSelection, clearSelection } = useApp();
-  const papers = folders.flatMap(folder => folder.papers);
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" className="quiet-chat-sources" data-testid="chat-source-menu" disabled={disabled}>
-          <FolderPlus size={19} /><span>已选 {selectedPapers.length} 份资料</span><ChevronDown size={16} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="max-h-80 w-72 overflow-y-auto">
-        {papers.map(paper => <DropdownMenuCheckboxItem key={paper.id} checked={selectedPapers.includes(paper.id)} onSelect={event => event.preventDefault()} onCheckedChange={() => togglePaperSelection(paper.id)}><span className="truncate">{paper.title}</span></DropdownMenuCheckboxItem>)}
-        {!papers.length && <DropdownMenuItem disabled>请先添加资料</DropdownMenuItem>}
-        {selectedPapers.length > 0 && <DropdownMenuItem onSelect={clearSelection}>清除选择</DropdownMenuItem>}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
