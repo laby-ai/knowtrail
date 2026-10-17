@@ -309,7 +309,7 @@
   --text-primary: #17243d; --text-secondary: #40516a; --text-tertiary: #72829b;
   --text-quaternary: #72829b; --accent-blue: #2d68f8; --accent-primary: #2d68f8;
   display: flex; flex-direction: column; gap: 0; width: calc(100vw - 64px); max-width: 1080px;
-  height: min(820px, calc(100dvh - 64px)); max-height: calc(100dvh - 64px); padding: 0;
+  height: auto; max-height: calc(100dvh - 64px); padding: 0;
   border: 1px solid #dce5f2; border-radius: 22px; background: #fff; color: #17243d;
   box-shadow: 0 24px 100px rgb(21 40 66 / 18%); overflow: hidden;
 }
@@ -318,11 +318,14 @@
 .studio-modal-title { flex: 1; min-width: 0; font-size: 20px; font-weight: 600; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-modal-header > button { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; background: #f2f5f9; color: #526581; }
 .studio-modal-header > button:hover { background: #e5edf8; }
-.studio-modal-mount, .studio-modal-tool-host { flex: 1; min-height: 0; height: 100%; }
-.quiet-studio-dialog [data-testid="studio-workspace-scroll"] { padding: 24px 28px; }
+.studio-modal-mount, .studio-modal-tool-host { flex: 1; min-height: 0; height: auto; }
+.quiet-studio-dialog [data-testid="studio-workspace-scroll"] { flex: none; max-height: min(680px, calc(100dvh - 148px)); padding: 24px 28px; }
 .quiet-studio-dialog [data-testid="studio-tool-content"] { max-width: 960px; margin: 0 auto; }
+.quiet-studio-dialog .text-\[11px\], .quiet-studio-dialog .text-xs { font-size: 13px; line-height: 1.6; }
+.quiet-studio-dialog label { font-size: 14px; }
+.quiet-studio-dialog textarea, .quiet-studio-dialog input, .quiet-studio-dialog select { font-size: 15px; }
 .studio-modal-tool-host > [hidden] { display: none; }
-.studio-modal-output { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; padding: 20px 28px 28px; font-size: 16px; line-height: 1.7; }
+.studio-modal-output { min-height: 0; flex: 1; max-height: min(680px, calc(100dvh - 148px)); overflow: auto; overscroll-behavior: contain; padding: 20px 28px 28px; font-size: 16px; line-height: 1.7; }
 .studio-output-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; color: #72829b; font-size: 13px; }
 .studio-output-prose h1, .studio-output-prose h2, .studio-output-prose h3 { margin: 24px 0 12px; font-size: 21px; line-height: 1.5; font-weight: 600; }
 .studio-output-prose p, .studio-output-prose ul, .studio-output-prose ol { margin-bottom: 14px; }
@@ -341,10 +344,11 @@
   .quiet-tools-pane .studio-modal-directory [data-testid="studio-tool-switcher"] > button > span > span:last-child > span:first-child { font-size: 14px; }
 }
 @media (max-width: 767px) {
-  .quiet-studio-dialog { width: calc(100vw - 20px); height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); max-width: none; border-radius: 16px; }
+  .quiet-studio-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 24px); max-width: none; border-radius: 16px; }
   .studio-modal-header { min-height: 64px; padding: 14px 16px; gap: 8px; }
   .studio-modal-title { font-size: 18px; }
-  .quiet-studio-dialog [data-testid="studio-workspace-scroll"], .studio-modal-output { padding: 18px 16px; }
+  .quiet-studio-dialog [data-testid="studio-workspace-scroll"], .studio-modal-output { max-height: calc(100dvh - 108px); padding: 18px 16px; }
+  .quiet-studio-dialog textarea, .quiet-studio-dialog input, .quiet-studio-dialog select { font-size: 16px; }
   .studio-modal-output { font-size: 15px; }
   .studio-output-toolbar { align-items: flex-start; }
   .studio-modal-directory { padding: 20px 16px; }
