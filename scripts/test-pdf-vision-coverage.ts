@@ -71,7 +71,11 @@ async function main() {
     failedPage = 1; const failed = await (await uploadPdf(1, 'scan-rejected')).json(); assert.ok(failed.results[0].error); assert.equal(failed.results[0].id, undefined); failedPage = 0; tests.push('failed scan never ingested as model error');
     const restored = await (await uploadPdf(12, 'scan-restored')).json(); const paper = restored.results[0]; assert.equal(paper.error, undefined); assert.ok(paper.rawContent.includes('retained=83; unit=mock_counts'));
     const saved = await getSource(new NextRequest('https://fixture.invalid/api/ingestion/sources?notebookId=scan-restored&id=' + paper.id, { headers: authenticated }));
-    assert.equal(saved.status, 200); assert.equal((await saved.json()).source.rawContent, paper.rawContent); tests.push('upload retry, same-owner stored source and re-open');
+    assert.equal(saved.status, 200); const canonical = (await saved.json()).source;
+    assert.equal(canonical.rawContent, paper.rawContent);
+    const tailChunk = canonical.chunks.find((c: { text: string }) => c.text.includes('SCANPAGE_12: retained=83'));
+    assert.ok(tailChunk); assert.ok(tailChunk.page === undefined || tailChunk.page === 12, 'A multi-page chunk must not label the last-page fact as page one');
+    tests.push('upload retry, same-owner source re-open and honest page label');
     assert.equal((await getSource(new NextRequest('https://fixture.invalid/api/ingestion/sources?notebookId=other&id=' + paper.id, { headers: authenticated }))).status, 404); tests.push('other notebook cannot read stored scan');
     const scratch = (await readdir(directory)).filter(name => name.startsWith('knowtrail-pdf-ocr-')); assert.deepEqual(scratch, []); tests.push('all own page scratch cleaned after success, rejection and failure');
     console.log(JSON.stringify({ ok: true, tests, visionCalls, paidCalls: 0, actualRenderer: 'pdftoppm', modelAndSMSAreFixtures: true }));

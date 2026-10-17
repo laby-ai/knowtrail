@@ -1396,7 +1396,10 @@ export function LibraryPanel({
           accept={ACCEPT_STRING}
           multiple
           className="hidden"
-          onChange={(e) => handleFileSelect(e.target.files)}
+          onChange={(e) => {
+            void handleFileSelect(e.currentTarget.files);
+            e.currentTarget.value = '';
+          }}
         />
 
         <div className={compact && folders.length <= 1 ? "hidden" : "mb-3 flex items-center gap-2"}>
