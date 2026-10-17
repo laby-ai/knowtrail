@@ -26,6 +26,9 @@ import { readGeneratedDataPlan } from '@/lib/research-agent-data';
 import { isDataProcessingDocument } from '@/lib/data-processing-document';
 import { buildDataTablePreviewFromText, type DataTablePreview } from '@/lib/data-table-preview';
 import { getIngestionSource } from '@/lib/ingestion-store';
+import { POST as generateLearningMaterials } from '@/app/api/ai/knowledge-cards/route';
+import { isLearningMaterials } from '@/lib/learning-materials';
+import { readGeneratedLearning } from '@/lib/research-agent-learning';
 
 export const runtime = 'nodejs';
 export const maxDuration = 180;
@@ -67,7 +70,7 @@ export async function POST(request: NextRequest) {
     if (saved && isChatHistoryDocument(saved.data)) {
       for (const msg of saved.data.messages.slice(-20)) {
         if (msg.role === 'system' || msg.generation?.status === 'pending') continue;
-        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, presentation: call.presentation, report: call.report, design: call.design, knowledgeMap: call.knowledgeMap, dataPlan: call.dataPlan }));
+        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, presentation: call.presentation, report: call.report, design: call.design, knowledgeMap: call.knowledgeMap, dataPlan: call.dataPlan, learning: call.learning }));
         const content = (msg.content + (toolContext?.length ? '\n工具实际结果：' + JSON.stringify(toolContext) : '')).slice(0, 16000);
         if (content.trim()) history.push({ role: msg.role, content });
       }
@@ -89,6 +92,17 @@ export async function POST(request: NextRequest) {
           for await (const event of runResearchAgent({ message, skill: typeof skill === 'string' ? skill : undefined,
             sessionId: `${scope.ownerMemberId}:${scope.notebookId}`, sourceIds: [...new Set(grounded.citations.map(citation => citation.sourceId))], systemPrompt: researchAgentSystemPrompt(base, typeof skill === 'string' ? skill : undefined), history, config, signal,
             dataSourceIds: tables.map(t => t.sourceId),
+            generateLearning: async input => {
+              const sourceIds = [...new Set(grounded.citations.map(c => c.sourceId))];
+              const verified = { ownerMemberId: scope.ownerMemberId!, notebookId: scope.notebookId! };
+              const previous = await readNotebookDocument<unknown>(verified, 'learning-materials');
+              if (previous && !isLearningMaterials(previous.data)) throw new Error('已保存复习材料暂时无法读取。');
+              const runId = crypto.randomUUID();
+              const headers = new Headers(request.headers); headers.delete('content-length'); headers.set('Content-Type', 'application/json');
+              const generated = await generateLearningMaterials(new NextRequest(request.url.replace(/\/agent\/chat(?:\?.*)?$/, '/ai/knowledge-cards'), { method: 'POST', headers, signal, body: JSON.stringify({ ...input, runId, notebookId: scope.notebookId, papers: sourceIds.map(id => ({ id })), expectedRevision: previous?.revision || null }) }));
+              const saved = await readGeneratedLearning(generated, runId, input, previous?.revision || null, signal);
+              return { reference: { ...input, sourceIds, runId, revision: saved.revision, status: saved.data.citationAudit?.status === 'pass' ? 'complete' as const : 'incomplete' as const }, preview: saved.data.cards.map(c => c.title + ': ' + c.content).join('\n').slice(0, 1800) };
+            },
             generateDataPlan: async input => {
               if (!tables.some(t => t.sourceId === input.sourceId)) throw new Error('请选择本轮已核验的表格来源。');
               const verified = { ownerMemberId: scope.ownerMemberId!, notebookId: scope.notebookId! };

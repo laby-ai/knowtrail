@@ -2,6 +2,7 @@ import type { KnowledgeCardData } from '@/lib/knowledge-card-types';
 import type { Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
 
 export interface LearningMaterials {
+  generation?: { runId: string; question: string; kind: 'knowledge-cards' | 'quiz' };
   cards: KnowledgeCardData[];
   citations: Citation[];
   retrieval: RetrievalMetadata | null;
@@ -20,6 +21,9 @@ export function learningCardExtra(extra: string): string {
 export function isLearningMaterials(value: unknown): value is LearningMaterials {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<LearningMaterials>;
+  if (item.generation !== undefined && (!item.generation || typeof item.generation.runId !== 'string' || !/^[a-f0-9-]{36}$/i.test(item.generation.runId)
+    || typeof item.generation.question !== 'string' || !item.generation.question.trim() || item.generation.question.length > 1200
+    || !['knowledge-cards', 'quiz'].includes(item.generation.kind))) return false;
   return Array.isArray(item.cards) && item.cards.length <= 50
     && item.cards.every(card => card && ['category', 'title', 'content', 'extra'].every(key => typeof card[key as keyof KnowledgeCardData] === 'string'))
     && Array.isArray(item.citations) && item.citations.length <= 100

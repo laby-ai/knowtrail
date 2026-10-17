@@ -77,7 +77,14 @@ async def main():
             arguments["splitColumn"] = splitColumn
         return await invoke("generate_data_plan", arguments)
 
+    async def generate_learning_materials(kind: str, question: str):
+        """Generate source-grounded study cards or card-based review and privately save this turn's version."""
+        return await invoke("generate_learning_materials", {"kind": kind, "question": question})
+
     tools = [
+        FunctionTool(generate_learning_materials, is_read_only=False, is_concurrency_safe=False,
+                     permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies selected sources, ownership, one attempt and private version saving."),
+                     input_schema={"type":"object","properties":{"kind":{"type":"string","enum":["knowledge-cards","quiz"]},"question":{"type":"string","minLength":1,"maxLength":1200}},"required":["kind","question"],"additionalProperties":False}),
         FunctionTool(generate_data_plan, is_read_only=False, is_concurrency_safe=False,
                      permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies the selected table, explicit task, one attempt and private versioned save."),
                      input_schema={"type":"object","properties":{"sourceId":{"type":"string","minLength":1,"maxLength":180},"question":{"type":"string","minLength":1,"maxLength":1200},"sampleUnit":{"type":"string","minLength":1,"maxLength":200},"taskFamily":{"type":"string","enum":["description","prediction","comparison","trend"]},"targetColumn":{"type":"string","maxLength":200},"splitColumn":{"type":"string","maxLength":200}},"required":["sourceId","question","sampleUnit","taskFamily"],"additionalProperties":False}),

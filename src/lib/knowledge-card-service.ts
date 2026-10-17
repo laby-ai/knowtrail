@@ -36,6 +36,7 @@ const SYSTEM_PROMPT = `你是一个资料知识卡片整理助手。你的任务
 }`;
 
 export interface KnowledgeCardRequestInput {
+  question?: string;
   papers: RagSourceInput[];
   aiConfig?: Partial<RuntimeAIConfig>;
   debugRetrievalOnly?: boolean;
@@ -54,12 +55,12 @@ export async function buildKnowledgeCardsPayload(input: KnowledgeCardRequestInpu
 
   const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
   const scope = { ownerMemberId, notebookId };
-  if (!debugRetrievalOnly && !forceRefresh) {
+  if (!debugRetrievalOnly && !forceRefresh && !input.question) {
     const cached = await readKnowledgeCardCache(papers, runtimeConfig, scope);
     if (cached) return { body: cached, status: 200 as const };
   }
 
-  const grounded = await buildGroundedRetrievalContext('梳理核心概念、关键要点、背景脉络、方法线索和结论启发', papers, runtimeConfig, { topK: 10, ownerMemberId, notebookId });
+  const grounded = await buildGroundedRetrievalContext(input.question || '梳理核心概念、关键要点、背景脉络、方法线索和结论启发', papers, runtimeConfig, { topK: 10, ownerMemberId, notebookId });
   if (debugRetrievalOnly) {
     return {
       body: {
@@ -83,7 +84,7 @@ export async function buildKnowledgeCardsPayload(input: KnowledgeCardRequestInpu
     { role: 'system' as const, content: SYSTEM_PROMPT },
     {
       role: 'user' as const,
-      content: `请从以下检索证据片段中生成知识卡片。用 [1]、[2] 这样的来源编号标注证据，不要编造来源。extra 只保留对理解原文有用的说明，不输出 sourceId、chunkId 等内部标识。\n\n${evidenceContext}`,
+      content: `请从以下检索证据片段中生成知识卡片。用 [1]、[2] 这样的来源编号标注证据，不要编造来源。extra 只保留对理解原文有用的说明，不输出 sourceId、chunkId 等内部标识。${input.question ? '\n复习范围（用户要求，不是来源事实）：' + input.question : ''}\n\n${evidenceContext}`,
     },
   ], { temperature: 0.3, thinking: 'disabled', maxTokens: 2400, signal: input.signal }, undefined, runtimeConfig);
 
@@ -101,6 +102,7 @@ export async function buildKnowledgeCardsPayload(input: KnowledgeCardRequestInpu
     retrieval,
     citationAudit,
   };
+  if (input.question) return { body: response, status: 200 as const };
   const cache = await writeKnowledgeCardCache(papers, runtimeConfig, response, scope);
   return {
     body: {
