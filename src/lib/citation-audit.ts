@@ -1,6 +1,6 @@
 import type { GroundedCitation } from '@/lib/rag';
 
-export type CitationAuditStatus = 'none' | 'pass' | 'missing-markers' | 'invalid-markers';
+export type CitationAuditStatus = 'none' | 'pass' | 'missing-markers' | 'invalid-markers' | 'needs-review';
 
 export interface CitationAuditResult {
   status: CitationAuditStatus;
@@ -11,6 +11,7 @@ export interface CitationAuditResult {
   markerCount: number;
   warning?: string;
   sourceCoverage?: { covered: number; total: number };
+  numericPreservation?: { checked: number; missing: string[] };
 }
 
 export interface CitationCoverageClaim {

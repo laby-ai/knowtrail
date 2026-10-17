@@ -120,7 +120,7 @@ export interface RetrievalMetadata {
 }
 
 export interface CitationAuditResult {
-  status: 'none' | 'pass' | 'missing-markers' | 'invalid-markers';
+  status: 'none' | 'pass' | 'missing-markers' | 'invalid-markers' | 'needs-review';
   citedNumbers: number[];
   invalidNumbers: number[];
   uncitedNumbers: number[];
@@ -128,6 +128,7 @@ export interface CitationAuditResult {
   markerCount: number;
   warning?: string;
   sourceCoverage?: { covered: number; total: number };
+  numericPreservation?: { checked: number; missing: string[] };
 }
 
 export interface Citation {

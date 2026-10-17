@@ -63,6 +63,7 @@ jobs:
           pnpm exec tsx scripts/test-research-agent-illustration.ts
           pnpm exec tsx scripts/test-illustration-form-match.ts
           pnpm exec tsx scripts/test-literature-review-skill.ts
+          pnpm exec tsx scripts/test-academic-writing-skill.ts
 
       - name: Paper search contracts
         run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects

@@ -33,6 +33,7 @@ import { POST as generateScientificIllustration } from '@/app/api/ai/scientific-
 import { isIllustrationDocument } from '@/lib/scientific-illustration-document';
 import { readGeneratedIllustration } from '@/lib/research-agent-illustration';
 import { buildLiteratureReviewEvidence, auditLiteratureReviewCoverage, LiteratureReviewEvidenceError } from '@/lib/literature-review-evidence';
+import { expandAcademicWritingEvidence, auditAcademicWriting, AcademicWritingEvidenceError } from '@/lib/academic-writing-evidence';
 
 export const runtime = 'nodejs';
 export const maxDuration = 180;
@@ -58,11 +59,16 @@ export async function POST(request: NextRequest) {
   let reservation: Awaited<ReturnType<typeof reserveAIUsage>> = null;
   try {
     const selected = Array.isArray(papers) ? papers : [];
-    const grounded: GroundedRetrievalContext = skill === 'literature-review'
+    let grounded: GroundedRetrievalContext = skill === 'literature-review'
       ? await buildLiteratureReviewEvidence(message, selected, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId })
       : selected.length
       ? await buildGroundedRetrievalContext(message, selected, config, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId })
       : { chunks: [], citations: [], promptContext: '', retrievalMode: 'empty', persistedSourceCount: 0, vectorIndexedSourceCount: 0, degraded: false };
+    let writingNumbers: string[] = [];
+    if (skill === 'academic-writing' && selected.length) {
+      const writing = await expandAcademicWritingEvidence(grounded, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId });
+      grounded = writing; writingNumbers = writing.writingNumbers;
+    }
     const tables: Array<Pick<DataTablePreview, 'rowCount' | 'sampledRowCount' | 'columnCount' | 'columns'> & { sourceId: string; title: string; fileType: string }> = [];
     for (const id of [...new Set(selected.map(p => p.id).filter((id): id is string => typeof id === 'string'))].slice(0, 20)) {
       const source = await getIngestionSource(id, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId });
@@ -196,7 +202,7 @@ export async function POST(request: NextRequest) {
             send(event);
           }
           await billing?.settle(answer);
-          send({ citationAudit: skill === 'literature-review' ? auditLiteratureReviewCoverage(answer, grounded.citations) : auditCitationMarkers(answer, grounded.citations) });
+          send({ citationAudit: skill === 'literature-review' ? auditLiteratureReviewCoverage(answer, grounded.citations) : skill === 'academic-writing' ? auditAcademicWriting(answer, grounded.citations, message, writingNumbers) : auditCitationMarkers(answer, grounded.citations) });
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch (error) {
@@ -211,7 +217,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     releaseTurn();
     await reservation?.release().catch(() => undefined);
-    const status = error instanceof AccountServiceError || error instanceof LiteratureReviewEvidenceError ? error.status : 503;
-    return Response.json({ error: error instanceof LiteratureReviewEvidenceError ? error.message : accountUsageErrorMessage(error, '研究助手暂时无法读取资料，请重试。') }, { status, headers: privateHeaders });
+    const evidenceError = error instanceof LiteratureReviewEvidenceError || error instanceof AcademicWritingEvidenceError;
+    const status = error instanceof AccountServiceError || evidenceError ? error.status : 503;
+    return Response.json({ error: evidenceError ? error.message : accountUsageErrorMessage(error, '研究助手暂时无法读取资料，请重试。') }, { status, headers: privateHeaders });
   }
 }
