@@ -76,7 +76,7 @@ export function StudioModalWorkbench({ activeTab, onSelect, onClose, navItems, r
       }} onCloseAutoFocus={event => {
         event.preventDefault();
         const target = returnFocus.current;
-        requestAnimationFrame(() => { if (target?.isConnected) target.focus(); });
+        if (target?.isConnected) target.focus({ preventScroll: true });
       }}>
         <div className="studio-modal-header">
           {Icon && <Icon size={22} aria-hidden="true" />}
