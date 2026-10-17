@@ -131,6 +131,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       addChatMessage(pendingMessage);
     }
     let streamedContent = '';
+    const agentCalls = new Map<string, ResearchToolCall>();
     userStoppedRef.current = false;
     const timeoutId = window.setTimeout(() => abortController.abort(), CHAT_RESPONSE_TIMEOUT_MS);
 
@@ -162,7 +163,6 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
-      const agentCalls = new Map<string, ResearchToolCall>();
       let serverCitations: Citation[] = [];
       let serverRetrieval: RetrievalMetadata | undefined;
       let serverCitationAudit: CitationAuditResult | undefined;
@@ -238,6 +238,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
         : failure.content;
       updateChatMessage(assistantMsgId, {
         content,
+        toolCalls: [...agentCalls.values()].map(call => call.status === 'running' ? { ...call, status: 'failed', error: stoppedByUser ? '本次调用已停止，请检查已保存结果后重试。' : '本次调用未完成，请检查已保存结果后重试。' } : call),
         ...generationUpdate(failure.status, normalizedQuestion, new Date().toISOString()),
       });
     } finally {
