@@ -45,6 +45,10 @@ async def main():
         """Search academic papers. Returns real candidates, not verified scientific conclusions."""
         return await invoke("search_papers", {"query": query})
 
+    async def read_selected_evidence(skill: str):
+        """Read verified selected evidence for inline writing or review. IDs and ownership come from the host, never tool arguments."""
+        return await invoke("read_selected_evidence", {"skill": skill})
+
     async def open_plugin(plugin: str, request: str):
         """Open a research plugin in this conversation. Use the allowed plugin IDs in the system instructions."""
         return await invoke("open_plugin", {"plugin": plugin, "request": request})
@@ -115,6 +119,9 @@ async def main():
               if not bootstrap.get("inlineSkill") or s["id"] == bootstrap["inlineSkill"]]
     if bootstrap.get("inlineSkill"):
         tools = []
+    elif bootstrap.get("canReadEvidence"):
+        tools.append(FunctionTool(read_selected_evidence, is_read_only=True, is_concurrency_safe=False,
+                                  input_schema={"type":"object","properties":{"skill":{"type":"string","enum":["academic-writing","literature-review"]}},"required":["skill"],"additionalProperties":False}))
     config = bootstrap["model"]
     model = OpenAIChatModel(
         credential=OpenAICredential(api_key=config["apiKey"], base_url=config["apiBase"]),
@@ -134,12 +141,15 @@ async def main():
     emit({"type": "ready", "engine": "agentscope", "version": "2.0.10"})
     # Tool-bearing intermediate text is not the final writing body.
     inline = bool(bootstrap.get("inlineSkill"))
-    async for event in agent.reply_stream(UserMsg(name="user", content=bootstrap["message"]), yield_final_msg=inline):
+    async for event in agent.reply_stream(UserMsg(name="user", content=bootstrap["message"]), yield_final_msg=True):
         kind = type(event).__name__
-        if inline and isinstance(event, Msg):
+        if isinstance(event, Msg):
             final_text = event.get_text_content()
             if event.role == "assistant" and final_text:
-                emit({"type": "text", "delta": final_text})
+                emit({"type": "text", "delta": final_text} if inline else {"type": "replace", "content": final_text})
+        elif kind == "ModelCallStartEvent" and not inline:
+            # A new model message supersedes prior tool-stage commentary.
+            emit({"type": "replace", "content": ""})
         elif kind == "TextBlockDeltaEvent" and not inline:
             emit({"type": "text", "delta": event.delta})
         elif kind == "ModelCallEndEvent":
