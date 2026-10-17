@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
             send(event);
           }
           await billing?.settle(answer);
-          send({ citationAudit: textSkill === 'literature-review' ? auditLiteratureReviewCoverage(answer, grounded.citations) : textSkill === 'academic-writing' ? auditAcademicWriting(answer, grounded.citations, message, writingNumbers) : auditCitationMarkers(answer, grounded.citations) });
+          if (answer.trim()) send({ citationAudit: textSkill === 'literature-review' ? auditLiteratureReviewCoverage(answer, grounded.citations) : textSkill === 'academic-writing' ? auditAcademicWriting(answer, grounded.citations, message, writingNumbers) : auditCitationMarkers(answer, grounded.citations) });
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch (error) {

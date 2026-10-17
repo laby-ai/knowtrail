@@ -212,7 +212,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
           }
         }
         if (accumulatedContent || agentCalls.size) {
-          if (!accumulatedContent) accumulatedContent = '工具已在本轮对话中打开。';
+          if (!accumulatedContent && ![...agentCalls.values()].every(call => call.plugin === 'report')) accumulatedContent = '工具已在本轮对话中打开。';
           const citations = serverCitations.length > 0
             ? serverCitations
             : [];
@@ -226,7 +226,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
           });
         }
       }
-      if (!accumulatedContent) {
+      if (!accumulatedContent && !agentCalls.size) {
         updateChatMessage(assistantMsgId, {
           content: '抱歉，未能获取到 AI 回答，请重试。',
           ...generationUpdate('failed', normalizedQuestion, new Date().toISOString()),

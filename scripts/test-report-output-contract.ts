@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { runResearchAgent } from '../src/lib/research-agent-runtime';
+import { isChatHistoryDocument } from '../src/lib/chat-history-document';
 
 type ModelRequest = {
   messages: { role: string }[];
@@ -40,6 +41,9 @@ async function main() {
     assert.equal(requests,2,'Only the native method and actual tool selection use the fixture model');
     assert.equal(events.filter(event=>event.toolCall?.report).length,1);
     assert.equal(events.at(-1)?.replaceContent,'','The saved card replaces tool-stage commentary');
+    const ready=events.find(event=>event.toolCall?.status==='ready' && event.toolCall.report)?.toolCall;
+    assert.ok(ready);
+    assert.ok(isChatHistoryDocument({messages:[{id:'saved-report-card',role:'assistant',content:'',timestamp:new Date().toISOString(),toolCalls:[ready]}],draft:'未发送草稿',mode:null}),'The exact report reference survives private chat saving without filler prose');
     console.log(JSON.stringify({ok:true,actualAgentScope:true,originalRequestPreserved:true,savedCardIsFinalResult:true,modelRequests:requests,paidCalls:0}));
   } finally { await new Promise<void>(resolve=>gateway.close(()=>resolve())); }
 }
