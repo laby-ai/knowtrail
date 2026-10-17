@@ -10,12 +10,13 @@ from uuid import uuid4
 
 from agentscope.agent import Agent, ReActConfig
 from agentscope.credential import OpenAICredential
-from agentscope.message import AssistantMsg, Msg, TextBlock, ToolResultState, UserMsg
+from agentscope.message import AssistantMsg, Msg, TextBlock, ToolCallBlock, ToolResultBlock, ToolResultState, UserMsg
 from agentscope.model import OpenAIChatModel
 from agentscope.permission import PermissionBehavior, PermissionDecision
 from agentscope.skill import Skill
 from agentscope.state import AgentState
 from agentscope.tool import FunctionTool, Toolkit, ToolChunk
+from report_dispatch import dispatch_report
 
 
 def emit(event):
@@ -133,12 +134,20 @@ async def main():
     history = []
     for message in bootstrap["history"]:
         factory = UserMsg if message["role"] == "user" else AssistantMsg
-        history.append(factory(name=message["role"], content=message["content"]))
-    agent = Agent(name="KnowTrail", system_prompt=bootstrap["systemPrompt"], model=model,
-                  toolkit=Toolkit(tools=tools, skills_or_loaders=skills),
-                  state=AgentState(session_id=bootstrap["sessionId"], context=history),
-                  react_config=ReActConfig(max_iters=7))
+        content = [TextBlock(text=message["content"])] if message["content"] else []
+        for report in message.get("reports", []):
+            reference = report["reference"]
+            content.extend([ToolCallBlock(id=report["id"], name="generate_report", input=json.dumps({"question": reference["question"]}, ensure_ascii=False)),
+                            ToolResultBlock(id=report["id"], name="generate_report", state=ToolResultState.SUCCESS, output=json.dumps({"success": True, "report": reference}, ensure_ascii=False))])
+        history.append(factory(name=message["role"], content=content))
+    toolkit = Toolkit(tools=tools, skills_or_loaders=skills)
+    state = AgentState(session_id=bootstrap["sessionId"], context=history)
     emit({"type": "ready", "engine": "agentscope", "version": "2.0.10"})
+    if await dispatch_report(bootstrap, toolkit, state, emit):
+        return
+    agent = Agent(name="KnowTrail", system_prompt=bootstrap["systemPrompt"], model=model,
+                  toolkit=toolkit, state=state,
+                  react_config=ReActConfig(max_iters=7))
     # Tool-bearing intermediate text is not the final writing body.
     inline = bool(bootstrap.get("inlineSkill"))
     async for event in agent.reply_stream(UserMsg(name="user", content=bootstrap["message"]), yield_final_msg=True):

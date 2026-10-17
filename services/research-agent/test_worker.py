@@ -19,6 +19,10 @@ class Gateway(BaseHTTPRequestHandler):
         messages = body['messages']
         tool_messages = [m for m in messages if m['role'] == 'tool']
         tools = {t['function']['name']: t['function'] for t in body.get('tools', [])}
+        if 'select_report_action' in tools:
+            self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers()
+            result={'id':'report-admission','object':'chat.completion','created':1,'model':'fixture-aux','choices':[{'index':0,'message':{'role':'assistant','content':None,'tool_calls':[{'id':'report-action','type':'function','function':{'name':'select_report_action','arguments':json.dumps({'action':'generate' if any('生成报告' in str(m.get('content')) for m in messages if m['role']=='user') else 'other'})}}]},'finish_reason':'tool_calls'}]}
+            self.wfile.write(json.dumps(result).encode());return
         prepare = any('准备可编辑PPT' in str(m.get('content')) for m in messages if m['role'] == 'user')
         report = any('生成报告' in str(m.get('content')) for m in messages if m['role'] == 'user')
         viewer = next((t for n,t in tools.items() if 'skill' in n.lower()), None)
@@ -54,7 +58,7 @@ class Gateway(BaseHTTPRequestHandler):
 def run_worker(server, message, session):
     initial = {'message':message,'plugins':['paper-search','presentation'],'systemPrompt':'这是隔离软件验收，不是真实科研结果。使用工具后回答。',
                'sessionId':session,'history':[{'role':'user','content':'只属于'+session}],
-               'model':{'apiKey':'fixture-only','apiBase':f'http://127.0.0.1:{server.server_port}/v1','name':'fixture-max','maxTokens':128},
+               'model':{'apiKey':'fixture-only','apiBase':f'http://127.0.0.1:{server.server_port}/v1','name':'fixture-max','auxModel':'fixture-flash','maxTokens':128},
                'skills':[{'id':'paper-search','description':'搜索真实候选','instructions':'NATIVE_SKILL_MARKER: 读取此方法后使用 search_papers，结果必须真实。'}, {'id':'editable-ppt','description':'准备可编辑PPT','instructions':Path(__file__).with_name('skills').joinpath('editable-ppt/SKILL.md').read_text(encoding='utf8')}, {'id':'grounded-report','description':'生成本人报告','instructions':Path(__file__).with_name('skills').joinpath('grounded-report/SKILL.md').read_text(encoding='utf8')}]}
     proc=subprocess.Popen([sys.executable,'-u',str(Path(__file__).with_name('worker.py'))],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8')
     proc.stdin.write(json.dumps(initial,ensure_ascii=False)+'\n');proc.stdin.flush()
@@ -69,7 +73,7 @@ def run_worker(server, message, session):
         assert status==0,(status,events,proc.stderr.read()[-800:])
         assert any(e['type']=='ready' and e['engine']=='agentscope' for e in events)
         assert any(e['type']=='invoke' for e in events),events
-        assert any(e['type']=='text' and e['delta'] for e in events),events
+        assert message == '生成报告' or any(e['type']=='text' and e['delta'] for e in events),events
         assert any(e['type']=='end' and 'completed' in e['reason'].lower() for e in events),events
         return events
     finally:
@@ -89,8 +93,8 @@ if __name__=='__main__':
         assert any(e.get('name')=='search_papers' for e in a)
         assert any(e.get('name')=='open_plugin' for e in b)
         assert any(e.get('name')=='prepare_presentation' and len(e['arguments']['outline'])==3 for e in c)
-        assert any(e.get('name')=='generate_report' and '保留10条' in e['arguments']['question'] for e in d)
-        assert any(any(m['role']=='tool' and '调用 generate_report(question)' in str(m['content']) for m in request['messages']) for request in requests)
+        assert any(e.get('name')=='generate_report' and e['arguments']['question']=='生成报告' for e in d)
+        assert any(any(m['role']=='system' and '调用 generate_report(question)' in str(m['content']) for m in request['messages']) and request.get('tool_choice',{}).get('function',{}).get('name')=='select_report_action' for request in requests)
         assert any(any(m['role']=='tool' and 'prepare_presentation(outline)' in str(m['content']) for m in request['messages']) for request in requests)
         assert any(any(m['role']=='tool' and 'NATIVE_SKILL_MARKER' in str(m['content']) for m in request['messages']) for request in requests),('Native Skill instructions were not consumed', [(t['function']['name'],t['function']['parameters']) for t in requests[0]['tools']], [m for r in requests for m in r['messages'] if m['role']=='tool'])
         print(json.dumps({'ok':True,'sdk':'agentscope==2.0.10','realSdk':True,'nativeSkillRead':True,'hostSearchCalls':1,'pluginWindowCalls':1,'presentationOutlineCalls':1,'reportGenerationCalls':1,'sessionHistorySeparated':True,'modelRequests':len(requests),'paidCalls':0}))
