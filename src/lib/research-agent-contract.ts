@@ -7,6 +7,8 @@ import { isGeneratedKnowledgeMap } from './research-agent-map';
 import type { KnowledgeMapDocument } from './knowledge-map-document';
 import { isDataPlanInput, isGeneratedDataPlan, type DataPlanInput } from './research-agent-data';
 import type { DataProcessingDocument } from './data-processing-document';
+import { isLearningInput, isGeneratedLearning, type LearningInput } from './research-agent-learning';
+import type { LearningMaterials } from './learning-materials';
 
 export const RESEARCH_PLUGINS = {
   'paper-search': '论文检索', 'deep-research': '深度研究',
@@ -28,6 +30,27 @@ export interface ResearchDesignReference extends ResearchReportReference {
 }
 export interface ResearchKnowledgeMapReference extends ResearchReportReference { deepExtract: boolean }
 export interface ResearchDataPlanReference extends ResearchReportReference, DataPlanInput {}
+export interface ResearchLearningReference extends ResearchReportReference, LearningInput {}
+export function isResearchLearningReference(value: unknown): value is ResearchLearningReference {
+  return isResearchReportReference(value) && isLearningInput({ kind: (value as ResearchLearningReference).kind, question: value.question });
+}
+export interface PendingLearning extends Omit<ResearchLearningReference, 'revision' | 'status'> { data: LearningMaterials; expectedRevision: string | null }
+export function isPendingLearning(value: unknown): value is PendingLearning {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as PendingLearning;
+  return isResearchLearningReference({ ...v, revision: v.expectedRevision || '0'.repeat(64), status: 'incomplete' })
+    && (v.expectedRevision === null || /^[a-f0-9]{64}$/.test(v.expectedRevision))
+    && isGeneratedLearning(v.data, v.runId, v) && JSON.stringify(v.data).length <= 500_000;
+}
+export type LearningProgress = Pick<LearningMaterials, 'cardIndex' | 'quizIndex' | 'answers'>;
+function isLearningProgress(value: unknown): value is LearningProgress {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as LearningProgress;
+  return Number.isInteger(v.cardIndex) && v.cardIndex >= 0 && v.cardIndex < 50
+    && Number.isInteger(v.quizIndex) && v.quizIndex >= 0 && v.quizIndex < 5
+    && Boolean(v.answers && typeof v.answers === 'object' && !Array.isArray(v.answers)) && Object.keys(v.answers).length <= 5
+    && Object.values(v.answers).every(n => Number.isInteger(n) && n >= 0 && n <= 3);
+}
 export function isResearchDataPlanReference(value: unknown): value is ResearchDataPlanReference {
   if (!isResearchReportReference(value)) return false;
   const v = value as ResearchDataPlanReference;
@@ -117,6 +140,9 @@ export interface ResearchToolCall {
   pendingKnowledgeMap?: PendingKnowledgeMap;
   dataPlan?: ResearchDataPlanReference;
   pendingDataPlan?: PendingDataPlan;
+  learning?: ResearchLearningReference;
+  pendingLearning?: PendingLearning;
+  learningProgress?: LearningProgress;
 }
 export function isResearchPlugin(value: unknown): value is ResearchPluginId {
   return typeof value === 'string' && Object.hasOwn(RESEARCH_PLUGINS, value);
@@ -136,5 +162,8 @@ export function isResearchToolCall(value: unknown): value is ResearchToolCall {
     && (call.knowledgeMap === undefined || call.plugin === 'knowledge-map' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && isResearchKnowledgeMapReference(call.knowledgeMap))
     && (call.pendingKnowledgeMap === undefined || call.status === 'failed' && call.plugin === 'knowledge-map' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && isPendingKnowledgeMap(call.pendingKnowledgeMap))
     && (call.dataPlan === undefined || call.status === 'ready' && call.plugin === 'data-processing' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.pendingDataPlan && isResearchDataPlanReference(call.dataPlan))
-    && (call.pendingDataPlan === undefined || call.status === 'failed' && call.plugin === 'data-processing' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && isPendingDataPlan(call.pendingDataPlan));
+    && (call.pendingDataPlan === undefined || call.status === 'failed' && call.plugin === 'data-processing' && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && isPendingDataPlan(call.pendingDataPlan))
+    && (call.learning === undefined || call.status === 'ready' && call.plugin === call.learning.kind && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && !call.pendingDataPlan && !call.pendingLearning && isResearchLearningReference(call.learning))
+    && (call.pendingLearning === undefined || call.status === 'failed' && call.plugin === call.pendingLearning.kind && !call.results && !call.presentation && !call.report && !call.design && !call.pendingDesign && !call.knowledgeMap && !call.pendingKnowledgeMap && !call.dataPlan && !call.pendingDataPlan && !call.learning && isPendingLearning(call.pendingLearning))
+    && (call.learningProgress === undefined || Boolean(call.learning && isLearningProgress(call.learningProgress)));
 }

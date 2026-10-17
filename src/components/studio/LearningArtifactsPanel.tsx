@@ -18,6 +18,7 @@ import { useLearningMaterials } from '@/hooks/use-learning-materials';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { ClientRequestError, clientApiRequest } from '@/lib/client-api';
 import { learningCardExtra, type LearningMaterials } from '@/lib/learning-materials';
+import { buildQuiz } from '@/lib/learning-quiz';
 import type { NotebookDocument } from '@/lib/private-notebook-document';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { KnowledgeCardData } from '@/lib/knowledge-card-types';
@@ -36,14 +37,6 @@ interface KnowledgeCardsPayload {
   document?: NotebookDocument<LearningMaterials>;
 }
 
-interface QuizQuestion {
-  id: string;
-  prompt: string;
-  options: string[];
-  correctIndex: number;
-  explanation: string;
-}
-
 function toPaperRequest(paper: Paper) {
   return {
     id: paper.id,
@@ -57,33 +50,6 @@ function toPaperRequest(paper: Paper) {
     content: (paper.rawContent || paper.content).slice(0, 8000),
     rawContent: paper.rawContent,
   };
-}
-
-function conciseOption(value: string) {
-  const text = value.replace(/\s+/g, ' ').trim();
-  const sentence = text.split(/[。！？.!?]/)[0] || text;
-  return sentence.length > 72 ? `${sentence.slice(0, 69)}…` : sentence;
-}
-
-function buildQuiz(cards: KnowledgeCardData[]): QuizQuestion[] {
-  return cards.slice(0, 5).map((card, index) => {
-    const correct = conciseOption(card.content);
-    const distractors = cards
-      .filter((_, cardIndex) => cardIndex !== index)
-      .map(item => conciseOption(item.content))
-      .filter((option, optionIndex, all) => option && option !== correct && all.indexOf(option) === optionIndex)
-      .slice(0, 3);
-    const baseOptions = [correct, ...distractors];
-    const shift = baseOptions.length ? index % baseOptions.length : 0;
-    const options = [...baseOptions.slice(shift), ...baseOptions.slice(0, shift)];
-    return {
-      id: `${index}-${card.title}`,
-      prompt: /[？?]$/.test(card.title) ? card.title : `关于“${card.title}”，哪项描述正确？`,
-      options,
-      correctIndex: options.indexOf(correct),
-      explanation: learningCardExtra(card.extra) || card.content,
-    };
-  });
 }
 
 export function LearningArtifactsPanel({ mode }: { mode: LearningArtifactsMode }) {
