@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readGeneratedReport } from '../src/lib/research-agent-report';
+import { researchReportLengthWarning } from '../src/lib/research-report-document';
 
 async function main() {
   const runId = '00000000-0000-4000-a000-000000000001';
@@ -7,6 +8,12 @@ async function main() {
     runId, question: '核对模拟记录', answer: '12条剔除2条保留10条，仅用于软件验收[1]。', citations: [{ paperId: 'source-1', paperShortName: '模拟记录', excerpt: '保留10条' }], retrieval: null, citationAudit: null, researchStatus: null, status: 'complete',
   } } };
   const signal = new AbortController().signal;
+  const legacy = { ...document.data.report, question: '总计250字以内', answer: '字'.repeat(251) };
+  const before = JSON.stringify(legacy);
+  assert.match(researchReportLengthWarning(legacy) || '', /251字，超过要求的250字/);
+  assert.equal(JSON.stringify(legacy), before, 'Read-time quality warnings must not rewrite an immutable report or its old completion flag');
+  assert.equal(researchReportLengthWarning({ ...legacy, answer: '字'.repeat(250) }), undefined);
+  assert.equal(researchReportLengthWarning({ ...legacy, question: '核对模拟记录' }), undefined);
   const frame = (data: unknown) => `data: ${JSON.stringify(data)}\r\n\r\n`;
   const text = frame({ content: '尚未保存的正文' }) + frame({ document }) + 'data: [DONE]\r\n\r\n';
   const bytes = new TextEncoder().encode(text);

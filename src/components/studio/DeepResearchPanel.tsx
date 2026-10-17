@@ -10,7 +10,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useApp } from '@/contexts/AppContext';
 import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
-import { emptyResearchReport, isResearchReportDocument, preferSavedResearchReport, researchReportDocument, type ResearchReportDocument, type ResearchStatusPayload } from '@/lib/research-report-document';
+import { emptyResearchReport, isResearchReportDocument, preferSavedResearchReport, researchReportDocument, researchReportLengthWarning, type ResearchReportDocument, type ResearchStatusPayload } from '@/lib/research-report-document';
 import type { NotebookDocument } from '@/lib/private-notebook-document';
 import { studioSessionStorageKey } from '@/lib/studio-session-storage';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
@@ -73,6 +73,7 @@ export function DeepResearchPanel({ renderComposer }: { renderComposer?: Researc
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('填写研究问题后开始。');
   const [error, setError] = useState<string | null>(null);
+  const lengthWarning = status === 'running' ? undefined : researchReportLengthWarning(savedReport.data.report);
 
   useEffect(() => {
     if (status === 'running' || savedReport.loading) return;
@@ -322,17 +323,17 @@ export function DeepResearchPanel({ renderComposer }: { renderComposer?: Researc
 
       {answer && (
         <div className="space-y-3" data-testid="deep-research-result">
-          <div className={status === 'complete'
+          <div className={status === 'complete' && !lengthWarning
             ? 'flex items-start gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2'
             : 'flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2'}
           >
-            {status === 'complete'
+            {status === 'complete' && !lengthWarning
               ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
               : <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />}
             <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-              {status === 'complete'
+              {status === 'complete' && !lengthWarning
                 ? `报告结构与引用编号检查通过；关键结论仍建议定位来源核验原文。${researchStatus?.removedUncitedClaims ? ` 已移除 ${researchStatus.removedUncitedClaims} 条无引用陈述。` : ''}`
-                : researchStatus?.outputConstraint?.warning || '当前为未完成研究草稿，不能直接作为已核验报告。请补齐缺失章节或引用后再使用。'}
+                : researchStatus?.outputConstraint?.warning || lengthWarning || '当前为未完成研究草稿，不能直接作为已核验报告。请补齐缺失章节或引用后再使用。'}
             </p>
           </div>
 
