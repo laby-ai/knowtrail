@@ -377,6 +377,12 @@ function sourceSortTime(paper: Paper): number {
   return Number.isFinite(time) ? time : 0;
 }
 
+async function fetchIngestionSourceDetail(id: string, notebookId: string | undefined, headers: Record<string, string>) {
+  const params = new URLSearchParams({ id });
+  if (notebookId) params.set('notebookId', notebookId);
+  return fetch(clientApiPath(`/api/ingestion/sources?${params.toString()}`), { cache: 'no-store', headers });
+}
+
 export function LibraryPanel({
   compact = false,
   accountSession,
@@ -503,12 +509,7 @@ export function LibraryPanel({
     const loadCitationContext = async () => {
       try {
         setCitationContext({ token, paperId, status: 'loading' });
-        const detailParams = new URLSearchParams({ id: paperId });
-        if (notebookId) detailParams.set('notebookId', notebookId);
-        const response = await fetch(clientApiPath(`/api/ingestion/sources?${detailParams.toString()}`), {
-          cache: 'no-store',
-          headers: accountHeaders,
-        });
+        const response = await fetchIngestionSourceDetail(paperId, notebookId, accountHeaders);
         if (!response.ok) {
           if (!cancelled) setCitationContext({ token, paperId, status: 'missing' });
           return;
@@ -560,12 +561,7 @@ export function LibraryPanel({
 
       for (const source of missingSources) {
         if (!importFolderId) continue;
-        const detailParams = new URLSearchParams({ id: source.id });
-        if (notebookId) detailParams.set('notebookId', notebookId);
-        const detailResponse = await fetch(clientApiPath(`/api/ingestion/sources?${detailParams.toString()}`), {
-          cache: 'no-store',
-          headers: accountHeaders,
-        });
+        const detailResponse = await fetchIngestionSourceDetail(source.id, notebookId, accountHeaders);
         if (!detailResponse.ok) { detailReadFailed = true; continue; }
         const detailData = await detailResponse.json() as { source?: IngestionSourceDetail };
         const detail = detailData.source;
@@ -575,7 +571,7 @@ export function LibraryPanel({
           .filter(Boolean)
           .join('\n\n')
           .slice(0, 50000);
-        addPaper(importFolderId, {
+        const paper: Paper = {
           id: detail.id,
           title: detail.title || detail.fileName,
           authors: detail.authors || [],
@@ -600,23 +596,9 @@ export function LibraryPanel({
           ingestionChunkCount: detail.chunkCount,
           vectorIndex: detail.vectorIndex,
           mineruFigures: [],
-        });
-        knownPapers.set(detail.id, {
-          id: detail.id,
-          title: detail.title || detail.fileName,
-          authors: detail.authors || [],
-          year: detail.year,
-          keywords: detail.keywords || [],
-          abstract: rawContent.slice(0, 240),
-          content: rawContent,
-          rawContent,
-          shortName: detail.shortName || detail.fileName,
-          fileName: detail.fileName,
-          fileType: detail.fileType,
-          fileSize: detail.fileSize || 0,
-          uploadTime: detail.createdAt || detail.updatedAt || new Date().toISOString(),
-          mineruFigures: [],
-        });
+        };
+        addPaper(importFolderId, paper);
+        knownPapers.set(detail.id, paper);
       }
 
       for (const source of data.sources || []) {
@@ -680,12 +662,7 @@ export function LibraryPanel({
     }
 
     try {
-      const detailParams = new URLSearchParams({ id: paper.id });
-      if (notebookId) detailParams.set('notebookId', notebookId);
-      const response = await fetch(clientApiPath(`/api/ingestion/sources?${detailParams.toString()}`), {
-        cache: 'no-store',
-        headers: accountHeaders,
-      });
+      const response = await fetchIngestionSourceDetail(paper.id, notebookId, accountHeaders);
       if (!response.ok) {
         setSourcePreview(localPreview
           ? { paper, status: 'ready', source: localPreview }
