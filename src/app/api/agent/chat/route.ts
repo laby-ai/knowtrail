@@ -25,7 +25,7 @@ import { POST as generateDataPlan } from '@/app/api/data-processing/plan/route';
 import { readGeneratedDataPlan } from '@/lib/research-agent-data';
 import { isDataProcessingDocument } from '@/lib/data-processing-document';
 import { buildDataTablePreviewFromText, type DataTablePreview } from '@/lib/data-table-preview';
-import { getIngestionSource } from '@/lib/ingestion-store';
+import { getIngestionSource, listIngestionSources } from '@/lib/ingestion-store';
 import { POST as generateLearningMaterials } from '@/app/api/ai/knowledge-cards/route';
 import { isLearningMaterials } from '@/lib/learning-materials';
 import { readGeneratedLearning } from '@/lib/research-agent-learning';
@@ -58,7 +58,22 @@ export async function POST(request: NextRequest) {
   const releaseTurn = () => { if (activeTurns.get(turnKey) === turn) activeTurns.delete(turnKey); };
   let reservation: Awaited<ReturnType<typeof reserveAIUsage>> = null;
   try {
-    const selected = Array.isArray(papers) ? papers : [];
+    const requested = Array.isArray(papers) ? papers : [];
+    if (requested.some(paper => !paper || typeof paper.id !== 'string' || !paper.id.trim())) {
+      releaseTurn();
+      return Response.json({ error: '所选资料编号不完整，请重新选择。' }, { status: 400, headers: privateHeaders });
+    }
+    const selected = [...new Set(requested.map(paper => paper.id!))].map(id => ({ id }));
+    if (skill === 'literature-review' && (!selected.length || selected.length > 20)) {
+      throw new LiteratureReviewEvidenceError(400, '文献综述需要选择1至20份本人资料。');
+    }
+    if (selected.length) {
+      const owned = new Set((await listIngestionSources({ ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId })).map(source => source.id));
+      if (selected.some(paper => !owned.has(paper.id))) {
+        releaseTurn();
+        return Response.json({ error: '所选资料不属于当前文献本或已不可读，请重新选择。' }, { status: 404, headers: privateHeaders });
+      }
+    }
     let grounded: GroundedRetrievalContext = skill === 'literature-review'
       ? await buildLiteratureReviewEvidence(message, selected, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId })
       : selected.length

@@ -60,9 +60,10 @@ async function main() {
       return Response.json({ data: { authenticated: true, provider: 'knowtrail', workspaceKey: 'paper-user-' + 'a'.repeat(32), capabilities: ['verified-sms-session'] } });
     };
     const { POST } = await import('../src/app/api/agent/chat/route');
-    const send = async (message: string, ids: string[] = [sources[0].id]) => {
+    const send = async (message: string, ids: string[] = [sources[0].id], expectedStatus = 200): Promise<Event[]> => {
       const response = await POST(new NextRequest('https://ordinary-fixture.invalid/api/agent/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: 'userId=fixture; token=fixture-valid-a' }, body: JSON.stringify({ message, notebookId: book, papers: ids.map(id => ({ id, rawContent: 'CLIENT_FORGED_999' })) }) }));
-      assert.equal(response.status, 200);
+      assert.equal(response.status, expectedStatus);
+      if (response.status !== 200) return [{ error: (await response.json()).error as string, httpStatus: response.status }];
       return (await response.text()).split('\n').filter(line => line.startsWith('data: ') && line !== 'data: [DONE]').map(line => JSON.parse(line.slice(6)) as Event);
     };
     const events = await send('ordinary-writing：基于所选原文写讨论，保留全部数字、单位及限制。');
@@ -90,9 +91,13 @@ async function main() {
     assert.ok(over.some(event => typeof event.error === 'string' && event.error.includes('未截断片段')));
     assert.equal(requests.length - before, 2, 'No final model call after evidence budget failure');
     sources[0].ownerMemberId = 'paper-host:paper-user-' + 'b'.repeat(32); await store();
-    const denied = await send('ordinary-writing：基于所选原文写讨论。');
+    const beforeDenied = requests.length;
+    const denied = await send('ordinary-writing：基于所选原文写讨论。', [sources[0].id], 404);
     assert.ok(denied.some(event => typeof event.error === 'string' && /不属于|没有可用/.test(event.error)));
     assert.ok(!finalBody(denied).includes('WRITING_TAIL'));
+    assert.equal(requests.length, beforeDenied, 'Foreign selected IDs must fail before inference or request-body fallback');
+    const unknown = await send('ordinary-writing：不能用请求里的伪造正文冒充本人原文。', ['unknown-source'], 404);
+    assert.equal(unknown[0].httpStatus, 404); assert.equal(requests.length, beforeDenied);
     console.log(JSON.stringify({ ok: true, actualSdk: 'agentscope==2.0.10', automaticNativeSkillRead: true, scopedReadTool: true, sameChunkTailReachedModel: true, intermediateTextNotInFinal: true, ordinaryStreamingRetained: true, reviewSources: 3, numericOmissionWarned: true, budgetAndOwnerFailClosed: true, paidCalls: 0, modelRequests: requests.length }));
   } finally {
     globalThis.fetch = originalFetch;
