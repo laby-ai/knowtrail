@@ -44,6 +44,7 @@ jobs:
           python -m pip install -q -r services/research-agent/requirements.txt
           python services/research-agent/test_worker.py
           python services/research-agent/test_design_worker.py
+          python services/research-agent/test_map_worker.py
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -53,6 +54,7 @@ jobs:
           pnpm exec tsx scripts/test-research-agent-contract.ts
           pnpm exec tsx scripts/test-research-agent-report.ts
           pnpm exec tsx scripts/test-research-agent-design.ts
+          pnpm exec tsx scripts/test-research-agent-map.ts
 
       - name: Paper search contracts
         run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects

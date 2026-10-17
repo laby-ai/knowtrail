@@ -8,12 +8,15 @@ const headers = { 'Cache-Control': 'private, no-store' };
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as KnowledgeMapRequestInput & { persistArtifact?: boolean; expectedRevision?: string | null };
+    const body = await request.json() as KnowledgeMapRequestInput & { persistArtifact?: boolean; expectedRevision?: string | null; runId?: string };
     const scope = await resolveAccountNotebookScope(request, {
       notebookId: body.notebookId,
       loginMessage: '请先登录账号，再生成研究脉络。',
     });
     if (!scope.ok) return scope.response;
+    if (body.runId !== undefined && (!/^[a-f0-9-]{36}$/i.test(body.runId) || typeof body.question !== 'string' || !body.question.trim() || body.question.length > 1200 || typeof body.deepExtract !== 'boolean')) {
+      return NextResponse.json({ error: '本轮研究问题或生成信息不完整。' }, { status: 400, headers });
+    }
     const verified = scope.ownerMemberId && scope.notebookId ? { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId } : null;
     if (body.persistArtifact) {
       if (!verified) return NextResponse.json({ error: '请先登录并打开文献本。' }, { status: 401, headers });
@@ -26,12 +29,14 @@ export async function POST(request: NextRequest) {
       ...body,
       ownerMemberId: scope.ownerMemberId,
       notebookId: scope.notebookId,
+      signal: request.signal,
     });
     if ('error' in result) {
       return NextResponse.json({ error: result.error, errorType: result.errorType }, { status: result.status, headers });
     }
     if (body.persistArtifact && verified && 'map' in result.body) {
-      const data: KnowledgeMapDocument = { session: { ...result.body, cache: 'cache' in result.body ? result.body.cache : null, sourceCount: body.papers.length } };
+      request.signal.throwIfAborted();
+      const data: KnowledgeMapDocument = { session: { ...result.body, cache: 'cache' in result.body ? result.body.cache : null, sourceCount: body.papers.length }, ...(body.runId ? { generation: { runId: body.runId, question: body.question!, deepExtract: body.deepExtract === true } } : {}) };
       try {
         if (!isKnowledgeMapDocument(data)) throw new Error('研究脉络格式不完整。');
         const document = await saveNotebookDocument(verified, 'knowledge-map', data, body.expectedRevision!);

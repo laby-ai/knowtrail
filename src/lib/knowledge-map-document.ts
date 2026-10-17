@@ -4,11 +4,18 @@ export interface KnowledgeMapSession extends KnowledgeMapResponse {
   sourceCount: number;
   cache: { hit: boolean; storedAt?: string } | null;
 }
-export interface KnowledgeMapDocument { session: KnowledgeMapSession | null }
+export interface KnowledgeMapDocument {
+  session: KnowledgeMapSession | null;
+  generation?: { runId: string; question: string; deepExtract: boolean };
+}
 export const emptyKnowledgeMap = (): KnowledgeMapDocument => ({ session: null });
 
 export function isKnowledgeMapDocument(value: unknown): value is KnowledgeMapDocument {
   if (!value || typeof value !== 'object' || !('session' in value)) return false;
+  if ('generation' in value && value.generation !== undefined) {
+    const g = value.generation as KnowledgeMapDocument['generation'];
+    if (!g || !/^[a-f0-9-]{36}$/i.test(g.runId) || typeof g.question !== 'string' || !g.question.trim() || g.question.length > 1200 || typeof g.deepExtract !== 'boolean') return false;
+  }
   const session = value.session;
   if (session === null) return true;
   if (!session || typeof session !== 'object') return false;

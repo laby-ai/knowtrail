@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
+async function main() {
+  const fixture = await mkdtemp(path.join(tmpdir(), 'agent-map-'));
+  Object.assign(process.env, { STUDIO_DOCUMENT_STORE_DIR: path.join(fixture, 'documents'), SOURCE_STORE_PATH: path.join(fixture, 'sources.json'), SOURCE_STORE_ADAPTER: 'local-json', ZVEC_STORE_PATH: path.join(fixture, 'zvec'), PAPER_HOST_SESSION_VERIFY_URL: 'https://sms-fixture.invalid/session?provider=knowtrail' });
+  for (const key of ['OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY']) process.env[key] = '';
+  const app = createRequire(`${process.cwd()}/package.json`);
+  const { NextRequest } = app('next/server');
+  const { POST } = app('./src/app/api/ai/knowledge-map/route.ts');
+  const { ingestExtractedSource } = app('./src/lib/ingestion-store.ts');
+  const { knowledgeMapCacheKey } = app('./src/lib/knowledge-map-cache.ts');
+  const { readGeneratedKnowledgeMap, KnowledgeMapSaveError, isKnowledgeMapInput } = app('./src/lib/research-agent-map.ts');
+  const { isResearchToolCall } = app('./src/lib/research-agent-contract.ts');
+  globalThis.fetch = async (input, init) => {
+    assert.ok(String(input).includes('sms-fixture.invalid'), 'No paid model or external requests');
+    const cookie = new Headers(init?.headers).get('cookie') || '';
+    return cookie.includes('fixture-valid-a') ? Response.json({ data: { authenticated: true, provider: 'knowtrail', workspaceKey: `paper-user-${'a'.repeat(32)}`, capabilities: ['verified-sms-session'] } }) : Response.json({}, { status: 401 });
+  };
+  const notebookId = 'agent-map-fixture';
+  const paper = { id: 'map-source', title: '模拟记录核验', fileName: '记录.txt', fileType: 'txt', rawContent: '软件验收模拟记录：导入12条记录、检查时间戳、剔除2条缺失、人工核对保留10条。仅用于软件核验，未提供测量单位、统计显著性和科研性能结果。' };
+  await ingestExtractedSource({ ...paper, content: paper.rawContent, ownerMemberId: `paper-host:paper-user-${'a'.repeat(32)}`, notebookId });
+  const input = { question: '核对12、2、10和四步顺序，不作科研外推。', deepExtract: false };
+  assert(isKnowledgeMapInput(input));
+  assert(!isKnowledgeMapInput({ ...input, ownerMemberId: 'forged' }));
+  assert(!isKnowledgeMapInput({ ...input, deepExtract: 'false' }));
+  const scope = { ownerMemberId: 'a', notebookId, question: input.question, deepExtract: false };
+  const keys = [knowledgeMapCacheKey([paper], {}, scope), knowledgeMapCacheKey([paper], {}, { ...scope, question: '另一个问题' }), knowledgeMapCacheKey([paper], {}, { ...scope, deepExtract: true }), knowledgeMapCacheKey([paper], {}, { ...scope, ownerMemberId: 'b' })];
+  assert.equal(new Set(keys).size, keys.length, 'Mode, focus and owner cannot reuse another cache entry');
+  const runId = '00000000-0000-4000-a000-000000000001';
+  const response = await POST(new NextRequest('https://fixture.invalid/knowtrail/api/ai/knowledge-map', { method: 'POST', headers: { cookie: 'userId=fixture; token=fixture-valid-a', 'Content-Type': 'application/json' }, body: JSON.stringify({ ...input, runId, notebookId, papers: [{ id: paper.id }], persistArtifact: true, expectedRevision: null }) }));
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  const signal = new AbortController().signal;
+  const saved = await readGeneratedKnowledgeMap(Response.json(payload), runId, input, null, signal);
+  assert(saved.data.session.map.nodes.length > 0);
+  assert.equal(saved.data.session.citations[0].paperId, paper.id);
+  await assert.rejects(readGeneratedKnowledgeMap(Response.json(payload), runId.replace(/1$/, '2'), input, null, signal));
+  await assert.rejects(readGeneratedKnowledgeMap(Response.json(payload), runId, { ...input, deepExtract: true }, null, signal));
+  await assert.rejects(readGeneratedKnowledgeMap(Response.json(payload), runId, { ...input, question: '另一问题' }, null, signal));
+  await assert.rejects(readGeneratedKnowledgeMap(Response.json({ document: { ...saved, data: { ...saved.data, session: { ...saved.data.session, citationAudit: undefined } } } }), runId, input, null, signal));
+  await readGeneratedKnowledgeMap(Response.json({ error: '保存失败', unsavedDocument: saved.data }, { status: 503 }), runId, input, null, signal).then(() => assert.fail('Unsaved map cannot be durable'), (error: unknown) => { assert(error instanceof KnowledgeMapSaveError); });
+  const reference = { ...input, sourceIds: [paper.id], runId, revision: saved.revision, status: 'complete' };
+  const call = { id: 'map-1', plugin: 'knowledge-map', query: input.question, status: 'ready', knowledgeMap: reference };
+  assert(isResearchToolCall(call));
+  assert(!isResearchToolCall({ ...call, plugin: 'report' }));
+  assert(!isResearchToolCall({ ...call, knowledgeMap: { ...reference, revision: 'bad' } }));
+  const pending = { ...call, status: 'failed', knowledgeMap: undefined, pendingKnowledgeMap: { ...reference, revision: undefined, status: undefined, data: saved.data, expectedRevision: null } };
+  assert(isResearchToolCall(pending));
+  assert(!isResearchToolCall({ ...pending, status: 'ready' }));
+  const abort = new AbortController(); abort.abort();
+  await assert.rejects(readGeneratedKnowledgeMap(Response.json(payload), runId, input, null, abort.signal), { name: 'AbortError' });
+  console.log(JSON.stringify({ ok: true, actualGeneratorAndDurableAck: true, modeFocusOwnerCacheIsolation: true, failedSaveRecoverable: true, privateReferences: true, paidCalls: 0 }));
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });

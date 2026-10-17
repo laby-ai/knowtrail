@@ -64,7 +64,14 @@ async def main():
             arguments["experiment"] = experiment
         return await invoke("generate_research_design", arguments)
 
+    async def generate_knowledge_map(question: str, deepExtract: bool):
+        """Generate and privately save a source-grounded map. Deep extraction only on explicit user request."""
+        return await invoke("generate_knowledge_map", {"question": question, "deepExtract": deepExtract})
+
     tools = [
+        FunctionTool(generate_knowledge_map, is_read_only=False, is_concurrency_safe=False,
+                     permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies selected evidence, ownership, one attempt and versioned saving."),
+                     input_schema={"type":"object","properties":{"question":{"type":"string","minLength":1,"maxLength":1200},"deepExtract":{"type":"boolean"}},"required":["question","deepExtract"],"additionalProperties":False}),
         FunctionTool(search_papers, is_read_only=True, is_concurrency_safe=False),
         FunctionTool(open_plugin, is_read_only=True, is_concurrency_safe=False,
                      input_schema={"type":"object","properties":{"plugin":{"type":"string","enum":bootstrap["plugins"]},"request":{"type":"string","maxLength":4000}},"required":["plugin","request"]}),
