@@ -27,7 +27,6 @@ import {
 } from './StudioToolSwitcher';
 
 export const ACTIVE_TOOL_STORAGE_KEY = 'knowtrail:studio-active-tool';
-
 export function StudioPanel({
   compact = false,
   activeTab,
@@ -91,7 +90,6 @@ export function StudioPanel({
     </div>
   );
 }
-
 export function StudioWorkspacePanel({
   compact = false,
   inDialog = false,
