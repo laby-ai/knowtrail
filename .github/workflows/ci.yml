@@ -73,7 +73,10 @@ jobs:
         run: pnpm exec tsx scripts/test-source-text-fidelity.ts
 
       - name: PDF text fidelity with supplemental vision
-        run: pnpm exec tsx scripts/test-pdf-source-fidelity.ts
+        run: |
+          pnpm exec tsx scripts/test-pdf-source-fidelity.ts
+          pnpm exec tsx scripts/test-rag.ts
+          pnpm exec tsx scripts/test-grounded-retrieval.ts
 
       - name: Notebook home usability contract
         run: pnpm run test:notebook-home-usability

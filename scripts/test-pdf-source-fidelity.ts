@@ -45,7 +45,7 @@ async function main() {
       const stored = JSON.parse(await readFile(path.join(directory, 'sources.json'), 'utf8')) as { sources: { id: string; rawContent: string; chunks: { text: string }[] }[] };
       const source = stored.sources.find(row => row.id === paper.id)!;
       assert.equal(source.rawContent, paper.rawContent);
-      const context = await buildGroundedRetrievalContext('PDFTAIL_832', [{ id: paper.id }], undefined, { ownerMemberId: 'paper-host:paper-user-' + 'a'.repeat(32), notebookId: book });
+      const context = await buildGroundedRetrievalContext('生成报告：仅核对PDF末尾PDFTAIL_832的保留数和样本单位，注明软件验收、不作科研外推。', [{ id: paper.id }], undefined, { ownerMemberId: 'paper-host:paper-user-' + 'a'.repeat(32), notebookId: book });
       const row = { visionSucceeded: success, rawChars: source.rawContent.length, tailInRaw: source.rawContent.includes('retained=47; sample_unit=mock_rows'), tailInChunks: source.chunks.some(chunk => chunk.text.includes('retained=47; sample_unit=mock_rows')), tailInRetrieval: context.promptContext.includes('retained=47; sample_unit=mock_rows') };
       checks.push(row);
       if (expectTruncated && success) assert.equal(row.tailInRaw, false);
