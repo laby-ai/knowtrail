@@ -57,6 +57,13 @@ async def main():
         """Generate and privately save a report from this turn's selected evidence. Only on explicit user request."""
         return await invoke("generate_report", {"question": question})
 
+    async def generate_research_design(kind: str, question: str, experiment: dict | None = None):
+        """Generate and privately save hypotheses or a pre-collection protocol, using explicit user design choices."""
+        arguments = {"kind": kind, "question": question}
+        if experiment is not None:
+            arguments["experiment"] = experiment
+        return await invoke("generate_research_design", arguments)
+
     tools = [
         FunctionTool(search_papers, is_read_only=True, is_concurrency_safe=False),
         FunctionTool(open_plugin, is_read_only=True, is_concurrency_safe=False,
@@ -66,6 +73,9 @@ async def main():
         FunctionTool(generate_report, is_read_only=False, is_concurrency_safe=False,
                      permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies ownership, one attempt and versioned saving for this report tool."),
                      input_schema={"type":"object","properties":{"question":{"type":"string","minLength":1,"maxLength":1200}},"required":["question"],"additionalProperties":False}),
+        FunctionTool(generate_research_design, is_read_only=False, is_concurrency_safe=False,
+                     permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies ownership, explicit inputs, one attempt and durable versioned saving."),
+                     input_schema={"type":"object","properties":{"kind":{"type":"string","enum":["hypothesis-generation","experiment-design"]},"question":{"type":"string","minLength":1,"maxLength":1200},"experiment":{"type":"object","properties":{"hypothesis":{"type":"string","minLength":1,"maxLength":1200},"experimentalUnit":{"type":"string","minLength":1,"maxLength":1200},"arms":{"type":"array","minItems":2,"maxItems":8,"items":{"type":"string","minLength":1,"maxLength":1200}},"primaryOutcome":{"type":"string","minLength":1,"maxLength":1200},"constraints":{"type":"string","maxLength":1200},"alpha":{"type":"number","exclusiveMinimum":0,"exclusiveMaximum":1},"targetPower":{"type":"number","exclusiveMinimum":0,"exclusiveMaximum":1}},"required":["hypothesis","experimentalUnit","arms","primaryOutcome","constraints","alpha","targetPower"],"additionalProperties":False}},"required":["kind","question"],"additionalProperties":False}),
     ]
     skills = [Skill(name=s["id"], description=s["description"], dir="/research-skills/"+s["id"],
                     markdown=s["instructions"], updated_at=0) for s in bootstrap["skills"]]

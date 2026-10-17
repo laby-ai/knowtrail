@@ -13,6 +13,9 @@ import type { RagSourceInput } from '@/lib/rag';
 import { isResearchChatSkillId } from '@/lib/research-chat-skills';
 import { POST as generateDeepResearch } from '@/app/api/ai/deep-research/route';
 import { isResearchReportDocument } from '@/lib/research-report-document';
+import { POST as generateHypothesis } from '@/app/api/ai/hypothesis-generation/route';
+import { POST as generateExperiment } from '@/app/api/ai/experiment-design/route';
+import { readGeneratedDesign, isResearchDesignDocument, ResearchDesignSaveError } from '@/lib/research-agent-design';
 import { readGeneratedReport } from '@/lib/research-agent-report';
 
 export const runtime = 'nodejs';
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest) {
     if (saved && isChatHistoryDocument(saved.data)) {
       for (const msg of saved.data.messages.slice(-20)) {
         if (msg.role === 'system' || msg.generation?.status === 'pending') continue;
-        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, presentation: call.presentation, report: call.report }));
+        const toolContext = msg.toolCalls?.filter(call => call.status === 'ready').map(call => ({ plugin: call.plugin, query: call.query, results: call.results, presentation: call.presentation, report: call.report, design: call.design }));
         const content = (msg.content + (toolContext?.length ? '\n工具实际结果：' + JSON.stringify(toolContext) : '')).slice(0, 16000);
         if (content.trim()) history.push({ role: msg.role, content });
       }
@@ -69,6 +72,26 @@ export async function POST(request: NextRequest) {
           send({ citations: grounded.citations, retrieval: toRetrievalMetadata(grounded) });
           for await (const event of runResearchAgent({ message, skill: typeof skill === 'string' ? skill : undefined,
             sessionId: `${scope.ownerMemberId}:${scope.notebookId}`, sourceIds: [...new Set(grounded.citations.map(citation => citation.sourceId))], systemPrompt: researchAgentSystemPrompt(base, typeof skill === 'string' ? skill : undefined), history, config, signal,
+            generateDesign: async input => {
+              const sourceIds = [...new Set(grounded.citations.map(citation => citation.sourceId))];
+              const verified = { ownerMemberId: scope.ownerMemberId!, notebookId: scope.notebookId! };
+              const previous = await readNotebookDocument<unknown>(verified, input.kind);
+              if (previous && !isResearchDesignDocument(previous.data, input.kind)) throw new Error('已保存设计暂时无法读取，请重试。');
+              const runId = crypto.randomUUID();
+              const headers = new Headers(request.headers); headers.delete('content-length'); headers.set('Content-Type', 'application/json');
+              const generate = input.kind === 'hypothesis-generation' ? generateHypothesis : generateExperiment;
+              const generated = await generate(new NextRequest(request.url.replace(/\/agent\/chat(?:\?.*)?$/, '/ai/' + input.kind), {
+                method: 'POST', headers, signal,
+                body: JSON.stringify({ ...input.experiment, question: input.question, notebookId: scope.notebookId, papers: sourceIds.map(id => ({ id })), persistArtifact: true, runId, expectedRevision: previous?.revision || null }),
+              }));
+              const saved = await readGeneratedDesign(generated, input.kind, runId, signal).catch(error => {
+                if (error instanceof ResearchDesignSaveError) error.expectedRevision = previous?.revision || null;
+                throw error;
+              });
+              const result = saved.data.result!;
+              const preview = 'hypotheses' in result ? result.hypotheses.map(h => `${h.id} ${h.title}: ${h.statement}`).join('\n') : result.artifactMarkdown;
+              return { reference: { kind: input.kind, sourceIds, question: input.question, revision: saved.revision, runId, status: result.status.answerStatus === 'complete' ? 'complete' as const : 'incomplete' as const }, preview: preview.slice(0, 1800) };
+            },
             generateReport: async question => {
               const sourceIds = [...new Set(grounded.citations.map(citation => citation.sourceId))];
               const verified = { ownerMemberId: scope.ownerMemberId!, notebookId: scope.notebookId! };
