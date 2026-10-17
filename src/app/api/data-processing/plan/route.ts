@@ -12,6 +12,7 @@ import { NotebookDocumentConflict, readNotebookDocument, saveNotebookDocument } 
 import { isDataProcessingDocument, type DataProcessingDocument } from '@/lib/data-processing-document';
 
 type PlanRequestBody = DataProcessingRequest & {
+  runId?: string;
   paper?: Paper;
   notebookId?: string;
   persistArtifact?: boolean;
@@ -34,6 +35,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!body.paper) return response(40002, '请先选择一个 CSV 或 XLSX 数据来源。', null, 400);
+  if (body.runId !== undefined && (typeof body.runId !== 'string' || !/^[a-f0-9-]{36}$/i.test(body.runId))) return response(40004, '本轮任务标识无效。', null, 400);
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: body.notebookId,
     loginMessage: '请先登录账号，再生成数据处理方案。',
@@ -69,10 +71,12 @@ export async function POST(request: NextRequest) {
   if (errors.length > 0) return response(42201, errors.join(' '), null, 422);
 
   try {
+    request.signal.throwIfAborted();
     const plan = buildDataProcessingPlan(input, paper);
     if (body.persistArtifact && verified) {
-      const data: DataProcessingDocument = { sourceId: paper.id, ...input, targetColumn: input.targetColumn || '', splitColumn: input.splitColumn || '', plan };
+      const data: DataProcessingDocument = { sourceId: paper.id, ...input, targetColumn: input.targetColumn || '', splitColumn: input.splitColumn || '', plan, ...(body.runId ? { generation: { runId: body.runId } } : {}) };
       try {
+        request.signal.throwIfAborted();
         const document = await saveNotebookDocument(verified, 'data-processing', data, body.expectedRevision!);
         return Response.json({ code: 0, msg: 'ok', data: plan, document }, { headers: { 'Cache-Control': 'private, no-store' } });
       } catch (error) {

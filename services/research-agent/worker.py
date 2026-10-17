@@ -68,7 +68,19 @@ async def main():
         """Generate and privately save a source-grounded map. Deep extraction only on explicit user request."""
         return await invoke("generate_knowledge_map", {"question": question, "deepExtract": deepExtract})
 
+    async def generate_data_plan(sourceId: str, question: str, sampleUnit: str, taskFamily: str, targetColumn: str | None = None, splitColumn: str | None = None):
+        """Diagnose a selected CSV/XLSX and privately save a plan. Does not run statistical tests or training."""
+        arguments = {"sourceId": sourceId, "question": question, "sampleUnit": sampleUnit, "taskFamily": taskFamily}
+        if targetColumn is not None:
+            arguments["targetColumn"] = targetColumn
+        if splitColumn is not None:
+            arguments["splitColumn"] = splitColumn
+        return await invoke("generate_data_plan", arguments)
+
     tools = [
+        FunctionTool(generate_data_plan, is_read_only=False, is_concurrency_safe=False,
+                     permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies the selected table, explicit task, one attempt and private versioned save."),
+                     input_schema={"type":"object","properties":{"sourceId":{"type":"string","minLength":1,"maxLength":180},"question":{"type":"string","minLength":1,"maxLength":1200},"sampleUnit":{"type":"string","minLength":1,"maxLength":200},"taskFamily":{"type":"string","enum":["description","prediction","comparison","trend"]},"targetColumn":{"type":"string","maxLength":200},"splitColumn":{"type":"string","maxLength":200}},"required":["sourceId","question","sampleUnit","taskFamily"],"additionalProperties":False}),
         FunctionTool(generate_knowledge_map, is_read_only=False, is_concurrency_safe=False,
                      permission=PermissionDecision(behavior=PermissionBehavior.ALLOW, message="The host verifies selected evidence, ownership, one attempt and versioned saving."),
                      input_schema={"type":"object","properties":{"question":{"type":"string","minLength":1,"maxLength":1200},"deepExtract":{"type":"boolean"}},"required":["question","deepExtract"],"additionalProperties":False}),
