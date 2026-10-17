@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { clientApiPath } from '@/lib/client-api';
 import {
   Subtitles, Volume2, Loader2, Sparkles,
   Send, Copy, CheckCircle2,
@@ -30,7 +31,7 @@ export function BilingualGenerator() {
     setError(null);
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      const response = await fetch(clientApiPath('/api/ai/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

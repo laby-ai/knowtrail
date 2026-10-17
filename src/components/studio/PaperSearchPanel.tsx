@@ -1,5 +1,7 @@
 'use client';
 
+import type { ResearchComposerRenderer } from '@/components/editor/ResearchComposer';
+
 import { useCallback, useState } from 'react';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DiscoverSourcesModal } from '@/components/library/DiscoverSourcesModal';
@@ -12,7 +14,7 @@ type UploadSummary = {
   errors: string[];
 };
 
-export function PaperSearchPanel() {
+export function PaperSearchPanel({ renderComposer }: { renderComposer?: ResearchComposerRenderer }) {
   const {
     activeFolderId,
     addFolder,
@@ -24,13 +26,14 @@ export function PaperSearchPanel() {
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [uploadSummary, setUploadSummary] = useState<UploadSummary | null>(null);
 
-  const ingestFiles = useCallback(async (files: File[]) => {
+  const ingestFiles = useCallback(async (files: File[], signal?: AbortSignal) => {
     setUploadSummary(null);
-    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId });
+    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId, signal });
     if (outcome.papers.length === 0) {
       throw new Error(outcome.errors[0] || '来源入库失败，请重试。');
     }
 
+    signal?.throwIfAborted();
     const targetFolderId = activeFolderId || addFolder('论文检索');
     setActiveFolder(targetFolderId);
     outcome.papers.forEach(paper => {
@@ -38,7 +41,7 @@ export function PaperSearchPanel() {
       window.setTimeout(() => togglePaperSelection(paper.id), 0);
     });
     setUploadSummary({ added: outcome.papers.length, errors: outcome.errors });
-    return outcome.papers.length;
+    return { added: outcome.papers.length, errors: outcome.errors, successfulFileIndexes: outcome.successfulFileIndexes };
   }, [activeFolderId, addFolder, addPaper, notebookId, setActiveFolder, togglePaperSelection]);
 
   return (
@@ -55,12 +58,13 @@ export function PaperSearchPanel() {
             : <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />}
           <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
             已加入 {uploadSummary.added} 个来源
-            {uploadSummary.errors.length > 0 ? `；${uploadSummary.errors.length} 个来源入库失败。` : '，并自动选中用于后续问答。'}
+            {uploadSummary.errors.length > 0 ? `；${uploadSummary.errors.length} 个来源未加入。` : '，并自动选中用于后续问答。'}
           </p>
         </div>
       )}
       <DiscoverSourcesModal
         variant="embedded"
+        renderComposer={renderComposer}
         initialScope="scholar"
         notebookId={notebookId}
         onClose={() => undefined}

@@ -6,8 +6,8 @@ import { parseRuntimeAIConfigJson, resolveServerRuntimeAIConfig } from '@/lib/ru
 import { resolveInternalAppOrigin } from '@/lib/internal-origin';
 import { ingestExtractedSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
 import { classifyMinerUJobFailure, mineruJobErrorMessage, mineruJobOptionsFromEnv } from '@/lib/mineru-job';
-import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
-import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import { sourceBibliography } from '@/lib/source-bibliography';
 
 const SUPPORTED_TYPES = new Set([
   'pdf', 'doc', 'docx', 'txt', 'md',
@@ -305,20 +305,17 @@ async function readFileContent(filePath: string, ext: string): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    let ownerMemberId: string | undefined;
-    try {
-      const accountSession = await resolveAccountSessionFromRequest(request);
-      if (accountAuthRequired() && !accountSession) {
-        return NextResponse.json({ error: '请先登录账号，再上传资料。' }, { status: 401 });
-      }
-      ownerMemberId = accountSession?.member.id;
-    } catch {
-      return NextResponse.json({ error: '账号登录已过期，请重新登录。' }, { status: 401 });
-    }
-
     const formData = await request.formData();
     const files = formData.getAll('files') as File[];
-    const notebookId = normalizeNotebookId(formData.get('notebookId'));
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: formData.get('notebookId'),
+      loginMessage: '请先登录国科大科教平台，再上传资料。',
+    });
+    if (!scope.ok) {
+      return scope.response;
+    }
+    const ownerMemberId = scope.ownerMemberId;
+    const notebookId = scope.notebookId;
     const rawAIConfig = formData.get('aiConfig');
     const requestAIConfig = typeof rawAIConfig === 'string' ? parseRuntimeAIConfigJson(rawAIConfig) : undefined;
     const aiConfig = resolveServerRuntimeAIConfig(requestAIConfig);
@@ -338,7 +335,12 @@ export async function POST(request: NextRequest) {
     const results = [];
     const isProd = isProduction();
     const maxBytes = maxUploadBytes();
-    const internalOrigin = resolveInternalAppOrigin();
+    const internalOrigin = resolveInternalAppOrigin() + (process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/+$/, '');
+    const visionHeaders = new Headers({ 'Content-Type': 'application/json' });
+    for (const name of ['cookie', 'authorization', 'userId', 'token', 'x-paper-host', 'x-paper-host-workspace', 'x-paper-host-account-scope', 'referer']) {
+      const value = request.headers.get(name);
+      if (value) visionHeaders.set(name, value);
+    }
 
     for (const file of files) {
       const ext = getFileExt(file.name);
@@ -392,30 +394,37 @@ export async function POST(request: NextRequest) {
         // 视觉模型能同时理解文字内容和图表信息
         const pdfTextFromParser = fileContent;
         if (ext === 'pdf') {
+          let visionError = 'PDF 视觉识别未完成，请稍后重新上传。';
           try {
             const pdfBase64 = buffer.toString('base64');
             const ocrRes = await fetch(`${internalOrigin}/api/ai/analyze-pdf`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ pdfBase64, fileName: file.name, aiConfig }),
+              headers: visionHeaders,
+              body: JSON.stringify({ pdfBase64, fileName: file.name, notebookId, aiConfig }),
+              signal: request.signal,
             });
+            const ocrData = await ocrRes.json();
             if (ocrRes.ok) {
-              const ocrData = await ocrRes.json();
               if (ocrData.success && ocrData.content) {
                 // 合并：如果 pdf-parse 也有文本，拼接两者；否则只用视觉模型结果
                 if (pdfTextFromParser.trim().length > 50) {
-                  fileContent = `【PDF文本提取】\n${pdfTextFromParser.slice(0, 15000)}\n\n【视觉模型识别（含图表理解）】\n${ocrData.content}`;
+                  fileContent = `【PDF文本提取】\n${pdfTextFromParser}\n\n【视觉模型识别（含图表理解）】\n${ocrData.content}`;
                 } else {
                   fileContent = ocrData.content;
                 }
+                visionError = '';
               }
             }
-          } catch (ocrErr) {
-            console.error('[Upload] PDF vision analysis failed:', ocrErr instanceof Error ? ocrErr.message : 'unknown');
-            // 视觉模型失败时，至少保留 pdf-parse 的文本
-            if (pdfTextFromParser.trim().length > 0) {
-              fileContent = pdfTextFromParser;
-            }
+            if (typeof ocrData.error === 'string') visionError = ocrData.error;
+            else if (typeof ocrData.reason === 'string') visionError = ocrData.reason;
+          } catch {
+            console.error('[Upload] PDF vision analysis failed');
+          }
+          if (request.signal.aborted) throw new Error('上传已停止，未保存识别正文。');
+          if (visionError) {
+            if (!pdfTextFromParser.trim()) throw new Error(visionError);
+            // 视觉失败不丢失原生正文，也不把缺页结果或模型错误当作正文。
+            fileContent = `【读取范围：仅原生文本，图表及扫描内容未完成视觉识别】\n${visionError}\n\n${pdfTextFromParser}`;
           }
         }
 
@@ -432,8 +441,9 @@ export async function POST(request: NextRequest) {
               const pdfBase64 = pdfBuffer.toString('base64');
               const ocrRes = await fetch(`${internalOrigin}/api/ai/analyze-pdf`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pdfBase64, fileName: file.name, aiConfig }),
+                headers: visionHeaders,
+                body: JSON.stringify({ pdfBase64, fileName: file.name, notebookId, aiConfig }),
+                signal: request.signal,
               });
               if (ocrRes.ok) {
                 const ocrData = await ocrRes.json();
@@ -484,13 +494,12 @@ export async function POST(request: NextRequest) {
         }
 
         const title = analysis?.title || baseName;
-        const authors = Array.isArray(analysis?.authors) ? analysis.authors : ['未解析作者'];
-        const year = typeof analysis?.year === 'number' ? analysis.year : new Date().getFullYear();
+        const { authors, year } = sourceBibliography({ authors: analysis?.authors, year: analysis?.year, rawContent: isImageType(ext) ? '' : fileContent });
         const keywords = Array.isArray(analysis?.keywords) ? analysis.keywords : ['原始数据'];
         const abstract = typeof analysis?.abstract === 'string' ? analysis.abstract : `该文件包含了关于${title}的原始资料与数据记录。`;
         const content = typeof analysis?.content === 'string' ? analysis.content : abstract;
-        const rawContent = isImageType(ext) ? '' : fileContent.slice(0, 50000);
-        const shortName = `${authors[0]}. ${year}`;
+        const rawContent = isImageType(ext) ? '' : fileContent;
+        const shortName = [authors[0], year].filter(Boolean).join('. ') || title;
         const journal = typeof analysis?.journal === 'string' ? analysis.journal : '';
         const doi = typeof analysis?.doi === 'string' ? analysis.doi : '';
         const paperId = `paper-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -510,6 +519,9 @@ export async function POST(request: NextRequest) {
           content,
           rawContent,
           shortName,
+          keywords,
+          journal,
+          doi,
         }, { aiConfig });
 
         console.log(`[Upload] File: ${file.name}, ext: ${ext}, content length: ${content.length}, rawContent length: ${rawContent.length}, analysis: ${analysis ? 'OK' : needsAIAnalysis ? 'NULL' : 'SKIPPED'}, env: ${isProd ? 'PROD' : 'DEV'}`);

@@ -7,13 +7,16 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   const accountScope = await resolveAccountNotebookScope(request, {
+    notebookId: request.nextUrl.searchParams.get('notebookId'),
     loginMessage: '请先登录后再查看科研示意图。',
+    requireAuthenticatedPaperHost: true,
   });
   if (!accountScope.ok) return accountScope.response;
 
   try {
     const { id } = await context.params;
     const stored = await readScientificIllustration(id, accountScope.ownerMemberId);
+    if (accountScope.notebookId && stored.metadata.notebookId !== accountScope.notebookId) throw new Error('科研示意图不存在。');
     const download = request.nextUrl.searchParams.get('download') === '1';
     const disposition = download ? 'attachment' : 'inline';
     return new Response(new Uint8Array(stored.image), {

@@ -239,14 +239,21 @@ function renderSlideInIframe(html: string): Promise<HTMLIFrameElement> {
     const iframe = document.createElement('iframe');
     iframe.style.cssText = `position:fixed;left:-99999px;top:0;width:${SLIDE_W_PX}px;height:${SLIDE_H_PX}px;border:0;visibility:hidden;pointer-events:none;`;
     iframe.setAttribute('aria-hidden', 'true');
-    const timeout = window.setTimeout(() => reject(new Error('幻灯片渲染超时')), 15_000);
+    iframe.setAttribute('sandbox', 'allow-same-origin');
+    const timeout = window.setTimeout(() => {
+      iframe.onload = null;
+      iframe.remove();
+      reject(new Error('幻灯片渲染超时'));
+    }, 15_000);
     iframe.onload = () => {
+      if (iframe.contentDocument?.URL !== 'about:srcdoc' || !iframe.contentDocument.body) return;
       window.clearTimeout(timeout);
+      iframe.onload = null;
       // Give layout one frame to settle before measuring.
       requestAnimationFrame(() => resolve(iframe));
     };
-    document.body.appendChild(iframe);
     iframe.srcdoc = html;
+    document.body.appendChild(iframe);
   });
 }
 
@@ -261,7 +268,7 @@ export async function measureSlideOverflow(html: string): Promise<SlideOverflowR
   const iframe = await renderSlideInIframe(html);
   try {
     const doc = iframe.contentDocument;
-    if (!doc?.body) return { overflowX: 0, overflowY: 0 };
+    if (!doc?.body) throw new Error('无法读取幻灯片文档');
     const body = doc.body;
     let maxRight = body.scrollWidth;
     let maxBottom = body.scrollHeight;
@@ -282,7 +289,7 @@ export async function measureSlideOverflow(html: string): Promise<SlideOverflowR
   }
 }
 
-export async function exportHtmlDeckToPptx(slides: HtmlDeckSlide[], fileName: string): Promise<void> {
+export async function exportHtmlDeckToPptx(slides: HtmlDeckSlide[], fileName: string, onFile?: (blob: Blob) => Promise<void>): Promise<void> {
   const PptxGenJS = (await import('pptxgenjs')).default;
   const pptx = new PptxGenJS();
   pptx.layout = 'LAYOUT_WIDE'; // 13.33in x 7.5in = 1280x720 @96dpi
@@ -313,7 +320,11 @@ export async function exportHtmlDeckToPptx(slides: HtmlDeckSlide[], fileName: st
     }
   }
 
-  await pptx.writeFile({ fileName: `${fileName.replace(/[\\/:*?"<>|]/g, '_')}.pptx` });
+  if (onFile) {
+    const blob = await pptx.write({ outputType: 'blob' });
+    if (!(blob instanceof Blob)) throw new Error('PPT文件导出异常，请重试。');
+    await onFile(blob);
+  } else await pptx.writeFile({ fileName: `${fileName.replace(/[\\/:*?"<>|]/g, '_')}.pptx` });
 }
 
 export function buildStandaloneDeckHtml(slides: HtmlDeckSlide[], deckTitle: string): string {

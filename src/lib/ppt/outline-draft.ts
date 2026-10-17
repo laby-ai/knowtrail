@@ -27,6 +27,9 @@ const MAX_OUTLINE_ITEMS = 18;
 const MAX_TITLE_LENGTH = 80;
 const MAX_FOCUS_LENGTH = 220;
 const MAX_SOURCE_LABEL_LENGTH = 80;
+const DRAFT_FOCUS_LENGTH = 140;
+const GENERIC_SOURCE_LABEL = /^(?:未解析作者|未知作者|作者未知|unknown author)(?:[.·_\s-]|$)/i;
+const PLACEHOLDER_SUMMARY = /^该文件包含了关于.+的(?:内容)?[。.]?$/;
 
 function cleanText(value: unknown, maxLength: number): string {
   return String(value || '')
@@ -35,15 +38,66 @@ function cleanText(value: unknown, maxLength: number): string {
     .slice(0, maxLength);
 }
 
+function compactText(value: unknown): string {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function shortenText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function resolveSourceLabel(paper: Paper, index: number): string {
+  const shortName = compactText(paper.shortName);
+  const title = compactText(paper.title);
+  const preferred = shortName && !GENERIC_SOURCE_LABEL.test(shortName) ? shortName : title;
+  return shortenText(preferred || `资料 ${index + 1}`, 42);
+}
+
+function stripExtractionWrapper(value: string): string {
+  const abstractMarker = value.lastIndexOf('摘要：');
+  return abstractMarker >= 0 ? value.slice(abstractMarker + 3).trim() : value;
+}
+
+function completeFocus(value: string): string {
+  if (value.length <= DRAFT_FOCUS_LENGTH) return value;
+
+  const withinLimit = value.slice(0, DRAFT_FOCUS_LENGTH);
+  const punctuation = Math.max(
+    withinLimit.lastIndexOf('。'),
+    withinLimit.lastIndexOf('！'),
+    withinLimit.lastIndexOf('？'),
+    withinLimit.lastIndexOf('；'),
+    withinLimit.lastIndexOf('!'),
+    withinLimit.lastIndexOf('?'),
+    withinLimit.lastIndexOf(';'),
+  );
+  if (punctuation >= 24) return withinLimit.slice(0, punctuation + 1);
+  return shortenText(value, DRAFT_FOCUS_LENGTH);
+}
+
+function resolveSourceFocus(paper: Paper, sourceLabel: string): string {
+  const candidates = [paper.abstract, paper.content, paper.rawContent]
+    .map(value => stripExtractionWrapper(compactText(value)))
+    .filter(Boolean);
+  const evidence = candidates.find(value => !PLACEHOLDER_SUMMARY.test(value));
+
+  if (!evidence) {
+    return `围绕“${sourceLabel}”提炼可核验的论点、依据与局限；资料未提供的内容不作补写。`;
+  }
+  return completeFocus(evidence);
+}
+
 export function buildPptOutlineDraft(papers: Paper[], duration: number): PptOutlineDraftItem[] {
-  const sourceSlides = papers.slice(0, 4).map((paper, index) => ({
-    id: `source-${paper.id || index}`,
-    title: index === 0 ? '资料背景与核心问题' : `${paper.shortName || `资料 ${index + 1}`} 的关键发现`,
-    focus: (paper.abstract || paper.content || paper.rawContent || '提炼该资料中最适合放入简报的论点、证据和局限。')
-      .replace(/\s+/g, ' ')
-      .slice(0, 96),
-    sourceLabel: paper.shortName || paper.title || `资料 ${index + 1}`,
-  }));
+  const sourceSlides = papers.slice(0, 4).map((paper, index) => {
+    const sourceLabel = resolveSourceLabel(paper, index);
+    return {
+      id: `source-${paper.id || index}`,
+      title: index === 0 ? '资料背景与核心问题' : `${sourceLabel}：主要证据与局限`,
+      focus: resolveSourceFocus(paper, sourceLabel),
+      sourceLabel,
+    };
+  });
 
   return [
     {

@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { hasRuntimeAIProvider, resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
 const isImageType = (ext: string) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
 
+function hasServerFallbackModel(): boolean {
+  return hasRuntimeAIProvider(resolveServerRuntimeAIConfig());
+}
+
 function fallbackAnalysis(fileName: string, fileContent: string, abstract = 'AI分析暂时不可用，请稍后重试') {
   return {
     title: fileName.replace(/\.[^.]+$/, '') || '未解析文档',
-    authors: ['未解析作者'],
-    year: new Date().getFullYear(),
+    authors: [],
+    year: null,
     keywords: ['原始数据'],
     abstract,
     content: fileContent ? fileContent.slice(0, 2000) : abstract,
@@ -29,18 +33,15 @@ export async function POST(request: NextRequest) {
     if (!fileContent && !fileName && !imageBase64) {
       return NextResponse.json({ error: '缺少文件内容' }, { status: 400 });
     }
-    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
-    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-    const runtimeConfig = runtimeConfigResult;
 
     const isImage = isImageType(fileType || '');
 
     if (isImage && imageBase64) {
-      return await analyzeImage(imageBase64, fileName || 'image', runtimeConfig);
+      return await analyzeImage(imageBase64, fileName || 'image', aiConfig);
     }
 
     // 文本类文件走 LLM 分析
-    return await analyzeText(fileContent || '', fileName || 'document', fileType || 'txt', runtimeConfig);
+    return await analyzeText(fileContent || '', fileName || 'document', fileType || 'txt', aiConfig);
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error || '分析失败');
     console.error('[Analyze API Error]', msg);
@@ -49,6 +50,13 @@ export async function POST(request: NextRequest) {
 }
 
 async function analyzeImage(imageBase64: string, fileName: string, aiConfig?: Partial<RuntimeAIConfig>): Promise<NextResponse> {
+  if (!hasRuntimeAIProvider(aiConfig) && !hasServerFallbackModel()) {
+    return NextResponse.json({
+      success: false,
+      analysis: fallbackAnalysis(fileName, `[图片文件: ${fileName}]`, '未配置视觉模型，已跳过图片 AI 分析。'),
+    });
+  }
+
   const prompt = `请仔细分析这张图片，提取其中的学术信息。
 
 如果是学术论文截图或PDF截图，请提取：标题、作者、年份、关键词、摘要。
@@ -95,6 +103,13 @@ async function analyzeImage(imageBase64: string, fileName: string, aiConfig?: Pa
 }
 
 async function analyzeText(fileContent: string, fileName: string, fileType: string, aiConfig?: Partial<RuntimeAIConfig>): Promise<NextResponse> {
+  if (!hasRuntimeAIProvider(aiConfig) && !hasServerFallbackModel()) {
+    return NextResponse.json({
+      success: false,
+      analysis: fallbackAnalysis(fileName, fileContent, '未配置文本模型，已使用原文生成基础资料记录。'),
+    });
+  }
+
   const contentTypeLabel = {
     pdf: 'PDF文档',
     docx: 'Word文档',
@@ -121,27 +136,28 @@ ${fileContent.slice(0, 15000)}
   "doi": "DOI编号（如无法识别则为空字符串）",
   "keywords": ["关键词1", "关键词2", "关键词3"],
   "abstract": "论文摘要或核心内容概述（200字以内）",
-  "content": "论文核心内容的结构化总结（包含研究目的、方法、主要发现、结论，至少500字）"
+  "content": "按原文顺序简要摘录或列点；短资料可直接保留原文，不补写背景、方法、意义或建议"
 }
 
 注意：
-1. 如果内容是学术论文，请完整提取标题、作者、摘要、关键词、研究方法、主要发现、结论
+1. 如果内容是学术论文，仅提取原文明示的标题、作者、摘要、关键词、方法、发现和结论
 2. 如果内容是数据表格，请总结数据特征、关键数值和趋势
 3. 如果内容是演示文稿，请总结各页的核心要点
-4. authors如无法识别则写["未知作者"]
-5. year如无法识别则用当前年份
+4. 原文没有作者时authors为[]，不要根据文件名或叙述对象推断作者
+5. year只填写原文明示的发表年份，数值类型；原文没有年份时为null，不用当前年份代替
 6. journal和doi仅对学术论文有效，其他类型文档可留空
-7. content字段请尽量详细，至少500字，包含文档中的关键信息
+7. 不为凑字数扩写；保留原文数字、单位、条件、否定和模拟资料标签；不要添加评价、建议或无依据的归因
 8. 必须返回有效的JSON格式`;
 
   try {
     const messages = [
-      { role: 'system' as const, content: '你是一位学术论文分析专家，擅长从各种文件中提取关键学术信息。请始终返回有效的JSON格式。' },
+      { role: 'system' as const, content: '只从给定文件提取信息，按要求返回JSON；原文未写的内容不补写。' },
       { role: 'user' as const, content: prompt },
     ];
 
     const fullContent = await llmInvoke(messages, {
       model: 'doubao-seed-2-0-pro-260215',
+      auxiliary: true,
       temperature: 0.3,
       thinking: 'disabled',
     }, undefined, aiConfig);
@@ -161,14 +177,18 @@ function parseJsonFromResponse(response: string, fileName: string): Record<strin
   try {
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (typeof parsed.year === 'string' && /^\d{4}$/.test(parsed.year.trim())) {
+        parsed.year = Number(parsed.year.trim());
+      }
+      return parsed;
     }
     throw new Error('No JSON found');
   } catch {
     return {
       title: fileName.replace(/\.[^.]+$/, '') || '未解析文档',
-      authors: ['未解析作者'],
-      year: new Date().getFullYear(),
+      authors: [],
+      year: null,
       keywords: ['原始数据'],
       abstract: response.slice(0, 200),
       content: response,

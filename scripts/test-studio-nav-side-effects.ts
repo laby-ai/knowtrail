@@ -7,6 +7,7 @@ function read(relativePath: string) {
 }
 
 const studioPanelSource = read('src/components/studio/StudioPanel.tsx');
+const pageSource = read('src/app/page.tsx');
 const switcherSource = read('src/components/studio/StudioToolSwitcher.tsx');
 const presentationPanelSource = read('src/components/studio/PresentationPanels.tsx');
 const structuredPresentationPanelSource = read('src/components/studio/StructuredPresentationPanel.tsx');
@@ -43,6 +44,9 @@ const scientificIllustrationPanelSource = fs.readFileSync(scientificIllustration
 const peerReviewPanelPath = path.join(process.cwd(), 'src/components/studio/PeerReviewPanel.tsx');
 assert.ok(fs.existsSync(peerReviewPanelPath), 'Peer review should provide a real Studio panel');
 const peerReviewPanelSource = fs.readFileSync(peerReviewPanelPath, 'utf8');
+const learningArtifactsPanelPath = path.join(process.cwd(), 'src/components/studio/LearningArtifactsPanel.tsx');
+assert.ok(fs.existsSync(learningArtifactsPanelPath), 'Learning cards and quizzes should provide a real shared Studio panel');
+const learningArtifactsPanelSource = fs.readFileSync(learningArtifactsPanelPath, 'utf8');
 const discoverSourcesModalSource = read('src/components/library/DiscoverSourcesModal.tsx');
 const virtualClassroomWorkspaceSource = read('src/components/studio/VirtualClassroomWorkspace.tsx');
 const workbenchTopBarSource = read('src/components/workbench/WorkbenchTopBar.tsx');
@@ -53,19 +57,47 @@ const taxonomySource = fs.readFileSync(taxonomyPath, 'utf8');
 const productCenterSource = `${studioPanelSource}\n${switcherSource}`;
 const retainedSource = `${productCenterSource}\n${presentationPanelSource}\n${virtualClassroomPanelSource}\n${virtualClassroomWorkspaceSource}`;
 
-const studioPanelStart = studioPanelSource.indexOf('export function StudioPanel()');
+const studioPanelStart = studioPanelSource.indexOf('export function StudioPanel');
 const panelContentStart = studioPanelSource.indexOf('{activeTab ===', studioPanelStart);
 assert.ok(studioPanelStart >= 0, 'StudioPanel export not found');
 assert.ok(panelContentStart > studioPanelStart, 'StudioPanel content switch not found');
 
 const navSection = studioPanelSource.slice(studioPanelStart, panelContentStart);
-assert.match(navSection, /<StudioToolSwitcher activeTab=\{activeTab\} onSelect=\{setActiveTab\} \/>/, 'StudioPanel should delegate tool switching to StudioToolSwitcher');
+assert.match(navSection, /<StudioToolSwitcher[\s\S]*activeTab=\{activeTab\}[\s\S]*onSelect=\{onSelect\}[\s\S]*navItems=\{visibleNavItems\}/, 'StudioPanel should remain a side-effect-free tool directory');
+assert.match(navSection, /getVisibleStudioNav\(hideVirtualClassroom\)/, 'StudioPanel should derive visible navigation from mounted embed state');
+assert.match(switcherSource, /params\.get\('hideVirtualClassroom'\)/, 'Studio visibility should honor the explicit hide flag');
+assert.match(switcherSource, /params\.get\('embed'\) === 'research-agent'/, 'Research-agent embed should hide the duplicate virtual classroom entry');
+assert.match(switcherSource, /!CHAT_SKILL_PRODUCT_IDS\.has\(item\.id\)/, 'Chat-first tools should be filtered from the right product directory');
+for (const skillProductId of [
+  'paper-search',
+  'deep-research',
+  'hypothesis-generation',
+  'experiment-design',
+  'academic-writing',
+  'text-polishing',
+  'peer-review',
+]) {
+  assert.match(
+    taxonomySource,
+    new RegExp(`CHAT_SKILL_PRODUCT_IDS[\\s\\S]*'${skillProductId}'`),
+    `${skillProductId} should live in the middle Skills panel instead of the right product directory`,
+  );
+}
+assert.match(switcherSource, /item\.id !== 'virtual-classroom'/, 'The embedded workbench should still filter the duplicate virtual classroom product');
 assert.match(switcherSource, /onClick=\{\(\) => onSelect\(item\.id\)\}/, 'Studio tool switcher should only request active tab changes');
 assert.doesNotMatch(navSection, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio nav must not trigger generation side effects');
 assert.doesNotMatch(switcherSource, /queueStudioPrompt|fetch\(|handleGenerate|generate|\/api\/ai\//, 'Studio tool switcher must not trigger generation side effects');
-assert.match(navSection, /data-testid="studio-nav-helper"/, 'Studio nav should explain that generation happens in the detail panel');
-assert.match(studioPanelSource, /className="h-full overflow-y-auto"/, 'Studio should use one right-column scroll container for taxonomy and workspace');
-assert.doesNotMatch(studioPanelSource, /flex-1 min-h-0 overflow-y-auto px-5 py-4/, 'Studio workspace must not create a second nested scroll region');
+assert.match(pageSource, /function openStudioWorkspace\(tab: StudioTab\)/, 'Workbench should expose one side-effect-free tool opening action');
+assert.match(pageSource, /function closeStudioWorkspace\(\)/, 'Workbench should expose an immediate return to the product directory');
+assert.match(pageSource, /const activeToolStorageKey = `\$\{ACTIVE_TOOL_STORAGE_KEY\}:\$\{storageScopeKey\}`/, 'Workbench should scope the active tool fallback to the current account workspace');
+assert.match(pageSource, /sessionStorage\.setItem\(activeToolStorageKey, tab\)/, 'Workbench should preserve the active tool across refresh without sharing it across accounts');
+assert.match(pageSource, /onWorkbenchPreferencesChange\(\{ activeStudioTool: tab \}\)/, 'Workbench should sync the active tool into account preferences');
+assert.match(studioPanelSource, /export function StudioWorkspacePanel/, 'Studio should expose the focused workspace independently from the right directory');
+assert.match(studioPanelSource, /data-testid="studio-back-to-directory"/, 'Focused workspaces should provide a stable return action');
+assert.match(studioPanelSource, /data-testid="studio-back-to-directory"[\s\S]*?aria-label="返回工具列表"/, 'Focused workspaces should label the return destination without relying on an icon alone');
+assert.match(studioPanelSource, /data-testid="studio-directory-scroll"/, 'The product directory should own its scrolling');
+assert.match(studioPanelSource, /data-testid="studio-workspace-scroll"/, 'The focused workspace should own its scrolling');
+assert.doesNotMatch(studioPanelSource, /切换入口只打开对应工作区，检索或生成需在下方明确操作。/, 'Studio should not describe the removed appended-workspace interaction');
 
 assert.match(taxonomySource, /id: 'literature-evidence', label: '文献证据'/, 'Taxonomy should define literature evidence');
 assert.match(taxonomySource, /id: 'research-ideation', label: '研究构思'/, 'Taxonomy should define research ideation even while it has no ready product');
@@ -81,12 +113,15 @@ assert.match(taxonomySource, /id: 'academic-writing'[\s\S]*label: '学术写作'
 assert.match(taxonomySource, /id: 'text-polishing'[\s\S]*label: '文本润色'[\s\S]*categoryId: 'results-expression'[\s\S]*availability: 'ready'/, 'Text polishing should be a real results-expression product');
 assert.match(taxonomySource, /id: 'scientific-illustration'[\s\S]*label: '科研绘图'[\s\S]*categoryId: 'results-expression'[\s\S]*availability: 'ready'/, 'Scientific illustration should be a real results-expression product');
 assert.match(taxonomySource, /id: 'presentation'[\s\S]*label: 'PPT 制作'[\s\S]*categoryId: 'results-expression'/, 'Original presentation product should be mapped as PPT creation under results expression');
+assert.match(taxonomySource, /id: 'report'[\s\S]*label: '报告'[\s\S]*availability: 'ready'/, 'Report should be a real source-grounded artifact');
+assert.match(taxonomySource, /id: 'flashcards'[\s\S]*label: '学习卡'[\s\S]*availability: 'ready'/, 'Learning cards should expose the existing grounded card generator');
+assert.match(taxonomySource, /id: 'quiz'[\s\S]*label: '测验'[\s\S]*availability: 'ready'/, 'Quiz should be derived from grounded learning cards');
 assert.match(taxonomySource, /id: 'peer-review'[\s\S]*label: '论文审查'[\s\S]*categoryId: 'collaboration-memory'[\s\S]*availability: 'ready'/, 'Peer review should be a real collaboration product');
 assert.match(taxonomySource, /id: 'virtual-classroom'[\s\S]*label: '虚拟课堂'[\s\S]*categoryId: 'collaboration-memory'[\s\S]*availability: 'runtime-dependent'/, 'Virtual classroom should be mapped under collaboration without being marked ready');
 const productDefinitions = taxonomySource.slice(taxonomySource.indexOf('STUDIO_RESEARCH_PRODUCTS'));
-assert.equal((productDefinitions.match(/\n\s+id: '/g) || []).length, 12, 'Taxonomy should expose scientific illustration and the eleven existing real products');
-assert.match(switcherSource, /getVisibleStudioCategories/, 'Product center should render taxonomy categories through the empty-category filter');
-assert.match(switcherSource, /grid-cols-2/, 'Product cards should use a compact two-column layout so the mobile workspace keeps usable height');
+assert.equal((productDefinitions.match(/\n\s+id: '/g) || []).length, 15, 'Taxonomy should expose the existing products plus report, learning cards, and quiz');
+assert.doesNotMatch(switcherSource, /getVisibleStudioCategories|studio-category-/, 'Product center should render one flat NotebookLM-like artifact grid without category columns');
+assert.match(switcherSource, /grid grid-cols-2 gap-2/, 'Product cards should use one compact two-column artifact grid');
 assert.doesNotMatch(switcherSource, /max-h-\[36vh\]|overflow-y-auto/, 'Product navigation should remain fully visible before the active workspace');
 assert.doesNotMatch(switcherSource, /即将上线|敬请期待|coming soon/i, 'Product center must not render placeholder products');
 assert.doesNotMatch(productCenterSource, /presentation2/, 'Structured PPT should remain a mode inside the original presentation product, not a hidden fourth product');
@@ -101,8 +136,11 @@ assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/lib/studio-tools.ts')), '
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/lib/studio-tool-api-contract.ts')), 'Removed artifact API contract should not remain as dead code');
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/studio-tool/route.ts')), 'Removed artifact API route should not remain without a product consumer');
 
-assert.match(studioPanelSource, /activeTab === 'presentation' && <PresentationWorkspacePanel \/>/, 'PPT product should render its original workspace');
+assert.match(studioPanelSource, /activeTab === 'presentation' && <PresentationWorkspacePanel\b/, 'PPT product should reuse its original workspace, including saved-format selection');
 assert.match(studioPanelSource, /activeTab === 'knowledge' && <KnowledgeMapPanel \/>/, 'Knowledge map product should render its original panel');
+assert.match(studioPanelSource, /activeTab === 'report' && <DeepResearchPanel \/>/, 'Report should reuse the grounded deep-research workspace');
+assert.match(studioPanelSource, /activeTab === 'flashcards' && <LearningArtifactsPanel mode="flashcards" \/>/, 'Learning cards should render their real grounded workspace');
+assert.match(studioPanelSource, /activeTab === 'quiz' && <LearningArtifactsPanel mode="quiz" \/>/, 'Quiz should render its real interactive workspace');
 assert.match(studioPanelSource, /activeTab === 'paper-search' && <PaperSearchPanel \/>/, 'Paper search product should render its real search panel');
 assert.match(studioPanelSource, /activeTab === 'deep-research' && <DeepResearchPanel \/>/, 'Deep research product should render its real report panel');
 assert.match(studioPanelSource, /activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel \/>/, 'Hypothesis generation should render its real evidence-backed panel');
@@ -147,6 +185,11 @@ assert.match(peerReviewPanelSource, /AbortController/, 'Peer review should expos
 assert.match(peerReviewPanelSource, /StudioEvidenceStatusPanel/, 'Peer review should render reusable evidence links');
 assert.match(peerReviewPanelSource, /只读审查|不会直接改稿/, 'Peer review should clearly preserve the read-only boundary');
 assert.match(peerReviewPanelSource, /下载审查报告/, 'Peer review should expose a downloadable report');
+assert.match(learningArtifactsPanelSource, /\/api\/ai\/knowledge-cards/, 'Learning artifacts should reuse the existing grounded knowledge-card route');
+assert.match(learningArtifactsPanelSource, /data-testid="learning-artifacts-generate"/, 'Learning artifacts should expose an explicit generation action');
+assert.match(learningArtifactsPanelSource, /data-testid="learning-card-result"/, 'Learning cards should expose generated evidence-backed content');
+assert.match(learningArtifactsPanelSource, /data-testid="learning-quiz-question"/, 'Quiz should expose answerable questions');
+assert.match(learningArtifactsPanelSource, /StudioEvidenceStatusPanel/, 'Learning artifacts should expose their evidence status');
 assert.match(retainedSource, /data-testid="virtual-classroom-open"/, 'Virtual classroom needs a full-page entry for real use');
 assert.match(retainedSource, /data-testid="virtual-classroom-iframe"/, 'Virtual classroom should embed the classroom runtime in Studio');
 assert.match(retainedSource, /NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN/, 'Virtual classroom origin should remain configurable');
@@ -168,12 +211,12 @@ assert.match(presentationModeSelectorSource, /data-testid=\{`presentation-mode-\
 assert.match(presentationModeSelectorSource, /<span>PPT 制作<\/span>/, 'PPT detail panel should use the approved product name');
 assert.doesNotMatch(`${knowledgeMapPanelSource}\n${knowledgeMapWorkspaceSource}`, /['">]资料脉络[<'"]/, 'Knowledge-map UI should consistently use the approved research-context name');
 assert.match(virtualClassroomPanelSource, /课堂服务未连接/, 'Virtual classroom should expose its unavailable runtime state');
-assert.match(presentationModeSelectorSource, /id: 'image'[\s\S]*label: '图片页简报'/, 'PPT mode selector should keep the image PPT option');
-assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '结构化 PPT'/, 'PPT mode selector should keep the structured PPT option');
+assert.match(presentationModeSelectorSource, /id: 'image'[\s\S]*label: '图片页'/, 'PPT mode selector should keep the image PPT option');
+assert.match(presentationModeSelectorSource, /id: 'structured'[\s\S]*label: '可编辑 PPT'/, 'PPT mode selector should keep the structured PPT option');
 
 console.log(JSON.stringify({
   ok: true,
-  checked: 'Studio product center exposes scientific illustration and the existing real products without navigation side effects',
-  products: ['论文检索', '深度研究', '研究脉络', '假设生成', '数据处理', '实验设计', '学术写作', '文本润色', '科研绘图', 'PPT 制作', '论文审查', '虚拟课堂'],
-  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'academic-writing-start', 'text-polishing-start', 'scientific-illustration-start', 'image-ppt-generate', 'academic-ppt-generate', 'peer-review-start', 'virtual-classroom-open'],
+  checked: 'The embedded Studio directory keeps NotebookLM-like artifacts and moves action tools into the conversation composer',
+  products: ['研究脉络', '数据处理', '科研绘图', 'PPT 制作', '报告', '学习卡', '测验'],
+  explicitButtons: ['discover-search', 'deep-research-start', 'hypothesis-generation-start', 'data-processing-start', 'experiment-design-start', 'scientific-illustration-start', 'image-ppt-generate', 'academic-ppt-generate'],
 }, null, 2));

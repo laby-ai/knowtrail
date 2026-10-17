@@ -1,3 +1,7 @@
+import type { DesignEvidenceStatus } from '@/lib/research-design-document';
+import { randomUUID } from 'node:crypto';
+import { cancelResearchDesign, designStorageFailure, prepareResearchDesign, finishResearchDesign, type DesignPersistenceInput } from '@/lib/research-design-storage';
+import { isExperimentDocument } from '@/lib/research-design-document';
 import { NextRequest } from 'next/server';
 import { llmStream } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
@@ -14,10 +18,10 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
-type ExperimentDesignRequest = {
+type ExperimentDesignRequest = DesignPersistenceInput & {
   question?: string;
   hypothesis?: string;
   experimentalUnit?: string;
@@ -85,12 +89,11 @@ export async function POST(request: NextRequest) {
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: input.notebookId,
     loginMessage: '请先登录账号，再生成实验设计协议。',
+    requireAuthenticatedPaperHost: input.persistArtifact === true,
   });
   if (!scope.ok) return scope.response;
 
-  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
-  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-  const runtimeConfig = runtimeConfigResult;
+  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
   const retrievalQuery = `研究问题：${question}\n待验证假设：${hypothesis}\n请检索与实验单位、处理/对照、主要结局、偏倚、混杂和可行性相关的证据。`;
   const grounded = await buildGroundedRetrievalContext(retrievalQuery, papers, runtimeConfig, {
     topK: 12,
@@ -129,6 +132,7 @@ export async function POST(request: NextRequest) {
       inputText: `${question}\n${hypothesis}`,
       promptContext: grounded.promptContext,
       memberId: scope.ownerMemberId,
+      quotaExempt: scope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {
@@ -147,13 +151,22 @@ export async function POST(request: NextRequest) {
   });
   const reservationFinalizer = createUsageReservationFinalizer(usageReservation);
   let rawOutput = '';
+  let prepared;
+  try { prepared = await prepareResearchDesign(input, 'experiment-design', scope); }
+  catch (error) { await usageReservation?.release().catch(() => undefined); return designStorageFailure(error); }
+  if (prepared?.replay) {
+    await usageReservation?.release().catch(() => undefined);
+    return new Response('data: ' + JSON.stringify({ document: prepared.previous }) + '\n\ndata: [DONE]\n\n', { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store' } });
+  }
+
 
   return createGroundedSseResponse({
-    requestSignal: request.signal,
+    requestSignal: prepared ? AbortSignal.any([request.signal, prepared.signal]) : request.signal,
     timeoutMs,
     timeoutReason: 'experiment design timed out',
     cancelReason: 'experiment design client cancelled',
     async run({ emit, signal }) {
+      try {
         taskObservation.running();
         emit({
           progress: {
@@ -179,6 +192,8 @@ export async function POST(request: NextRequest) {
         ], {
           model: modelName,
           temperature: 0.25,
+          thinking: 'disabled',
+          jsonMode: true,
           maxTokens: 4600,
           signal,
         }, undefined, runtimeConfig))) {
@@ -218,22 +233,20 @@ export async function POST(request: NextRequest) {
         const answerStatus = classifyExperimentDesign({ protocol, citationCount: grounded.citations.length });
         const artifactMarkdown = buildPreregistrationMarkdown(protocol, { alpha, targetPower });
 
-        emit({
-          protocol,
-          artifactMarkdown,
-          artifactFileName: 'experiment-preregistration.md',
-          designStatus: {
+        const resultStatus: DesignEvidenceStatus = {
             answerStatus,
             invalidEvidenceMarkers,
             retrievalLimits: [
               '协议仅基于当前选定来源及其可检索片段。',
               '未执行功效计算、伦理审批、实验、统计分析或因果验证。',
             ],
-          },
-          billing,
-        });
+          };
+        const priorForm = prepared?.previous && isExperimentDocument(prepared.previous.data) ? prepared.previous.data.form : null;
+        const stored = await finishResearchDesign(input, 'experiment-design', prepared, { form: priorForm || { question, hypothesis, experimentalUnit, armsText: arms.join(', '), primaryOutcome, constraints, alpha, targetPower }, result: { runId: input.runId || randomUUID(), protocol, artifactMarkdown, artifactFileName: 'experiment-preregistration.md', citations: grounded.citations, retrieval, status: resultStatus } }, signal);
+        emit({ protocol, artifactMarkdown, artifactFileName: 'experiment-preregistration.md', designStatus: resultStatus, billing, ...stored });
         taskObservation.succeeded();
         emit('[DONE]');
+      } finally { prepared?.release(); }
     },
     async onError(error, { emit, signal }) {
         await reservationFinalizer.finalizeFailure(rawOutput);
@@ -253,3 +266,5 @@ export async function POST(request: NextRequest) {
     },
   });
 }
+
+export async function DELETE(request: NextRequest) { return cancelResearchDesign(request, 'experiment-design'); }

@@ -1,11 +1,15 @@
 import { NextRequest } from 'next/server';
-import { llmStream, SYSTEM_PROMPTS } from '@/lib/ai-service';
+import { prepareResearchReportPersistence, type ReportPersistenceRequest } from '@/lib/research-report-persistence';
+import { llmStream } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { auditCitationMarkers, auditCitationSectionCoverage } from '@/lib/citation-audit';
 import {
   DEEP_RESEARCH_REQUIRED_SECTIONS,
+  DEEP_RESEARCH_SYSTEM_PROMPT,
+  auditDeepResearchLength,
+  deepResearchSectionBudget,
   buildDeepResearchPrompt,
   buildDeepResearchRepairPrompt,
   classifyDeepResearchAnswer,
@@ -16,10 +20,10 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
-type DeepResearchRequest = {
+type DeepResearchRequest = ReportPersistenceRequest & {
   question?: string;
   papers?: RagSourceInput[];
   notebookId?: string;
@@ -55,15 +59,19 @@ export async function POST(request: NextRequest) {
     return jsonError('请先在左侧文献库选择至少一个证据来源。', 'deep_research_sources_required', 400);
   }
 
+  if ((deepResearchSectionBudget(question) ?? 5) < 5) {
+    return jsonError('字数上限不足以容纳九节标题、正文和引用，请提高总字数后再生成。', 'deep_research_length_too_small', 422);
+  }
+
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: input.notebookId,
     loginMessage: '请先登录账号，再进行深度研究。',
   });
   if (!scope.ok) return scope.response;
+  const persistence = await prepareResearchReportPersistence(scope, input, question);
+  if ('response' in persistence) return persistence.response;
 
-  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
-  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-  const runtimeConfig = runtimeConfigResult;
+  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
   const retrievalQuery = `深度研究问题：${question}\n请检索与研究边界、主要结论、争议和待核验问题有关的证据。`;
   const grounded = await buildGroundedRetrievalContext(retrievalQuery, papers, runtimeConfig, {
     topK: 12,
@@ -95,6 +103,7 @@ export async function POST(request: NextRequest) {
       inputText: question,
       promptContext: grounded.promptContext,
       memberId: scope.ownerMemberId,
+      quotaExempt: scope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {
@@ -148,10 +157,11 @@ export async function POST(request: NextRequest) {
         });
 
         for await (const chunk of taskObservation.observeProvider(llmStream([
-          { role: 'system', content: SYSTEM_PROMPTS.reportGeneration },
+          { role: 'system', content: DEEP_RESEARCH_SYSTEM_PROMPT },
           { role: 'user', content: prompt },
         ], {
           model: modelName,
+          thinking: 'disabled',
           temperature: 0.35,
           maxTokens: 3200,
           signal,
@@ -181,10 +191,12 @@ export async function POST(request: NextRequest) {
             emit({ replaceContent: answerText });
           }
         }
+        let outputConstraint = auditDeepResearchLength(answerText, question);
         let answerStatus = classifyDeepResearchAnswer({
           citationCount: grounded.citations.length,
           citationAuditStatus: citationAudit.status,
           sectionCoverageStatus: sectionCoverage.status,
+          outputConstraintStatus: outputConstraint.status,
         });
         if (answerStatus !== 'complete') {
           repairAttempted = true;
@@ -192,7 +204,7 @@ export async function POST(request: NextRequest) {
             progress: {
               stage: 'repairing',
               progress: 94,
-              message: '引用覆盖未通过，正在基于原始证据进行一次保守重写。',
+            message: '章节、引用或篇幅未通过，正在基于原始证据进行一次保守重写。',
             },
           });
           let repairedAnswer = '';
@@ -200,12 +212,14 @@ export async function POST(request: NextRequest) {
             question,
             evidenceContext: grounded.promptContext,
             sourceCount: papers.length,
+            previousAnswer: answerText,
           });
           for await (const chunk of taskObservation.observeProvider(llmStream([
-            { role: 'system', content: SYSTEM_PROMPTS.reportGeneration },
+            { role: 'system', content: DEEP_RESEARCH_SYSTEM_PROMPT },
             { role: 'user', content: repairPrompt },
           ], {
             model: modelName,
+            thinking: 'disabled',
             temperature: 0.1,
             maxTokens: 2400,
             signal,
@@ -222,41 +236,48 @@ export async function POST(request: NextRequest) {
             sectionCoverage = auditCitationSectionCoverage(repairedAnswer, [...DEEP_RESEARCH_REQUIRED_SECTIONS]);
           }
           answerText = repairedAnswer;
+          outputConstraint = auditDeepResearchLength(answerText, question);
           answerStatus = classifyDeepResearchAnswer({
             citationCount: grounded.citations.length,
             citationAuditStatus: citationAudit.status,
             sectionCoverageStatus: sectionCoverage.status,
+            outputConstraintStatus: outputConstraint.status,
           });
           emit({ replaceContent: answerText });
         }
 
         const billing = await reservationFinalizer.settle(answerText);
-        emit({
+        const completion = {
           citationAudit,
           researchStatus: {
             answerStatus,
             sectionCoverage,
             removedUncitedClaims,
             repairAttempted,
+            outputConstraint,
             retrievalLimits: [
               '报告仅基于当前选定来源及其可检索片段。',
               '引用线索未替代全文核验。',
             ],
           },
           billing,
-        });
+        };
+        const document = await persistence.save?.({ answer: answerText, citations: grounded.citations, retrieval, citationAudit, researchStatus: completion.researchStatus, status: answerStatus === 'complete' ? 'complete' : 'incomplete' });
+        emit({ ...completion, document });
         taskObservation.succeeded();
         emit('[DONE]');
     },
     async onError(error, { emit, signal }) {
         await reservationFinalizer.finalizeFailure(answerText);
         const aborted = signal.aborted;
+        const recovery = await persistence.interrupted?.(answerText, grounded.citations, retrieval, error);
         if (aborted) taskObservation.cancelled('deep_research_interrupted');
         else taskObservation.failed('deep_research_failed', error);
         emit({
-          error: aborted
+          ...recovery,
+          error: recovery?.saveError || (aborted
             ? '深度研究已停止或超过等待时间；已返回的证据和正文片段仍可保留核验。'
-            : error instanceof Error ? error.message : '深度研究生成失败。',
+            : error instanceof Error ? error.message : '深度研究生成失败。'),
           errorType: aborted ? 'deep_research_interrupted' : 'deep_research_failed',
           researchStatus: {
             answerStatus: answerText ? 'incomplete' : 'no-evidence',

@@ -1,6 +1,6 @@
-// Shared slide image generation helpers (SitianAI first, OpenAI-compatible
-// fallback). Extracted for reuse by slide revision; the original /api/ai/ppt
-// route keeps its local copy to stay untouched.
+// Shared slide image generation helpers. Bailian is the primary production
+// provider; SitianAI and OpenAI-compatible routes remain compatibility paths.
+import { setTimeout as delay } from 'node:timers/promises';
 import type { RuntimeAIConfig } from '@/types';
 import { allowRequestRuntimeAIConfig, hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
 import {
@@ -8,11 +8,18 @@ import {
   parseSlideReferenceImage,
   SlideImageProviderError,
 } from '@/lib/ppt/slide-image-contract';
-import { bailianProfileFromRuntimeConfig } from '@/lib/bailian-provider-profile';
-import { generateBailianWanImage } from '@/lib/bailian-wan-image';
 
-const SITIAN_API_BASE = process.env.SITIAN_API_BASE || 'http://images.sitianai.com';
-const SITIAN_API_TOKEN = process.env.SITIAN_API_TOKEN || '';
+function sitianApiBase(): string {
+  return process.env.SITIAN_API_BASE?.trim() || 'https://images.sitianai.com';
+}
+
+function sitianApiToken(): string {
+  return process.env.SITIAN_API_TOKEN?.trim() || '';
+}
+
+function sitianImageProviderRequired(): boolean {
+  return process.env.SITIAN_IMAGE_PROVIDER_REQUIRED === 'true';
+}
 
 interface SitianResponse {
   success: boolean;
@@ -24,12 +31,42 @@ interface OpenAIImageResponse {
   error?: { message?: string };
 }
 
+interface BailianImageResponse {
+  output?: {
+    choices?: Array<{
+      message?: {
+        content?: Array<{ image?: string }>;
+      };
+    }>;
+  };
+  code?: string;
+  message?: string;
+}
+
 function envFirst(...names: string[]): string {
   for (const name of names) {
     const value = process.env[name]?.trim();
     if (value) return value;
   }
   return '';
+}
+
+function bailianApiKey(): string {
+  return envFirst('DASHSCOPE_API_KEY');
+}
+
+function bailianImageApiBase(): string {
+  return envFirst('DASHSCOPE_IMAGE_API_BASE') || 'https://dashscope.aliyuncs.com/api/v1';
+}
+
+function bailianImageModel(): string {
+  return envFirst('DASHSCOPE_IMAGE_MODEL') || 'qwen-image-2.0';
+}
+
+function bailianImageSize(aspectRatio?: string): string {
+  if (aspectRatio === '4:3') return '2368*1728';
+  if (aspectRatio === '1:1') return '2048*2048';
+  return '2688*1536';
 }
 
 export function resolveImageRuntimeConfig(input?: Partial<RuntimeAIConfig>): Partial<RuntimeAIConfig> {
@@ -94,6 +131,76 @@ async function imageUrlToBase64(url: string, apiKey?: string, signal?: AbortSign
   return Buffer.from(await response.arrayBuffer()).toString('base64');
 }
 
+async function generateBailianImage(prompt: string, options?: {
+  aspectRatio?: string;
+  negativePrompt?: string;
+  referenceImageBase64?: string;
+  signal?: AbortSignal;
+}): Promise<string> {
+  const apiKey = bailianApiKey();
+  const endpoint = bailianImageApiBase().replace(/\/+$/, '')
+    + '/services/aigc/multimodal-generation/generation';
+  const content: Array<Record<string, string>> = [];
+  if (options?.referenceImageBase64) {
+    content.push({ image: parseSlideReferenceImage(options.referenceImageBase64).dataUrl });
+  }
+  content.push({ text: prompt });
+
+  const signal = imageRequestSignal(Number(process.env.PPT_IMAGE_TIMEOUT_MS || 180_000), options?.signal);
+  const requestBody = JSON.stringify({
+    model: bailianImageModel(),
+    input: { messages: [{ role: 'user', content }] },
+    parameters: {
+      negative_prompt: options?.negativePrompt || undefined,
+      size: bailianImageSize(options?.aspectRatio),
+      n: 1,
+      prompt_extend: true,
+      watermark: false,
+    },
+  });
+
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: requestBody,
+      signal,
+    });
+    const rawBody = await response.text().catch(() => '');
+    let parsed: BailianImageResponse;
+    try {
+      parsed = JSON.parse(rawBody) as BailianImageResponse;
+    } catch {
+      throw new Error('百炼图像服务返回非 JSON:' + redactRuntimeAISecrets(rawBody.slice(0, 300), apiKey));
+    }
+    if (!response.ok) {
+      const detail = parsed.message || parsed.code || rawBody;
+      const permanentLimit = /BudgetLimitExceeded|BillOverdue|CommodityNotPurchased|Free allocated quota/i.test(`${parsed.code || ''} ${parsed.message || ''}`);
+      if (response.status === 429 && !permanentLimit && attempt < 2) {
+        const retryAfter = response.headers.get('retry-after');
+        const headerDelay = retryAfter
+          ? (Number.isFinite(Number(retryAfter)) ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - Date.now())
+          : 0;
+        const delayMs = Math.max(2000 * 4 ** attempt, Number.isFinite(headerDelay) ? headerDelay : 0);
+        if (delayMs <= 30_000) {
+          console.warn(`[PPT image] Provider busy; retry ${attempt + 1}/2 after ${delayMs}ms`);
+          await delay(delayMs, undefined, { signal });
+          continue;
+        }
+      }
+      throw new SlideImageProviderError(
+        response.status,
+        '百炼图像服务失败:HTTP ' + response.status
+          + (detail ? ' - ' + redactRuntimeAISecrets(detail, apiKey) : ''),
+      );
+    }
+
+    const image = parsed.output?.choices?.[0]?.message?.content?.find(item => item.image)?.image;
+    if (!image) throw new Error('百炼图像服务未返回图片。');
+    return imageUrlToBase64(image, apiKey, signal);
+  }
+}
+
 async function generateSitianImage(prompt: string, options?: {
   aspectRatio?: string;
   negativePrompt?: string;
@@ -115,9 +222,10 @@ async function generateSitianImage(prompt: string, options?: {
     }
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (SITIAN_API_TOKEN) headers['Authorization'] = `Bearer ${SITIAN_API_TOKEN}`;
+    const token = sitianApiToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
 
-    const resp = await fetch(`${SITIAN_API_BASE}/api/generate`, {
+    const resp = await fetch(`${sitianApiBase()}/api/generate`, {
       method: 'POST', headers, body: JSON.stringify(body),
       signal: imageRequestSignal(120_000, options?.signal),
     });
@@ -202,22 +310,19 @@ export async function generateSlideImage(prompt: string, options?: {
   runtimeConfig?: Partial<RuntimeAIConfig>;
   signal?: AbortSignal;
 }): Promise<string | null> {
-  const memberProfile = bailianProfileFromRuntimeConfig(options?.runtimeConfig || {});
-  if (memberProfile) {
-    const image = await generateBailianWanImage(prompt, memberProfile, {
-      aspectRatio: options?.aspectRatio,
-      signal: options?.signal,
-    });
-    return image.toString('base64');
-  }
-  if (SITIAN_API_TOKEN) {
+  if (bailianApiKey()) return generateBailianImage(prompt, options);
+  if (sitianApiToken()) {
     const result = await generateSitianImage(prompt, options);
     if (result) return result;
+    if (sitianImageProviderRequired()) {
+      throw new SlideImageProviderError(502, '指定的科研图像服务暂时不可用，请稍后重试。');
+    }
     console.log('[生图] 思坦AI失败,改用 OpenAI-compatible 图片模型...');
   }
   return generateOpenAICompatibleImage(prompt, resolveImageRuntimeConfig(options?.runtimeConfig), options);
 }
 
 export function resolveImageModelName(runtimeConfig?: Partial<RuntimeAIConfig>): string {
+  if (bailianApiKey()) return bailianImageModel();
   return resolveImageModel(resolveImageRuntimeConfig(runtimeConfig));
 }

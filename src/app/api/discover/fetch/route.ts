@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
+import { fetchPublicSource, PublicSourceError } from '@/lib/public-source-fetch';
 
 export const maxDuration = 60;
 
 // Fetch a discovered web page server-side and reduce it to readable text so
 // the client can ingest it as a source through the normal upload pipeline.
-
-const MAX_HTML_BYTES = 3_000_000;
-const MAX_TEXT_CHARS = 60_000;
 
 function htmlToReadableText(html: string): { title: string; text: string } {
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
@@ -35,7 +33,7 @@ function htmlToReadableText(html: string): { title: string; text: string } {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  return { title, text: text.slice(0, MAX_TEXT_CHARS) };
+  return { title, text };
 }
 
 function decodeEntities(value: string): string {
@@ -71,32 +69,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '仅支持 http/https 链接' }, { status: 400 });
   }
 
+  let signal: AbortSignal | undefined;
   try {
-    const response = await fetch(parsed.toString(), {
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; KnowTrailBot/1.0; +https://airai.world)',
-        Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.6',
-      },
-      signal: AbortSignal.timeout(Number(process.env.DISCOVER_FETCH_TIMEOUT_MS || 20_000)),
-    });
-    if (!response.ok) {
-      return NextResponse.json({ error: `网页返回 HTTP ${response.status}` }, { status: 502 });
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (!/text\/html|application\/xhtml|text\/plain/i.test(contentType)) {
-      return NextResponse.json({ error: `暂不支持的内容类型:${contentType.split(';')[0] || '未知'}` }, { status: 415 });
-    }
-
-    const buffer = await response.arrayBuffer();
-    if (buffer.byteLength > MAX_HTML_BYTES) {
-      return NextResponse.json({ error: '网页过大,无法抓取' }, { status: 413 });
-    }
+    signal = AbortSignal.any([request.signal, AbortSignal.timeout(Number(process.env.DISCOVER_FETCH_TIMEOUT_MS || 20_000))]);
+    const { buffer, contentType } = await fetchPublicSource(parsed, signal);
     const html = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
-    const { title, text } = contentType.includes('text/plain')
-      ? { title: '', text: html.slice(0, MAX_TEXT_CHARS) }
+    const { title, text } = contentType.toLowerCase().includes('text/plain')
+      ? { title: '', text: html }
       : htmlToReadableText(html);
 
     if (text.length < 80) {
@@ -106,7 +85,8 @@ export async function POST(request: NextRequest) {
     console.log(`[Discover] fetched ${parsed.hostname} -> ${text.length} chars`);
     return NextResponse.json({ success: true, title, text, url: parsed.toString() });
   } catch (err) {
-    const timedOut = err instanceof Error && err.name === 'TimeoutError';
+    if (err instanceof PublicSourceError) return NextResponse.json({ error: err.message }, { status: err.status });
+    const timedOut = signal?.reason instanceof Error && signal.reason.name === 'TimeoutError';
     return NextResponse.json({ error: timedOut ? '抓取超时' : '网页抓取失败' }, { status: 502 });
   }
 }

@@ -11,15 +11,15 @@ const SYSTEM_PROMPT = `你是一个资料知识卡片整理助手。你的任务
 
 每张卡片包含以下字段：
 - category: 分类，必须是以下之一：「核心概念」「关键要点」「背景脉络」「方法线索」「结论启发」
-- title: 卡片标题，简洁的问句、概念名或要点名（10-25字）
-- content: 详细解析，200-400字，通俗易懂地解释
-- extra: 补充信息，如关键数据、公式、引用来源或后续提问建议（50-100字）
+- title: 简短的问句、概念名或要点名
+- content: 原文支持的解释，不设最低字数；通常一至三句话
+- extra: 原文中的关键数据、公式、条件或来源；没有补充信息时留空
 
 要求：
-1. 每份资料生成 4-7 张知识卡片
-2. 覆盖不同分类，不要只集中在某一种
-3. 提取资料中最有价值、最具学习意义的内容
-4. content 应该让非专业读者也能理解，必要时使用类比
+1. 按证据量生成 1-6 张卡片，短资料通常 1-3 张，不凑数量，不重复拆分同一事实
+2. 分类按内容选择，不必覆盖所有分类
+3. 保留原数字、单位、模拟性质和限定；原文没有的结论、作者或性能不能补写
+4. 表述简明，不用无依据的类比扩写资料
 5. content 或 extra 必须使用 [1]、[2] 这样的来源编号标注支撑证据，不要编造未出现的来源
 6. extra 提供原文的关键数据、公式或引用支撑
 
@@ -36,6 +36,7 @@ const SYSTEM_PROMPT = `你是一个资料知识卡片整理助手。你的任务
 }`;
 
 export interface KnowledgeCardRequestInput {
+  question?: string;
   papers: RagSourceInput[];
   aiConfig?: Partial<RuntimeAIConfig>;
   debugRetrievalOnly?: boolean;
@@ -43,6 +44,7 @@ export interface KnowledgeCardRequestInput {
   forceRefresh?: boolean;
   ownerMemberId?: string;
   notebookId?: string;
+  signal?: AbortSignal;
 }
 
 export async function buildKnowledgeCardsPayload(input: KnowledgeCardRequestInput) {
@@ -53,12 +55,12 @@ export async function buildKnowledgeCardsPayload(input: KnowledgeCardRequestInpu
 
   const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
   const scope = { ownerMemberId, notebookId };
-  if (!debugRetrievalOnly && !forceRefresh) {
+  if (!debugRetrievalOnly && !forceRefresh && !input.question) {
     const cached = await readKnowledgeCardCache(papers, runtimeConfig, scope);
     if (cached) return { body: cached, status: 200 as const };
   }
 
-  const grounded = await buildGroundedRetrievalContext('梳理核心概念、关键要点、背景脉络、方法线索和结论启发', papers, runtimeConfig, { topK: 10, ownerMemberId, notebookId });
+  const grounded = await buildGroundedRetrievalContext(input.question || '梳理核心概念、关键要点、背景脉络、方法线索和结论启发', papers, runtimeConfig, { topK: 10, ownerMemberId, notebookId });
   if (debugRetrievalOnly) {
     return {
       body: {
@@ -82,9 +84,9 @@ export async function buildKnowledgeCardsPayload(input: KnowledgeCardRequestInpu
     { role: 'system' as const, content: SYSTEM_PROMPT },
     {
       role: 'user' as const,
-      content: `请从以下检索证据片段中生成知识卡片。每张卡片的 content 或 extra 字段必须使用 [1]、[2] 这样的来源编号标注支撑证据，不要编造未出现的来源；如需补充 chunkId，可放在 extra 中。\n\n${evidenceContext}`,
+      content: `请从以下检索证据片段中生成知识卡片。用 [1]、[2] 这样的来源编号标注证据，不要编造来源。extra 只保留对理解原文有用的说明，不输出 sourceId、chunkId 等内部标识。${input.question ? '\n复习范围（用户要求，不是来源事实）：' + input.question : ''}\n\n${evidenceContext}`,
     },
-  ], { temperature: 0.5 }, undefined, runtimeConfig);
+  ], { temperature: 0.3, thinking: 'disabled', maxTokens: 2400, signal: input.signal }, undefined, runtimeConfig);
 
   const cards = parseKnowledgeCardResult(result);
   if (cards.length === 0) {
@@ -100,6 +102,7 @@ export async function buildKnowledgeCardsPayload(input: KnowledgeCardRequestInpu
     retrieval,
     citationAudit,
   };
+  if (input.question) return { body: response, status: 200 as const };
   const cache = await writeKnowledgeCardCache(papers, runtimeConfig, response, scope);
   return {
     body: {
@@ -130,12 +133,12 @@ function parseKnowledgeCardResult(result: string): KnowledgeCardData[] {
 
 function sanitizeParsedKnowledgeCards(parsed: { cards?: Array<{ category?: string; title?: string; content?: string; extra?: string }> }) {
   return (parsed.cards || []).flatMap(card => {
-    if (!card.title || !card.content) return [];
+    if (typeof card.title !== 'string' || !card.title.trim() || typeof card.content !== 'string' || !card.content.trim()) return [];
     return [{
-      category: card.category || '关键要点',
+      category: typeof card.category === 'string' ? card.category : '关键要点',
       title: card.title,
       content: card.content,
-      extra: card.extra || '',
+      extra: typeof card.extra === 'string' ? card.extra : '',
     }];
   });
 }

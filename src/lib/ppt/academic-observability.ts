@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { llmInvoke } from '@/lib/ai-service';
 import type { RuntimeAIConfig } from '@/types';
 
@@ -22,9 +23,18 @@ export type LlmCallLog = {
 };
 
 export const llmCallLogs: LlmCallLog[] = [];
+const requestLlmCallLogs = new AsyncLocalStorage<LlmCallLog[]>();
+
+export function getLlmCallLogs(): LlmCallLog[] {
+  return requestLlmCallLogs.getStore() || llmCallLogs;
+}
+
+export function withLlmCallLogs<T>(callback: () => T): T {
+  return requestLlmCallLogs.run([], callback);
+}
 
 export function resetLlmCallLogs(): void {
-  llmCallLogs.length = 0;
+  getLlmCallLogs().length = 0;
 }
 
 export function readPositiveIntEnv(name: string, fallback: number): number {
@@ -46,6 +56,7 @@ export async function llmInvokeObserved(
     runtimeConfig?: Partial<RuntimeAIConfig>;
   },
 ): Promise<{ raw: string; log: LlmCallLog }> {
+  const logs = getLlmCallLogs();
   const log: LlmCallLog = {
     stage,
     model: options?.runtimeConfig?.model?.trim() || options?.model || 'doubao-seed-2-0-pro-260215',
@@ -66,7 +77,7 @@ export async function llmInvokeObserved(
     log.durationMs = Date.now() - t0;
     log.success = true;
     log.rawPreview = raw.slice(0, 500);
-    llmCallLogs.push(log);
+    logs.push(log);
     console.log(`[PPT-V2] ✓ ${stage} | model=${log.model} | ${log.durationMs}ms | raw=${log.rawPreview.slice(0, 80)}...`);
     return { raw, log };
   } catch (err) {
@@ -74,19 +85,19 @@ export async function llmInvokeObserved(
     log.success = false;
     log.timedOut = err instanceof Error && err.name === 'AbortError';
     log.errorPreview = String(err instanceof Error ? err.message : err).slice(0, 200);
-    llmCallLogs.push(log);
+    logs.push(log);
     console.error(`[PPT-V2] ✗ ${stage} | model=${log.model} | ${log.durationMs}ms | timedOut=${log.timedOut} | err=${log.errorPreview}`);
     throw err;
   }
 }
 
 export function markJsonParsed(stage: string, ok: boolean): void {
-  const log = [...llmCallLogs].reverse().find(item => item.stage === stage);
+  const log = [...getLlmCallLogs()].reverse().find(item => item.stage === stage);
   if (log) log.jsonParsedOk = ok;
 }
 
 export function markFallback(stage: string, reason: string): void {
-  const log = [...llmCallLogs].reverse().find(item => item.stage === stage);
+  const log = [...getLlmCallLogs()].reverse().find(item => item.stage === stage);
   if (log) {
     log.fallbackTriggered = true;
     log.fallbackReason = reason;

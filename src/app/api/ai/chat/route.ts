@@ -4,30 +4,29 @@ import type { RuntimeAIConfig } from '@/types';
 import type { RagSourceInput } from '@/lib/rag';
 import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/grounded-retrieval';
 import { auditCitationMarkers } from '@/lib/citation-audit';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
 import { AccountServiceError } from '@/lib/account-entitlement-client';
-import { accountAuthRequired, resolveAccountSessionFromRequest } from '@/lib/account-session';
-import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import {
   resolveStudioGenerationReadiness,
   studioGenerationUnavailablePayload,
 } from '@/lib/studio-generation-readiness';
+import { resolveResearchChatSkillInstruction } from '@/lib/research-chat-skill-instructions';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, papers, mode, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
+    const { message, papers, mode, skill, aiConfig, maxTokens, debugRetrievalOnly, debugAnswerText, notebookId: rawNotebookId } = await request.json() as {
       message?: string;
       papers?: RagSourceInput[];
       mode?: string;
+      skill?: string;
       aiConfig?: Partial<RuntimeAIConfig>;
       maxTokens?: number;
       debugRetrievalOnly?: boolean;
       debugAnswerText?: string;
       notebookId?: string;
     };
-    const notebookId = normalizeNotebookId(rawNotebookId);
-
     if (!message) {
       return new Response(JSON.stringify({ error: '缺少消息内容' }), {
         status: 400,
@@ -35,26 +34,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    let accountSession: Awaited<ReturnType<typeof resolveAccountSessionFromRequest>> = null;
-    try {
-      accountSession = await resolveAccountSessionFromRequest(request);
-    } catch {
-      return new Response(JSON.stringify({
-        error: '账号登录已过期，请重新登录。',
-        billing: { status: 'failed', code: 'invalid_account_session' },
-      }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-      });
-    }
-    if (accountAuthRequired() && !accountSession) {
-      return new Response(JSON.stringify({
-        error: '请先登录账号，再使用模型问答。',
-        billing: { status: 'failed', code: 'account_login_required' },
-      }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
-      });
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId: rawNotebookId,
+      loginMessage: '请先登录国科大科教平台，再使用科研智能体问答。',
+    });
+    if (!scope.ok) {
+      return scope.response;
     }
 
     const readiness = resolveStudioGenerationReadiness().researchChat;
@@ -65,12 +50,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, aiConfig);
-    if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-    const runtimeConfig = runtimeConfigResult;
+    const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
     const grounded = await buildGroundedRetrievalContext(message, papers || [], runtimeConfig, {
-      ownerMemberId: accountSession?.member.id,
-      notebookId,
+      ownerMemberId: scope.ownerMemberId,
+      notebookId: scope.notebookId,
     });
 
     if (debugRetrievalOnly) {
@@ -87,9 +70,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const systemPrompt = mode === 'report'
+    const baseSystemPrompt = mode === 'report'
       ? SYSTEM_PROMPTS.reportGeneration
       : SYSTEM_PROMPTS.academicQA;
+    const skillInstruction = resolveResearchChatSkillInstruction(skill);
+    const systemPrompt = skillInstruction
+      ? `${baseSystemPrompt}\n\n${skillInstruction}`
+      : baseSystemPrompt;
     const modelName = runtimeConfig.model?.trim() || 'doubao-seed-2-0-pro-260215';
     const boundedMaxTokens = Number.isInteger(maxTokens) && typeof maxTokens === 'number'
       ? Math.min(Math.max(maxTokens, 1), 4096)
@@ -127,7 +114,8 @@ export async function POST(request: NextRequest) {
         modelName,
         inputText: message,
         promptContext: grounded.promptContext,
-        memberId: accountSession?.member.id,
+        memberId: scope.ownerMemberId,
+        quotaExempt: scope.usageQuotaExempt,
         idempotencyKey: request.headers.get('idempotency-key') || undefined,
       });
     } catch (billingError) {

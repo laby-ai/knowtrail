@@ -1,9 +1,16 @@
 'use client';
 
+import type { ResearchComposerRenderer } from '@/components/editor/ResearchComposer';
+
 // NotebookLM-style "discover sources": search the web from the library
 // panel, pick results, and ingest them as sources in one step.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useApp } from '@/contexts/AppContext';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyDiscoverSearch, isDiscoverSearchDocument, type SearchProvider } from '@/lib/discover-search-document';
+import { SavedToolStatus } from '@/components/studio/SavedToolStatus';
+import { clientApiPath } from '@/lib/client-api';
 import {
   AlertCircle,
   CheckCircle2,
@@ -17,6 +24,9 @@ import {
 } from 'lucide-react';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { createDiscoveredSourceFile, type DiscoveredSourceFileInput } from '@/lib/discovered-source-file';
+import type { DiscoveredSourceIngestResult } from '@/lib/discovered-source-upload';
+import { readPaperHostContext } from '@/lib/paper-host-bridge';
+import { optimizePaperHostDiscoverQuery, searchPaperHostSources } from '@/lib/paper-host-discover-search';
 
 type DiscoverResult = DiscoveredSourceFileInput;
 
@@ -28,26 +38,43 @@ export function DiscoverSourcesModal({
   onIngestFiles,
   variant = 'modal',
   initialScope = 'webpage',
+  renderComposer,
 }: {
   notebookId?: string;
   onClose: () => void;
-  onIngestFiles: (files: File[]) => Promise<void | number>;
+  onIngestFiles: (files: File[], signal?: AbortSignal) => Promise<void | number | DiscoveredSourceIngestResult>;
   variant?: 'modal' | 'embedded';
   initialScope?: 'webpage' | 'scholar';
+  renderComposer?: ResearchComposerRenderer;
 }) {
-  const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<'webpage' | 'scholar'>(initialScope);
+  const { storageScopeKey } = useApp();
+  const emptySearch = useCallback(() => ({ ...emptyDiscoverSearch(), scope: initialScope }), [initialScope]);
+  const saved = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'discover-search', endpoint: '/api/studio/artifacts?kind=discover-search', empty: emptySearch, validate: isDiscoverSearchDocument });
+  const { update } = saved;
+  const { query, optimizedQuery, planKeywords, scope, results, searched } = saved.data;
+  const selected = useMemo(() => new Set(saved.data.selected), [saved.data.selected]);
+  const searchProvider = saved.data.provider;
+  const setQuery = useCallback((query: string) => update(p => ({ ...p, query })), [update]);
+  const setOptimizedQuery = useCallback((optimizedQuery: string) => update(p => ({ ...p, optimizedQuery })), [update]);
+  const setPlanKeywords = useCallback((planKeywords: string[]) => update(p => ({ ...p, planKeywords })), [update]);
+  const setScope = useCallback((scope: 'webpage' | 'scholar') => update(p => ({ ...p, scope })), [update]);
+  const setResults = useCallback((results: DiscoverResult[]) => update(p => ({ ...p, results })), [update]);
+  const setSearched = useCallback((searched: boolean) => update(p => ({ ...p, searched })), [update]);
+  const setSelected = useCallback((value: Set<string> | ((previous: Set<string>) => Set<string>)) => update(p => ({ ...p, selected: [...(typeof value === 'function' ? value(new Set(p.selected)) : value)] })), [update]);
+  const setSearchProvider = useCallback((provider: SearchProvider) => update(p => ({ ...p, provider })), [update]);
+  const ready = !saved.loading && !saved.readFailed && !saved.conflict;
+  const requests = useRef(new Set<AbortController>());
+  const live = useRef(true);
+  useEffect(() => { live.current = true; return () => { live.current = false; requests.current.forEach(c => c.abort()); searchSequence.current++; }; }, []);
   const [isSearching, setIsSearching] = useState(false);
-  const [results, setResults] = useState<DiscoverResult[]>([]);
-  const [searched, setSearched] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [searchProvider, setSearchProvider] = useState<'metaso' | 'arxiv' | null>(null);
   const [ingestPhase, setIngestPhase] = useState<IngestPhase>('idle');
   const [ingestProgress, setIngestProgress] = useState({ done: 0, total: 0 });
   const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchSequence = useRef(0);
+  const busy = useRef(false);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -61,34 +88,81 @@ export function DiscoverSourcesModal({
   }, [onClose, variant]);
 
   const handleSearch = useCallback(async () => {
-    const q = query.trim();
-    if (!q || isSearching) return;
+    const original = query.trim();
+    if (!original || busy.current || !ready) return;
+    busy.current = true;
+    const sequence = ++searchSequence.current;
     setIsSearching(true);
+    const auth = accountAuthHeaders();
+    if (!await saved.flush() || !live.current || sequence !== searchSequence.current) { busy.current = false; if (live.current) setIsSearching(false); return; }
+    const controller = new AbortController(); requests.current.add(controller);
     setError(null);
     setNotice(null);
-    setSearchProvider(null);
     setItemErrors({});
-    setSelected(new Set());
     try {
-      const res = await fetch('/api/discover/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
-        body: JSON.stringify({ query: q, scope, size: 10, withContent: false, notebookId }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error || '搜索失败');
-      setResults(Array.isArray(data.results) ? data.results : []);
-      setSearchProvider(data.provider === 'arxiv' ? 'arxiv' : 'metaso');
-      setSearched(true);
+      let effectiveQuery = optimizedQuery.trim();
+      if (!effectiveQuery) {
+        const hostContext = readPaperHostContext();
+        let plan: { success?: boolean; optimizedQuery?: string; keywords?: string[]; error?: string };
+        if (scope !== 'scholar' && hostContext.enabled && window.paperHostBridge) {
+          try {
+            plan = { success: true, ...await optimizePaperHostDiscoverQuery(original, scope) };
+          } catch (error) {
+            plan = { error: error instanceof Error ? error.message : '检索式优化暂不可用' };
+          }
+        } else {
+          const planResponse = await fetch(clientApiPath('/api/discover/optimize-query'), {
+            method: 'POST',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json', ...auth },
+            body: JSON.stringify({ query: original, scope, notebookId, provider: scope === 'scholar' ? 'arxiv' : undefined }),
+          });
+          plan = await planResponse.json();
+          if (!planResponse.ok) plan.success = false;
+        }
+        if (sequence !== searchSequence.current) return;
+        if (plan.success && typeof plan.optimizedQuery === 'string') {
+          effectiveQuery = plan.optimizedQuery.trim();
+          setOptimizedQuery(effectiveQuery);
+          setPlanKeywords(Array.isArray(plan.keywords) ? plan.keywords : []);
+        } else {
+          effectiveQuery = original;
+          setOptimizedQuery(original);
+          setPlanKeywords([]);
+          setNotice(plan.error || '检索式优化暂不可用，已使用原始检索式。');
+        }
+      }
+
+      const hostContext = readPaperHostContext();
+      if (scope !== 'scholar' && hostContext.enabled && window.paperHostBridge) {
+        const result = await searchPaperHostSources({ query: effectiveQuery, scope });
+        if (sequence !== searchSequence.current) return;
+        setResults(result.results);
+        setSearchProvider(result.provider);
+      } else {
+        const res = await fetch(clientApiPath('/api/discover/search'), {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json', ...auth },
+          body: JSON.stringify({ query: effectiveQuery, scope, size: 10, withContent: false, notebookId, provider: scope === 'scholar' ? 'arxiv' : undefined }),
+        });
+        const data = await res.json();
+        if (sequence !== searchSequence.current) return;
+        if (!res.ok || !data.success) throw new Error(data.error || '搜索失败');
+        setResults(Array.isArray(data.results) ? data.results : []);
+        setSearchProvider(data.provider === 'arxiv' ? 'arxiv' : 'metaso');
+      }
+      setSelected(new Set()); setSearched(true); await saved.flush();
     } catch (err) {
+      if (sequence !== searchSequence.current) return;
       setError(err instanceof Error ? err.message : '搜索失败，请重试');
-      setResults([]);
-      setSearchProvider(null);
-      setSearched(true);
+      setNotice('仍保留上次已保存的检索结果。');
     } finally {
-      setIsSearching(false);
+      requests.current.delete(controller);
+      busy.current = false;
+      if (live.current && sequence === searchSequence.current) setIsSearching(false);
     }
-  }, [query, scope, isSearching, notebookId]);
+  }, [query, optimizedQuery, scope, isSearching, notebookId, ready, saved, setOptimizedQuery, setPlanKeywords, setResults, setSearchProvider, setSearched, setSelected]);
 
   const toggleSelect = useCallback((link: string) => {
     setSelected(prev => {
@@ -96,32 +170,40 @@ export function DiscoverSourcesModal({
       if (next.has(link)) next.delete(link); else next.add(link);
       return next;
     });
-  }, []);
+  }, [setSelected]);
 
   const handleIngest = useCallback(async () => {
     const picked = results.filter(r => selected.has(r.link));
-    if (picked.length === 0 || ingestPhase === 'fetching') return;
+    if (picked.length === 0 || busy.current || !ready) return;
+    busy.current = true;
     setIngestPhase('fetching');
+    const controller = new AbortController(); requests.current.add(controller);
+    const auth = accountAuthHeaders();
+    try {
+    if (!await saved.flush() || !live.current || controller.signal.aborted) return;
     setIngestProgress({ done: 0, total: picked.length });
     setItemErrors({});
     setError(null);
 
     const files: File[] = [];
+    const fileLinks: string[] = [];
     const failures: Record<string, string> = {};
 
     for (const item of picked) {
       try {
         const file = await createDiscoveredSourceFile(item, async url => {
-          const res = await fetch('/api/discover/fetch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+          const res = await fetch(clientApiPath('/api/discover/fetch'), {
+            method: 'POST', signal: controller.signal,
+            headers: { 'Content-Type': 'application/json', ...auth },
             body: JSON.stringify({ url, notebookId }),
           });
           const data = await res.json();
           if (!res.ok || !data.success) throw new Error(data.error || '抓取失败');
           return { title: data.title, text: data.text };
         });
+        if (!live.current || controller.signal.aborted) return;
         files.push(file);
+        fileLinks.push(item.link);
       } catch (err) {
         failures[item.link] = err instanceof Error ? err.message : '抓取失败';
       }
@@ -133,8 +215,15 @@ export function DiscoverSourcesModal({
     if (files.length > 0) {
       let addedCount: number;
       try {
-        const result = await onIngestFiles(files);
-        addedCount = typeof result === 'number' ? result : files.length;
+        controller.signal.throwIfAborted();
+        const result = await onIngestFiles(files, controller.signal);
+        if (!live.current || controller.signal.aborted) return;
+        addedCount = typeof result === 'number' ? result : result ? result.added : files.length;
+        if (result && typeof result === 'object') {
+          const accepted = new Set(result.successfulFileIndexes);
+          fileLinks.forEach((link, index) => { if (!accepted.has(index)) failures[link] = result.errors.join('；') || '加入资料失败，请重试。'; });
+          setItemErrors({ ...failures });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : '来源入库失败，请重试。');
         setIngestPhase('idle');
@@ -156,8 +245,11 @@ export function DiscoverSourcesModal({
     } else {
       setError('所选来源都未能抓取成功,请换几条结果试试。');
     }
-    setIngestPhase('idle');
-  }, [results, selected, ingestPhase, notebookId, onIngestFiles, onClose, variant]);
+    } finally {
+      requests.current.delete(controller); busy.current = false;
+      if (live.current) setIngestPhase('idle');
+    }
+  }, [results, selected, ingestPhase, notebookId, onIngestFiles, onClose, variant, ready, saved, setSelected]);
 
   return (
     <div
@@ -173,7 +265,57 @@ export function DiscoverSourcesModal({
           : 'flex w-full flex-col gap-3'}
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
+        <SavedToolStatus saved={saved} guest={storageScopeKey.startsWith('guest:')} />
+        {renderComposer ? renderComposer({
+          label: '论文检索', value: query, onChange: value => { setQuery(value); setOptimizedQuery(''); setPlanKeywords([]); },
+          onSubmit: () => void handleSearch(),
+          onStop: () => { searchSequence.current++; requests.current.forEach(controller => controller.abort()); busy.current = false; setIsSearching(false); setNotice('操作已停止，保留已保存的内容。'); },
+          busy: isSearching || ingestPhase === 'fetching', disabled: !ready,
+          canSubmit: Boolean(query.trim()) && ready && !isSearching && ingestPhase !== 'fetching',
+          placeholder: '输入主题、题目、作者或关键词…', settingsLabel: '检索设置',
+          settings: (<div className="space-y-3">          <div className="flex shrink-0 gap-1 rounded-xl bg-[var(--glass-subtle)] p-1">
+            {([['webpage', '网页', Globe2], ['scholar', '学术', GraduationCap]] as const).map(([id, label, Icon]) => (
+              <button
+                key={id}
+                disabled={!ready || isSearching || ingestPhase === 'fetching'}
+                onClick={() => { setScope(id); setOptimizedQuery(''); setPlanKeywords([]); }}
+                className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
+                  scope === id ? 'bg-[var(--glass-active)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                }`}
+                data-testid={`discover-scope-${id}`}
+              >
+                <Icon className="h-3 w-3" />
+                {label}
+              </button>
+            ))}
+          </div>
+        {optimizedQuery && (
+          <div className="rounded-xl border border-blue-400/20 bg-blue-500/8 px-3 py-2" data-testid="discover-query-plan">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium text-blue-300">可编辑检索式</span>
+              <span className="text-[10px] text-[var(--text-quaternary)]">模型只整理检索式，结果来自真实来源</span>
+            </div>
+            <input
+              value={optimizedQuery}
+              disabled={!ready || isSearching || ingestPhase === 'fetching'}
+              onChange={event => { setOptimizedQuery(event.target.value); setPlanKeywords([]); }}
+              onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void handleSearch(); }}
+              data-testid="discover-optimized-query"
+              className="liquid-glass-input w-full px-3 py-2 text-xs"
+              aria-label="可编辑检索式"
+            />
+            {planKeywords.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5" aria-label="检索关键词">
+                {planKeywords.map(keyword => (
+                  <span key={keyword} className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-300">{keyword}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+</div>),
+        }) : (<>      {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
@@ -195,7 +337,8 @@ export function DiscoverSourcesModal({
             {([['webpage', '网页', Globe2], ['scholar', '学术', GraduationCap]] as const).map(([id, label, Icon]) => (
               <button
                 key={id}
-                onClick={() => setScope(id)}
+                disabled={!ready || isSearching || ingestPhase === 'fetching'}
+                onClick={() => { setScope(id); setOptimizedQuery(''); setPlanKeywords([]); }}
                 className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
                   scope === id ? 'bg-[var(--glass-active)] text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
                 }`}
@@ -211,7 +354,12 @@ export function DiscoverSourcesModal({
             <input
               ref={inputRef}
               value={query}
-              onChange={e => setQuery(e.target.value)}
+              disabled={!ready || isSearching || ingestPhase === 'fetching'}
+              onChange={e => {
+                setQuery(e.target.value);
+                setOptimizedQuery('');
+                setPlanKeywords([]);
+              }}
               onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) void handleSearch(); }}
               placeholder="输入主题,例如:多模态大模型评测方法"
               data-testid="discover-query"
@@ -220,15 +368,41 @@ export function DiscoverSourcesModal({
           </div>
           <button
             onClick={() => void handleSearch()}
-            disabled={isSearching || !query.trim()}
+            disabled={isSearching || ingestPhase === 'fetching' || !query.trim() || !ready}
             data-testid="discover-search"
             className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 text-xs font-semibold text-white transition hover:from-blue-400 hover:to-blue-500 disabled:opacity-45"
           >
             {isSearching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            搜索
+            {optimizedQuery ? '搜索' : '优化并搜索'}
           </button>
         </div>
 
+        {optimizedQuery && (
+          <div className="rounded-xl border border-blue-400/20 bg-blue-500/8 px-3 py-2" data-testid="discover-query-plan">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-medium text-blue-300">可编辑检索式</span>
+              <span className="text-[10px] text-[var(--text-quaternary)]">模型只整理检索式，结果来自真实来源</span>
+            </div>
+            <input
+              value={optimizedQuery}
+              disabled={!ready || isSearching || ingestPhase === 'fetching'}
+              onChange={event => { setOptimizedQuery(event.target.value); setPlanKeywords([]); }}
+              onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) void handleSearch(); }}
+              data-testid="discover-optimized-query"
+              className="liquid-glass-input w-full px-3 py-2 text-xs"
+              aria-label="可编辑检索式"
+            />
+            {planKeywords.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5" aria-label="检索关键词">
+                {planKeywords.map(keyword => (
+                  <span key={keyword} className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[10px] text-blue-300">{keyword}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        </>)}
         {error && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
@@ -241,17 +415,29 @@ export function DiscoverSourcesModal({
             <p className="text-[11px] leading-relaxed text-emerald-300">{notice}</p>
           </div>
         )}
-        {searchProvider === 'arxiv' && (
+        {searchProvider === 'arxiv' && results.length > 0 && (
           <div className="flex items-start gap-2 rounded-xl border border-blue-400/20 bg-blue-500/8 px-3 py-2" data-testid="discover-provider-boundary">
             <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-400" />
             <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-              当前使用 arXiv 开放源，英文题名或关键词通常更准确。结果是候选线索，引用前仍需核对题名、作者、日期、来源页和主张依据。
+              当前使用 arXiv 开放源；结果为候选，引用前请核对原文。
+            </p>
+          </div>
+        )}
+        {(searchProvider === 'giiisp-paper' || searchProvider === 'dashscope-web') && (
+          <div className="flex items-start gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/8 px-3 py-2" data-testid="discover-provider-boundary">
+            {searchProvider === 'giiisp-paper'
+              ? <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+              : <Globe2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />}
+            <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
+              {searchProvider === 'giiisp-paper'
+                ? '当前使用与科教平台首页一致的集思谱论文检索。结果是候选线索，引用前仍需核对来源页。'
+                : '当前使用与科教平台首页一致的联网检索。这里只展示服务返回的真实来源，不展示模型生成的引用。'}
             </p>
           </div>
         )}
 
         {/* Results */}
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1" data-testid="discover-results">
+        <div className={renderComposer ? "space-y-3" : "min-h-0 flex-1 space-y-2 overflow-y-auto pr-1"} data-testid="discover-results">
           {isSearching ? (
             <div className="flex flex-col items-center gap-3 py-14 text-[var(--text-tertiary)]">
               <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
@@ -278,6 +464,7 @@ export function DiscoverSourcesModal({
                 >
                   <button
                     type="button"
+                    disabled={!ready || ingestPhase === 'fetching' || isSearching}
                     onClick={() => toggleSelect(item.link)}
                     data-testid="discover-result-item"
                     className="w-full px-3.5 py-3 text-left"
@@ -290,7 +477,7 @@ export function DiscoverSourcesModal({
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13px] font-semibold leading-snug text-[var(--text-primary)]">{item.title}</span>
-                        <span className="mt-1 block text-[11px] leading-relaxed text-[var(--text-secondary)] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
+                        <span className="discover-result-snippet mt-1 text-[11px] leading-relaxed text-[var(--text-secondary)]">
                           {item.snippet || '(无摘要)'}
                         </span>
                         <span className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-[var(--text-quaternary)]">
@@ -332,7 +519,7 @@ export function DiscoverSourcesModal({
             </span>
             <button
               onClick={() => void handleIngest()}
-              disabled={selected.size === 0 || ingestPhase === 'fetching'}
+              disabled={selected.size === 0 || ingestPhase === 'fetching' || isSearching || !ready}
               data-testid="discover-ingest"
               className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:from-blue-400 hover:to-blue-500 active:scale-[0.97] disabled:opacity-45"
             >

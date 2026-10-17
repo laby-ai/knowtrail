@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,readFile,writeFile} from 'node:fs/promises';import os from 'node:os';import path from 'node:path';import {createHash} from 'node:crypto';
+import {saveStructuredPpt,readStructuredPpt,StructuredPptConflict} from '../src/lib/structured-ppt-store';
+async function main(){const root=await mkdtemp(path.join(os.tmpdir(),'knowtrail-native-ppt-'));process.env.STRUCTURED_PPT_STORE_DIR=root;
+const scope={ownerMemberId:'fixture-A',notebookId:'fixture-book'};const base={...scope,fileName:'own.pptx',slideCount:3,sourceIds:['own-source']};
+const first=await saveStructuredPpt({...base,buffer:Buffer.from('first immutable fixture'),expectedArtifactId:null});
+const writes=await Promise.allSettled(['second','third'].map(text=>saveStructuredPpt({...base,buffer:Buffer.from(text),expectedArtifactId:first.id})));
+assert.equal(writes.filter(x=>x.status==='fulfilled').length,1);assert.ok(writes.some(x=>x.status==='rejected'&&x.reason instanceof StructuredPptConflict));
+const latest=await readStructuredPpt(scope);assert.ok(latest);assert.ok((await readStructuredPpt(scope,first.id))?.buffer.equals(Buffer.from('first immutable fixture')));
+const retry=await saveStructuredPpt({...base,buffer:latest.buffer,expectedArtifactId:first.id});assert.equal(retry.id,latest.artifact.id);
+await assert.rejects(()=>saveStructuredPpt({...base,buffer:Buffer.from('first immutable fixture'),expectedArtifactId:first.id}),StructuredPptConflict);
+assert.equal(await readStructuredPpt({...scope,ownerMemberId:'fixture-B'}),null);
+const file=path.join(root,createHash('sha256').update(scope.ownerMemberId).digest('hex'),scope.notebookId,'latest.json');await writeFile(file,'{invalid');
+await assert.rejects(()=>saveStructuredPpt({...base,buffer:Buffer.from('must not overwrite'),expectedArtifactId:null}));assert.equal(await readFile(file,'utf8'),'{invalid');
+console.log(JSON.stringify({ok:true,oneConcurrentWinner:true,oldVersionPreserved:true,idempotentRetry:true,staleCannotRewind:true,ownerIsolation:true,corruptLatestPreserved:true,paidCalls:0}));}void main();

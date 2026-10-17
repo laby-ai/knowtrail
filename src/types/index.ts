@@ -43,7 +43,7 @@ export interface Paper {
   id: string;
   title: string;
   authors: string[];
-  year: number;
+  year?: number;
   keywords: string[];
   abstract?: string;
   content: string;
@@ -55,6 +55,8 @@ export interface Paper {
   fileUrl?: string; // 存储路径（开发：本地路径，生产：S3 key 或签名 URL）
   fileKey?: string; // S3 对象 key（生产环境持久化用）
   uploadTime: string;
+  /** Built-in demonstration source. It is never persisted to the user's source store. */
+  isSample?: boolean;
   /** 期刊/会议名称 */
   journal?: string;
   /** DOI */
@@ -105,6 +107,7 @@ export interface ChatMessage {
   citationAudit?: CitationAuditResult;
   followUps?: string[];
   generation?: ChatGenerationState;
+  toolCalls?: import('@/lib/research-agent-contract').ResearchToolCall[];
   timestamp: string;
 }
 
@@ -117,13 +120,15 @@ export interface RetrievalMetadata {
 }
 
 export interface CitationAuditResult {
-  status: 'none' | 'pass' | 'missing-markers' | 'invalid-markers';
+  status: 'none' | 'pass' | 'missing-markers' | 'invalid-markers' | 'needs-review';
   citedNumbers: number[];
   invalidNumbers: number[];
   uncitedNumbers: number[];
   citationCount: number;
   markerCount: number;
   warning?: string;
+  sourceCoverage?: { covered: number; total: number };
+  numericPreservation?: { checked: number; missing: string[] };
 }
 
 export interface Citation {

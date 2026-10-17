@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { setTimeout as delay } from 'node:timers/promises';
 
 export type DiscoverSearchScope = 'webpage' | 'scholar' | 'document';
 
@@ -18,12 +19,12 @@ export interface DiscoveredSource {
   date: string;
   authors: string[];
   score?: string;
-  provider: 'metaso' | 'arxiv';
+  provider: 'metaso' | 'arxiv' | 'giiisp-paper' | 'dashscope-web';
   verificationStatus: 'candidate' | 'open-source-candidate';
 }
 
 export interface DiscoverSearchResult {
-  provider: 'metaso' | 'arxiv';
+  provider: 'metaso' | 'arxiv' | 'giiisp-paper' | 'dashscope-web';
   results: DiscoveredSource[];
   total: number;
 }
@@ -77,11 +78,12 @@ export function parseArxivAtom(xml: string): DiscoverSearchResult {
   const feed = parsed.feed as Record<string, unknown> | undefined;
   if (!feed) throw new DiscoverSearchProviderError('开放论文检索返回异常');
   const entries = asArray(feed.entry as Record<string, unknown> | Array<Record<string, unknown>> | undefined);
+  if (entries.some(entry => /arxiv\.org\/api\/errors/.test(text(entry.id)))) throw new DiscoverSearchProviderError('arXiv 未接受此检索式，请修改后重试。', 400);
   const results = entries.map(entry => {
     const links = asArray(entry.link as Record<string, unknown> | Array<Record<string, unknown>> | undefined);
     const alternate = links.find(link => text(link.rel) === 'alternate') || links.find(link => text(link.type) === 'text/html');
     const id = text(entry.id);
-    const link = text(alternate?.href) || id;
+    const link = (text(alternate?.href) || id).replace(/^http:\/\/arxiv\.org\/abs\//, 'https://arxiv.org/abs/');
     const summary = text(entry.summary);
     return {
       title: text(entry.title),
@@ -108,9 +110,23 @@ function requestSignal(signal: AbortSignal | undefined, timeoutMs: number): Abor
   return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }
 
+export function arxivSearchExpression(query: string): string {
+  const cleaned = query.replace(/[\u0000-\u001f]/g, ' ').trim();
+  let quoted = false; let depth = 0;
+  for (const char of cleaned) {
+    if (char === '"') quoted = !quoted;
+    if (!quoted && char === '(') depth++;
+    if (!quoted && char === ')' && --depth < 0) throw new DiscoverSearchProviderError('检索式括号不完整，请修改后重试。', 400);
+  }
+  if (!cleaned || quoted || depth !== 0) throw new DiscoverSearchProviderError('检索式的引号或括号不完整，请修改后重试。', 400);
+  if (/(?:^|[\s(])(?:all|ti|au|abs|co|jr|cat|rn|submittedDate):/i.test(cleaned)) return cleaned;
+  return (cleaned.match(/"[^"]+"|\S+/g) || []).map(term => `all:"${term.replace(/["\\]/g, ' ').trim()}"`).join(' AND ');
+}
+
+let nextArxivRequest = 0;
 async function searchArxiv(input: DiscoverSearchInput, options: Required<Pick<SearchOptions, 'arxivApiBase' | 'fetchImpl'>>): Promise<DiscoverSearchResult> {
   const url = new URL('/api/query', options.arxivApiBase);
-  url.searchParams.set('search_query', `all:"${input.query.replace(/["\\]/g, ' ').replace(/\s+/g, ' ').trim()}"`);
+  url.searchParams.set('search_query', arxivSearchExpression(input.query));
   url.searchParams.set('start', '0');
   url.searchParams.set('max_results', String(input.size));
   url.searchParams.set('sortBy', 'relevance');
@@ -119,6 +135,8 @@ async function searchArxiv(input: DiscoverSearchInput, options: Required<Pick<Se
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
+      const start = Math.max(Date.now(), nextArxivRequest); nextArxivRequest = start + 3100;
+      await delay(Math.max(0, start - Date.now()), undefined, { signal: input.signal });
       response = await options.fetchImpl(url, {
         headers: {
           Accept: 'application/atom+xml',

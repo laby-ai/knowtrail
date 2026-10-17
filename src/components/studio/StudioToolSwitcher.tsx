@@ -13,10 +13,13 @@ import {
   BookOpenText,
   WandSparkles,
   ClipboardCheck,
+  FileText,
   Images,
+  Layers3,
+  ListChecks,
 } from 'lucide-react';
 import {
-  getVisibleStudioCategories,
+  CHAT_SKILL_PRODUCT_IDS,
   STUDIO_RESEARCH_PRODUCTS,
   type StudioProductId,
   type StudioResearchProduct,
@@ -40,6 +43,9 @@ const PRODUCT_VISUALS: Record<StudioTab, Pick<StudioNavItem, 'icon' | 'accent'>>
   'scientific-illustration': { icon: Images, accent: 'from-cyan-500/10 to-emerald-500/5' },
   'peer-review': { icon: ClipboardCheck, accent: 'from-violet-500/10 to-emerald-500/5' },
   presentation: { icon: Presentation, accent: 'from-amber-500/10 to-sky-500/5' },
+  report: { icon: FileText, accent: 'from-orange-500/10 to-amber-500/5' },
+  flashcards: { icon: Layers3, accent: 'from-emerald-500/10 to-cyan-500/5' },
+  quiz: { icon: ListChecks, accent: 'from-rose-500/10 to-violet-500/5' },
   knowledge: { icon: GitBranch, accent: 'from-blue-500/10 to-cyan-500/5' },
   'virtual-classroom': { icon: GraduationCap, accent: 'from-emerald-500/10 to-sky-500/5' },
 };
@@ -49,13 +55,37 @@ export const STUDIO_NAV: StudioNavItem[] = STUDIO_RESEARCH_PRODUCTS.map(product 
   ...PRODUCT_VISUALS[product.id],
 }));
 
+export function shouldHideVirtualClassroom() {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  const hideFlag = params.get('hideVirtualClassroom');
+  return hideFlag === '1' || hideFlag === 'true' || params.get('embed') === 'research-agent';
+}
+
+export function getVisibleStudioNav(hideVirtualClassroom = shouldHideVirtualClassroom()) {
+  return STUDIO_NAV.filter(item => (
+    !CHAT_SKILL_PRODUCT_IDS.has(item.id)
+    && (!hideVirtualClassroom || item.id !== 'virtual-classroom')
+  ));
+}
+
 export function StudioToolSwitcher({
   activeTab,
   onSelect,
+  navItems = getVisibleStudioNav(),
+  compact = false,
+  rail = false,
 }: {
-  activeTab: StudioTab;
+  activeTab: StudioTab | null;
   onSelect: (tab: StudioTab) => void;
+  navItems?: StudioNavItem[];
+  compact?: boolean;
+  rail?: boolean;
 }) {
+  const cardClass = compact
+    ? 'rounded-xl border px-2.5 py-2 text-left transition-colors duration-200'
+    : 'spotlight-glass-card rounded-xl border px-3 py-2.5 text-left transition-all';
+
   const renderNavButton = (item: StudioNavItem) => {
     const Icon = item.icon;
     const isActive = activeTab === item.id;
@@ -65,8 +95,10 @@ export function StudioToolSwitcher({
         key={item.id}
         data-testid={`studio-nav-${item.id}`}
         aria-pressed={isActive}
+        aria-label={item.label}
+        aria-expanded={rail ? isActive : undefined}
         onClick={() => onSelect(item.id)}
-        className={`spotlight-glass-card rounded-xl border px-3 py-2.5 text-left transition-all ${
+        className={`${rail ? 'quiet-tool-button' : cardClass} ${
           isActive
             ? 'border-blue-400/50 bg-blue-500/10'
             : 'border-[var(--glass-border)] bg-[var(--glass-subtle)] hover:border-[var(--border-hover)]'
@@ -74,7 +106,7 @@ export function StudioToolSwitcher({
         title={`${item.label}：${item.desc}`}
       >
         <span className="flex items-center gap-2">
-          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${item.accent}`}>
+          <span className={`flex ${compact ? 'h-7 w-7 rounded-lg' : 'h-8 w-8 rounded-xl'} shrink-0 items-center justify-center bg-gradient-to-br ${item.accent}`}>
             <Icon className="h-4 w-4 text-[var(--text-secondary)]" />
           </span>
           <span className="min-w-0">
@@ -86,21 +118,9 @@ export function StudioToolSwitcher({
     );
   };
 
-  const visibleCategories = getVisibleStudioCategories();
-
   return (
-    <div className="space-y-3" data-testid="studio-tool-switcher">
-      {visibleCategories.map(category => (
-        <section key={category.id} data-testid={`studio-category-${category.id}`}>
-          <h3 className="mb-2 text-[10px] font-semibold text-[var(--text-tertiary)]">{category.label}</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {category.products.map(product => {
-              const item = STUDIO_NAV.find(navItem => navItem.id === product.id);
-              return item ? renderNavButton(item) : null;
-            })}
-          </div>
-        </section>
-      ))}
+    <div className={rail ? "quiet-tool-list" : "grid grid-cols-2 gap-2"} data-testid="studio-tool-switcher">
+      {navItems.map(renderNavButton)}
     </div>
   );
 }

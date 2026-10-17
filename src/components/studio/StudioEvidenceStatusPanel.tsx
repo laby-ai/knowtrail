@@ -1,6 +1,7 @@
 'use client';
 
 import { FileSearch, Link as LinkIcon } from 'lucide-react';
+import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import type { Citation, RetrievalMetadata } from '@/types';
 
@@ -33,6 +34,8 @@ export function StudioEvidenceStatusPanel({
   compact?: boolean;
 }) {
   const { revealPaper } = useApp();
+  const [showAllCitations, setShowAllCitations] = useState(false);
+  const previewCount = compact ? 2 : 3;
 
   if (!retrieval && citations.length === 0) return null;
 
@@ -89,13 +92,14 @@ export function StudioEvidenceStatusPanel({
             <LinkIcon className="h-3 w-3" />
             <span>{citations.length} 条引用线索</span>
           </div>
-          {citations.slice(0, compact ? 2 : 3).map((citation, idx) => {
+          {citations.slice(0, showAllCitations ? citations.length : previewCount).map((citation, idx) => {
             const targetId = citationTargetId(citation);
             const locator = citationLocator(citation);
             const content = (
               <>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 text-[10px] font-semibold text-[var(--accent-blue)]">
+                    [{idx + 1}]{' '}
                     {citation.paperShortName || citation.sourceTitle || citation.sourceId || `证据 ${idx + 1}`}
                     {locator ? ` · ${locator}` : ''}
                   </div>
@@ -136,6 +140,16 @@ export function StudioEvidenceStatusPanel({
               </div>
             );
           })}
+          {citations.length > previewCount && (
+            <button
+              type="button"
+              aria-expanded={showAllCitations}
+              onClick={() => setShowAllCitations(value => !value)}
+              className="text-[11px] text-[var(--accent-blue)] hover:underline"
+            >
+              {showAllCitations ? '收起引用' : `展开全部 ${citations.length} 条引用`}
+            </button>
+          )}
         </div>
       )}
     </div>

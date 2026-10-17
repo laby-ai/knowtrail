@@ -8,6 +8,7 @@ import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { PolishingScene, TextPolishingAudit, TextPolishingResult, TextProtectionSnapshot } from '@/lib/text-polishing-contract';
 import { useApp } from '@/contexts/AppContext';
+import { useScopedStudioState } from '@/hooks/use-scoped-studio-state';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 
 type PanelStatus = 'idle' | 'running' | 'complete' | 'error';
@@ -37,10 +38,10 @@ export function TextPolishingPanel() {
   const { storageScopeKey } = useApp();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
-  const [sourceText, setSourceText] = useState('');
-  const [goal, setGoal] = useState('减少模板腔，保持专业、克制和自然。');
-  const [scene, setScene] = useState<PolishingScene>('paper');
-  const [protectedTermsText, setProtectedTermsText] = useState('');
+  const [sourceText, setSourceText] = useScopedStudioState(storageScopeKey, 'text-polishing', 'source-text', '');
+  const [goal, setGoal] = useScopedStudioState(storageScopeKey, 'text-polishing', 'goal', '减少模板腔，保持专业、克制和自然。');
+  const [scene, setScene] = useScopedStudioState<PolishingScene>(storageScopeKey, 'text-polishing', 'scene', 'paper');
+  const [protectedTermsText, setProtectedTermsText] = useScopedStudioState(storageScopeKey, 'text-polishing', 'protected-terms', '');
   const [result, setResult] = useState<TextPolishingResult | null>(null);
   const [audit, setAudit] = useState<TextPolishingAudit | null>(null);
   const [protection, setProtection] = useState<TextProtectionSnapshot | null>(null);

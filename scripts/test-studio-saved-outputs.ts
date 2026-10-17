@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import { describeStudioOutput, STUDIO_OUTPUT_SOURCES, studioOutputUrl } from '../src/lib/studio-saved-outputs';
+import { emptyResearchReport } from '../src/lib/research-report-document';
+import { emptyKnowledgeMap } from '../src/lib/knowledge-map-document';
+import { emptyDataProcessing } from '../src/lib/data-processing-document';
+import { emptyIllustration } from '../src/lib/scientific-illustration-document';
+import { emptyLearningMaterials } from '../src/lib/learning-materials';
+import { emptyImageDeck, emptyHtmlDeck } from '../src/lib/ppt/deck-document';
+
+const revision = 'a'.repeat(64), updatedAt = '2026-10-17T09:00:00Z';
+const document = (data: unknown) => ({ document: { data, revision, updatedAt } });
+const empty = [emptyKnowledgeMap(), emptyDataProcessing(), emptyIllustration(), emptyResearchReport(), emptyLearningMaterials(), emptyImageDeck(), emptyHtmlDeck()];
+for (const [index, data] of empty.entries()) assert.equal(describeStudioOutput(STUDIO_OUTPUT_SOURCES[index].kind, document(data)), null, 'A saved draft is not a generated result');
+const report = { ...emptyResearchReport(), report: { runId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', question: '专用模拟报告', answer: '保留10条，不作科研外推。', citations: [], retrieval: null, citationAudit: null, researchStatus: null, status: 'incomplete' } };
+assert.equal(describeStudioOutput('research-report', document(report))?.title, '专用模拟报告');
+assert.equal(describeStudioOutput('research-report', document(report))?.revision, revision);
+assert.throws(() => describeStudioOutput('research-report', { document: { data: report, revision: 'wrong', updatedAt } }));
+assert.throws(() => describeStudioOutput('research-report', { document: { data: report, revision, updatedAt: 'unknown' } }));
+assert.throws(() => describeStudioOutput('research-report', document({ answer: 'not a saved report' })));
+assert.equal(describeStudioOutput('structured-ppt', { artifact: { id: revision, fileName: '模拟核验.pptx', createdAt: updatedAt } })?.tool, 'presentation');
+assert.throws(() => describeStudioOutput('structured-ppt', { artifact: { id: 'wrong', fileName: '模拟.pptx', createdAt: updatedAt } }));
+assert.equal(studioOutputUrl('research-report', 'notebook-A', revision), `/api/studio/artifacts?kind=research-report&notebookId=notebook-A&revision=${revision}`);
+assert.equal(studioOutputUrl('structured-ppt', 'notebook-A', revision), `/api/ai/ppt-v2?notebookId=notebook-A&artifactId=${revision}`);
+assert.equal(studioOutputUrl('learning-materials', 'notebook-A'), '/api/ai/knowledge-cards?notebookId=notebook-A');
+assert.equal(new Set(STUDIO_OUTPUT_SOURCES.map(source => source.kind)).size, 8);
+console.log('Studio saved outputs: drafts excluded, validated version metadata, exact-version routes passed.');

@@ -10,6 +10,7 @@ interface DiscoverSearchRequest {
   size?: number;
   withContent?: boolean;
   notebookId?: string;
+  provider?: 'arxiv';
 }
 
 export async function POST(request: NextRequest) {
@@ -29,9 +30,9 @@ export async function POST(request: NextRequest) {
   const withContent = Boolean(body.withContent);
 
   try {
-    const result = await searchDiscoveredSources({ query, scope: searchScope, size, withContent, signal: request.signal });
+    const result = await searchDiscoveredSources({ query, scope: searchScope, size, withContent, signal: request.signal }, body.provider === 'arxiv' && searchScope === 'scholar' ? { metasoApiKey: '' } : undefined);
     console.log(`[Discover] "${query.slice(0, 40)}" provider=${result.provider} scope=${searchScope} -> ${result.results.length} 条`);
-    return NextResponse.json({ success: true, query, scope: searchScope, ...result });
+    return NextResponse.json({ success: true, query, scope: searchScope, ...result }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (err) {
     const status = err instanceof DiscoverSearchProviderError ? err.status : 502;
     const message = err instanceof DiscoverSearchProviderError
@@ -40,6 +41,6 @@ export async function POST(request: NextRequest) {
         ? '搜索超时,请重试'
         : '搜索服务暂不可用';
     console.error('[Discover] error:', err);
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'private, no-store' } });
   }
 }

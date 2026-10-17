@@ -6,7 +6,7 @@ export interface PaperInput {
   id?: string;
   title: string;
   authors: string[];
-  year: number;
+  year?: number;
   abstract?: string;
   content?: string;
   rawContent?: string;
@@ -31,6 +31,8 @@ export interface SlideSpec {
   note?: string;
   figureLabel?: string;
   emphasisIndices?: number[];
+  table?: { headers: string[]; rows: string[][]; sourceText: string };
+  flow?: { steps: string[]; sourceText: string };
 }
 
 export interface PptOptions {

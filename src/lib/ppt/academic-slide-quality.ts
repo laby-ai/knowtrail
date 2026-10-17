@@ -84,7 +84,7 @@ export function ensureSlideContentFromSources(slides: EnhancedSlideSpec[], paper
   };
 
   return slides.map(slide => {
-    if (slide.type === 'cover') return slide;
+    if (slide.type === 'cover' || slide.table || slide.flow) return slide;
     if (slide.type === 'closing') {
       const closingBullets = slide.bullets?.filter(Boolean) || [];
       return {

@@ -3,9 +3,17 @@ import { chmod, copyFile, mkdir, readFile, rename, stat, unlink } from 'node:fs/
 import path from 'node:path';
 
 export const REQUIRED_ENV_GROUPS = [
+  {
+    name: 'observability-identity-hash-key',
+    keys: ['KNOWTRAIL_OBSERVABILITY_HASH_KEY'],
+    minLength: 32,
+  },
   { name: 'model-api-base', keys: ['OPENAI_COMPAT_API_BASE', 'ARK_API_BASE', 'OPENAI_API_BASE'] },
   { name: 'model-api-key', keys: ['OPENAI_COMPAT_API_KEY', 'ARK_API_KEY', 'OPENAI_API_KEY'] },
   { name: 'model-name', keys: ['OPENAI_COMPAT_MODEL', 'ARK_MODEL'] },
+  { name: 'bailian-image-api-key', keys: ['DASHSCOPE_API_KEY'] },
+  { name: 'bailian-image-model', keys: ['DASHSCOPE_IMAGE_MODEL'], expectedValue: 'qwen-image-2.0' },
+  { name: 'billing-provider', keys: ['LOCAL_USAGE_QUOTA_PATH', 'ACCOUNT_CENTER_API_BASE'] },
   { name: 'account-api-base', keys: ['ACCOUNT_CENTER_API_BASE'] },
   { name: 'account-tenant', keys: ['ACCOUNT_CENTER_TENANT_ID'] },
   { name: 'account-member', keys: ['ACCOUNT_CENTER_DEFAULT_MEMBER_ID'] },
@@ -14,6 +22,7 @@ export const REQUIRED_ENV_GROUPS = [
   { name: 'account-client-secret', keys: ['ACCOUNT_CENTER_CLIENT_SECRET'] },
   { name: 'account-auth-required', keys: ['ACCOUNT_CENTER_REQUIRE_AUTH'], expectedValue: 'true' },
   { name: 'source-store', keys: ['SOURCE_STORE_PATH'] },
+  { name: 'local-upload-store', keys: ['LOCAL_FILE_STORAGE_DIR'] },
   { name: 'vector-store', keys: ['ZVEC_STORE_PATH'] },
   { name: 'studio-job-store', keys: ['STUDIO_JOB_STORE_PATH'] },
   { name: 'scientific-illustration-store', keys: ['SCIENTIFIC_ILLUSTRATION_STORE_DIR'] },
@@ -33,9 +42,12 @@ function parseEnv(text) {
 
 function missingRequiredGroups(values, groups = REQUIRED_ENV_GROUPS) {
   return groups.filter(group => {
+    if (values.get('LOCAL_USAGE_QUOTA_PATH') && group.name.startsWith('account-')) return false;
     const present = group.keys.some(key => {
       const value = values.get(key);
-      return value && (!group.expectedValue || value === group.expectedValue);
+      return value
+        && (!group.expectedValue || value === group.expectedValue)
+        && (!group.minLength || value.length >= group.minLength);
     });
     return !present;
   }).map(group => group.name);
@@ -98,18 +110,27 @@ export function validateReleaseHealth(body, { sharedRoot }) {
   if (body?.ok !== true) failures.push('health.ok must be true');
   if (capabilities.accountBoundModelConfig !== true) failures.push('accountBoundModelConfig must be true');
   if (capabilities.serverFallbackModelConfigured !== true) failures.push('serverFallbackModelConfigured must be true');
+  if (capabilities.bailianImageProviderConfigured !== true) failures.push('bailianImageProviderConfigured must be true');
   if (capabilities.accountCenter?.billingReservationReady !== true) failures.push('billingReservationReady must be true');
+  if (
+    capabilities.accountCenter?.billingMode === 'local_quota'
+    && !isInsideSharedRoot(capabilities.accountCenter?.localQuotaPath, sharedRoot)
+  ) failures.push('localQuotaStore path must stay inside shared root');
 
   for (const [name, value] of [
     ['sourceStore', capabilities.sourceStore?.path],
     ['vectorStore', capabilities.vectorStore?.path],
     ['studioJobStore', capabilities.studioJobStore?.path],
     ['scientificIllustrationStore', capabilities.scientificIllustrationStore?.path],
+    ['localUploadStore', capabilities.localUploadStore?.path],
   ]) {
     if (!isInsideSharedRoot(value, sharedRoot)) failures.push(`${name} path must stay inside shared root`);
   }
   if (capabilities.scientificIllustrationStore?.writable !== true) {
     failures.push('scientificIllustrationStore must be writable');
+  }
+  if (capabilities.localUploadStore?.writable !== true) {
+    failures.push('localUploadStore must be writable');
   }
   if (failures.length > 0) throw new Error(`Release health gate failed: ${failures.join('; ')}`);
 
@@ -124,6 +145,7 @@ export function validateReleaseHealth(body, { sharedRoot }) {
       vectorStore: capabilities.vectorStore.path,
       studioJobStore: capabilities.studioJobStore.path,
       scientificIllustrationStore: capabilities.scientificIllustrationStore.path,
+      localUploadStore: capabilities.localUploadStore.path,
     },
   };
 }
