@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { useApp } from '@/contexts/AppContext';
 import type { StudioSavedOutput } from '@/lib/studio-saved-outputs';
 import { StudioSavedOutputs } from './StudioSavedOutputs';
 import { StudioOutputViewer } from './StudioOutputViewer';
@@ -104,6 +105,8 @@ function StudioModalWorkbench({ activeTab, onSelect, onClose, navItems }: {
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const parking = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
+  const { revealPaperRequest } = useApp();
+  const previousReveal = useRef(revealPaperRequest);
   const nav = STUDIO_NAV.find(item => item.id === (output?.tool || activeTab));
   const Icon = nav?.icon;
   const open = Boolean(activeTab || output);
@@ -117,6 +120,11 @@ function StudioModalWorkbench({ activeTab, onSelect, onClose, navItems }: {
   useEffect(() => {
     if (activeTab) setVisited(previous => previous.includes(activeTab) ? previous : [...previous, activeTab]);
   }, [activeTab]);
+  useEffect(() => {
+    if (previousReveal.current === revealPaperRequest) return;
+    previousReveal.current = revealPaperRequest;
+    if (revealPaperRequest) { setOutput(null); onClose(); }
+  }, [onClose, revealPaperRequest]);
   // Move the same portal host between the dialog and hidden parking. Closing a
   // Radix dialog can unmount its frame without discarding a draft or live job.
   const mountToolHost = useCallback((slot: HTMLDivElement | null) => {
@@ -143,7 +151,12 @@ function StudioModalWorkbench({ activeTab, onSelect, onClose, navItems }: {
       <StudioWorkspacePanel compact inDialog activeTab={tab} onClose={close} presentationMode={presentationMode} onPresentationModeChange={setPresentationMode} />
     </div>), host)}
     <Dialog open={open} onOpenChange={next => { if (!next) close(); }}>
-      <DialogContent className="quiet-studio-dialog" showCloseButton={false} aria-describedby={undefined} onCloseAutoFocus={event => {
+      <DialogContent className="quiet-studio-dialog" showCloseButton={false} aria-describedby={undefined} onPointerDownOutside={event => {
+        // The kept-alive portal's React ancestry is outside DialogContent even
+        // while its DOM lives inside the dialog.
+        const target = event.detail.originalEvent.target;
+        if (target instanceof Node && host?.contains(target)) event.preventDefault();
+      }} onCloseAutoFocus={event => {
         event.preventDefault();
         const target = returnFocus.current;
         requestAnimationFrame(() => { if (target?.isConnected) target.focus(); });
