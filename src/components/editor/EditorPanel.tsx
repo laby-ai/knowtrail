@@ -189,6 +189,11 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
                   streamedContent = accumulatedContent;
                   updateChatMessage(assistantMsgId, { content: accumulatedContent });
               }
+              if (typeof parsed.replaceContent === 'string') {
+                  accumulatedContent = parsed.replaceContent;
+                  streamedContent = accumulatedContent;
+                  updateChatMessage(assistantMsgId, { content: accumulatedContent });
+              }
               if (Array.isArray(parsed.citations)) {
                   serverCitations = parsed.citations as Citation[];
                   updateChatMessage(assistantMsgId, { citations: serverCitations });

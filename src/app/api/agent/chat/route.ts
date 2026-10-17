@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
       ? await buildGroundedRetrievalContext(message, selected, config, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId })
       : { chunks: [], citations: [], promptContext: '', retrievalMode: 'empty', persistedSourceCount: 0, vectorIndexedSourceCount: 0, degraded: false };
     let writingNumbers: string[] = [];
+    let textSkill = skill;
     if (skill === 'academic-writing' && selected.length) {
       const writing = await expandAcademicWritingEvidence(grounded, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId });
       grounded = writing; writingNumbers = writing.writingNumbers;
@@ -105,6 +106,18 @@ export async function POST(request: NextRequest) {
             sessionId: `${scope.ownerMemberId}:${scope.notebookId}`, sourceIds: [...new Set(grounded.citations.map(citation => citation.sourceId))], systemPrompt: researchAgentSystemPrompt(base, typeof skill === 'string' ? skill : undefined), history, config, signal,
             dataSourceIds: tables.map(t => t.sourceId),
             illustrationSourceIds: [...new Set(selected.map(p => p.id).filter((id): id is string => typeof id === 'string'))],
+            readTextEvidence: selected.length ? async requestedSkill => {
+              const verified = { ownerMemberId: scope.ownerMemberId!, notebookId: scope.notebookId! };
+              if (requestedSkill === 'literature-review') {
+                grounded = await buildLiteratureReviewEvidence(message, selected, verified);
+                writingNumbers = [];
+              } else {
+                const writing = await expandAcademicWritingEvidence(grounded, verified);
+                grounded = writing; writingNumbers = writing.writingNumbers;
+              }
+              textSkill = requestedSkill;
+              return grounded;
+            } : undefined,
             generateIllustration: async input => {
               const sourceIds = [...new Set(selected.map(p => p.id).filter((id): id is string => typeof id === 'string'))];
               if (!sourceIds.length || sourceIds.length > 12) throw new Error('示意图需要选择1至12份本人资料。');
@@ -199,10 +212,11 @@ export async function POST(request: NextRequest) {
             },
           })) {
             if (event.content) answer += event.content;
+            if (typeof event.replaceContent === 'string') answer = event.replaceContent;
             send(event);
           }
           await billing?.settle(answer);
-          send({ citationAudit: skill === 'literature-review' ? auditLiteratureReviewCoverage(answer, grounded.citations) : skill === 'academic-writing' ? auditAcademicWriting(answer, grounded.citations, message, writingNumbers) : auditCitationMarkers(answer, grounded.citations) });
+          send({ citationAudit: textSkill === 'literature-review' ? auditLiteratureReviewCoverage(answer, grounded.citations) : textSkill === 'academic-writing' ? auditAcademicWriting(answer, grounded.citations, message, writingNumbers) : auditCitationMarkers(answer, grounded.citations) });
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch (error) {
