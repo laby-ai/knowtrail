@@ -66,6 +66,9 @@ jobs:
       - name: Paper search contracts
         run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects
 
+      - name: Public source network boundary
+        run: pnpm exec tsx scripts/test-public-source-fetch.ts
+
       - name: Notebook home usability contract
         run: pnpm run test:notebook-home-usability
 
