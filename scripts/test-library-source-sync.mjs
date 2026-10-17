@@ -31,8 +31,8 @@ const paper = {
   journal: 'Nature', doi: '10.1038/nature21360', abstract: title, content: title,
   rawContent: title, shortName: 'Gillon et al. 2017', fileSize: 83,
   storageKey: 'fixture/1703.01424v1.txt', fileUrl: '/fixture/1703.01424v1.txt',
-  status: 'ready', chunkCount: 1, chunks: [{ text: title }],
-  vectorIndex: { status: 'ready', count: 1, dimension: 1024 },
+  status: 'succeeded', chunkCount: 1, chunks: [{ text: title }],
+  vectorIndex: { status: 'succeeded', count: 1, dimension: 1024 },
   createdAt: '2017-03-04T00:00:00.000Z', updatedAt: '2017-03-04T00:00:00.000Z',
 };
 
