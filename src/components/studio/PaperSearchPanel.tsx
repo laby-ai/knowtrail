@@ -41,7 +41,7 @@ export function PaperSearchPanel({ renderComposer }: { renderComposer?: Research
       window.setTimeout(() => togglePaperSelection(paper.id), 0);
     });
     setUploadSummary({ added: outcome.papers.length, errors: outcome.errors });
-    return outcome.papers.length;
+    return { added: outcome.papers.length, errors: outcome.errors, successfulFileIndexes: outcome.successfulFileIndexes };
   }, [activeFolderId, addFolder, addPaper, notebookId, setActiveFolder, togglePaperSelection]);
 
   return (
@@ -58,7 +58,7 @@ export function PaperSearchPanel({ renderComposer }: { renderComposer?: Research
             : <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />}
           <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
             已加入 {uploadSummary.added} 个来源
-            {uploadSummary.errors.length > 0 ? `；${uploadSummary.errors.length} 个来源入库失败。` : '，并自动选中用于后续问答。'}
+            {uploadSummary.errors.length > 0 ? `；${uploadSummary.errors.length} 个来源未加入。` : '，并自动选中用于后续问答。'}
           </p>
         </div>
       )}

@@ -879,10 +879,10 @@ export function LibraryPanel({
       window.setTimeout(() => togglePaperSelection(paper.id), 0);
     });
     if (outcome.errors.length > 0) {
-      setSkippedFilesNotice(`${outcome.papers.length} 个来源已加入；${outcome.errors.length} 个入库失败。`);
+      setSkippedFilesNotice(`${outcome.papers.length} 个来源已加入；${outcome.errors.length} 个未加入。`);
     }
     window.setTimeout(() => { void syncIngestionSources(); }, 0);
-    return outcome.papers.length;
+    return { added: outcome.papers.length, errors: outcome.errors, successfulFileIndexes: outcome.successfulFileIndexes };
   }, [addPaper, ensureUploadTarget, notebookId, syncIngestionSources, togglePaperSelection]);
 
   const handleUrlAsSource = useCallback(async () => {

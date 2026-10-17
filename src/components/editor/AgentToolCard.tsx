@@ -43,7 +43,7 @@ export function AgentToolCard({ call, messageId }: { call: ResearchToolCall; mes
       {call.status === 'failed' && call.pendingDataPlan && <RetryDataPlanSave pending={call.pendingDataPlan} messageId={messageId} callId={call.id} />}
       {call.status === 'failed' && call.pendingLearning && <RetryLearningSave pending={call.pendingLearning} messageId={messageId} callId={call.id} />}
       {call.status === 'failed' && call.pendingIllustration && <RetryIllustrationSave pending={call.pendingIllustration} messageId={messageId} callId={call.id} />}
-      {call.status === 'ready' && call.results && <PaperResults call={call} />}
+      {call.status === 'ready' && call.results && <PaperResults call={call} messageId={messageId} />}
       {call.status === 'ready' && call.presentation && <PresentationSkillCard plan={call.presentation} messageId={messageId} callId={call.id} />}
       {call.status === 'ready' && call.report && <ReportSkillCard reference={call.report} />}
       {call.status === 'ready' && call.design && <ResearchDesignSkillCard reference={call.design} />}
@@ -63,8 +63,8 @@ export function AgentToolCard({ call, messageId }: { call: ResearchToolCall; mes
   );
 }
 
-function PaperResults({ call }: { call: ResearchToolCall }) {
-  const { addPaper, addFolder, activeFolderId, setActiveFolder, storageScopeKey, togglePaperSelection } = useApp();
+function PaperResults({ call, messageId }: { call: ResearchToolCall; messageId: string }) {
+  const { addPaper, addFolder, activeFolderId, setActiveFolder, storageScopeKey, togglePaperSelection, chatPersistence } = useApp();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -73,29 +73,49 @@ function PaperResults({ call }: { call: ResearchToolCall }) {
   const abortRef = useRef<AbortController | null>(null);
   const liveScope = useRef(storageScopeKey);
   liveScope.current = storageScopeKey;
+  const imported = new Set(call.ingestedSources?.map(source => source.link));
   useEffect(() => () => abortRef.current?.abort(), [storageScopeKey]);
   const ingest = async () => {
     if (busy || abortRef.current) return;
     const controller = new AbortController(); abortRef.current = controller;
     setBusy(true); setNotice('');
     try {
-      const files = await Promise.all((call.results || []).filter(item => selected.has(item.link)).map(item =>
-        createDiscoveredSourceFile(item, async url => {
-          const response = await clientApiRequest('/api/discover/fetch', { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() }, body: JSON.stringify({ url, notebookId }) });
-          const result = await response.json() as { text?: string; content?: string; title?: string; error?: string };
-          if (!response.ok || !(result.text || result.content)) throw new Error(result.error || '原文暂时无法读取，请重试。');
-          return { text: result.text || result.content || '', title: result.title };
-        })));
+      const picked = (call.results || []).filter(item => selected.has(item.link) && !imported.has(item.link));
+      const files: File[] = [];
+      const fileLinks: string[] = [];
+      const errors: string[] = [];
+      for (const item of picked) {
+        controller.signal.throwIfAborted();
+        try {
+          const file = await createDiscoveredSourceFile(item, async url => {
+            const response = await clientApiRequest('/api/discover/fetch', { method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() }, body: JSON.stringify({ url, notebookId }) });
+            const result = await response.json() as { text?: string; content?: string; title?: string; error?: string };
+            if (!response.ok || !(result.text || result.content)) throw new Error(result.error || '原文暂时无法读取，请重试。');
+            return { text: result.text || result.content || '', title: result.title };
+          });
+          files.push(file); fileLinks.push(item.link);
+        } catch (error) {
+          controller.signal.throwIfAborted();
+          errors.push(`${item.title}：${error instanceof Error ? error.message : '原文读取失败'}`);
+        }
+      }
       controller.signal.throwIfAborted();
       const outcome = await uploadDiscoveredSourceFiles({ files, notebookId, signal: controller.signal });
       controller.signal.throwIfAborted();
       if (liveScope.current !== storageScopeKey) return;
-      if (!outcome.papers.length) throw new Error(outcome.errors[0] || '加入资料失败，请重试。');
+      if (!outcome.papers.length) throw new Error(errors[0] || outcome.errors[0] || '加入资料失败，请重试。');
       const folder = activeFolderId || addFolder('论文检索');
       setActiveFolder(folder);
       outcome.papers.forEach(paper => { addPaper(folder, paper); window.setTimeout(() => { if (liveScope.current === storageScopeKey) togglePaperSelection(paper.id); }, 0); });
-      setNotice(outcome.errors.length ? `已加入 ${outcome.papers.length} 份；${outcome.errors.join('；')}` : `已加入 ${outcome.papers.length} 份资料。`);
-      if (!outcome.errors.length) setSelected(new Set());
+      const accepted = outcome.successfulFileIndexes.map((index, i) => ({ link: fileLinks[index], sourceId: outcome.papers[i].id }));
+      const links = new Set(accepted.map(source => source.link));
+      setSelected(previous => new Set([...previous].filter(link => !links.has(link))));
+      chatPersistence.update(previous => ({ ...previous, messages: previous.messages.map(message => message.id !== messageId ? message : { ...message, toolCalls: message.toolCalls?.map(tool => tool.id === call.id ? { ...tool, ingestedSources: [...(tool.ingestedSources || []).filter(source => !links.has(source.link)), ...accepted] } : tool) }) }));
+      errors.push(...outcome.errors);
+      const saved = await chatPersistence.flush();
+      controller.signal.throwIfAborted();
+      if (liveScope.current !== storageScopeKey) return;
+      setNotice(`已加入 ${outcome.papers.length} 份资料。${errors.length ? `未加入的仍可重试：${errors.join('；')}` : ''}${saved ? '' : '导入标记尚未保存，请使用对话上方的重试保存。'}`);
     } catch (error) { if (!controller.signal.aborted && liveScope.current === storageScopeKey) setNotice(error instanceof Error ? error.message : '加入资料失败，请重试。'); }
     finally { if (abortRef.current === controller) abortRef.current = null; if (!controller.signal.aborted && liveScope.current === storageScopeKey) setBusy(false); }
   };
@@ -105,8 +125,8 @@ function PaperResults({ call }: { call: ResearchToolCall }) {
       {!call.results?.length && <p>没有找到相关论文，可以换个关键词继续。</p>}
       {call.results?.slice(0, expanded ? 20 : 3).map((item, index) => <article key={item.link}>
         <label className="flex min-w-0 items-start gap-2">
-          <input type="checkbox" disabled={busy} aria-label={`选择${item.title}`} checked={selected.has(item.link)} onChange={event => setSelected(previous => { const next = new Set(previous); if (event.target.checked) next.add(item.link); else next.delete(item.link); return next; })} />
-          <span className="min-w-0"><a href={item.link} target="_blank" rel="noopener noreferrer">{index + 1}. {item.title}<ExternalLink size={13} className="ml-1 inline" /></a><small>{item.authors?.join('、')}{item.date ? ` · ${item.date.slice(0, 10)}` : ''}</small></span>
+          <input type="checkbox" disabled={busy || imported.has(item.link)} aria-label={`选择${item.title}`} checked={selected.has(item.link) && !imported.has(item.link)} onChange={event => setSelected(previous => { const next = new Set(previous); if (event.target.checked) next.add(item.link); else next.delete(item.link); return next; })} />
+          <span className="min-w-0"><a href={item.link} target="_blank" rel="noopener noreferrer">{index + 1}. {item.title}<ExternalLink size={13} className="ml-1 inline" /></a><small>{item.authors?.join('、')}{item.date ? ` · ${item.date.slice(0, 10)}` : ''}{imported.has(item.link) ? ' · 已加入资料' : ''}</small></span>
         </label>
         <details><summary>查看摘要</summary><p>{item.snippet}</p></details>
       </article>)}

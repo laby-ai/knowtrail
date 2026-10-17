@@ -51,6 +51,43 @@ async function main() {
   assert.equal(outcome.papers.length, 1);
   assert.equal(outcome.papers[0]?.title, 'Grounded Paper');
   assert.deepEqual(outcome.errors, ['second source failed']);
+  assert.deepEqual(outcome.successfulFileIndexes, [0]);
+
+  const files = Array.from({ length: 10 }, (_, index) => new File([String(index)], `candidate-${index}.txt`));
+  const batchSizes: number[] = [];
+  const partial = await uploadDiscoveredSourceFiles({ files, notebookId: 'notebook-1', request: async (_url, init) => {
+    const body = init!.body as FormData;
+    assert.equal(body.get('notebookId'), 'notebook-1');
+    const batch = body.getAll('files') as File[]; batchSizes.push(batch.length);
+    assert.ok(batch.length <= 5, 'The existing upload API must not receive more than five files.');
+    return Response.json({ results: batch.map(file => file.name === 'candidate-1.txt' ? { error: 'candidate 1 failed' } : { ...outcome.papers[0], id: file.name, fileName: file.name }) });
+  } });
+  assert.deepEqual(batchSizes, [5, 5]);
+  assert.equal(partial.papers.length, 9);
+  assert.deepEqual(partial.successfulFileIndexes, [0, 2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual(partial.errors, ['candidate 1 failed']);
+  const pending = files.filter((_file, index) => !partial.successfulFileIndexes.includes(index));
+  assert.deepEqual(pending.map(file => file.name), ['candidate-1.txt']);
+  let lateRequests = 0;
+  const lateFailure = await uploadDiscoveredSourceFiles({ files, request: async (_url, init) => {
+    if (++lateRequests === 2) return new Response('unavailable', { status: 503 });
+    return Response.json({ results: ((init!.body as FormData).getAll('files') as File[]).map(file => ({ ...outcome.papers[0], id: file.name })) });
+  } });
+  assert.equal(lateFailure.papers.length, 5, 'Later HTTP failure must retain acknowledged earlier sources.');
+  assert.deepEqual(lateFailure.successfulFileIndexes, [0, 1, 2, 3, 4]);
+  assert.match(lateFailure.errors[0], /503/);
+  assert.equal(lateFailure.errors.length, 5);
+  let abortedRequests = 0; const midAbort = new AbortController();
+  await assert.rejects(() => uploadDiscoveredSourceFiles({ files, signal: midAbort.signal, request: async () => {
+    abortedRequests++; midAbort.abort(); return Response.json({ results: [] });
+  } }), /abort/i);
+  assert.equal(abortedRequests, 1, 'Identity cancellation must not start a later batch.');
+  const { isResearchToolCall } = await import('../src/lib/research-agent-contract');
+  const importedCall = { id: 'search', plugin: 'paper-search', query: 'sample', status: 'ready', results: [{ title: 'Sample', link: 'https://arxiv.org/abs/2501.01234', snippet: 'metadata only' }], ingestedSources: [{ link: 'https://arxiv.org/abs/2501.01234', sourceId: 'paper-1' }] };
+  assert.equal(isResearchToolCall(importedCall), true);
+  assert.equal(isResearchToolCall({ ...importedCall, ingestedSources: [{ ...importedCall.ingestedSources[0], sourceId: '../other' }] }), false);
+  assert.equal(isResearchToolCall({ ...importedCall, ingestedSources: [{ ...importedCall.ingestedSources[0], link: 'https://other.invalid/unselected' }] }), false);
+  assert.equal(isResearchToolCall({ ...importedCall, ingestedSources: [...importedCall.ingestedSources, ...importedCall.ingestedSources] }), false);
 
   await assert.rejects(
     () => uploadDiscoveredSourceFiles({

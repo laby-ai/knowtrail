@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { createDiscoveredSourceFile, type DiscoveredSourceFileInput } from '@/lib/discovered-source-file';
+import type { DiscoveredSourceIngestResult } from '@/lib/discovered-source-upload';
 import { readPaperHostContext } from '@/lib/paper-host-bridge';
 import { optimizePaperHostDiscoverQuery, searchPaperHostSources } from '@/lib/paper-host-discover-search';
 
@@ -41,7 +42,7 @@ export function DiscoverSourcesModal({
 }: {
   notebookId?: string;
   onClose: () => void;
-  onIngestFiles: (files: File[], signal?: AbortSignal) => Promise<void | number>;
+  onIngestFiles: (files: File[], signal?: AbortSignal) => Promise<void | number | DiscoveredSourceIngestResult>;
   variant?: 'modal' | 'embedded';
   initialScope?: 'webpage' | 'scholar';
   renderComposer?: ResearchComposerRenderer;
@@ -185,6 +186,7 @@ export function DiscoverSourcesModal({
     setError(null);
 
     const files: File[] = [];
+    const fileLinks: string[] = [];
     const failures: Record<string, string> = {};
 
     for (const item of picked) {
@@ -201,6 +203,7 @@ export function DiscoverSourcesModal({
         });
         if (!live.current || controller.signal.aborted) return;
         files.push(file);
+        fileLinks.push(item.link);
       } catch (err) {
         failures[item.link] = err instanceof Error ? err.message : '抓取失败';
       }
@@ -215,7 +218,12 @@ export function DiscoverSourcesModal({
         controller.signal.throwIfAborted();
         const result = await onIngestFiles(files, controller.signal);
         if (!live.current || controller.signal.aborted) return;
-        addedCount = typeof result === 'number' ? result : files.length;
+        addedCount = typeof result === 'number' ? result : result ? result.added : files.length;
+        if (result && typeof result === 'object') {
+          const accepted = new Set(result.successfulFileIndexes);
+          fileLinks.forEach((link, index) => { if (!accepted.has(index)) failures[link] = result.errors.join('；') || '加入资料失败，请重试。'; });
+          setItemErrors({ ...failures });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : '来源入库失败，请重试。');
         setIngestPhase('idle');
