@@ -136,7 +136,7 @@ assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/lib/studio-tools.ts')), '
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/lib/studio-tool-api-contract.ts')), 'Removed artifact API contract should not remain as dead code');
 assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/studio-tool/route.ts')), 'Removed artifact API route should not remain without a product consumer');
 
-assert.match(studioPanelSource, /activeTab === 'presentation' && <PresentationWorkspacePanel \/>/, 'PPT product should render its original workspace');
+assert.match(studioPanelSource, /activeTab === 'presentation' && <PresentationWorkspacePanel\b/, 'PPT product should reuse its original workspace, including saved-format selection');
 assert.match(studioPanelSource, /activeTab === 'knowledge' && <KnowledgeMapPanel \/>/, 'Knowledge map product should render its original panel');
 assert.match(studioPanelSource, /activeTab === 'report' && <DeepResearchPanel \/>/, 'Report should reuse the grounded deep-research workspace');
 assert.match(studioPanelSource, /activeTab === 'flashcards' && <LearningArtifactsPanel mode="flashcards" \/>/, 'Learning cards should render their real grounded workspace');
