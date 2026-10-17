@@ -66,6 +66,7 @@ jobs:
           pnpm exec tsx scripts/test-academic-writing-skill.ts
           pnpm exec tsx scripts/test-ordinary-skill-harness.ts
           pnpm exec tsx scripts/test-studio-saved-outputs.ts
+          pnpm exec tsx scripts/test-report-output-contract.ts
 
       - name: Paper search contracts
         run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects
