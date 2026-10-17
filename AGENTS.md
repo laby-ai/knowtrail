@@ -80,4 +80,4 @@
 
 **背景氛围层**：`LiquidGlassProvider`（`src/components/ui/liquid-glass-provider.tsx`）提供动态渐变光球和鼠标追踪功能，必须在最外层包裹应用内容。
 
-**主题切换**：`ThemeToggle`（`src/components/ui/theme-toggle.tsx`）支持深色/浅色模式，通过 CSS 变量 `data-theme="light"` 切换。
+**主题初始化**：`src/app/layout.tsx` 从 `localStorage.theme` 恢复根元素的 `data-theme`，默认浅色。修改主题入口前先核对实际调用，避免重新加入未挂载的控制组件。

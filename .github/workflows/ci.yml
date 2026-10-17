@@ -105,6 +105,9 @@ jobs:
       - name: Source metadata recovery contract
         run: pnpm run test:source-metadata-recovery
 
+      - name: Library source sync writes
+        run: node scripts/test-library-source-sync.mjs
+
       - name: Learning materials recovery contract
         run: pnpm exec tsx scripts/test-learning-materials-recovery.ts
 
