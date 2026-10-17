@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useApp } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
-import { clientApiRequest } from '@/lib/client-api';
+import { clientApiPath, clientApiRequest } from '@/lib/client-api';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { PendingResearchDesign, ResearchDesignReference } from '@/lib/research-agent-contract';
 import type { ResearchDesignDocument } from '@/lib/research-design-document';
@@ -72,7 +72,7 @@ export function ResearchDesignSkillCard({ reference }: { reference: ResearchDesi
         {'hypotheses' in result ? result.hypotheses.map(h => <article key={h.id} className="space-y-2">
           <h3 className="font-semibold">{h.id} · {h.title}</h3>
           {([['假设', h.statement], ['依据', h.reasoningBasis], ['竞争解释', h.competingExplanation], ['可证伪预测', h.falsifiablePrediction], ['验证路径', h.validationPlan], ['不确定性', h.uncertainty]] as const).map(([label, text]) => <p key={label}><strong>{label}：</strong>{text}</p>)}
-        </article>) : <><a className="agent-plugin-open" href={`data:text/markdown;charset=utf-8,${encodeURIComponent(result.artifactMarkdown)}`} download={result.artifactFileName}>下载本轮协议</a><ReactMarkdown remarkPlugins={[remarkGfm]}>{result.artifactMarkdown}</ReactMarkdown></>}
+        </article>) : <><a className="agent-plugin-open" href={clientApiPath('/api/studio/artifacts?' + new URLSearchParams({ kind: reference.kind, notebookId: notebookIdFromStorageScopeKey(storageScopeKey) || '', revision: reference.revision, download: '1' }))} download={result.artifactFileName}>下载本轮协议</a><ReactMarkdown remarkPlugins={[remarkGfm]}>{result.artifactMarkdown}</ReactMarkdown></>}
         <p className="text-xs text-[var(--text-secondary)]">仅为假设或采集前计划，尚未执行实验或确认科学结论。</p>
         <StudioEvidenceStatusPanel citations={result.citations} retrieval={result.retrieval} compact />
       </div>}
