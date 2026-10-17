@@ -43,6 +43,7 @@ const CHAT_RESPONSE_MAX_TOKENS = 2048;
 const CHAT_RESPONSE_TIMEOUT_MS = 180_000;
 
 interface SendQuestionOptions {
+  clearDraft?: boolean;
   appendUserMessage?: boolean;
   assistantMessageId?: string;
   skill?: ResearchChatSkillId | null;
@@ -52,6 +53,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   const {
     folders, chatMessages, addChatMessage, updateChatMessage, clearChat, getSelectedPapers, aiConfig,
     queuedStudioPrompt, consumeStudioPrompt, storageScopeKey, revealPaper, chatPersistence,
+    sourceReadiness,
   } = useApp();
 
   const inputMessage = chatPersistence.data.draft;
@@ -102,15 +104,15 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   // Send a message (used by input and quick buttons)
   const sendQuestion = useCallback(async (question: string, options: SendQuestionOptions = {}) => {
     const normalizedQuestion = question.trim();
-    if (!normalizedQuestion || chatAbortRef.current || isGenerating || !historyReady || !researchChatReadiness.ready) return;
+    if (!normalizedQuestion || chatAbortRef.current || isGenerating || !historyReady || !researchChatReadiness.ready || !sourceReadiness.ready) return;
+    const selectedPapers = getSelectedPapers();
     const abortController = new AbortController(); chatAbortRef.current = abortController; setIsGenerating(true);
     if (!await chatPersistence.flush() || abortController.signal.aborted) { if (chatAbortRef.current === abortController) { chatAbortRef.current = null; setIsGenerating(false); } return; }
+    if (options.clearDraft) setInputMessage('');
     if (options.appendUserMessage !== false) {
       const userMsgId = `msg-${Date.now()}-${++_msgSeq.current}`;
       addChatMessage({ id: userMsgId, role: 'user', content: normalizedQuestion, timestamp: new Date().toISOString() });
     }
-
-    const selectedPapers = getSelectedPapers();
 
     setIsGenerating(true);
     const startedAt = new Date().toISOString();
@@ -247,7 +249,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
       if (!abortController.signal.aborted) await chatPersistence.flush();
       setIsGenerating(false);
     }
-  }, [historyReady, chatPersistence.flush, isGenerating, researchChatReadiness.ready, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
+  }, [historyReady, chatPersistence.flush, isGenerating, researchChatReadiness.ready, sourceReadiness.ready, setInputMessage, addChatMessage, updateChatMessage, getSelectedPapers, aiConfig, notebookId, generateFollowUps]);
 
   const stopGeneration = useCallback(() => {
     if (!chatAbortRef.current) return;
@@ -269,19 +271,18 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
   }, [isGenerating, chatMessages, selectedChatSkill, sendQuestion]);
 
   useEffect(() => {
-    if (!queuedStudioPrompt || isGenerating) return;
+    if (!queuedStudioPrompt || isGenerating || !historyReady || !researchChatReadiness.ready || !sourceReadiness.ready) return;
     const request = queuedStudioPrompt;
     consumeStudioPrompt(request.id);
     void sendQuestion(request.prompt);
-  }, [queuedStudioPrompt, isGenerating, consumeStudioPrompt, sendQuestion]);
+  }, [queuedStudioPrompt, isGenerating, historyReady, researchChatReadiness.ready, sourceReadiness.ready, consumeStudioPrompt, sendQuestion]);
 
   // Generate report directly in chat
   const submitChatDraft = useCallback(() => {
     const draft = inputMessage.trim() || (selectedChatSkill === 'literature-review' ? '根据当前已选资料撰写文献综述，标注证据与不足。' : '');
     if (!draft) return;
-    void sendQuestion(draft, { skill: selectedChatSkill });
-    setInputMessage('');
-  }, [inputMessage, selectedChatSkill, sendQuestion, setInputMessage]);
+    void sendQuestion(draft, { skill: selectedChatSkill, clearDraft: true });
+  }, [inputMessage, selectedChatSkill, sendQuestion]);
 
   const clearChatSkill = useCallback(() => {
     setSelectedChatSkill(null);
@@ -391,6 +392,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
           selectedSourceCount={selectedSourceCount}
           totalSourceCount={totalSourceCount}
           researchChatReadiness={historyReady ? researchChatReadiness : { ...researchChatReadiness, ready: false, message: '请先读取已保存对话。' }}
+          sourceReadiness={sourceReadiness}
           onCitationClick={revealPaper}
           onRegenerate={regenerateLastAnswer}
           selectedChatSkill={selectedChatSkill}
@@ -418,6 +420,7 @@ interface ChatViewProps {
   selectedSourceCount: number;
   totalSourceCount: number;
   researchChatReadiness: StudioGenerationState;
+  sourceReadiness: StudioGenerationState;
   onCitationClick: (paperId: string, citation?: Citation) => void;
   onRegenerate: () => void;
   selectedChatSkill: ResearchChatSkillId | null;
@@ -425,7 +428,7 @@ interface ChatViewProps {
   onClearChatSkill: () => void;
 }
 
-function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, researchChatReadiness, onCitationClick, onRegenerate, selectedChatSkill, onSelectChatSkill, onClearChatSkill }: ChatViewProps) {
+function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, onStop, onQuickQuestion, isGenerating, expandedCitations, onToggleCitation, onScrollAreaReady, quickQuestions, selectedSourceCount, totalSourceCount, researchChatReadiness, sourceReadiness, onCitationClick, onRegenerate, selectedChatSkill, onSelectChatSkill, onClearChatSkill }: ChatViewProps) {
   const { storageScopeKey } = useApp();
   // --- Liquid pull physics ---
   const containerRef = useRef<HTMLDivElement>(null);
@@ -444,7 +447,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
   const panelHeightRef = useRef<HTMLDivElement>(null);
   const hasSelectedSources = selectedSourceCount > 0;
   const activeChatSkill = getResearchChatSkill(selectedChatSkill);
-  const canSubmit = researchChatReadiness.ready
+  const canSubmit = researchChatReadiness.ready && sourceReadiness.ready
     && (Boolean(inputMessage.trim()) || activeChatSkill?.allowsEmptyPrompt === true);
   const visibleQuickQuestions = compact ? quickQuestions.slice(0, 4) : quickQuestions;
   useEffect(() => {
@@ -655,7 +658,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
                     <button
                       key={q.label}
                       onClick={() => onQuickQuestion(q.question)}
-                      disabled={!hasSelectedSources || !researchChatReadiness.ready}
+                      disabled={!hasSelectedSources || !sourceReadiness.ready || !researchChatReadiness.ready}
                       title={!researchChatReadiness.ready ? researchChatReadiness.message : hasSelectedSources ? q.question : '请先在左侧选择证据来源'}
                       className={`quick-question-button liquid-glass-static flex flex-col items-center justify-center gap-1.5 px-3 text-[13px] font-semibold leading-tight text-[var(--text-secondary)] transition-all hover:!border-[var(--border-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:text-[var(--text-secondary)] disabled:hover:text-[var(--text-secondary)] ${compact ? 'min-h-[52px] rounded-xl py-2' : 'min-h-[64px] rounded-2xl py-3'}`}
                     >
@@ -676,7 +679,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
                   isPending={isGenerating && idx === messages.length - 1}
                   onToggleExpand={() => onToggleCitation(message.id)}
                   onCitationClick={onCitationClick}
-                  onRegenerate={message.role === 'assistant' && idx === messages.length - 1 && !isGenerating && researchChatReadiness.ready ? onRegenerate : undefined}
+                  onRegenerate={message.role === 'assistant' && idx === messages.length - 1 && !isGenerating && researchChatReadiness.ready && sourceReadiness.ready ? onRegenerate : undefined}
                 />
                 {!compact && message.role === 'assistant' && message.followUps && message.followUps.length > 0 && !isGenerating && idx === messages.length - 1 && (
                   <div className="flex flex-wrap gap-2 mt-3 ml-12 animate-fade-in">
@@ -684,7 +687,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
                       <button
                         key={qi}
                         onClick={() => onQuickQuestion(q)}
-                        disabled={!hasSelectedSources || !researchChatReadiness.ready}
+                        disabled={!hasSelectedSources || !sourceReadiness.ready || !researchChatReadiness.ready}
                         title={!researchChatReadiness.ready ? researchChatReadiness.message : hasSelectedSources ? q : '请先在左侧选择证据来源'}
                         className="liquid-glass-chip text-[12px] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -765,7 +768,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
                       onQuickQuestion(q.question);
                       closePanel();
                     }}
-                    disabled={!hasSelectedSources || !researchChatReadiness.ready}
+                    disabled={!hasSelectedSources || !sourceReadiness.ready || !researchChatReadiness.ready}
                     title={!researchChatReadiness.ready ? researchChatReadiness.message : hasSelectedSources ? q.question : '请先在左侧选择证据来源'}
                     className="quick-question-button liquid-glass-card flex min-h-[58px] flex-col items-center justify-center gap-1.5 rounded-2xl px-2.5 py-3 text-[12px] font-medium leading-tight text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -781,6 +784,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
 
       {/* Input */}
       <div className="quiet-composer-region px-6 pb-5 pt-3 border-t border-[var(--border-subtle)]">
+        {!sourceReadiness.ready && <p role="status" data-testid="chat-source-readiness" className="px-1 pb-2 text-xs text-[var(--text-secondary)]">{sourceReadiness.message}</p>}
         {!researchChatReadiness.ready && (
           <div data-testid="chat-model-readiness" className="mx-auto mb-2 max-w-3xl rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-200">
             {researchChatReadiness.message}
