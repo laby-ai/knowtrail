@@ -336,6 +336,11 @@ export async function POST(request: NextRequest) {
     const isProd = isProduction();
     const maxBytes = maxUploadBytes();
     const internalOrigin = resolveInternalAppOrigin() + (process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/+$/, '');
+    const visionHeaders = new Headers({ 'Content-Type': 'application/json' });
+    for (const name of ['cookie', 'authorization', 'userId', 'token', 'x-paper-host', 'x-paper-host-workspace', 'x-paper-host-account-scope', 'referer']) {
+      const value = request.headers.get(name);
+      if (value) visionHeaders.set(name, value);
+    }
 
     for (const file of files) {
       const ext = getFileExt(file.name);
@@ -389,15 +394,17 @@ export async function POST(request: NextRequest) {
         // 视觉模型能同时理解文字内容和图表信息
         const pdfTextFromParser = fileContent;
         if (ext === 'pdf') {
+          let visionError = 'PDF 视觉识别未完成，请稍后重新上传。';
           try {
             const pdfBase64 = buffer.toString('base64');
             const ocrRes = await fetch(`${internalOrigin}/api/ai/analyze-pdf`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ pdfBase64, fileName: file.name, aiConfig }),
+              headers: visionHeaders,
+              body: JSON.stringify({ pdfBase64, fileName: file.name, notebookId, aiConfig }),
+              signal: request.signal,
             });
+            const ocrData = await ocrRes.json();
             if (ocrRes.ok) {
-              const ocrData = await ocrRes.json();
               if (ocrData.success && ocrData.content) {
                 // 合并：如果 pdf-parse 也有文本，拼接两者；否则只用视觉模型结果
                 if (pdfTextFromParser.trim().length > 50) {
@@ -405,14 +412,19 @@ export async function POST(request: NextRequest) {
                 } else {
                   fileContent = ocrData.content;
                 }
+                visionError = '';
               }
             }
-          } catch (ocrErr) {
-            console.error('[Upload] PDF vision analysis failed:', ocrErr instanceof Error ? ocrErr.message : 'unknown');
-            // 视觉模型失败时，至少保留 pdf-parse 的文本
-            if (pdfTextFromParser.trim().length > 0) {
-              fileContent = pdfTextFromParser;
-            }
+            if (typeof ocrData.error === 'string') visionError = ocrData.error;
+            else if (typeof ocrData.reason === 'string') visionError = ocrData.reason;
+          } catch {
+            console.error('[Upload] PDF vision analysis failed');
+          }
+          if (request.signal.aborted) throw new Error('上传已停止，未保存识别正文。');
+          if (visionError) {
+            if (!pdfTextFromParser.trim()) throw new Error(visionError);
+            // 视觉失败不丢失原生正文，也不把缺页结果或模型错误当作正文。
+            fileContent = `【读取范围：仅原生文本，图表及扫描内容未完成视觉识别】\n${visionError}\n\n${pdfTextFromParser}`;
           }
         }
 
@@ -429,8 +441,9 @@ export async function POST(request: NextRequest) {
               const pdfBase64 = pdfBuffer.toString('base64');
               const ocrRes = await fetch(`${internalOrigin}/api/ai/analyze-pdf`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pdfBase64, fileName: file.name, aiConfig }),
+                headers: visionHeaders,
+                body: JSON.stringify({ pdfBase64, fileName: file.name, notebookId, aiConfig }),
+                signal: request.signal,
               });
               if (ocrRes.ok) {
                 const ocrData = await ocrRes.json();

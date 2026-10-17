@@ -75,6 +75,7 @@ jobs:
       - name: PDF text fidelity with supplemental vision
         run: |
           pnpm exec tsx scripts/test-pdf-source-fidelity.ts
+          pnpm exec tsx scripts/test-pdf-vision-coverage.ts
           pnpm exec tsx scripts/test-rag.ts
           pnpm exec tsx scripts/test-grounded-retrieval.ts
 
