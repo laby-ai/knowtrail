@@ -401,7 +401,7 @@ export async function POST(request: NextRequest) {
               if (ocrData.success && ocrData.content) {
                 // 合并：如果 pdf-parse 也有文本，拼接两者；否则只用视觉模型结果
                 if (pdfTextFromParser.trim().length > 50) {
-                  fileContent = `【PDF文本提取】\n${pdfTextFromParser.slice(0, 15000)}\n\n【视觉模型识别（含图表理解）】\n${ocrData.content}`;
+                  fileContent = `【PDF文本提取】\n${pdfTextFromParser}\n\n【视觉模型识别（含图表理解）】\n${ocrData.content}`;
                 } else {
                   fileContent = ocrData.content;
                 }
