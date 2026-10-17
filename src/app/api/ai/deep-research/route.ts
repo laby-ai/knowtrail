@@ -59,8 +59,7 @@ export async function POST(request: NextRequest) {
     return jsonError('请先在左侧文献库选择至少一个证据来源。', 'deep_research_sources_required', 400);
   }
 
-  const sectionBudget = deepResearchSectionBudget(question);
-  if (sectionBudget !== null && sectionBudget < 5) {
+  if ((deepResearchSectionBudget(question) ?? 5) < 5) {
     return jsonError('字数上限不足以容纳九节标题、正文和引用，请提高总字数后再生成。', 'deep_research_length_too_small', 422);
   }
 
