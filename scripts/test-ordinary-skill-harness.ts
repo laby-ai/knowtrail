@@ -76,7 +76,7 @@ async function main() {
     assert.ok(audit.numericPreservation?.missing.includes('95%'));
     const firstRequests = requests.slice();
     assert.ok(!text(firstRequests).includes('CLIENT_FORGED_999'));
-    assert.ok(!text(firstRequests[0].messages.filter(message => message.role === 'system')).includes('WRITING_TAIL'));
+    assert.ok(text(firstRequests[0].messages.filter(message => message.role === 'system')).includes('WRITING_TAIL'), 'Initial retrieval retains the complete matched fragment; the native method still reads verified evidence');
     assert.ok(firstRequests.some(item => item.messages.some(message => message.role === 'tool' && text(message.content).includes('WRITING_TAIL'))));
     assert.ok(!events.some(event => event.toolCall), 'Reading evidence does not create a plugin artifact card');
     const review = await send('ordinary-review：仅综述三份所选资料的范围，不作科学外推。', sources.map(source => source.id));

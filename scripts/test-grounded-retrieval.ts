@@ -71,6 +71,32 @@ async function main() {
     }]);
     assert.notEqual(scopedFallback.citations[0]?.sourceId, 'paper-studio', 'selected source scope should exclude unrelated persisted sources');
 
+    // Gillon et al., arXiv:1703.01424v1, PDF p.4. The climate premise is
+    // beyond the compact citation preview but belongs to the retrieved chunk.
+    const climateEvidence = `The stellar irradiation of the planets cover a range of ~4.3 to ~0.13 SEarth (=solar irradiation at
+1 au) which is very similar to the one of the inner solar system (Mercury=6.7 SEarth,
+Ceres=0.13 SEarth,). Notably, planets c, d, and f have stellar irradiations very close to those of
+Venus, Earth, and Mars, respectively (Fig. 2). However, even at these low insolations, all
+seven planets are expected to be either tidally synchronized23, or trapped in a higher-order
+spin-orbit resonance, the latter being rather unlikely considering the constraints on the orbital
+eccentricities24 (Table 1). Using a 1D cloud-free climate model accounting for the low-
+temperature spectrum of the host star25, we infer that the three planets e, f, and g could
+harbour water oceans on their surfaces, assuming Earth-like atmospheres.`;
+    await ingestExtractedSource({
+      id: 'trappist-climate', ownerMemberId: 'fixture-trappist', notebookId: 'trappist-evidence',
+      title: 'Gillon et al. 2017, PDF page 4', fileName: 'trappist-page-4.txt', fileType: 'txt',
+      shortName: 'Gillon. 2017', rawContent: climateEvidence,
+    }, { embedder: async texts => texts.map(() => [0, 0, 0, 1]) });
+    const climate = await buildGroundedRetrievalContext('Does the paper prove liquid water?', [{ id: 'trappist-climate' }], undefined, {
+      ownerMemberId: 'fixture-trappist', notebookId: 'trappist-evidence',
+      embedder: async texts => texts.map(() => [0, 0, 0, 1]), topK: 1,
+    });
+    assert.equal(climate.retrievalMode, 'persisted-vector');
+    assert.equal(climate.citations[0].sourceId, 'trappist-climate');
+    assert.doesNotMatch(climate.citations[0].excerpt, /assuming Earth-like atmospheres/);
+    assert.match(climate.promptContext, /assuming Earth-like atmospheres/, 'The model must receive the actual retrieved premise, not only the 320-character preview');
+    assert.ok(climate.promptContext.length < 9000);
+
     console.log(JSON.stringify({
       ok: true,
       checked: [
@@ -79,6 +105,7 @@ async function main() {
         'chat retrieval falls back to request papers when selected sources are not persisted',
         'retrieval metadata exposes degraded and reason for UI/user-facing fallback copy',
         'selected source scope filters persisted retrieval',
+        'real-paper climate assumptions survive compact citation previews',
       ],
       vectorMode: vectorGrounded.retrievalMode,
       keywordMode: keywordGrounded.retrievalMode,

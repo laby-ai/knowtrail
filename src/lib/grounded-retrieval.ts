@@ -33,23 +33,25 @@ function selectedSourceIds(sources: RagSourceInput[]): Set<string> {
   return new Set(sources.map(sourceIdentity).filter((value): value is string => Boolean(value)));
 }
 
-function toPromptContext(citations: GroundedCitation[]): string {
+function toPromptContext(citations: GroundedCitation[], chunks: SourceChunk[]): string {
   let usedChars = 0;
   const parts: string[] = [];
 
   for (const [index, citation] of citations.entries()) {
-    const remaining = MAX_PROMPT_CONTEXT_CHARS - usedChars;
-    if (remaining <= 0) break;
-
-    const excerpt = citation.excerpt.slice(0, remaining);
-    usedChars += excerpt.length;
     const pageLabel = citation.page ? `, 页码: ${citation.page}` : '';
-    parts.push(`[${index + 1}] ${citation.paperShortName} - ${citation.sourceTitle}${pageLabel}
+    const prefix = `[${index + 1}] ${citation.paperShortName} - ${citation.sourceTitle}${pageLabel}
 sourceId: ${citation.sourceId}
 chunkId: ${citation.chunkId}
 score: ${citation.score ?? 0}
 摘录:
-${excerpt}`);
+`;
+    const separatorChars = parts.length ? '\n\n---\n\n'.length : 0;
+    const remaining = MAX_PROMPT_CONTEXT_CHARS - usedChars - prefix.length - separatorChars;
+    if (remaining <= 0) break;
+    const evidence = chunks.find(chunk => chunk.id === citation.chunkId && chunk.sourceId === citation.sourceId)?.text || citation.excerpt;
+    const part = prefix + evidence.slice(0, remaining);
+    usedChars += part.length + separatorChars;
+    parts.push(part);
   }
 
   return parts.join('\n\n---\n\n');
@@ -80,7 +82,7 @@ function makeResult(
   return {
     chunks,
     citations,
-    promptContext: toPromptContext(citations),
+    promptContext: toPromptContext(citations, chunks),
     retrievalMode,
     persistedSourceCount,
     vectorIndexedSourceCount,
