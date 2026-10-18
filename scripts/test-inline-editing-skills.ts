@@ -14,14 +14,14 @@ async function main() {
   const originalEnv = { ...process.env }, originalFetch = globalThis.fetch;
   const requests: Array<{ messages: Array<{ role: string; content: unknown }>; tools: Array<{ function: { name: string; parameters: { properties: Record<string, { type: string }> } } }> }> = [];
   const text = (value: unknown): string => typeof value === 'string' ? value : JSON.stringify(value);
-  let ordinary = false, negative = false;
+  let ordinary = false, negative = false, skipViewer = false;
   const gateway = createServer(async (request, response) => {
     const parts: Buffer[] = []; for await (const part of request) parts.push(Buffer.from(part));
     const body = JSON.parse(Buffer.concat(parts).toString()); requests.push(body);
     const results = body.messages.filter((m: { role: string }) => m.role === 'tool');
     const viewer = body.tools.find((t: { function: { name: string } }) => /skill/i.test(t.function.name))?.function;
     let delta: Record<string, unknown>;
-    if (!negative && !results.length && viewer) {
+    if (!negative && !skipViewer && !results.length && viewer) {
       const args = Object.fromEntries(Object.entries(viewer.parameters.properties).map(([key, value]) => [key, (value as { type: string }).type === 'array' ? [skill] : skill]));
       delta = { tool_calls: [{ index: 0, id: 'read-method', type: 'function', function: { name: viewer.name, arguments: JSON.stringify(args) } }] };
     } else if (!negative && ordinary && results.length === 1 && body.tools.some((t: { function: { name: string } }) => t.function.name === 'read_selected_evidence')) {
@@ -56,6 +56,7 @@ async function main() {
     const loaded = requests.flatMap(r => r.messages.filter(m => m.role === 'tool').map(m => text(m.content))).join('\n');
     assert.ok(loaded.includes('## 执行步骤'), 'The actual SDK must consume the native reusable method, not a mode label');
     const initial = requests[0].messages.filter(m => m.role === 'system').map(m => text(m.content)).join('\n');
+    assert.ok(initial.includes('## 执行步骤'), 'Explicit mode must activate the actual method before the first inference, even when the model skips its viewer');
     assert.ok(!initial.includes('引用格式：[第一作者. 发表年份]'), 'A source locator must not compete with an author-year formatting rule');
     assert.ok(initial.includes('global minimum') && initial.includes('existing degeneracies'), 'The complete verified original paragraph must reach the inline model');
     assert.ok(!initial.includes('FORGED_CLIENT_CONTENT'));
@@ -65,6 +66,11 @@ async function main() {
     const implicit = await decode(await send(undefined));
     assert.equal(implicit.answer, explicit.answer);
     assert.ok(requests.slice(beforeOrdinary).some(r => r.messages.some(m => m.role === 'tool' && text(m.content).includes('原文片段:'))), 'Ordinary intent must actually read verified evidence');
+    ordinary = false; skipViewer = true;
+    const beforeDirect = requests.length;
+    assert.equal((await decode(await send(skill))).answer, explicit.answer);
+    assert.equal(requests.length, beforeDirect + 1);
+    assert.ok(requests.at(-1)!.messages.some(m => m.role === 'system' && text(m.content).includes('## 执行步骤')), 'A direct answer still receives the complete native method');
     negative = true;
     const none = await decode(await send(undefined));
     assert.ok(!none.events.some(e => e.toolCall));
