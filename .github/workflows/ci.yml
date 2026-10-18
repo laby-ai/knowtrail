@@ -64,6 +64,8 @@ jobs:
           pnpm exec tsx scripts/test-illustration-form-match.ts
           pnpm exec tsx scripts/test-literature-review-skill.ts
           pnpm exec tsx scripts/test-academic-writing-skill.ts
+          pnpm exec tsx scripts/test-inline-editing-skills.ts
+          pnpm exec tsx scripts/test-inline-editing-skills.ts --review
           pnpm exec tsx scripts/test-ordinary-skill-harness.ts
           pnpm exec tsx scripts/test-studio-saved-outputs.ts
           pnpm exec tsx scripts/test-report-output-contract.ts

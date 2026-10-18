@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       : { chunks: [], citations: [], promptContext: '', retrievalMode: 'empty', persistedSourceCount: 0, vectorIndexedSourceCount: 0, degraded: false };
     let writingNumbers: string[] = [];
     let textSkill = skill;
-    if (skill === 'academic-writing' && selected.length) {
+    if ((skill === 'academic-writing' || skill === 'text-polishing' || skill === 'peer-review') && selected.length) {
       const writing = await expandAcademicWritingEvidence(grounded, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId });
       grounded = writing; writingNumbers = writing.writingNumbers;
     }
