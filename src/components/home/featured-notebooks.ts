@@ -14,6 +14,10 @@ export interface FeaturedNotebook {
 
 const FEATURED_UPDATED_AT = '2026-06-01T00:00:00.000Z';
 
+function sampleChunkCount(content: string) {
+  return content.split(/[。！？.!?]+/).filter(part => part.trim()).length;
+}
+
 function samplePaper(input: {
   id: string;
   title: string;
@@ -37,8 +41,9 @@ function samplePaper(input: {
     fileType: 'txt',
     fileSize: input.content.length,
     uploadTime: FEATURED_UPDATED_AT,
+    isSample: true,
     ingestionStatus: 'succeeded',
-    ingestionChunkCount: 4,
+    ingestionChunkCount: sampleChunkCount(input.content),
     vectorIndex: { status: 'not_configured' },
     mineruFigures: [],
   };
@@ -70,7 +75,7 @@ const learningPapers = [
     year: 2026,
     shortName: '实践案例 2026',
     keywords: ['案例', '任务', '迁移'],
-    content: '案例资料适合按任务、输入、输出和复盘四类整理。灵笔会把这些片段留在同一个文献本里，后续可以继续生成资料脉络、语音摘要或组会材料。',
+    content: '案例资料适合按任务、输入、输出和复盘四类整理。科研工作台会把这些片段留在同一个文献本里，后续可以继续生成资料脉络、语音摘要或组会材料。',
   }),
 ];
 
@@ -180,17 +185,33 @@ export const FEATURED_NOTEBOOKS: FeaturedNotebook[] = [
   },
 ];
 
+export function filterFeaturedNotebooks(query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return FEATURED_NOTEBOOKS;
+
+  return FEATURED_NOTEBOOKS.filter(notebook =>
+    [notebook.title, notebook.author, notebook.meta]
+      .some(value => value.toLowerCase().includes(normalizedQuery)),
+  );
+}
+
 export function isFeaturedNotebookId(id: string | null | undefined) {
   return FEATURED_NOTEBOOKS.some(notebook => notebook.id === id);
 }
 
-export function featuredNotebookToWorkspace(notebook: FeaturedNotebook): WorkspaceNotebook {
+export function featuredTemplateId(notebook: Pick<WorkspaceNotebook, 'id' | 'templateId'>) {
+  const candidate = notebook.templateId || notebook.id;
+  return isFeaturedNotebookId(candidate) ? candidate : null;
+}
+
+export function featuredNotebookToWorkspace(notebook: FeaturedNotebook, copyId = notebook.id): WorkspaceNotebook {
   return {
-    id: notebook.id,
+    id: copyId,
     title: notebook.title,
     sourceCount: notebook.sourceCount,
     updatedAt: FEATURED_UPDATED_AT,
     accent: notebook.accent,
+    templateId: notebook.id,
   };
 }
 

@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     name: Typecheck and lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -34,23 +34,117 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      - name: Setup research agent Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify isolated AgentScope protocol
+        run: |
+          python -m pip install -q -r services/research-agent/requirements.txt
+          python services/research-agent/test_worker.py
+          python services/research-agent/test_design_worker.py
+          python services/research-agent/test_map_worker.py
+          python services/research-agent/test_data_worker.py
+          python services/research-agent/test_learning_worker.py
+          python services/research-agent/test_illustration_worker.py
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Research agent card persistence
+        run: |
+          pnpm exec tsx scripts/test-research-agent-contract.ts
+          pnpm exec tsx scripts/test-research-agent-report.ts
+          pnpm exec tsx scripts/test-research-agent-design.ts
+          pnpm exec tsx scripts/test-research-agent-map.ts
+          pnpm exec tsx scripts/test-research-agent-data.ts
+          pnpm exec tsx scripts/test-research-agent-learning.ts
+          pnpm exec tsx scripts/test-research-agent-illustration.ts
+          pnpm exec tsx scripts/test-illustration-form-match.ts
+          pnpm exec tsx scripts/test-literature-review-skill.ts
+          pnpm exec tsx scripts/test-academic-writing-skill.ts
+          pnpm exec tsx scripts/test-ordinary-skill-harness.ts
+          pnpm exec tsx scripts/test-ordinary-output-budget.ts
+          pnpm exec tsx scripts/test-studio-saved-outputs.ts
+          pnpm exec tsx scripts/test-report-output-contract.ts
 
       - name: Paper search contracts
         run: pnpm run test:discovered-source-upload && pnpm run test:studio-nav-side-effects
 
+      - name: Public source network boundary
+        run: pnpm exec tsx scripts/test-public-source-fetch.ts
+
+      - name: Source text fidelity through retrieval
+        run: pnpm exec tsx scripts/test-source-text-fidelity.ts
+
+      - name: Upload and file failure boundaries
+        run: |
+          pnpm exec tsx scripts/test-upload-access-boundary.ts
+          pnpm exec tsx scripts/test-source-store-failure-safety.ts
+          pnpm exec tsx scripts/test-image-extraction-failure.ts
+          pnpm exec tsx scripts/test-file-access-boundary.ts
+
+      - name: Provide the existing PDF renderer for CI
+        run: |
+          if ! command -v pdfinfo || ! command -v pdftoppm; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends poppler-utils
+          fi
+          pdfinfo -v
+          pdftoppm -v
+
+      - name: PDF text fidelity with supplemental vision
+        run: |
+          pnpm exec tsx scripts/test-pdf-source-fidelity.ts
+          pnpm exec tsx scripts/test-pdf-vision-coverage.ts
+          pnpm exec tsx scripts/test-rag.ts
+          pnpm exec tsx scripts/test-grounded-retrieval.ts
+
       - name: Notebook home usability contract
         run: pnpm run test:notebook-home-usability
 
+      - name: Search and catalog recovery
+        run: pnpm exec tsx scripts/test-discover-search-recovery.ts && pnpm run test:notebook-catalog-store && pnpm exec tsx scripts/test-notebook-catalog-recovery.ts
+
+      - name: Native PPT concurrent persistence
+        run: pnpm exec tsx scripts/test-native-ppt-concurrency.ts
+
+      - name: Source metadata recovery contract
+        run: pnpm run test:source-metadata-recovery
+
+      - name: Library source sync writes
+        run: node scripts/test-library-source-sync.mjs
+
+      - name: Learning materials recovery contract
+        run: pnpm exec tsx scripts/test-learning-materials-recovery.ts
+
+      - name: Image and HTML PPT recovery contract
+        run: pnpm exec tsx scripts/test-ppt-deck-recovery.ts
+
+      - name: Conversation recovery contract
+        run: pnpm exec tsx scripts/test-chat-history-recovery.ts
+
       - name: Deep research contracts
         run: pnpm run test:deep-research-contract
+
+      - name: Research report recovery contract
+        run: pnpm exec tsx scripts/test-research-report-recovery.ts
+
+      - name: Knowledge map recovery contract
+        run: pnpm exec tsx scripts/test-knowledge-map-recovery.ts
 
       - name: Hypothesis generation contracts
         run: pnpm run test:hypothesis-generation-contract
 
       - name: Data processing contracts
         run: pnpm run test:data-processing-plan
+
+      - name: Data processing recovery contract
+        run: pnpm exec tsx scripts/test-data-processing-recovery.ts
+
+      - name: Research design recovery contract
+        run: pnpm exec tsx scripts/test-research-design-recovery.ts
 
       - name: Experiment design contracts
         run: pnpm run test:experiment-design-contract
@@ -63,6 +157,9 @@ jobs:
 
       - name: Peer review contracts
         run: pnpm run test:peer-review-contract
+
+      - name: Scientific illustration recovery
+        run: pnpm exec tsx scripts/test-scientific-illustration-recovery.ts
 
       - name: Scientific illustration contracts
         run: pnpm run test:scientific-illustration-contract
@@ -105,3 +202,43 @@ jobs:
 
       - name: Lint
         run: pnpm run lint:build
+
+      - name: Verify bounded runtime import
+        run: python scripts/test-ci-runtime.py
+
+      - name: Match the deployed build runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.20.2'
+
+      - name: Prepare the deployed runtime source profile
+        run: python scripts/package-ci-runtime.py --prepare
+
+      - name: Complete the final Linux Next build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          NEXT_PUBLIC_BASE_PATH: /knowtrail
+          NEXT_PUBLIC_DOMAIN: localhost:5000
+          NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN: /classroom-runtime
+        run: pnpm exec next build
+
+      - name: Complete the final Linux launcher build
+        run: pnpm exec tsup src/server.ts --format cjs --platform node --target node20 --outDir dist --no-splitting --no-minify
+
+      - name: Package the completed Linux runtime
+        env:
+          NEXT_PUBLIC_BASE_PATH: /knowtrail
+          NEXT_PUBLIC_DOMAIN: localhost:5000
+          NEXT_PUBLIC_VIRTUAL_CLASSROOM_ORIGIN: /classroom-runtime
+        run: python scripts/package-ci-runtime.py ci-runtime
+
+      - name: Retain the exact runtime and file manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowtrail-linux-${{ github.run_id }}
+          path: |
+            ci-runtime.tar.gz
+            ci-runtime.manifest.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0

@@ -9,8 +9,6 @@ import {
   redactVolcenginePodcastSecret,
 } from '@/lib/volcengine-podcast';
 import { synthesizeDoubaoAgentPlanTts } from '@/lib/doubao-agentplan-tts';
-import { synthesizeBailianQwenTts } from '@/lib/bailian-qwen-tts';
-import { bailianProfileFromRuntimeConfig } from '@/lib/bailian-provider-profile';
 
 export type Message = {
   role: 'system' | 'user' | 'assistant';
@@ -21,12 +19,14 @@ type RuntimeLLMOptions = {
   model?: string;
   temperature?: number;
   thinking?: 'enabled' | 'disabled';
+  jsonMode?: boolean;
   vision?: boolean;
+  auxiliary?: boolean;
   maxTokens?: number;
   signal?: AbortSignal;
 };
 
-type PodcastProvider = 'volcengine-podcast-ws-v3' | 'doubao-tts-v3' | 'aliyun-bailian-qwen-audio-tts';
+type PodcastProvider = 'volcengine-podcast-ws-v3' | 'doubao-tts-v3';
 type PodcastAudioProviderPreference = 'auto' | 'doubao-tts' | 'volcengine-podcast';
 export type PodcastErrorType =
   | 'auth'
@@ -86,6 +86,7 @@ function extractOpenAIContent(payload: OpenAIChatCompletionResponse): string {
 
 function resolveRuntimeModel(options?: RuntimeLLMOptions, runtimeConfig?: Partial<RuntimeAIConfig>): string {
   if (options?.vision && runtimeConfig?.visionModel?.trim()) return runtimeConfig.visionModel.trim();
+  if (options?.auxiliary && process.env.OPENAI_COMPAT_AUX_MODEL?.trim()) return process.env.OPENAI_COMPAT_AUX_MODEL.trim();
   if (runtimeConfig?.model?.trim()) return runtimeConfig.model.trim();
   if (options?.model?.trim()) return options.model.trim();
   return process.env.OPENAI_COMPAT_MODEL || 'gpt-4o-mini';
@@ -101,6 +102,10 @@ async function* openAICompatStream(
   }
 
   const endpoint = resolveOpenAIChatEndpoint(runtimeConfig);
+  const model = resolveRuntimeModel(options, runtimeConfig);
+  const thinkingPayload = options?.thinking && /^qwen/i.test(model)
+    ? { enable_thinking: options.thinking === 'enabled' }
+    : {};
   const maxTokens = options?.maxTokens;
   const maxTokensPayload = typeof maxTokens === 'number' && Number.isInteger(maxTokens) && maxTokens > 0
     ? { max_tokens: maxTokens }
@@ -110,10 +115,12 @@ async function* openAICompatStream(
     headers: buildOpenAIHeaders(runtimeConfig.apiKey),
     signal: options?.signal,
     body: JSON.stringify({
-      model: resolveRuntimeModel(options, runtimeConfig),
+      model,
       messages,
       temperature: options?.temperature ?? 0.7,
       ...maxTokensPayload,
+      ...thinkingPayload,
+      ...(options?.jsonMode ? { response_format: { type: 'json_object' } } : {}),
       stream: true,
     }),
   }, { label: 'openai-compatible chat' });
@@ -721,33 +728,6 @@ export async function generatePodcastSegments(text: string, options?: PodcastGen
   provider?: PodcastProvider;
   partial: boolean;
 }> {
-  const bailianProfile = bailianProfileFromRuntimeConfig(options?.runtimeConfig || {});
-  if (bailianProfile) {
-    const dialogueText = await buildPodcastDialogueText(text, options);
-    const ttsSegments = splitPodcastTtsSegments(dialogueText);
-    const segments: PodcastAudioSegment[] = [];
-    for (const [index, segmentText] of ttsSegments.entries()) {
-      try {
-        const result = await synthesizeBailianQwenTts(segmentText, bailianProfile, { voice: options?.ttsSpeaker });
-        segments.push({ index, text: segmentText, status: 'succeeded', audioUrl: result.audioUri, provider: result.provider });
-      } catch (error) {
-        segments.push({ index, text: segmentText, status: 'failed', error: error instanceof Error ? error.message : '百炼语音合成失败。' });
-        if (!segments.some(segment => segment.status === 'succeeded')) {
-          throw new PodcastAudioGenerationError('百炼语音合成未生成可播放音频片段。', dialogueText, { cause: error, segments });
-        }
-        break;
-      }
-    }
-    const succeeded = segments.filter(segment => segment.status === 'succeeded' && segment.audioUrl);
-    const audioUrl = await mergePodcastAudioSegments(segments).catch(() => succeeded[0]?.audioUrl);
-    return {
-      audioUrl,
-      dialogueText,
-      segments,
-      provider: 'aliyun-bailian-qwen-audio-tts',
-      partial: succeeded.length < ttsSegments.length,
-    };
-  }
   const preferredProvider = resolvePodcastAudioProviderPreference();
   if (preferredProvider === 'volcengine-podcast') {
     const single = await generatePodcast(text, options);

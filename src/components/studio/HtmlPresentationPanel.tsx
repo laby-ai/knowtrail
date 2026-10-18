@@ -1,6 +1,11 @@
 'use client';
 
-import { clientApiRequest } from '@/lib/client-api';
+import { clientApiPath, clientApiRequest } from '@/lib/client-api';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyHtmlDeck, isHtmlDeckDocument, type HtmlDeckSlide as HtmlSlide } from '@/lib/ppt/deck-document';
+import { requestGeneratedDeck } from '@/lib/ppt/deck-client';
+import { SavedToolStatus } from './SavedToolStatus';
+import { downloadExistingDeckExport, readDeckForExport, saveAndDownloadDeckExport } from '@/lib/ppt/deck-export-client';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -27,31 +32,7 @@ import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 import NarrationPlayer from './NarrationPlayer';
 import { HTML_DECK_STYLES } from '@/lib/ppt/html-deck-style';
-import { buildStandaloneDeckHtml, exportHtmlDeckToPptx, measureSlideOverflow } from '@/lib/ppt/html-deck-export';
-
-interface SlideOutline {
-  title: string;
-  points: string[];
-  layoutHint?: string;
-  part?: string;
-}
-
-interface HtmlSlide {
-  title: string;
-  layoutHint: string;
-  html: string;
-  narration?: string;
-  outline?: SlideOutline;
-}
-
-interface PersistedDeck {
-  version: 1;
-  deckTitle: string;
-  styleId: string;
-  language: 'zh' | 'en';
-  savedAt: number;
-  slides: HtmlSlide[];
-}
+import { exportHtmlDeckToPptx, measureSlideOverflow } from '@/lib/ppt/html-deck-export';
 
 const PIPELINE_STAGES: StudioJobProgressStage[] = [
   { key: 'outline', label: '大纲规划', icon: Layout },
@@ -63,11 +44,9 @@ const PIPELINE_STAGES: StudioJobProgressStage[] = [
 const OVERFLOW_TOLERANCE_PX = 8;
 const MAX_REPAIR_ROUNDS = 2;
 
-function deckStorageKey(notebookId: string | undefined) {
-  return `knowtrail:html-deck:${notebookId || 'default'}`;
-}
 
-function ScaledSlideFrame({ html, className }: { html: string; className?: string }) {
+
+export function ScaledSlideFrame({ html, className, title = 'slide-preview' }: { html: string; className?: string; title?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.3);
 
@@ -90,7 +69,7 @@ function ScaledSlideFrame({ html, className }: { html: string; className?: strin
       <iframe
         srcDoc={html}
         sandbox="allow-same-origin"
-        title="slide-preview"
+        title={title}
         className="pointer-events-none absolute left-0 top-0 border-0 bg-white"
         style={{ width: 1280, height: 720, transform: `scale(${scale})`, transformOrigin: 'top left' }}
       />
@@ -115,13 +94,17 @@ export function HtmlPresentationPanel() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const [deckTitle, setDeckTitle] = useState('资料简报');
-  const [slides, setSlides] = useState<HtmlSlide[]>([]);
-  const [activeIdx, setActiveIdx] = useState(0);
+  const savedDeck = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'html-deck', endpoint: '/api/studio/artifacts?kind=html-deck', empty: emptyHtmlDeck, validate: isHtmlDeckDocument });
+  const deck = savedDeck.data.deck;
+  const deckTitle = deck?.deckTitle || '资料简报';
+  const slides = deck?.slides || [];
+  const activeIdx = deck?.activeIndex || 0;
+  const setActiveIdx = useCallback((change: number | ((previous: number) => number)) => savedDeck.update(previous => previous.deck ? { ...previous, deck: { ...previous.deck, activeIndex: typeof change === 'function' ? change(previous.deck.activeIndex) : change } } : previous), [savedDeck.update]);
+  const [editing, setEditing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [qaNotice, setQaNotice] = useState<string | null>(null);
-  const [restoredDeck, setRestoredDeck] = useState<PersistedDeck | null>(null);
+
 
   // Per-slide re-layout
   const [relayoutIdx, setRelayoutIdx] = useState<number | null>(null);
@@ -143,44 +126,16 @@ export function HtmlPresentationPanel() {
     return () => window.clearInterval(timer);
   }, [isGenerating]);
 
-  // ── Persistence: offer to restore the last deck for this notebook ──
+  const hydrated = useRef(false);
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
+  useEffect(() => { if (!savedDeck.unsaved) setError(null); }, [savedDeck.unsaved]);
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(deckStorageKey(notebookId));
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as PersistedDeck;
-      if (parsed?.version === 1 && Array.isArray(parsed.slides) && parsed.slides.length > 0) {
-        setRestoredDeck(parsed);
-      }
-    } catch { /* corrupted cache is fine to ignore */ }
-  }, [notebookId]);
-
-  const persistDeck = useCallback((deck: Omit<PersistedDeck, 'version' | 'savedAt'>) => {
-    try {
-      window.localStorage.setItem(
-        deckStorageKey(notebookId),
-        JSON.stringify({ version: 1, savedAt: Date.now(), ...deck } satisfies PersistedDeck),
-      );
-    } catch (err) {
-      // localStorage quota — drop silently, persistence is best-effort.
-      console.warn('[HTML PPT] persist failed:', err);
-    }
-  }, [notebookId]);
-
-  const applySlides = useCallback((title: string, styleId: string, lang: 'zh' | 'en', next: HtmlSlide[]) => {
-    setDeckTitle(title);
-    setSlides(next);
-    setActiveIdx(0);
-    persistDeck({ deckTitle: title, styleId, language: lang, slides: next });
-  }, [persistDeck]);
-
+    if (!deck || hydrated.current) return;
+    hydrated.current = true; setPageCount(deck.slides.length); setSelectedStyle(deck.styleId); setLanguage(deck.language);
+  }, [deck]);
   const updateSlideHtml = useCallback((idx: number, html: string) => {
-    setSlides(prev => {
-      const next = prev.map((s, i) => (i === idx ? { ...s, html } : s));
-      persistDeck({ deckTitle, styleId: selectedStyle, language, slides: next });
-      return next;
-    });
-  }, [persistDeck, deckTitle, selectedStyle, language]);
+    savedDeck.update(previous => previous.deck ? { ...previous, deck: { ...previous.deck, slides: previous.deck.slides.map((slide, i) => i === idx ? { ...slide, html } : slide) } } : previous);
+  }, [savedDeck.update]);
 
   // ── Quality loop: measure overflow, auto-repair offending slides ──
   const runQualityLoop = useCallback(async (
@@ -241,7 +196,8 @@ export function HtmlPresentationPanel() {
     return repaired;
   }, [notebookId, aiConfig]);
 
-  const handleGenerate = useCallback(async () => {
+  const handleGenerate = async () => {
+    if (savedDeck.loading || savedDeck.readFailed || savedDeck.conflict || isGenerating) return;
     if (!generationReadiness.ready) {
       setError(generationReadiness.message);
       return;
@@ -254,9 +210,6 @@ export function HtmlPresentationPanel() {
     setError(null);
     setExportNotice(null);
     setQaNotice(null);
-    setRestoredDeck(null);
-    setSlides([]);
-    setActiveIdx(0);
     setSlideCompleted(0);
     setSlideTotal(0);
     setElapsedSeconds(0);
@@ -268,80 +221,26 @@ export function HtmlPresentationPanel() {
     abortControllerRef.current = abortController;
 
     try {
-      const response = await clientApiRequest('/api/ai/ppt-html', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
-        body: JSON.stringify({
-          notebookId,
-          papers: papers.map(p => ({
-            id: p.id,
-            title: p.title,
-            authors: p.authors,
-            year: p.year,
-            fileName: p.fileName,
-            fileType: p.fileType,
-            abstract: p.abstract,
-            content: p.content,
-            rawContent: p.rawContent,
-          })),
-          aiConfig,
-          styleId: selectedStyle,
-          pageCount,
-          language,
-        }),
-        signal: abortController.signal,
+      if (!await savedDeck.flush()) throw new Error('请先重试保存当前简报。');
+      const generated = await requestGeneratedDeck({ endpoint: '/api/ai/ppt-html', signal: abortController.signal,
+        body: { notebookId, papers, aiConfig, styleId: selectedStyle, pageCount, language, persistArtifact: true, runId: crypto.randomUUID(), expectedRevision: savedDeck.revision.current },
+        validate: isHtmlDeckDocument, acceptSaved: savedDeck.acceptSaved, updateLocal: change => { savedDeck.updateLocal(change); setEditing(false); },
+        onEvent: data => {
+          if (typeof data.stage === 'string') setProgressStage(data.stage);
+          if (typeof data.message === 'string') setProgressMsg(data.message);
+          if (typeof data.slideTotal === 'number') setSlideTotal(data.slideTotal);
+          if (typeof data.slideCompleted === 'number') setSlideCompleted(data.slideCompleted);
+        },
       });
-
-      if (!response.ok || !response.body) throw new Error('HTML 简报生成请求失败');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let finalSlides: HtmlSlide[] = [];
-      let finalTitle = '资料简报';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.stage === 'outline') {
-              setProgressStage('outline');
-              setProgressMsg(data.message);
-            } else if (data.stage === 'html') {
-              setProgressStage('html');
-              setProgressMsg(data.message);
-              if (data.slideTotal) setSlideTotal(data.slideTotal);
-              if (data.slideCompleted !== undefined) setSlideCompleted(data.slideCompleted);
-            } else if (data.stage === 'narration') {
-              setProgressStage('narration');
-              setProgressMsg(data.message);
-            } else if (data.stage === 'done') {
-              finalSlides = data.slides || [];
-              if (data.deckTitle) finalTitle = data.deckTitle;
-            } else if (data.stage === 'error') {
-              throw new Error(data.message);
-            }
-          } catch (e) {
-            if (e instanceof Error && e.message && !e.message.startsWith('Unexpected')) throw e;
-          }
-        }
-      }
-
-      if (finalSlides.length === 0) throw new Error('生成结果为空,请重试');
-
-      // ── Automatic overflow QA + repair before showing the deck ──
+      if (!generated.deck) throw new Error('简报内容不完整。');
+      setEditing(false);
       setProgressStage('qa');
-      setProgressMsg('正在做溢出质检...');
-      const checked = await runQualityLoop(finalSlides, finalTitle, selectedStyle, language);
-
-      applySlides(finalTitle, selectedStyle, language, checked);
+      const checked = await runQualityLoop(generated.deck.slides, generated.deck.deckTitle, generated.deck.styleId, generated.deck.language);
+      abortController.signal.throwIfAborted();
+      if (JSON.stringify(checked) !== JSON.stringify(generated.deck.slides)) {
+        savedDeck.updateLocal(() => ({ ...generated, deck: { ...generated.deck!, slides: checked } }));
+        if (!await savedDeck.flush()) throw new Error('质检后的简报尚未保存，请重试保存。');
+      }
       setProgressMsg('');
     } catch (err) {
       const aborted = abortController.signal.aborted || (err instanceof DOMException && err.name === 'AbortError');
@@ -350,26 +249,11 @@ export function HtmlPresentationPanel() {
       if (abortControllerRef.current === abortController) abortControllerRef.current = null;
       setIsGenerating(false);
     }
-  }, [generationReadiness, getSelectedPapers, aiConfig, notebookId, selectedStyle, pageCount, language, runQualityLoop, applySlides]);
+  };
 
   const handleCancelGenerate = useCallback(() => {
     abortControllerRef.current?.abort();
   }, []);
-
-  const handleRestore = useCallback(() => {
-    if (!restoredDeck) return;
-    setDeckTitle(restoredDeck.deckTitle);
-    setSelectedStyle(restoredDeck.styleId);
-    setLanguage(restoredDeck.language);
-    setSlides(restoredDeck.slides);
-    setActiveIdx(0);
-    setRestoredDeck(null);
-  }, [restoredDeck]);
-
-  const handleDiscardRestore = useCallback(() => {
-    setRestoredDeck(null);
-    try { window.localStorage.removeItem(deckStorageKey(notebookId)); } catch { /* ignore */ }
-  }, [notebookId]);
 
   // ── Per-slide re-layout (user instruction) ──
   const handleRelayout = useCallback(async () => {
@@ -410,31 +294,34 @@ export function HtmlPresentationPanel() {
     }
   }, [relayoutIdx, isRelayouting, relayoutInstruction, slides, notebookId, deckTitle, selectedStyle, language, aiConfig, updateSlideHtml]);
 
-  const handleExportPptx = useCallback(async () => {
+  const handleExportPptx = async () => {
     if (slides.length === 0 || isExporting) return;
     setIsExporting(true);
     setExportNotice(null);
     try {
-      await exportHtmlDeckToPptx(slides, deckTitle);
-      setExportNotice('已导出可编辑 PPTX:文本、色块与图表可在 PowerPoint 中直接编辑,演讲稿在每页备注栏。');
+      if (!await savedDeck.flush()) throw new Error('简报尚未保存，请先重试保存。');
+      const version = await readDeckForExport('html-deck', notebookId, savedDeck.revision.current, isHtmlDeckDocument);
+      if (await downloadExistingDeckExport(version.params)) return;
+      if (!version.data.deck) throw new Error('简报内容不完整。');
+      await exportHtmlDeckToPptx(version.data.deck.slides, version.data.deck.deckTitle, blob => saveAndDownloadDeckExport(version.params, blob));
+      setExportNotice(null);
     } catch (err) {
       setExportNotice(`导出失败:${err instanceof Error ? err.message : '未知错误'}`);
     } finally {
       setIsExporting(false);
     }
-  }, [slides, deckTitle, isExporting]);
+  };
 
-  const handleDownloadHtml = useCallback(() => {
+  const handleDownloadHtml = async () => {
     if (slides.length === 0) return;
-    const html = buildStandaloneDeckHtml(slides, deckTitle);
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${deckTitle.replace(/[\\/:*?"<>|]/g, '_')}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [slides, deckTitle]);
+    try {
+      if (!await savedDeck.flush()) throw new Error('简报尚未保存，请先重试保存。');
+      const version = await readDeckForExport('html-deck', notebookId, savedDeck.revision.current, isHtmlDeckDocument);
+      version.params.set('download', '1');
+      const link = document.createElement('a'); link.href = clientApiPath(`/api/studio/artifacts?${version.params}`); link.download = `${version.data.deck?.deckTitle || 'presentation'}.html`;
+      document.body.appendChild(link); link.click(); link.remove();
+    } catch (error) { setExportNotice(error instanceof Error ? error.message : '导出失败，请重试。'); }
+  };
 
   const handlePresent = useCallback(() => {
     presentRef.current?.requestFullscreen?.();
@@ -449,7 +336,7 @@ export function HtmlPresentationPanel() {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [slides.length, relayoutIdx]);
+  }, [slides.length, relayoutIdx, setActiveIdx]);
 
   const longTaskHint = elapsedSeconds >= 90
     ? 'HTML 排版仍在进行,每页由模型独立设计并质检,通常 2-5 分钟内完成。'
@@ -457,21 +344,11 @@ export function HtmlPresentationPanel() {
 
   return (
     <div className="relative space-y-4" data-testid="html-ppt-panel">
-      {/* ── Restore banner ── */}
-      {restoredDeck && slides.length === 0 && !isGenerating && (
-        <div className="flex items-center gap-3 rounded-xl px-4 py-3 liquid-glass-static !border-blue-500/25" data-testid="html-ppt-restore">
-          <FileText className="h-4 w-4 shrink-0 text-blue-400" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-medium text-[var(--text-primary)]">上次生成的简报:{restoredDeck.deckTitle}</p>
-            <p className="text-[10px] text-[var(--text-tertiary)]">{restoredDeck.slides.length} 页 · {new Date(restoredDeck.savedAt).toLocaleString()}</p>
-          </div>
-          <button onClick={handleRestore} className="shrink-0 rounded-lg bg-blue-500/85 px-3 py-1.5 text-xs font-medium text-white">恢复</button>
-          <button onClick={handleDiscardRestore} className="shrink-0 rounded-lg px-2 py-1.5 text-xs text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)]">丢弃</button>
-        </div>
-      )}
+      <SavedToolStatus saved={savedDeck} guest={storageScopeKey.startsWith('guest:')} />
+      {editing && slides.length > 0 && <button type="button" className="text-xs underline" onClick={() => setEditing(false)}>返回简报</button>}
 
       {/* ── Style selector ── */}
-      {slides.length === 0 && !isGenerating && (
+      {(slides.length === 0 || editing) && !isGenerating && (
         <>
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-2 text-[12px] font-semibold text-[var(--text-secondary)]">
@@ -550,7 +427,7 @@ export function HtmlPresentationPanel() {
       )}
 
       {error && (
-        <div className="rounded-xl px-4 py-2.5 text-center text-xs text-red-400 liquid-glass-static !border-red-500/20">{error}</div>
+        <div className="rounded-xl px-4 py-2.5 text-center text-xs text-red-400 liquid-glass-static !border-red-500/20">{error}<button type="button" className="mt-2 block underline" onClick={() => { setError(null); savedDeck.reload(); }}>{savedDeck.unsaved ? '读取已保存内容（将替换当前草稿）' : '读取已保存简报'}</button></div>
       )}
 
       {isGenerating ? (
@@ -564,7 +441,7 @@ export function HtmlPresentationPanel() {
           onCancel={handleCancelGenerate}
           testId="html-ppt-job-progress"
         />
-      ) : slides.length > 0 ? (
+      ) : slides.length > 0 && !editing ? (
         <div className="space-y-3" data-testid="html-ppt-result">
           {qaNotice && (
             <div className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs text-emerald-300 liquid-glass-static !border-emerald-500/25" data-testid="html-ppt-qa-notice">
@@ -669,7 +546,7 @@ export function HtmlPresentationPanel() {
               <Maximize2 className="h-4 w-4" /> 全屏演示
             </button>
             <button
-              onClick={() => { setSlides([]); setExportNotice(null); setQaNotice(null); }}
+              onClick={() => { setEditing(true); setExportNotice(null); setQaNotice(null); }}
               className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium liquid-glass-btn hover:bg-[var(--glass-hover)] text-[var(--text-tertiary)]"
             >
               重新生成
@@ -685,7 +562,7 @@ export function HtmlPresentationPanel() {
           )}
           <button
             onClick={handleGenerate}
-            disabled={!hasSelectedPapers || !generationReadiness.ready}
+            disabled={savedDeck.loading || savedDeck.readFailed || savedDeck.conflict || !hasSelectedPapers || !generationReadiness.ready}
             data-testid="html-ppt-generate"
             className="liquid-glass-btn w-full !rounded-xl !border-0 !bg-gradient-to-r !from-blue-500 !to-blue-600 px-8 py-3.5 text-sm !font-semibold !text-white hover:!from-blue-400 hover:!to-blue-500 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
             title={!generationReadiness.ready ? generationReadiness.message : hasSelectedPapers ? '生成 HTML 原生简报' : '请先在左侧选择资料'}

@@ -15,7 +15,7 @@ import { buildGroundedRetrievalContext, toRetrievalMetadata } from '@/lib/ground
 import { createGroundedSseResponse, createUsageReservationFinalizer } from '@/lib/grounded-task-lifecycle';
 import { createGroundedTaskObservation } from '@/lib/operational-observability';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
 type AcademicWritingRequest = {
@@ -66,9 +66,7 @@ export async function POST(request: NextRequest) {
   });
   if (!scope.ok) return scope.response;
 
-  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
-  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-  const runtimeConfig = runtimeConfigResult;
+  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
   const grounded = await buildGroundedRetrievalContext(
     `写作目标：${writingGoal}\n目标章节：${input.targetSection}\n请匹配定义、关键主张、已有证据、争议和局限。`,
     papers,
@@ -103,6 +101,7 @@ export async function POST(request: NextRequest) {
       inputText: writingGoal,
       promptContext: grounded.promptContext,
       memberId: scope.ownerMemberId,
+      quotaExempt: scope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {

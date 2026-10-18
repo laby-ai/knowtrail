@@ -79,6 +79,8 @@ function sourceText(source: RagSourceInput): string {
 }
 
 function inferPage(text: string): number | undefined {
+  const renderedPages = new Set([...text.matchAll(/^--- 第(\d+)页 ---$/gm)].map(match => Number(match[1])));
+  if (renderedPages.size) return renderedPages.size === 1 ? [...renderedPages][0] : undefined;
   const match = text.match(/(?:第\s*|page\s*|p\.\s*|幻灯片\s*)(\d{1,4})/i);
   return match ? Number(match[1]) : undefined;
 }
@@ -180,6 +182,13 @@ function makeSnippet(text: string, questionTerms: string[], maxLength = 220): st
 export function retrieveRelevantChunks(question: string, chunks: SourceChunk[], topK = DEFAULT_TOP_K): GroundedCitation[] {
   const questionTokens = tokenize(question);
   const questionTerms = termFrequency(questionTokens);
+  const chunkTexts = chunks.map(chunk => normalizeText(chunk.text).toLowerCase());
+  const termChunkCounts = new Map([...questionTerms.keys()].map(term => [
+    term, chunkTexts.filter(text => text.includes(term)).length,
+  ]));
+  const snippetTerms = [...questionTerms.keys()].sort((a, b) => (
+    (termChunkCounts.get(a) || 0) - (termChunkCounts.get(b) || 0) || b.length - a.length
+  ));
   const scored = chunks
     .map(chunk => ({ chunk, score: scoreChunk(questionTerms, chunk) }))
     .sort((a, b) => b.score - a.score || a.chunk.sourceIndex - b.chunk.sourceIndex || a.chunk.chunkIndex - b.chunk.chunkIndex);
@@ -190,7 +199,7 @@ export function retrieveRelevantChunks(question: string, chunks: SourceChunk[], 
   return fallback.map(({ chunk, score }) => ({
     paperId: chunk.sourceId,
     paperShortName: chunk.paperShortName,
-    excerpt: makeSnippet(chunk.text, questionTokens),
+    excerpt: makeSnippet(chunk.text, snippetTerms),
     sourceId: chunk.sourceId,
     chunkId: chunk.id,
     sourceTitle: chunk.sourceTitle,

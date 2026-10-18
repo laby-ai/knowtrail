@@ -1,8 +1,7 @@
 'use client';
 
-import { clientApiRequest } from '@/lib/client-api';
+import { ClientRequestError, clientApiRequest } from '@/lib/client-api';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
-
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Presentation,
@@ -16,6 +15,8 @@ import {
   Check,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import type { ResearchPresentationArtifact, ResearchPresentationPlan } from '@/lib/research-agent-contract';
+import { useStructuredPresentationFile } from '@/hooks/use-structured-presentation-file';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
@@ -25,15 +26,15 @@ import {
   type StructuredPresentationOutlineItem,
 } from './StructuredPresentationOutlineDraft';
 
-export function StructuredPresentationPanel() {
-  const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+export function StructuredPresentationPanel({ skillPlan, onPlanChange, onArtifact }: { skillPlan?: ResearchPresentationPlan;
+  onPlanChange?: (outline: StructuredPresentationOutlineItem[]) => void; onArtifact?: (artifact: ResearchPresentationArtifact) => Promise<void> } = {}) {
+  const { getSelectedPapers, folders, aiConfig, storageScopeKey } = useApp();
   const generationReadiness = useStudioGenerationReadiness('structuredPpt');
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
   const [progressStep, setProgressStep] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [pptxUrl, setPptxUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [qualityWarning, setQualityWarning] = useState<string | null>(null);
   const [qualitySummary, setQualitySummary] = useState<string | null>(null);
@@ -49,19 +50,24 @@ export function StructuredPresentationPanel() {
   const [outlineConfirmed, setOutlineConfirmed] = useState(false);
   // MinerU state
   const [mineruStatus, setMineruStatus] = useState<string>('');
-  const selectedPapers = getSelectedPapers();
-  const hasSelectedPapers = selectedPapers.length > 0;
+  const selectedPapers = skillPlan ? skillPlan.sourceIds.flatMap(id => folders.flatMap(folder => folder.papers).filter(paper => paper.id === id)) : getSelectedPapers();
+  const hasSelectedPapers = selectedPapers.length > 0 && (!skillPlan || selectedPapers.length === skillPlan.sourceIds.length);
   const selectedPaperKey = selectedPapers.map(paper => paper.id).join('|');
   const abortControllerRef = useRef<AbortController | null>(null);
-  const suggestedOutline = useMemo(
-    () => buildStructuredPresentationOutlineDraft(selectedPapers, duration),
-    [selectedPaperKey, duration],
-  );
+  const timersRef = useRef<number[]>([]);
+  const { presentation, setPresentation, latestArtifactId, pptxUrl, isRestoring, restoreError, retryRestore, isDownloading, handleDownload, scopeKeyRef, acceptResponse } = useStructuredPresentationFile(storageScopeKey, notebookId, setError, skillPlan ? null : undefined);
+  const suggestedOutline = useMemo(() => skillPlan?.outlineDraft || buildStructuredPresentationOutlineDraft(selectedPapers, duration),
+    [selectedPaperKey, duration, skillPlan?.outlineDraft]);
 
   useEffect(() => {
     setOutlineDraft(suggestedOutline);
     setOutlineConfirmed(false);
   }, [suggestedOutline]);
+
+  useEffect(() => () => {
+    abortControllerRef.current?.abort();
+    timersRef.current.forEach(clearTimeout);
+  }, [storageScopeKey]);
 
   // User-facing generation stages.
   const PIPELINE_STAGES: StudioJobProgressStage[] = [
@@ -75,13 +81,13 @@ export function StructuredPresentationPanel() {
   ];
 
   const handleGenerate = async () => {
-    if (!generationReadiness.ready) {
-      setError(generationReadiness.message);
+    if (!generationReadiness.ready || abortControllerRef.current || isRestoring || restoreError) {
+      setError(!generationReadiness.ready ? generationReadiness.message : restoreError);
       return;
     }
-    const papers = getSelectedPapers();
-    if (papers.length === 0) {
-      setError('请先在左侧资料区选择来源');
+    const papers = skillPlan ? selectedPapers : getSelectedPapers();
+    if (!hasSelectedPapers || papers.length === 0) {
+      setError(skillPlan ? '本轮大纲的来源尚未全部读取，请刷新资料后重试。' : '请先在左侧资料区选择来源');
       return;
     }
     if (!outlineConfirmed) {
@@ -92,13 +98,13 @@ export function StructuredPresentationPanel() {
     setError(null);
     setQualityWarning(null);
     setQualitySummary(null);
-    setPptxUrl(null);
     setElapsedSeconds(0);
     setProgressMsg('正在准备结构化简报生成...');
     setProgressStep('discourse');
-    abortControllerRef.current?.abort();
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
+    const requestScopeKey = storageScopeKey;
+    const isCurrentRequest = () => !abortController.signal.aborted && scopeKeyRef.current === requestScopeKey;
 
     // Build papers payload with fileUrl/fileType/fileName for MinerU enrichment on backend
     const papersPayload = papers.map(p => ({
@@ -125,7 +131,7 @@ export function StructuredPresentationPanel() {
     for (const p of papers) {
       if (p.fileType === 'pdf') {
         try {
-          const res = await clientApiRequest(`/api/mineru/extract?paperId=${encodeURIComponent(p.id)}`);
+          const res = await clientApiRequest(`/api/mineru/extract?paperId=${encodeURIComponent(p.id)}`, { signal: abortController.signal });
           if (res.ok) {
             const data = await res.json();
             if (data.figures?.length > 0) {
@@ -136,6 +142,16 @@ export function StructuredPresentationPanel() {
       }
     }
 
+    if (!isCurrentRequest()) {
+      if (scopeKeyRef.current === requestScopeKey) {
+        setIsGenerating(false);
+        setProgressMsg('');
+        setProgressStep('');
+        setError('已取消生成，可以调整设置后重新开始。');
+      }
+      return;
+    }
+
     // Show MinerU status
     if (totalFigures > 0) {
       setMineruStatus(`已提取 ${totalFigures} 张资料图表，将插入 PPT`);
@@ -144,6 +160,7 @@ export function StructuredPresentationPanel() {
     }
 
     const timers: number[] = [];
+    timersRef.current = timers;
     try {
       timers.push(window.setInterval(() => {
         setElapsedSeconds(seconds => seconds + 1);
@@ -163,7 +180,7 @@ export function StructuredPresentationPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
-          notebookId,
+          notebookId, expectedArtifactId: latestArtifactId.current,
           papers: papersPayload,
           aiConfig,
           institution,
@@ -176,11 +193,14 @@ export function StructuredPresentationPanel() {
           outlineDraft,
         }),
         signal: abortController.signal,
+        timeoutMs: 300_000,
       });
       timers.forEach(clearTimeout);
+      if (!isCurrentRequest()) return;
 
       if (!res.ok) {
         const err = await res.json();
+        if (res.status === 409) retryRestore();
         throw new Error(err.error || '生成失败');
       }
 
@@ -204,22 +224,27 @@ export function StructuredPresentationPanel() {
         } catch { /* ignore parse errors */ }
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setPptxUrl(url);
+      await acceptResponse(res, requestScopeKey, outlineDraft.length, abortController.signal).then(saved => saved && isCurrentRequest() ? onArtifact?.(saved) : undefined);
       setProgressMsg('');
       setProgressStep('');
     } catch (e: unknown) {
+      if (scopeKeyRef.current !== requestScopeKey) return;
       const aborted = abortController.signal.aborted || (e instanceof DOMException && e.name === 'AbortError');
-      setError(aborted ? '已取消生成，可以调整设置后重新开始。' : e instanceof Error ? e.message : '生成失败');
+      const message = e instanceof ClientRequestError && e.code === 'timeout'
+        ? '生成等待超时，服务可能仍在处理资料。请稍后重试；已确认的大纲仍会保留。'
+        : e instanceof Error ? e.message : '生成失败';
+      setError(aborted ? '已取消生成，可以调整设置后重新开始。' : message);
       setQualityWarning(null);
       setQualitySummary(null);
       setProgressMsg('');
       setProgressStep('');
     } finally {
       timers.forEach(clearTimeout);
-      if (abortControllerRef.current === abortController) abortControllerRef.current = null;
-      setIsGenerating(false);
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+        setIsGenerating(false);
+        setMineruStatus('');
+      }
     }
   };
 
@@ -227,14 +252,6 @@ export function StructuredPresentationPanel() {
     if (!isGenerating) return;
     setProgressMsg('正在取消生成...');
     abortControllerRef.current?.abort();
-  };
-
-  const handleDownload = () => {
-    if (!pptxUrl) return;
-    const a = document.createElement('a');
-    a.href = pptxUrl;
-    a.download = 'academic-presentation.pptx';
-    a.click();
   };
 
   const longTaskHint = elapsedSeconds >= 120
@@ -259,9 +276,9 @@ export function StructuredPresentationPanel() {
   ];
 
   return (
-    <div className="flex-1 flex flex-col items-center p-6 overflow-y-auto" data-testid="academic-ppt-panel">
+    <div className={`flex-1 flex flex-col items-center ${skillPlan ? 'py-3' : 'p-6'} overflow-y-auto`} data-testid="academic-ppt-panel">
       {/* Header */}
-      <div className="w-full max-w-[420px] text-center mb-5">
+      {!skillPlan && <div className="w-full max-w-[420px] text-center mb-5">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 flex items-center justify-center mb-3 mx-auto border border-[var(--glass-border)]" style={{ boxShadow: 'var(--glass-shadow-sm)' }}>
           <Presentation className="w-7 h-7 text-amber-400" />
         </div>
@@ -270,12 +287,12 @@ export function StructuredPresentationPanel() {
           先检查大纲，再生成可编辑演示文稿<br/>
           支持时长、受众、讲稿和资料图表
         </p>
-      </div>
+      </div>}
 
       {/* Options */}
-      {!isGenerating && !pptxUrl && (
+      {!isGenerating && !pptxUrl && !isRestoring && (
         <>
-        <div className="w-full max-w-[420px] space-y-3 mb-5">
+        {!skillPlan && <div className="w-full max-w-[420px] space-y-3 mb-5">
           {/* Institution selector */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs text-[var(--text-tertiary)] font-medium pl-0.5">机构标识</label>
@@ -389,16 +406,17 @@ export function StructuredPresentationPanel() {
               <div className="toggle-knob" />
             </button>
           </div>
-        </div>
+        </div>}
 
           {hasSelectedPapers && (
             <StructuredPresentationOutlineDraft
               items={outlineDraft}
               confirmed={outlineConfirmed}
-              onChange={setOutlineDraft}
+              onChange={items => { setOutlineDraft(items); onPlanChange?.(items); }}
               onConfirmChange={setOutlineConfirmed}
               onReset={() => {
                 setOutlineDraft(suggestedOutline);
+                onPlanChange?.(suggestedOutline);
                 setOutlineConfirmed(false);
               }}
             />
@@ -418,9 +436,17 @@ export function StructuredPresentationPanel() {
       {error && (
         <div className="text-red-400 text-xs mb-3 px-4 py-2.5 liquid-glass-static rounded-xl max-w-[420px] text-center !border-red-500/20">{error}</div>
       )}
+      {restoreError && (
+        <div role="alert" data-testid="academic-ppt-restore-error" className="max-w-[420px] mb-3 text-center text-sm text-red-500">
+          <p>{restoreError}</p>
+          <button onClick={retryRestore} className="mt-2 underline">重新读取</button>
+        </div>
+      )}
 
       {/* Generating state with staged progress */}
-      {isGenerating ? (
+      {isRestoring ? (
+        <p role="status" data-testid="academic-ppt-restoring" className="text-sm text-[var(--text-tertiary)]">正在读取已保存的PPT…</p>
+      ) : isGenerating ? (
         <div className="flex flex-col items-center gap-4 max-w-[420px] w-full">
           <StudioJobProgress
             title="结构化 PPT 生成中"
@@ -438,8 +464,9 @@ export function StructuredPresentationPanel() {
         <div className="flex flex-col gap-3 w-full max-w-[340px]" data-testid="academic-ppt-success">
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl liquid-glass-static !border-emerald-500/20">
             <Check className="w-5 h-5 text-emerald-400" />
-            <span className="text-sm text-emerald-400 font-medium">PPT生成完成</span>
+            <span className="text-sm text-emerald-400 font-medium break-all">{presentation?.fileName}</span>
           </div>
+          {presentation?.slideCount && <p className="text-xs text-[var(--text-tertiary)]">{presentation.slideCount} 页</p>}
           {qualitySummary && (
             <div
               data-testid="academic-ppt-quality-summary"
@@ -455,13 +482,14 @@ export function StructuredPresentationPanel() {
           )}
           <button
             onClick={handleDownload}
+            disabled={isDownloading}
             data-testid="academic-ppt-download"
             className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-sm transition-all active:scale-[0.97]"
           >
-            下载PPT文件
+            {isDownloading ? '正在下载…' : '下载PPT文件'}
           </button>
           <button
-            onClick={() => { setPptxUrl(null); setQualityWarning(null); setQualitySummary(null); }}
+            onClick={() => { setPresentation(null); setQualityWarning(null); setQualitySummary(null); }}
             className="w-full py-2.5 rounded-xl liquid-glass-btn hover:bg-[var(--glass-hover)] text-[var(--text-tertiary)] text-sm"
           >
             返回
@@ -477,7 +505,7 @@ export function StructuredPresentationPanel() {
           )}
           <button
             onClick={handleGenerate}
-            disabled={!hasSelectedPapers || !outlineConfirmed || !generationReadiness.ready}
+            disabled={!hasSelectedPapers || !outlineConfirmed || !generationReadiness.ready || Boolean(restoreError)}
             data-testid="academic-ppt-generate"
             className="liquid-glass-btn w-full px-8 py-3.5 !rounded-xl !bg-gradient-to-r !from-amber-500 !to-amber-600 hover:!from-amber-400 hover:!to-amber-500 !text-black !font-semibold text-sm !border-0 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:!from-amber-500 disabled:hover:!to-amber-600"
             title={!generationReadiness.ready ? generationReadiness.message : hasSelectedPapers ? outlineConfirmed ? '生成结构化资料简报' : '请先确认简报大纲' : '请先在左侧选择资料'}

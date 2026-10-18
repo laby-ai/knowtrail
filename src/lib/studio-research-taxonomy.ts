@@ -4,7 +4,7 @@ export type StudioResearchCategoryId =
   | 'results-expression'
   | 'collaboration-memory';
 
-export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'text-polishing' | 'scientific-illustration' | 'knowledge' | 'presentation' | 'peer-review' | 'virtual-classroom';
+export type StudioProductId = 'paper-search' | 'deep-research' | 'hypothesis-generation' | 'data-processing' | 'experiment-design' | 'academic-writing' | 'text-polishing' | 'scientific-illustration' | 'knowledge' | 'presentation' | 'report' | 'flashcards' | 'quiz' | 'peer-review' | 'virtual-classroom';
 
 export type StudioProductAvailability = 'ready' | 'runtime-dependent';
 
@@ -100,6 +100,27 @@ export const STUDIO_RESEARCH_PRODUCTS = [
     availability: 'ready',
   },
   {
+    id: 'report',
+    label: '报告',
+    categoryId: 'results-expression',
+    desc: '基于来源的可追溯研究报告',
+    availability: 'ready',
+  },
+  {
+    id: 'flashcards',
+    label: '学习卡',
+    categoryId: 'collaboration-memory',
+    desc: '把来源整理为可复习知识卡',
+    availability: 'ready',
+  },
+  {
+    id: 'quiz',
+    label: '测验',
+    categoryId: 'collaboration-memory',
+    desc: '用学习卡进行即时自测',
+    availability: 'ready',
+  },
+  {
     id: 'peer-review',
     label: '论文审查',
     categoryId: 'collaboration-memory',
@@ -115,9 +136,21 @@ export const STUDIO_RESEARCH_PRODUCTS = [
   },
 ] as const satisfies readonly StudioResearchProduct[];
 
+export const CHAT_SKILL_PRODUCT_IDS = new Set<StudioProductId>([
+  'paper-search',
+  'deep-research',
+  'hypothesis-generation',
+  'experiment-design',
+  'academic-writing',
+  'text-polishing',
+  'peer-review',
+]);
+
 export function getVisibleStudioCategories() {
   return STUDIO_RESEARCH_CATEGORIES.map(category => ({
     ...category,
-    products: STUDIO_RESEARCH_PRODUCTS.filter(product => product.categoryId === category.id),
+    products: STUDIO_RESEARCH_PRODUCTS
+      .filter(product => !CHAT_SKILL_PRODUCT_IDS.has(product.id))
+      .filter(product => product.categoryId === category.id),
   })).filter(category => category.products.length > 0);
 }

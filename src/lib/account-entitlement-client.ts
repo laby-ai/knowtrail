@@ -186,6 +186,7 @@ export class AccountEntitlementClient {
       `${args.requestId}:provider-profile`,
     ) as Promise<MemberProviderProfile>;
   }
+
 }
 
 export function estimateTextUnits(input: string, minUnits = 1_000, maxUnits = 100_000): number {

@@ -1,10 +1,14 @@
 'use client';
 
-import { clientApiRequest } from '@/lib/client-api';
+import { clientApiPath, clientApiRequest } from '@/lib/client-api';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, LoaderCircle, Square, TableProperties } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyDataProcessing, isDataProcessingDocument, type DataProcessingDocument } from '@/lib/data-processing-document';
+import { studioSessionStorageKey } from '@/lib/studio-session-storage';
+import type { NotebookDocument } from '@/lib/private-notebook-document';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { DataProcessingPlan, DataTaskFamily } from '@/lib/data-processing-plan';
 import { buildDataTablePreviewForPaper } from '@/lib/data-table-preview';
@@ -19,6 +23,15 @@ const TASK_OPTIONS: Array<{ id: DataTaskFamily; label: string; desc: string }> =
   { id: 'comparison', label: '组间比较', desc: '明确分组、目标、效应量和不确定性' },
   { id: 'trend', label: '时间趋势', desc: '使用时间切分和朴素时序 baseline' },
 ];
+
+function legacyData(scope: string): DataProcessingDocument | null {
+  try {
+    const next = emptyDataProcessing();
+    const fields = { sourceId: 'source-id', question: 'question', sampleUnit: 'sample-unit', taskFamily: 'task-family', targetColumn: 'target-column', splitColumn: 'split-column' };
+    for (const [key, field] of Object.entries(fields)) Object.assign(next, { [key]: JSON.parse(sessionStorage.getItem(studioSessionStorageKey(scope, 'data-processing', field)) || 'null') ?? next[key as keyof typeof next] });
+    return (next.question || next.sampleUnit) && isDataProcessingDocument(next) ? next : null;
+  } catch { return null; }
+}
 
 function toPaperRequest(paper: Paper): Paper {
   return {
@@ -44,21 +57,25 @@ export function DataProcessingPanel() {
   const { getSelectedPapers, storageScopeKey } = useApp();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const dataSources = getSelectedPapers().filter(paper => paper.fileType === 'csv' || paper.fileType === 'xlsx');
-  const [sourceId, setSourceId] = useState('');
-  const [question, setQuestion] = useState('');
-  const [sampleUnit, setSampleUnit] = useState('');
-  const [taskFamily, setTaskFamily] = useState<DataTaskFamily>('description');
-  const [targetColumn, setTargetColumn] = useState('');
-  const [splitColumn, setSplitColumn] = useState('');
-  const [plan, setPlan] = useState<DataProcessingPlan | null>(null);
+  const saved = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'data-processing', endpoint: '/api/studio/artifacts?kind=data-processing', empty: emptyDataProcessing, validate: isDataProcessingDocument, readLegacy: legacyData });
+  const { sourceId, question, sampleUnit, taskFamily, targetColumn, splitColumn, plan } = saved.data;
+  const field = <K extends keyof DataProcessingDocument>(key: K, value: DataProcessingDocument[K]) => saved.update(previous => ({ ...previous, [key]: value }));
+  const setSourceId = (value: string) => field('sourceId', value);
+  const setQuestion = (value: string) => field('question', value);
+  const setSampleUnit = (value: string) => field('sampleUnit', value);
+  const setTaskFamily = (value: DataTaskFamily) => field('taskFamily', value);
+  const setTargetColumn = (value: string) => field('targetColumn', value);
+  const setSplitColumn = (value: string) => field('splitColumn', value);
   const [status, setStatus] = useState<PanelStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { abortRef.current?.abort(); abortRef.current = null; }, []);
+  useEffect(() => { if (!saved.unsaved) setError(null); }, [saved.unsaved]);
 
   useEffect(() => {
-    if (dataSources.some(source => source.id === sourceId)) return;
+    if (saved.loading || dataSources.length === 0 || dataSources.some(source => source.id === sourceId)) return;
     setSourceId(dataSources[0]?.id || '');
-  }, [dataSources, sourceId]);
+  }, [dataSources, sourceId, saved.loading]);
 
   const selectedSource = dataSources.find(source => source.id === sourceId) || null;
   const preview = useMemo(
@@ -70,22 +87,23 @@ export function DataProcessingPanel() {
   const needsSplit = taskFamily === 'comparison' || taskFamily === 'trend';
 
   useEffect(() => {
+    if (saved.loading || columns.length === 0) return;
     if (!columns.some(column => column.name === targetColumn)) setTargetColumn('');
     if (!columns.some(column => column.name === splitColumn)) setSplitColumn('');
-  }, [columns, splitColumn, targetColumn]);
+  }, [columns, splitColumn, targetColumn, saved.loading]);
 
   const runPlan = useCallback(async () => {
-    if (!selectedSource || !preview || status === 'running') return;
+    if (!selectedSource || !preview || status === 'running' || saved.loading || saved.error) return;
     if (!question.trim() || !sampleUnit.trim() || (needsTarget && !targetColumn) || (needsSplit && !splitColumn)) return;
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(new Error('data processing request timed out')), 30_000);
     abortRef.current = controller;
     setStatus('running');
-    setPlan(null);
     setError(null);
 
     try {
+      if (!await saved.flush()) throw new Error('当前内容尚未保存，请先重试保存。');
       const response = await clientApiRequest('/api/data-processing/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
@@ -100,19 +118,27 @@ export function DataProcessingPanel() {
           splitColumn: splitColumn || undefined,
           notebookId,
           paper: toPaperRequest(selectedSource),
+          persistArtifact: !storageScopeKey.startsWith('guest:'), expectedRevision: saved.revision.current,
         }),
       });
       const payload = await response.json().catch(() => null) as {
         code?: number;
         msg?: string;
         data?: DataProcessingPlan;
+        document?: NotebookDocument<DataProcessingDocument>;
+        unsavedDocument?: DataProcessingDocument;
       } | null;
+      if (controller.signal.aborted) return;
+      if (isDataProcessingDocument(payload?.unsavedDocument)) saved.updateLocal(() => payload!.unsavedDocument!);
       if (!response.ok || payload?.code !== 0 || !payload.data) {
         throw new Error(payload?.msg || `数据处理请求失败（HTTP ${response.status}）。`);
       }
-      setPlan(payload.data);
+      if (payload.document && isDataProcessingDocument(payload.document.data)) saved.acceptSaved(payload.document);
+      else if (storageScopeKey.startsWith('guest:')) saved.updateLocal(previous => ({ ...previous, plan: payload.data! }));
+      else throw new Error('方案缺少保存回执，请重新读取。');
       setStatus('complete');
     } catch (caught) {
+      if (controller.signal.aborted && abortRef.current !== controller) return;
       const stopped = controller.signal.aborted;
       setError(stopped
         ? '数据处理已取消或超过等待时间，未生成不完整方案。'
@@ -122,26 +148,31 @@ export function DataProcessingPanel() {
       window.clearTimeout(timeoutId);
       if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [needsSplit, needsTarget, notebookId, preview, question, sampleUnit, selectedSource, splitColumn, status, targetColumn, taskFamily]);
+  }, [needsSplit, needsTarget, notebookId, preview, question, sampleUnit, saved, selectedSource, splitColumn, status, storageScopeKey, targetColumn, taskFamily]);
 
   const cancelPlan = useCallback(() => abortRef.current?.abort(), []);
   const downloadPlan = useCallback(() => {
     if (!plan) return;
-    const url = URL.createObjectURL(new Blob([plan.artifactMarkdown], { type: 'text/markdown;charset=utf-8' }));
+    const guest = storageScopeKey.startsWith('guest:');
+    const url = guest ? URL.createObjectURL(new Blob([plan.artifactMarkdown], { type: 'text/markdown;charset=utf-8' })) : clientApiPath(`/api/studio/artifacts?${new URLSearchParams({ kind: 'data-processing', notebookId: notebookId || '', download: '1', revision: saved.revision.current || '' })}`);
     const link = document.createElement('a');
     link.href = url;
     link.download = plan.artifactFileName;
     link.click();
-    URL.revokeObjectURL(url);
-  }, [plan]);
+    if (guest) URL.revokeObjectURL(url);
+  }, [notebookId, plan, saved.revision, storageScopeKey]);
 
   const canRun = Boolean(
-    selectedSource && preview && question.trim() && sampleUnit.trim() &&
+    !saved.loading && !saved.error && !(saved.unsaved && error) && selectedSource && preview && question.trim() && sampleUnit.trim() &&
     (!needsTarget || targetColumn) && (!needsSplit || splitColumn),
   );
 
   return (
     <div className="space-y-4" data-testid="data-processing-panel">
+      {saved.loading && <p className="text-xs" data-testid="data-processing-restoring">正在读取已保存方案…</p>}
+      {saved.error && <div className="rounded-xl border p-3 text-xs" role="alert" data-testid="data-processing-save-error"><p>{saved.error}</p><button type="button" className="mt-2 underline" onClick={saved.conflict ? saved.reload : saved.readFailed ? saved.retryRead : saved.retry}>{saved.conflict ? '读取已保存内容（将替换当前草稿）' : saved.readFailed ? '重试读取' : '重试保存'}</button></div>}
+      {saved.unsaved && !saved.error && status === 'error' && <button type="button" className="text-xs underline" onClick={saved.retry}>内容尚未保存，重试保存</button>}
+      {storageScopeKey.startsWith('guest:') && <p className="text-xs">访客方案仅保存在当前浏览器。</p>}
       <div>
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
           <TableProperties className="h-4 w-4 text-teal-500" />
@@ -163,7 +194,7 @@ export function DataProcessingPanel() {
             <select
               value={sourceId}
               onChange={event => setSourceId(event.target.value)}
-              disabled={status === 'running'}
+              disabled={status === 'running' || saved.loading || saved.readFailed}
               data-testid="data-processing-source"
               className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
             >
@@ -188,7 +219,7 @@ export function DataProcessingPanel() {
             <textarea
               value={question}
               onChange={event => setQuestion(event.target.value)}
-              disabled={status === 'running'}
+              disabled={status === 'running' || saved.loading || saved.readFailed}
               maxLength={1200}
               data-testid="data-processing-question"
               placeholder="例如：能否用入组时信息预测治疗响应？"
@@ -201,7 +232,7 @@ export function DataProcessingPanel() {
             <input
               value={sampleUnit}
               onChange={event => setSampleUnit(event.target.value)}
-              disabled={status === 'running'}
+              disabled={status === 'running' || saved.loading || saved.readFailed}
               maxLength={200}
               data-testid="data-processing-sample-unit"
               placeholder="例如：单个患者、单次实验或一个材料样本"
@@ -214,7 +245,7 @@ export function DataProcessingPanel() {
             <select
               value={taskFamily}
               onChange={event => setTaskFamily(event.target.value as DataTaskFamily)}
-              disabled={status === 'running'}
+              disabled={status === 'running' || saved.loading || saved.readFailed}
               data-testid="data-processing-task"
               className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
             >
@@ -228,7 +259,7 @@ export function DataProcessingPanel() {
               <select
                 value={targetColumn}
                 onChange={event => setTargetColumn(event.target.value)}
-                disabled={status === 'running'}
+                disabled={status === 'running' || saved.loading || saved.readFailed}
                 data-testid="data-processing-target"
                 className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
               >
@@ -246,7 +277,7 @@ export function DataProcessingPanel() {
               <select
                 value={splitColumn}
                 onChange={event => setSplitColumn(event.target.value)}
-                disabled={status === 'running'}
+                disabled={status === 'running' || saved.loading || saved.readFailed}
                 data-testid="data-processing-split"
                 className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
               >
@@ -288,7 +319,7 @@ export function DataProcessingPanel() {
         </div>
       )}
 
-      {plan && status === 'complete' && (
+      {plan && !saved.loading && status !== 'running' && (
         <div className="space-y-3" data-testid="data-processing-result">
           <div className="flex items-start gap-2 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2">
             <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
@@ -329,6 +360,7 @@ export function DataProcessingPanel() {
           <button
             type="button"
             onClick={downloadPlan}
+            disabled={!storageScopeKey.startsWith('guest:') && (saved.unsaved || Boolean(saved.error))}
             data-testid="data-processing-download"
             className="flex w-full items-center justify-center gap-2 rounded-lg border border-teal-400/30 bg-teal-500/10 px-3 py-2.5 text-sm font-medium text-teal-700 transition hover:bg-teal-500/15 dark:text-teal-200"
           >

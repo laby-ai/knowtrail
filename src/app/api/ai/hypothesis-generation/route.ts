@@ -1,3 +1,6 @@
+import type { DesignEvidenceStatus } from '@/lib/research-design-document';
+import { randomUUID } from 'node:crypto';
+import { cancelResearchDesign, designStorageFailure, prepareResearchDesign, finishResearchDesign, type DesignPersistenceInput } from '@/lib/research-design-storage';
 import { NextRequest } from 'next/server';
 import { llmStream } from '@/lib/ai-service';
 import { accountUsageErrorMessage, reserveAIUsage } from '@/lib/account-ai-billing';
@@ -13,10 +16,10 @@ import {
   parseHypothesisGenerationOutput,
 } from '@/lib/hypothesis-generation-contract';
 import type { RagSourceInput } from '@/lib/rag';
-import { resolveRequestRuntimeAIConfigResult } from '@/lib/bailian-provider-profile';
+import { resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
 
-type HypothesisGenerationRequest = {
+type HypothesisGenerationRequest = DesignPersistenceInput & {
   question?: string;
   papers?: RagSourceInput[];
   notebookId?: string;
@@ -53,12 +56,11 @@ export async function POST(request: NextRequest) {
   const scope = await resolveAccountNotebookScope(request, {
     notebookId: input.notebookId,
     loginMessage: '请先登录账号，再生成研究假设。',
+    requireAuthenticatedPaperHost: input.persistArtifact === true,
   });
   if (!scope.ok) return scope.response;
 
-  const runtimeConfigResult = await resolveRequestRuntimeAIConfigResult(request, input.aiConfig);
-  if (runtimeConfigResult instanceof Response) return runtimeConfigResult;
-  const runtimeConfig = runtimeConfigResult;
+  const runtimeConfig = resolveServerRuntimeAIConfig(input.aiConfig);
   const retrievalQuery = `研究问题：${question}\n请检索可支持或反驳研究假设、竞争解释和可验证预测的证据。`;
   const grounded = await buildGroundedRetrievalContext(retrievalQuery, papers, runtimeConfig, {
     topK: 12,
@@ -90,6 +92,7 @@ export async function POST(request: NextRequest) {
       inputText: question,
       promptContext: grounded.promptContext,
       memberId: scope.ownerMemberId,
+      quotaExempt: scope.usageQuotaExempt,
       idempotencyKey: request.headers.get('idempotency-key') || undefined,
     });
   } catch (billingError) {
@@ -108,13 +111,22 @@ export async function POST(request: NextRequest) {
   });
   const reservationFinalizer = createUsageReservationFinalizer(usageReservation);
   let rawOutput = '';
+  let prepared;
+  try { prepared = await prepareResearchDesign(input, 'hypothesis-generation', scope); }
+  catch (error) { await usageReservation?.release().catch(() => undefined); return designStorageFailure(error); }
+  if (prepared?.replay) {
+    await usageReservation?.release().catch(() => undefined);
+    return new Response('data: ' + JSON.stringify({ document: prepared.previous }) + '\n\ndata: [DONE]\n\n', { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'private, no-store' } });
+  }
+
 
   return createGroundedSseResponse({
-    requestSignal: request.signal,
+    requestSignal: prepared ? AbortSignal.any([request.signal, prepared.signal]) : request.signal,
     timeoutMs,
     timeoutReason: 'hypothesis generation timed out',
     cancelReason: 'hypothesis generation client cancelled',
     async run({ emit, signal }) {
+      try {
         taskObservation.running();
         emit({
           progress: {
@@ -184,20 +196,19 @@ export async function POST(request: NextRequest) {
           validEvidenceMarkerCount: hypothesesWithValidEvidence,
         });
 
-        emit({
-          hypotheses: result.hypotheses,
-          hypothesisStatus: {
+        const resultStatus: DesignEvidenceStatus = {
             answerStatus: invalidEvidenceMarkers.length === 0 ? answerStatus : 'incomplete',
             invalidEvidenceMarkers,
             retrievalLimits: [
               '假设仅基于当前选定来源及其可检索片段。',
               '假设尚未经过实验、统计检验或新颖性审查。',
             ],
-          },
-          billing,
-        });
+          };
+        const stored = await finishResearchDesign(input, 'hypothesis-generation', prepared, { question, result: { runId: input.runId || randomUUID(), hypotheses: result.hypotheses, citations: grounded.citations, retrieval, status: resultStatus } }, signal);
+        emit({ hypotheses: result.hypotheses, hypothesisStatus: resultStatus, billing, ...stored });
         taskObservation.succeeded();
         emit('[DONE]');
+      } finally { prepared?.release(); }
     },
     async onError(error, { emit, signal }) {
         await reservationFinalizer.finalizeFailure(rawOutput);
@@ -217,3 +228,5 @@ export async function POST(request: NextRequest) {
     },
   });
 }
+
+export async function DELETE(request: NextRequest) { return cancelResearchDesign(request, 'hypothesis-generation'); }

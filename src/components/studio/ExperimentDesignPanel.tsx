@@ -1,10 +1,17 @@
 'use client';
 
+import type { ResearchComposerRenderer } from '@/components/editor/ResearchComposer';
+
 import { clientApiRequest } from '@/lib/client-api';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, FlaskConical } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyExperiment, isExperimentDocument, legacyExperiment, type ExperimentDocument, type ExperimentForm } from '@/lib/research-design-document';
+import type { NotebookDocument } from '@/lib/private-notebook-document';
+import { clientApiPath } from '@/lib/client-api';
+import { SavedToolStatus } from './SavedToolStatus';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import type { ExperimentDesignProtocol } from '@/lib/experiment-design-contract';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
@@ -59,26 +66,23 @@ function downloadMarkdown(content: string, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
-export function ExperimentDesignPanel() {
+export function ExperimentDesignPanel({ renderComposer }: { renderComposer?: ResearchComposerRenderer }) {
   const { getSelectedPapers, storageScopeKey } = useApp();
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
-  const [question, setQuestion] = useState('');
-  const [hypothesis, setHypothesis] = useState('');
-  const [experimentalUnit, setExperimentalUnit] = useState('');
-  const [armsText, setArmsText] = useState('处理组, 对照组');
-  const [primaryOutcome, setPrimaryOutcome] = useState('');
-  const [constraints, setConstraints] = useState('');
-  const [alpha, setAlpha] = useState(0.05);
-  const [targetPower, setTargetPower] = useState(0.8);
-  const [protocol, setProtocol] = useState<ExperimentDesignProtocol | null>(null);
-  const [artifactMarkdown, setArtifactMarkdown] = useState('');
-  const [artifactFileName, setArtifactFileName] = useState('experiment-preregistration.md');
-  const [citations, setCitations] = useState<Citation[]>([]);
-  const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(null);
-  const [designStatus, setDesignStatus] = useState<DesignStatusPayload | null>(null);
-  const [status, setStatus] = useState<PanelStatus>('idle');
+  const saved = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'experiment-design', endpoint: '/api/studio/artifacts?kind=experiment-design', empty: emptyExperiment, validate: isExperimentDocument, readLegacy: legacyExperiment });
+  const { question, hypothesis, experimentalUnit, armsText, primaryOutcome, constraints, alpha, targetPower } = saved.data.form;
+  const setField = <K extends keyof ExperimentForm>(key: K, value: ExperimentForm[K]) => saved.update(previous => ({ ...previous, form: { ...previous.form, [key]: value } }));
+  const protocol = saved.data.result?.protocol || null;
+  const artifactMarkdown = saved.data.result?.artifactMarkdown || '';
+  const citations = saved.data.result?.citations || [];
+  const retrieval = saved.data.result?.retrieval || null;
+  const designStatus = saved.data.result?.status || null;
+  const [runStatus, setStatus] = useState<PanelStatus>('idle');
+  const status = runStatus === 'idle' && saved.data.result ? designStatus?.answerStatus === 'complete' ? 'complete' : 'incomplete' : runStatus;
+  const cancelRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { cancelRef.current?.(); abortRef.current?.abort(); }, []);
   const [stage, setStage] = useState('retrieving');
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('填写研究问题与采集前设计要素后开始。');
@@ -98,15 +102,14 @@ export function ExperimentDesignPanel() {
 
   const runDesign = useCallback(async () => {
     const papers = getSelectedPapers();
-    if (!formReady || papers.length === 0 || status === 'running') return;
+    if (!formReady || papers.length === 0 || abortRef.current || status === 'running' || saved.loading || saved.readFailed || saved.conflict) return;
 
     const controller = new AbortController();
     abortRef.current = controller;
-    setProtocol(null);
-    setArtifactMarkdown('');
-    setCitations([]);
-    setRetrieval(null);
-    setDesignStatus(null);
+    setStatus('running');
+    if (!await saved.flush() || controller.signal.aborted) { if (abortRef.current === controller) { abortRef.current = null; setStatus('idle'); } return; }
+    const runId = crypto.randomUUID(); const auth = accountAuthHeaders();
+    cancelRef.current = () => { void fetch(clientApiPath('/api/ai/experiment-design'), { method: 'DELETE', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ notebookId, runId }), keepalive: true }).catch(() => undefined); };
     setError(null);
     setStatus('running');
     setStage('retrieving');
@@ -115,12 +118,14 @@ export function ExperimentDesignPanel() {
 
     let finalProtocol: ExperimentDesignProtocol | null = null;
     let finalStatus: DesignStatusPayload | null = null;
+    let finalCitations: Citation[] = []; let finalRetrieval: RetrievalMetadata | null = null; let finalMarkdown = ''; let received = false;
     try {
       const response = await clientApiRequest('/api/ai/experiment-design', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({
           question: question.trim(),
+          persistArtifact: !storageScopeKey.startsWith('guest:'), runId, expectedRevision: saved.revision.current,
           hypothesis: hypothesis.trim(),
           experimentalUnit: experimentalUnit.trim(),
           arms,
@@ -152,6 +157,7 @@ export function ExperimentDesignPanel() {
           const raw = dataLine.slice(6).trim();
           if (!raw || raw === '[DONE]') continue;
           const payload = JSON.parse(raw) as {
+            document?: NotebookDocument<ExperimentDocument>; unsavedDocument?: ExperimentDocument; saveError?: string;
             progress?: { stage?: string; progress?: number; message?: string };
             citations?: Citation[];
             retrieval?: RetrievalMetadata;
@@ -166,25 +172,27 @@ export function ExperimentDesignPanel() {
             if (typeof payload.progress.progress === 'number') setProgress(payload.progress.progress);
             if (payload.progress.message) setMessage(payload.progress.message);
           }
-          if (payload.citations) setCitations(payload.citations);
-          if (payload.retrieval) setRetrieval(payload.retrieval);
+          if (payload.citations) finalCitations = payload.citations;
+          if (payload.retrieval) finalRetrieval = payload.retrieval;
           if (payload.protocol) {
             finalProtocol = payload.protocol;
-            setProtocol(payload.protocol);
           }
           if (payload.artifactMarkdown) {
-            setArtifactMarkdown(payload.artifactMarkdown);
+            finalMarkdown = payload.artifactMarkdown;
           }
-          if (payload.artifactFileName) setArtifactFileName(payload.artifactFileName);
           if (payload.designStatus) {
             finalStatus = payload.designStatus;
-            setDesignStatus(payload.designStatus);
           }
+          if (controller.signal.aborted) return;
+          if (payload.document && isExperimentDocument(payload.document.data)) { saved.acceptSaved(payload.document); received = true; finalProtocol = payload.document.data.result?.protocol || null; finalStatus = payload.document.data.result?.status || null; }
+          if (payload.unsavedDocument && isExperimentDocument(payload.unsavedDocument)) { saved.updateLocal(() => payload.unsavedDocument!); received = true; }
+          if (payload.saveError) setError(payload.saveError);
           if (payload.error) throw new Error(payload.error);
         }
       }
 
       if (!finalProtocol) throw new Error('没有生成通过结构检查的实验设计协议。');
+      if (!received) saved.update(previous => ({ ...previous, result: { runId, protocol: finalProtocol!, artifactMarkdown: finalMarkdown, artifactFileName: 'experiment-preregistration.md', citations: finalCitations, retrieval: finalRetrieval, status: finalStatus || { answerStatus: 'incomplete' } } }));
       const completed = finalStatus?.answerStatus === 'complete';
       setStatus(completed ? 'complete' : 'incomplete');
       setStage('auditing');
@@ -199,15 +207,106 @@ export function ExperimentDesignPanel() {
       setStatus(finalProtocol ? 'incomplete' : stopped ? 'idle' : 'error');
       setMessage(userMessage);
     } finally {
-      if (abortRef.current === controller) abortRef.current = null;
+      if (abortRef.current === controller) { abortRef.current = null; cancelRef.current = null; }
     }
-  }, [alpha, arms, constraints, experimentalUnit, formReady, getSelectedPapers, hypothesis, notebookId, primaryOutcome, question, status, targetPower]);
+  }, [alpha, arms, constraints, experimentalUnit, formReady, getSelectedPapers, hypothesis, notebookId, primaryOutcome, question, status, targetPower, saved, storageScopeKey]);
 
-  const stopDesign = useCallback(() => abortRef.current?.abort(), []);
+  const stopDesign = useCallback(() => { cancelRef.current?.(); abortRef.current?.abort(); }, []);
   const invalidMarkers = designStatus?.invalidEvidenceMarkers || [];
+  const downloadProtocol = async () => {
+    try {
+      if (!await saved.flush()) return;
+      if (storageScopeKey.startsWith('guest:')) return downloadMarkdown(artifactMarkdown, 'experiment-preregistration.md');
+      const query = new URLSearchParams({ kind: 'experiment-design', notebookId: notebookId || '', revision: saved.revision.current || '', download: '1' });
+      const url = clientApiPath(`/api/studio/artifacts?${query}`);
+      const response = await clientApiRequest(url, { method: 'HEAD', headers: accountAuthHeaders() });
+      if (!response.ok) throw new Error(await readError(response));
+      if (!response.headers.get('Content-Type')?.includes('text/markdown')) throw new Error('协议文件类型异常，请重新读取。');
+      const link = document.createElement('a'); link.href = url; link.download = 'experiment-preregistration.md';
+      document.body.appendChild(link); link.click(); link.remove();
+    } catch (error) { setError(error instanceof Error ? error.message : '下载失败，请重试。'); }
+  };
+
+
+  const designFields = (      <div className="grid gap-3">
+        <label className="block">
+          <span className="text-[11px] font-medium text-[var(--text-secondary)]">待验证假设</span>
+          <textarea
+            value={hypothesis}
+            onChange={event => setField('hypothesis', event.target.value)}
+            maxLength={1200}
+            disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
+            data-testid="experiment-design-hypothesis"
+            placeholder="写出可被未来数据推翻的方向性假设。"
+            className="mt-1.5 min-h-20 w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text-primary)] outline-none transition focus:border-rose-400/60"
+          />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-[11px] font-medium text-[var(--text-secondary)]">独立实验单位</span>
+            <input
+              value={experimentalUnit}
+              onChange={event => setField('experimentalUnit', event.target.value)}
+              maxLength={180}
+              disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
+              data-testid="experiment-design-unit"
+              placeholder="例如：独立患者、动物、机构或模型训练 run"
+              className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-medium text-[var(--text-secondary)]">处理与对照（逗号分隔）</span>
+            <input
+              value={armsText}
+              onChange={event => setField('armsText', event.target.value)}
+              maxLength={360}
+              disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
+              data-testid="experiment-design-arms"
+              className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60"
+            />
+          </label>
+        </div>
+        <label className="block">
+          <span className="text-[11px] font-medium text-[var(--text-secondary)]">唯一主要结局</span>
+          <input
+            value={primaryOutcome}
+            onChange={event => setField('primaryOutcome', event.target.value)}
+            maxLength={360}
+            disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
+            data-testid="experiment-design-outcome"
+            placeholder="结局名称、测量方式与时间点"
+            className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] font-medium text-[var(--text-secondary)]">现实约束与已知干扰因素</span>
+          <textarea
+            value={constraints}
+            onChange={event => setField('constraints', event.target.value)}
+            maxLength={1200}
+            disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
+            data-testid="experiment-design-constraints"
+            placeholder="例如：机构、日期、批次、操作者、板位、预算、伦理或招募限制。"
+            className="mt-1.5 min-h-16 w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm leading-relaxed text-[var(--text-primary)] outline-none focus:border-rose-400/60"
+          />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-[11px] font-medium text-[var(--text-secondary)]">Alpha</span>
+            <input type="number" min="0.001" max="0.2" step="0.001" value={alpha} disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict} onChange={event => setField('alpha', Number(event.target.value))} data-testid="experiment-design-alpha" className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60" />
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-medium text-[var(--text-secondary)]">目标 Power</span>
+            <input type="number" min="0.5" max="0.99" step="0.01" value={targetPower} disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict} onChange={event => setField('targetPower', Number(event.target.value))} data-testid="experiment-design-power" className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60" />
+          </label>
+        </div>
+      </div>
+);
 
   return (
     <div className="space-y-4" data-testid="experiment-design-panel">
+      <SavedToolStatus saved={saved} guest={storageScopeKey.startsWith('guest:')} />
+      {!renderComposer && <>
       <div>
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
           <FlaskConical className="h-4 w-4 text-rose-500" />
@@ -224,96 +323,34 @@ export function ExperimentDesignPanel() {
           : `已选择 ${selectedPapers.length} 个来源：${sourceSummary}${selectedPapers.length > 3 ? ' 等' : ''}`}
       </div>
 
-      <div className="grid gap-3">
+      </>}
+      {renderComposer ? renderComposer({
+        label: '实验设计', value: question, onChange: value => setField('question', value), onSubmit: () => void runDesign(), onStop: stopDesign,
+        busy: status === 'running', disabled: saved.loading || saved.readFailed || saved.conflict,
+        canSubmit: !missingEvidence && Boolean(formReady) && status !== 'running' && !saved.loading && !saved.readFailed && !saved.conflict,
+        maxLength: 1200, placeholder: '输入研究问题和实验目标…', settingsLabel: '实验要素',
+        hint: missingEvidence ? '请先选择资料。' : question.trim() && !formReady ? '请在“实验要素”中补全假设、实验单位、处理与对照、主要结局。' : undefined,
+        settings: (designFields),
+      }) : (<>      <div className="grid gap-3">
         <label className="block">
           <span className="text-[11px] font-medium text-[var(--text-secondary)]">研究问题</span>
           <textarea
             value={question}
-            onChange={event => setQuestion(event.target.value)}
+            onChange={event => setField('question', event.target.value)}
             maxLength={1200}
-            disabled={status === 'running'}
+            disabled={status === 'running' || saved.loading || saved.readFailed || saved.conflict}
             data-testid="experiment-design-question"
             placeholder="要比较什么处理，并回答什么研究问题？"
             className="mt-1.5 min-h-20 w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text-primary)] outline-none transition focus:border-rose-400/60"
           />
         </label>
-        <label className="block">
-          <span className="text-[11px] font-medium text-[var(--text-secondary)]">待验证假设</span>
-          <textarea
-            value={hypothesis}
-            onChange={event => setHypothesis(event.target.value)}
-            maxLength={1200}
-            disabled={status === 'running'}
-            data-testid="experiment-design-hypothesis"
-            placeholder="写出可被未来数据推翻的方向性假设。"
-            className="mt-1.5 min-h-20 w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text-primary)] outline-none transition focus:border-rose-400/60"
-          />
-        </label>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-[11px] font-medium text-[var(--text-secondary)]">独立实验单位</span>
-            <input
-              value={experimentalUnit}
-              onChange={event => setExperimentalUnit(event.target.value)}
-              maxLength={180}
-              disabled={status === 'running'}
-              data-testid="experiment-design-unit"
-              placeholder="例如：独立患者、动物、机构或模型训练 run"
-              className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60"
-            />
-          </label>
-          <label className="block">
-            <span className="text-[11px] font-medium text-[var(--text-secondary)]">处理与对照（逗号分隔）</span>
-            <input
-              value={armsText}
-              onChange={event => setArmsText(event.target.value)}
-              maxLength={360}
-              disabled={status === 'running'}
-              data-testid="experiment-design-arms"
-              className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60"
-            />
-          </label>
-        </div>
-        <label className="block">
-          <span className="text-[11px] font-medium text-[var(--text-secondary)]">唯一主要结局</span>
-          <input
-            value={primaryOutcome}
-            onChange={event => setPrimaryOutcome(event.target.value)}
-            maxLength={360}
-            disabled={status === 'running'}
-            data-testid="experiment-design-outcome"
-            placeholder="结局名称、测量方式与时间点"
-            className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60"
-          />
-        </label>
-        <label className="block">
-          <span className="text-[11px] font-medium text-[var(--text-secondary)]">现实约束与已知干扰因素</span>
-          <textarea
-            value={constraints}
-            onChange={event => setConstraints(event.target.value)}
-            maxLength={1200}
-            disabled={status === 'running'}
-            data-testid="experiment-design-constraints"
-            placeholder="例如：机构、日期、批次、操作者、板位、预算、伦理或招募限制。"
-            className="mt-1.5 min-h-16 w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm leading-relaxed text-[var(--text-primary)] outline-none focus:border-rose-400/60"
-          />
-        </label>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-[11px] font-medium text-[var(--text-secondary)]">Alpha</span>
-            <input type="number" min="0.001" max="0.2" step="0.001" value={alpha} disabled={status === 'running'} onChange={event => setAlpha(Number(event.target.value))} data-testid="experiment-design-alpha" className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60" />
-          </label>
-          <label className="block">
-            <span className="text-[11px] font-medium text-[var(--text-secondary)]">目标 Power</span>
-            <input type="number" min="0.5" max="0.99" step="0.01" value={targetPower} disabled={status === 'running'} onChange={event => setTargetPower(Number(event.target.value))} data-testid="experiment-design-power" className="mt-1.5 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-rose-400/60" />
-          </label>
-        </div>
+        {designFields}
       </div>
 
       <button
         type="button"
         onClick={() => void runDesign()}
-        disabled={missingEvidence || !formReady || status === 'running'}
+        disabled={missingEvidence || !formReady || status === 'running' || saved.loading || saved.readFailed || saved.conflict}
         data-testid="experiment-design-start"
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-45"
       >
@@ -321,6 +358,7 @@ export function ExperimentDesignPanel() {
         生成实验设计协议
       </button>
 
+      </>)}
       {status === 'running' && (
         <StudioJobProgress title="实验设计进行中" message={message} stages={DESIGN_STAGES} currentStageKey={stage} progressPercent={progress} hint="只使用当前选定来源。可随时停止，未完成结构不会显示为可用协议。" onCancel={stopDesign} cancelLabel="停止生成" testId="experiment-design-progress" />
       )}
@@ -355,7 +393,7 @@ export function ExperimentDesignPanel() {
                 <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{protocol.designType} · 独立单位：{protocol.experimentalUnit}</p>
               </div>
               {artifactMarkdown && (
-                <button type="button" onClick={() => downloadMarkdown(artifactMarkdown, artifactFileName)} data-testid="experiment-design-download" className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition hover:bg-[var(--glass-hover)]">
+                <button type="button" onClick={() => void downloadProtocol()} data-testid="experiment-design-download" className="flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition hover:bg-[var(--glass-hover)]">
                   <Download className="h-3.5 w-3.5" />
                   下载预注册协议
                 </button>

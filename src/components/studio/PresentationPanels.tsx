@@ -1,6 +1,11 @@
 'use client';
 
-import { clientApiRequest } from '@/lib/client-api';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyImageDeck, isImageDeckDocument } from '@/lib/ppt/deck-document';
+import { requestGeneratedDeck } from '@/lib/ppt/deck-client';
+import { SavedToolStatus } from './SavedToolStatus';
+import { exportImageDeck } from '@/lib/ppt/image-deck-export';
+import { downloadExistingDeckExport, readDeckForExport, saveAndDownloadDeckExport } from '@/lib/ppt/deck-export-client';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -36,9 +41,8 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
-import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
-import type { Citation, RetrievalMetadata } from '@/types';
+import type { PPTSlide } from '@/types';
 import NarrationPlayer from './NarrationPlayer';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
@@ -46,10 +50,11 @@ import { PresentationModeSelector, type PresentationMode } from './PresentationM
 import { StructuredPresentationPanel } from './StructuredPresentationPanel';
 import { HtmlPresentationPanel } from './HtmlPresentationPanel';
 import { SlideAnnotationEditor } from './SlideAnnotationEditor';
-import { ImagePptGenerationFeedback } from './ImagePptGenerationFeedback';
 
-export function PresentationWorkspacePanel({ initialMode = 'image' }: { initialMode?: PresentationMode }) {
-  const [mode, setMode] = useState<PresentationMode>(initialMode);
+export function PresentationWorkspacePanel({ initialMode = 'image', mode: selectedMode, onModeChange }: { initialMode?: PresentationMode; mode?: PresentationMode; onModeChange?: (mode: PresentationMode) => void }) {
+  const [localMode, setLocalMode] = useState<PresentationMode>(initialMode);
+  const mode = selectedMode ?? localMode;
+  const setMode = (next: PresentationMode) => { setLocalMode(next); onModeChange?.(next); };
 
   return (
     <div className="space-y-5" data-testid="presentation-workspace-panel">
@@ -111,13 +116,18 @@ const ASPECT_RATIOS = [
 ];
 
 function PresentationPanel() {
-  const { slides, setSlides, getSelectedPapers, aiConfig, storageScopeKey } = useApp();
+  const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
   const generationReadiness = useStudioGenerationReadiness('imagePpt');
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
   const [progressStage, setProgressStage] = useState('');
-  const [activeSlideIdx, setActiveSlideIdx] = useState(0);
+  const savedDeck = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'image-deck', endpoint: '/api/studio/artifacts?kind=image-deck', empty: emptyImageDeck, validate: isImageDeckDocument });
+  const deck = savedDeck.data.deck;
+  const slides = deck?.slides || [];
+  const activeSlideIdx = deck?.activeIndex || 0;
+  const setActiveSlideIdx = (value: number) => savedDeck.update(previous => previous.deck ? { ...previous, deck: { ...previous.deck, activeIndex: value } } : previous);
+  const setSlides = (next: PPTSlide[]) => savedDeck.update(previous => previous.deck ? { ...previous, deck: { ...previous.deck, slides: next } } : previous);
   const [selectedStyle, setSelectedStyle] = useState<PPTStyleId>('academic');
   const [selectedDetailLevel, setSelectedDetailLevel] = useState<DetailLevelId>('default');
   const [selectedLang, setSelectedLang] = useState<LangId>('zh');
@@ -127,15 +137,26 @@ function PresentationPanel() {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [annotatingIdx, setAnnotatingIdx] = useState<number | null>(null);
   // Per-slide previous image versions (annotation revisions), for rollback.
-  const [revisionHistory, setRevisionHistory] = useState<Record<string, string[]>>({});
+  const revisionHistory = deck?.history || {};
+  const setRevisionHistory = (change: (previous: Record<string, string[]>) => Record<string, string[]>) => savedDeck.update(previous => previous.deck ? { ...previous, deck: { ...previous.deck, history: change(previous.deck.history) } } : previous);
   const [imageCompleted, setImageCompleted] = useState(0);
   const [imageTotal, setImageTotal] = useState(0);
   const [generationNotice, setGenerationNotice] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [pptCitations, setPptCitations] = useState<Citation[]>([]);
-  const [pptRetrieval, setPptRetrieval] = useState<RetrievalMetadata | null>(null);
+  const pptCitations = deck?.citations || [];
+  const pptRetrieval = deck?.retrieval || null;
   const thumbnailScrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  const hydrated = useRef(false);
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
+  useEffect(() => { if (!savedDeck.unsaved) setGenerationError(null); }, [savedDeck.unsaved]);
+  useEffect(() => {
+    if (!deck || hydrated.current) return;
+    hydrated.current = true;
+    setPageCount(deck.slides.length);
+    setSelectedStyle(deck.style); setSelectedDetailLevel(deck.detailLevel); setSelectedLang(deck.language as LangId); setSelectedAspectRatio(deck.aspectRatio);
+  }, [deck]);
 
   // Get selected style's visual prompt
   const currentStyleVisualPrompt = PRESET_STYLES.find(s => s.id === selectedStyle)?.visualPrompt || PRESET_STYLES[0].visualPrompt;
@@ -152,7 +173,8 @@ function PresentationPanel() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [lightboxIdx, slides.length]);
 
-  const handleGenerate = useCallback(async () => {
+  const handleGenerate = async () => {
+    if (savedDeck.loading || savedDeck.readFailed || savedDeck.conflict || isGenerating) return;
     if (!generationReadiness.ready) {
       setGenerationError(generationReadiness.message);
       return;
@@ -163,15 +185,11 @@ function PresentationPanel() {
       return;
     }
     // Clear current PPT and reset
-    setSlides([]);
-    setActiveSlideIdx(0);
     setLightboxIdx(null);
     setImageCompleted(0);
     setImageTotal(0);
     setGenerationNotice(null);
     setGenerationError(null);
-    setPptCitations([]);
-    setPptRetrieval(null);
     setIsGenerating(true);
     setProgressStage('outline');
     setProgressMsg('正在生成 PPT 大纲...');
@@ -180,103 +198,18 @@ function PresentationPanel() {
     abortControllerRef.current = abortController;
 
     try {
-      const response = await clientApiRequest('/api/ai/ppt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
-        body: JSON.stringify({
-          notebookId,
-          papers: papers.map(p => ({
-            id: p.id,
-            title: p.title,
-            authors: p.authors,
-            year: p.year,
-            shortName: p.shortName,
-            fileName: p.fileName,
-            fileType: p.fileType,
-            abstract: p.abstract,
-            content: p.content,
-            rawContent: p.rawContent,
-          })),
-          aiConfig,
-          pageCount,
-          templateStyle: currentStyleVisualPrompt,
-          style: selectedStyle,
-          detailLevel: selectedDetailLevel,
-          language: selectedLang,
-          aspectRatio: selectedAspectRatio,
-        }),
-        signal: abortController.signal,
+      if (!await savedDeck.flush()) throw new Error('请先重试保存当前简报。');
+      await requestGeneratedDeck({ endpoint: '/api/ai/ppt', signal: abortController.signal,
+        body: { notebookId, papers, aiConfig, pageCount, templateStyle: currentStyleVisualPrompt, style: selectedStyle, detailLevel: selectedDetailLevel, language: selectedLang, aspectRatio: selectedAspectRatio,
+          persistArtifact: true, runId: crypto.randomUUID(), expectedRevision: savedDeck.revision.current },
+        validate: isImageDeckDocument, acceptSaved: savedDeck.acceptSaved, updateLocal: savedDeck.updateLocal,
+        onEvent: data => {
+          if (typeof data.stage === 'string' && data.stage !== 'done') setProgressStage(data.stage);
+          if (typeof data.message === 'string') setProgressMsg(data.message);
+          if (typeof data.imageTotal === 'number') setImageTotal(data.imageTotal);
+          if (typeof data.imageCompleted === 'number') setImageCompleted(data.imageCompleted);
+        },
       });
-
-      if (!response.ok || !response.body) {
-        const payload = await response.json().catch(() => null) as { error?: string; message?: string } | null;
-        throw new Error(payload?.error || payload?.message || 'PPT 生成请求失败');
-      }
-
-      // Read SSE stream for progress
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let finalSlides: { title: string; content: string; imageUrl: string | null; narration?: string; part?: string }[] = [];
-      let responseCitations: Citation[] = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const payload = line.slice(6);
-          try {
-            const data = JSON.parse(payload);
-            if (Array.isArray(data.citations)) {
-              responseCitations = data.citations as Citation[];
-              setPptCitations(responseCitations);
-            }
-            if (data.retrieval) {
-              setPptRetrieval(data.retrieval as RetrievalMetadata);
-            }
-            if (data.stage === 'outline') {
-              setProgressStage('outline');
-              setProgressMsg(data.message);
-            } else if (data.stage === 'description') {
-              setProgressStage('description');
-              setProgressMsg(data.message);
-            } else if (data.stage === 'image') {
-              setProgressStage('image');
-              setProgressMsg(data.message);
-              if (data.imageTotal) setImageTotal(data.imageTotal);
-              if (data.imageCompleted !== undefined) setImageCompleted(data.imageCompleted);
-            } else if (data.stage === 'narration') {
-              setProgressStage('narration');
-              setProgressMsg(data.message);
-            } else if (data.stage === 'done') {
-              finalSlides = data.slides || [];
-            } else if (data.stage === 'error') {
-              throw new Error(data.message);
-            }
-          } catch (e) {
-            if (e instanceof Error && e.message !== 'PPT 生成请求失败') throw e;
-          }
-        }
-      }
-
-      // Set slides in context
-      const newSlides: typeof slides = finalSlides.map((slide, i) => ({
-        id: `slide-${Date.now()}-${i}`,
-        order: i,
-        title: slide.title,
-        content: slide.content,
-        imageUrl: slide.imageUrl,
-        narration: slide.narration || '',
-        citations: responseCitations,
-      }));
-      setSlides(newSlides);
-      setActiveSlideIdx(0);
       setProgressMsg('');
       setProgressStage('');
     } catch (err) {
@@ -293,7 +226,7 @@ function PresentationPanel() {
       if (abortControllerRef.current === abortController) abortControllerRef.current = null;
       setIsGenerating(false);
     }
-  }, [generationReadiness, getSelectedPapers, aiConfig, notebookId, pageCount, currentStyleVisualPrompt, selectedStyle, selectedDetailLevel, selectedLang, selectedAspectRatio, setSlides]);
+  };
 
   const handleCancelGenerate = useCallback(() => {
     if (!isGenerating) return;
@@ -302,48 +235,29 @@ function PresentationPanel() {
   }, [isGenerating]);
 
   // Export to PPTX
-  const handleExportPPTX = useCallback(async () => {
+  const handleExportPPTX = async () => {
     if (slides.length === 0) return;
     setIsExporting(true);
     try {
-      const PptxGenJS = (await import('pptxgenjs')).default;
-      const pptx = new PptxGenJS();
-      pptx.layout = 'LAYOUT_16x9';
-
-      for (const slide of slides) {
-        const pptSlide = pptx.addSlide();
-        if (slide.imageUrl) {
-          pptSlide.addImage({
-            path: slide.imageUrl,
-            x: 0, y: 0, w: '100%', h: '100%',
-          });
-        } else {
-          pptSlide.background = { color: '1a1a2e' };
-          pptSlide.addText(slide.title, {
-            x: 0.8, y: 0.6, w: '80%', h: 1.2,
-            fontSize: 28, color: 'FFFFFF', bold: true,
-          });
-          pptSlide.addText(slide.content, {
-            x: 0.8, y: 2.0, w: '80%', h: 3.5,
-            fontSize: 14, color: 'CCCCCC', lineSpacing: 22,
-          });
-        }
-      }
-
-      await pptx.writeFile({ fileName: `${slides[0]?.title || 'presentation'}.pptx` });
+      if (!await savedDeck.flush()) throw new Error('当前简报尚未保存，请先重试保存。');
+      const version = await readDeckForExport('image-deck', notebookId, savedDeck.revision.current, isImageDeckDocument);
+      if (await downloadExistingDeckExport(version.params)) return;
+      if (!version.data.deck) throw new Error('简报内容不完整。');
+      await exportImageDeck(version.data.deck.slides, version.data.deck.aspectRatio, blob => saveAndDownloadDeckExport(version.params, blob));
     } catch (err) {
       console.error('[PPT] Export error:', err);
       alert('导出失败：' + (err instanceof Error ? err.message : '未知错误'));
     } finally {
       setIsExporting(false);
     }
-  }, [slides]);
+  };
 
   const currentSlide = slides[activeSlideIdx];
   const hasSelectedPapers = getSelectedPapers().length > 0;
 
   return (
     <div className="relative space-y-4" data-testid="image-ppt-panel">
+      <SavedToolStatus saved={savedDeck} guest={storageScopeKey.startsWith('guest:')} />
       {/* Apple-style ambient glow */}
       <div className="absolute -top-20 left-[10%] w-[80%] h-48 bg-blue-600/[0.04] blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute top-32 -right-10 w-[50%] h-36 bg-amber-500/[0.03] blur-[100px] rounded-full pointer-events-none" />
@@ -503,19 +417,49 @@ function PresentationPanel() {
       </div>
 
       {/* ── Generate button ── */}
-      <ImagePptGenerationFeedback
-        readiness={generationReadiness}
-        notice={generationNotice}
-        error={generationError}
-        isGenerating={isGenerating}
-        hasSelectedPapers={hasSelectedPapers}
-        onRetry={handleGenerate}
-      />
+      {!generationReadiness.ready && (
+        <div data-testid="image-ppt-readiness" className="rounded-xl border border-amber-400/25 bg-amber-500/5 p-3 text-xs leading-relaxed text-amber-200">
+          {generationReadiness.message}
+        </div>
+      )}
+      {generationNotice && !isGenerating && (
+        <div className="liquid-glass-card p-3 text-xs text-[var(--text-secondary)] border border-[var(--border-subtle)]">
+          {generationNotice}
+        </div>
+      )}
+
+      {generationError && !isGenerating && (
+        <div
+          data-testid="image-ppt-error"
+          className="liquid-glass-card p-4 space-y-3 border border-rose-400/35 bg-rose-500/10"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">图片 PPT 生成失败</p>
+              <p className="break-words text-xs leading-relaxed text-[var(--text-secondary)]">
+                {generationError}
+                <button type="button" className="mt-2 block underline" onClick={() => { setGenerationError(null); savedDeck.reload(); }}>{savedDeck.unsaved ? '读取已保存内容（将替换当前草稿）' : '读取已保存简报'}</button>
+              </p>
+              {/图片服务暂时繁忙|HTTP\s*429|rate.?limit/i.test(generationError) && <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">图片服务当前较忙，请稍后重试。</p>}
+            </div>
+          </div>
+          <button
+            type="button"
+            data-testid="image-ppt-retry"
+            onClick={handleGenerate}
+            disabled={!hasSelectedPapers || !generationReadiness.ready}
+            className="liquid-glass-btn px-3 py-2 text-xs text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            重试生成
+          </button>
+        </div>
+      )}
 
       <button
         data-testid="image-ppt-generate"
         onClick={handleGenerate}
-        disabled={isGenerating || !hasSelectedPapers || !generationReadiness.ready}
+        disabled={savedDeck.loading || savedDeck.readFailed || savedDeck.conflict || isGenerating || !hasSelectedPapers || !generationReadiness.ready}
         className={`w-full py-4 rounded-2xl font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2 ${
           isGenerating || !hasSelectedPapers || !generationReadiness.ready
             ? 'liquid-glass-btn text-[var(--text-tertiary)] cursor-not-allowed'
@@ -591,7 +535,7 @@ function PresentationPanel() {
 
       {/* ── Slides preview ── */}
       {slides.length > 0 ? (
-        <div className="space-y-4" data-testid="image-ppt-result">
+        <div className="space-y-4">
           {/* Main preview */}
           {currentSlide && (
             <div

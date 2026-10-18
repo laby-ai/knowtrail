@@ -20,8 +20,8 @@ export interface KnowledgeCardCacheHit extends KnowledgeCardResponse {
   };
 }
 
-const CACHE_VERSION = 1;
-const CACHE_DIR = path.join(process.cwd(), '.data', 'knowledge-cards');
+const CACHE_VERSION = 2;
+const CACHE_DIR = path.join(process.env.STUDIO_DOCUMENT_STORE_DIR?.trim() || path.join(process.cwd(), '.data', 'studio-documents'), 'knowledge-card-cache');
 
 function stablePaperSignature(paper: RagSourceInput) {
   const content = paper.rawContent || paper.content || '';

@@ -1,0 +1,2 @@
+agentscope==2.0.10
+-r requirements.lock

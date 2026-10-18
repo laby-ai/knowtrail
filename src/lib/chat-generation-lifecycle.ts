@@ -1,4 +1,5 @@
 import type { ChatGenerationStatus, ChatMessage } from '@/types';
+import { isResearchToolCall } from './research-agent-contract';
 
 export const CHAT_HISTORY_LIMIT = 100;
 const CHAT_HISTORY_STORAGE_PREFIX = 'lingbi:chat-history:v1:';
@@ -74,10 +75,12 @@ export function classifyChatFailure({
   aborted,
   stoppedByUser,
   errorMessage = '',
+  timeoutMs = 90_000,
 }: {
   aborted: boolean;
   stoppedByUser: boolean;
   errorMessage?: string;
+  timeoutMs?: number;
 }): { status: Exclude<ChatGenerationStatus, 'pending' | 'completed'>; content: string } {
   if (stoppedByUser) {
     return { status: 'stopped', content: '已停止生成。可以换个问法继续提问。' };
@@ -85,7 +88,7 @@ export function classifyChatFailure({
   if (aborted) {
     return {
       status: 'timeout',
-      content: '真实模型生成超过 45 秒，已停止等待。请稍后重试，或把问题缩短为更具体的一问。',
+      content: `真实模型生成超过 ${Math.round(timeoutMs / 1000)} 秒，已停止等待。请稍后重试，或把问题缩短为更具体的一问。`,
     };
   }
   if (/额度|积分|充值|分配|预占|quota|billing/i.test(errorMessage)) {
@@ -124,12 +127,13 @@ export function parseStoredChatHistory(raw: string | null): ChatMessage[] {
   }
 }
 
-function isChatMessage(value: unknown): value is ChatMessage {
+export function isChatMessage(value: unknown): value is ChatMessage {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Partial<ChatMessage>;
   if (typeof candidate.id !== 'string' || !candidate.id.trim()) return false;
   if (!['user', 'assistant', 'system'].includes(candidate.role || '')) return false;
   if (typeof candidate.content !== 'string' || typeof candidate.timestamp !== 'string') return false;
+  if (candidate.toolCalls !== undefined && (!Array.isArray(candidate.toolCalls) || candidate.toolCalls.length > 4 || !candidate.toolCalls.every(isResearchToolCall))) return false;
   if (!candidate.generation) return true;
   return ['pending', 'completed', 'stopped', 'timeout', 'failed'].includes(candidate.generation.status)
     && typeof candidate.generation.updatedAt === 'string';

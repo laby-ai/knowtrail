@@ -1,9 +1,11 @@
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { buildSourceChunks, type RagSourceInput, type SourceChunk } from '@/lib/rag';
 import { embedTexts } from '@/lib/ai-service';
 import { upsertSourceChunks } from '@/lib/vector-store';
 import { hasRuntimeAIProvider, redactRuntimeAISecrets } from '@/lib/runtime-ai-config';
 import { LocalJsonSourceStoreAdapter } from '@/lib/source-store/local-json-adapter';
+import { sourceBibliography } from '@/lib/source-bibliography';
 import {
   POSTGRES_CHUNKS_TABLE,
   POSTGRES_PAYLOAD_TABLE,
@@ -57,7 +59,7 @@ export type {
   VectorIndexRecord,
 } from '@/lib/source-store/types';
 
-const nodeRequire = createRequire(import.meta.url);
+const nodeRequire = createRequire(path.join(process.cwd(), 'package.json'));
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -309,6 +311,14 @@ export function buildSourceStoreFromPostgresRows(input: {
       fileSize: optionalNumber(row.file_size) ?? payload.fileSize,
       title: row.title || payload.title || row.file_name || '未命名资料',
       shortName: row.short_name || payload.shortName || row.file_name || '未知资料',
+      authors: payload.authors,
+      year: payload.year,
+      keywords: payload.keywords,
+      abstract: payload.abstract,
+      content: payload.content,
+      rawContent: payload.rawContent,
+      journal: payload.journal,
+      doi: payload.doi,
       storageKey: row.storage_key || payload.storageKey,
       fileUrl: row.file_url || payload.fileUrl,
       status: row.status || payload.status || 'pending',
@@ -766,6 +776,13 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
     fileSize: input.fileSize,
     title: input.title || input.fileName,
     shortName: input.shortName || input.fileName,
+    ...sourceBibliography(input),
+    keywords: input.keywords,
+    abstract: input.abstract,
+    content: input.content,
+    rawContent: input.rawContent,
+    journal: input.journal,
+    doi: input.doi,
     storageKey: input.fileKey,
     fileUrl: input.fileUrl,
     status: 'pending',
@@ -780,6 +797,15 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
       updatedAt: timestamp,
     },
   };
+}
+
+export async function recordSourceExtractionFailure(input: IngestionSourceInput, error: string): Promise<StoredSourceRecord> {
+  const record = createRecord(input);
+  record.status = 'failed';
+  record.error = error;
+  record.stages = setStage(record.stages, 'store', 'succeeded');
+  record.stages = setStage(record.stages, 'extract', 'failed', error);
+  return saveSourceRecord(record);
 }
 
 export async function ingestExtractedSource(
@@ -896,6 +922,24 @@ export async function getIngestionSource(id: string, scope: { ownerMemberId?: st
     sourceMatchesOwner(source, scope.ownerMemberId) &&
     sourceMatchesNotebook(source, scope.notebookId)
   ));
+}
+
+export async function deleteIngestionSource(
+  id: string,
+  scope: { ownerMemberId?: string; notebookId?: string } = {},
+): Promise<boolean> {
+  let deleted = false;
+  await getSourceStoreAdapter().mutate(store => {
+    const sources = store.sources.filter(source => {
+      const matches = source.id === id &&
+        sourceMatchesOwner(source, scope.ownerMemberId) &&
+        sourceMatchesNotebook(source, scope.notebookId);
+      if (matches) deleted = true;
+      return !matches;
+    });
+    return deleted ? { ...store, sources } : store;
+  });
+  return deleted;
 }
 
 export async function updateSourceMinerUStatus(

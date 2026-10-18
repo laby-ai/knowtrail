@@ -3,6 +3,8 @@
 import { useState, useCallback, useRef, useEffect, DragEvent } from 'react';
 import {
   FolderPlus,
+  Plus,
+  Check,
   Trash2,
   CheckCircle2,
   Circle,
@@ -18,13 +20,14 @@ import {
   X,
   CheckCircle,
   AlertCircle,
-  Globe2,
   Loader2,
   MoreHorizontal,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import type { CitationReveal } from '@/contexts/AppContext';
+import { resolveCitationSourceId } from '@/lib/citation-source-identity';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
+import { clientApiPath } from '@/lib/client-api';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import { resolveLibraryUploadTarget } from '@/lib/library-upload-target';
@@ -36,6 +39,7 @@ import type { SourceMatrixFacet } from '@/lib/source-matrix';
 import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
 import { DiscoverSourcesModal } from './DiscoverSourcesModal';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 const SUPPORTED_TYPES: Record<string, FileType> = {
   'application/pdf': 'pdf',
@@ -133,6 +137,11 @@ interface IngestionSourceSummary {
   fileSize?: number;
   title: string;
   shortName?: string;
+  authors?: string[];
+  year?: number;
+  keywords?: string[];
+  journal?: string;
+  doi?: string;
   status: Paper['ingestionStatus'];
   stages?: Paper['ingestionStages'];
   chunkCount: number;
@@ -145,6 +154,8 @@ interface IngestionSourceSummary {
 }
 
 interface IngestionSourceDetail extends IngestionSourceSummary {
+  storageKey?: string;
+  fileUrl?: string;
   abstract?: string;
   content?: string;
   rawContent?: string;
@@ -156,6 +167,42 @@ interface IngestionSourceDetail extends IngestionSourceSummary {
     paperShortName?: string;
     sourceTitle?: string;
   }>;
+}
+
+function localSourcePreviewFromPaper(paper: Paper): IngestionSourceDetail | null {
+  const content = (paper.rawContent || paper.content || paper.abstract || '').trim();
+  if (!paper.isSample || !content) return null;
+
+  const chunkTexts = content
+    .split(/(?<=[。！？.!?])/)
+    .map(text => text.trim())
+    .filter(Boolean);
+  const chunks = (chunkTexts.length > 0 ? chunkTexts : [content]).map((text, index) => ({
+    id: `${paper.id}-local-${index}`,
+    text,
+    chunkIndex: index,
+    paperShortName: paper.shortName,
+    sourceTitle: paper.title,
+  }));
+
+  return {
+    id: paper.id,
+    fileName: paper.fileName,
+    fileType: paper.fileType,
+    fileSize: paper.fileSize,
+    title: paper.title,
+    shortName: paper.shortName,
+    status: 'succeeded',
+    chunkCount: chunks.length,
+    tokenEstimate: Math.ceil(content.length / 4),
+    vectorIndex: paper.vectorIndex,
+    createdAt: paper.uploadTime,
+    updatedAt: paper.uploadTime,
+    abstract: paper.abstract,
+    content: paper.content,
+    rawContent: paper.rawContent,
+    chunks,
+  };
 }
 
 interface CitationContextSnippet {
@@ -265,9 +312,12 @@ function findCitationContextSnippet(
     (excerpt && normalizeEvidenceText(chunk.text).includes(excerpt.slice(0, Math.min(excerpt.length, 80))))
   ));
   if (!matched?.text) return null;
+  const text = matched.text.replace(/\s+/g, ' ').trim();
+  const citedText = citation.excerpt?.replace(/\s+/g, ' ').trim();
+  const citedOffset = citedText ? text.indexOf(citedText) : -1;
   return {
     locator: citationChunkLocator(matched, citation),
-    text: matched.text,
+    text: citedOffset >= 0 ? text.slice(citedOffset, citedOffset + Math.max(180, citedText!.length)) : matched.text,
   };
 }
 
@@ -327,12 +377,20 @@ function sourceSortTime(paper: Paper): number {
   return Number.isFinite(time) ? time : 0;
 }
 
+async function fetchIngestionSourceDetail(id: string, notebookId: string | undefined, headers: Record<string, string>) {
+  const params = new URLSearchParams({ id });
+  if (notebookId) params.set('notebookId', notebookId);
+  return fetch(clientApiPath(`/api/ingestion/sources?${params.toString()}`), { cache: 'no-store', headers });
+}
+
 export function LibraryPanel({
+  compact = false,
   accountSession,
   accountAuthRequired = false,
   showSourceGuide = false,
   onSourceGuideDismiss,
 }: {
+  compact?: boolean;
   workspaceTitle?: string;
   onBackHome?: () => void;
   accountSession?: AccountAuthSession | null;
@@ -356,6 +414,8 @@ export function LibraryPanel({
     aiConfig,
     storageScopeKey,
     revealPaperRequest,
+    sourceSyncState: ingestionSyncState,
+    setSourceSyncState: setIngestionSyncState,
   } = useApp();
 
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -367,13 +427,17 @@ export function LibraryPanel({
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; paper: Paper } | null>(null);
+  const [pendingRemovePaperId, setPendingRemovePaperId] = useState<string | null>(null);
   const [skippedFilesNotice, setSkippedFilesNotice] = useState<string | null>(null);
+  const [sourceMutationError, setSourceMutationError] = useState<string | null>(null);
   const [uploadTargetFolderId, setUploadTargetFolderId] = useState<string | null>(null);
-  const [ingestionSyncState, setIngestionSyncState] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
   const [pastedSourceText, setPastedSourceText] = useState('');
   const [pastedSourceTitle, setPastedSourceTitle] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [urlSourceState, setUrlSourceState] = useState<'idle' | 'loading'>('idle');
+  const [urlSourceError, setUrlSourceError] = useState<string | null>(null);
   const [sourcePreview, setSourcePreview] = useState<SourcePreviewState | null>(null);
   const [sourcePreviewFocus, setSourcePreviewFocus] = useState<SourceMatrixPreviewFocus | null>(null);
   const [isSourceMatrixOpen, setIsSourceMatrixOpen] = useState(false);
@@ -406,17 +470,22 @@ export function LibraryPanel({
     if (!revealPaperRequest) return;
     const { paperId, citation, token } = revealPaperRequest;
     if (handledRevealTokenRef.current === token) return;
-    const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paperId));
+    const resolvedPaperId = resolveCitationSourceId(
+      paperId,
+      citation || {},
+      folders.flatMap(folder => folder.papers),
+    );
+    const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === resolvedPaperId));
     if (!ownerFolder) return;
     handledRevealTokenRef.current = token;
     setExpandedFolders(prev => new Set([...prev, ownerFolder.id]));
     setSearchQuery('');
     setCitationContext(null);
     const timer = window.setTimeout(() => {
-      const el = document.querySelector(`[data-testid="library-paper-${paperId}"]`);
+      const el = document.querySelector(`[data-testid="library-paper-${resolvedPaperId}"]`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setFlashPaperId(paperId);
-      if (citation) setCitationFocus({ token, paperId, citation });
+      setFlashPaperId(resolvedPaperId);
+      if (citation) setCitationFocus({ token, paperId: resolvedPaperId, citation });
       window.setTimeout(() => {
         setFlashPaperId(null);
       }, 1400);
@@ -440,12 +509,7 @@ export function LibraryPanel({
     const loadCitationContext = async () => {
       try {
         setCitationContext({ token, paperId, status: 'loading' });
-        const detailParams = new URLSearchParams({ id: paperId });
-        if (notebookId) detailParams.set('notebookId', notebookId);
-        const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
-          cache: 'no-store',
-          headers: accountHeaders,
-        });
+        const response = await fetchIngestionSourceDetail(paperId, notebookId, accountHeaders);
         if (!response.ok) {
           if (!cancelled) setCitationContext({ token, paperId, status: 'missing' });
           return;
@@ -465,11 +529,11 @@ export function LibraryPanel({
     };
   }, [accountAuthRequired, accountSession?.token, citationFocus, notebookId]);
 
-  const syncIngestionSources = useCallback(async () => {
+  const syncIngestionSources = useCallback(async (force = false) => {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountAuthRequired && !accountHeaders.Authorization) return;
     const now = Date.now();
-    if (ingestionSyncInFlightRef.current || now - lastIngestionSyncAtRef.current < 5000) return;
+    if (ingestionSyncInFlightRef.current || (!force && now - lastIngestionSyncAtRef.current < 5000)) return;
     ingestionSyncInFlightRef.current = true;
     lastIngestionSyncAtRef.current = now;
     const knownPapers = new Map<string, Paper>();
@@ -478,7 +542,7 @@ export function LibraryPanel({
     try {
       setIngestionSyncState('syncing');
       const notebookQuery = notebookId ? `?notebookId=${encodeURIComponent(notebookId)}` : '';
-      const response = await fetch(`/api/ingestion/sources${notebookQuery}`, {
+      const response = await fetch(clientApiPath(`/api/ingestion/sources${notebookQuery}`), {
         cache: 'no-store',
         headers: accountHeaders,
       });
@@ -487,6 +551,7 @@ export function LibraryPanel({
       const sources = data.sources || [];
 
       const missingSources = sources.filter(source => !knownPapers.has(source.id));
+      let detailReadFailed = false;
       let importFolderId = activeFolderId || folders[0]?.id || null;
       if (missingSources.length > 0 && !importFolderId) {
         importFolderId = addFolder('文献库');
@@ -496,34 +561,33 @@ export function LibraryPanel({
 
       for (const source of missingSources) {
         if (!importFolderId) continue;
-        const detailParams = new URLSearchParams({ id: source.id });
-        if (notebookId) detailParams.set('notebookId', notebookId);
-        const detailResponse = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
-          cache: 'no-store',
-          headers: accountHeaders,
-        });
-        if (!detailResponse.ok) continue;
+        const detailResponse = await fetchIngestionSourceDetail(source.id, notebookId, accountHeaders);
+        if (!detailResponse.ok) { detailReadFailed = true; continue; }
         const detailData = await detailResponse.json() as { source?: IngestionSourceDetail };
         const detail = detailData.source;
-        if (!detail) continue;
+        if (!detail) { detailReadFailed = true; continue; }
         const rawContent = (detail.chunks || [])
           .map(chunk => chunk.text || '')
           .filter(Boolean)
           .join('\n\n')
           .slice(0, 50000);
-        addPaper(importFolderId, {
+        const paper: Paper = {
           id: detail.id,
           title: detail.title || detail.fileName,
-          authors: ['已入库来源'],
-          year: new Date(detail.createdAt || detail.updatedAt || Date.now()).getFullYear(),
-          keywords: ['持久来源'],
-          abstract: rawContent.slice(0, 240) || `${detail.title || detail.fileName} 已完成来源摄取。`,
-          content: rawContent || `${detail.title || detail.fileName} 已完成来源摄取。`,
-          rawContent,
+          authors: detail.authors || [],
+          year: detail.year,
+          keywords: detail.keywords || [],
+          journal: detail.journal,
+          doi: detail.doi,
+          abstract: detail.abstract || rawContent.slice(0, 240),
+          content: detail.content || rawContent,
+          rawContent: detail.rawContent || rawContent,
           shortName: detail.shortName || detail.fileName,
           fileName: detail.fileName,
           fileType: detail.fileType,
           fileSize: detail.fileSize || 0,
+          fileKey: detail.storageKey,
+          fileUrl: detail.fileUrl,
           uploadTime: detail.createdAt || detail.updatedAt || new Date().toISOString(),
           mineru: detail.mineru,
           mineruStatus: legacyMinerUStatus(detail.mineru),
@@ -532,23 +596,9 @@ export function LibraryPanel({
           ingestionChunkCount: detail.chunkCount,
           vectorIndex: detail.vectorIndex,
           mineruFigures: [],
-        });
-        knownPapers.set(detail.id, {
-          id: detail.id,
-          title: detail.title || detail.fileName,
-          authors: ['已入库来源'],
-          year: new Date().getFullYear(),
-          keywords: ['持久来源'],
-          abstract: rawContent.slice(0, 240),
-          content: rawContent,
-          rawContent,
-          shortName: detail.shortName || detail.fileName,
-          fileName: detail.fileName,
-          fileType: detail.fileType,
-          fileSize: detail.fileSize || 0,
-          uploadTime: detail.createdAt || detail.updatedAt || new Date().toISOString(),
-          mineruFigures: [],
-        });
+        };
+        addPaper(importFolderId, paper);
+        knownPapers.set(detail.id, paper);
       }
 
       for (const source of data.sources || []) {
@@ -556,6 +606,11 @@ export function LibraryPanel({
         if (!current) continue;
         const nextVectorIndex = source.vectorIndex;
         const changed = (
+          JSON.stringify(current.authors) !== JSON.stringify(source.authors || []) ||
+          current.year !== source.year ||
+          JSON.stringify(current.keywords) !== JSON.stringify(source.keywords || []) ||
+          current.journal !== source.journal ||
+          current.doi !== source.doi ||
           current.ingestionStatus !== source.status ||
           current.ingestionChunkCount !== source.chunkCount ||
           current.mineru?.status !== source.mineru?.status ||
@@ -566,6 +621,11 @@ export function LibraryPanel({
         );
         if (changed) {
           updatePaper(source.id, {
+            authors: source.authors || [],
+            year: source.year,
+            keywords: source.keywords || [],
+            journal: source.journal,
+            doi: source.doi,
             ingestionStatus: source.status,
             ingestionStages: source.stages,
             ingestionChunkCount: source.chunkCount,
@@ -575,13 +635,13 @@ export function LibraryPanel({
           });
         }
       }
-      setIngestionSyncState('idle');
+      setIngestionSyncState(detailReadFailed ? 'error' : 'idle');
     } catch {
       setIngestionSyncState('error');
     } finally {
       ingestionSyncInFlightRef.current = false;
     }
-  }, [accountAuthRequired, accountSession?.token, activeFolderId, addFolder, addPaper, folders, notebookId, setActiveFolder, updatePaper]);
+  }, [accountAuthRequired, accountSession?.token, activeFolderId, addFolder, addPaper, folders, notebookId, setActiveFolder, setIngestionSyncState, updatePaper]);
 
   useEffect(() => {
     void syncIngestionSources();
@@ -593,32 +653,30 @@ export function LibraryPanel({
 
   const openSourcePreview = useCallback(async (paper: Paper, focus: SourceMatrixPreviewFocus | null = null) => {
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
+    const localPreview = localSourcePreviewFromPaper(paper);
     setSourcePreviewFocus(focus);
     setSourcePreview({ paper, status: 'loading' });
     if (accountAuthRequired && !accountHeaders.Authorization) {
-      setSourcePreview({ paper, status: 'missing' });
+      setSourcePreview(localPreview ? { paper, status: 'ready', source: localPreview } : { paper, status: 'missing' });
       return;
     }
 
     try {
-      const detailParams = new URLSearchParams({ id: paper.id });
-      if (notebookId) detailParams.set('notebookId', notebookId);
-      const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
-        cache: 'no-store',
-        headers: accountHeaders,
-      });
+      const response = await fetchIngestionSourceDetail(paper.id, notebookId, accountHeaders);
       if (!response.ok) {
-        setSourcePreview({ paper, status: 'missing' });
+        setSourcePreview(localPreview
+          ? { paper, status: 'ready', source: localPreview }
+          : { paper, status: response.status === 404 ? 'missing' : 'error' });
         return;
       }
       const data = await response.json() as { source?: IngestionSourceDetail };
       if (!data.source) {
-        setSourcePreview({ paper, status: 'missing' });
+        setSourcePreview(localPreview ? { paper, status: 'ready', source: localPreview } : { paper, status: 'missing' });
         return;
       }
       setSourcePreview({ paper, status: 'ready', source: data.source });
     } catch {
-      setSourcePreview({ paper, status: 'error' });
+      setSourcePreview(localPreview ? { paper, status: 'ready', source: localPreview } : { paper, status: 'error' });
     }
   }, [accountAuthRequired, accountSession?.token, notebookId]);
 
@@ -627,9 +685,9 @@ export function LibraryPanel({
       const newFolderId = addFolder(newFolderName.trim());
       setExpandedFolders(prev => new Set([...prev, newFolderId]));
       setActiveFolder(newFolderId);
-      setUploadTargetFolderId(newFolderId);
       setNewFolderName('');
       setIsCreatingFolder(false);
+      setUploadTargetFolderId(newFolderId);
     }
   }, [newFolderName, addFolder, setActiveFolder]);
 
@@ -677,7 +735,7 @@ export function LibraryPanel({
       // XHR instead of fetch so we can surface real byte-level upload progress.
       const data = await new Promise<{ results?: Array<Paper & { error?: string }> }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/upload');
+        xhr.open('POST', clientApiPath('/api/upload'));
         Object.entries(accountAuthHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
         xhr.upload.onprogress = (e) => {
           if (!e.lengthComputable) return;
@@ -705,6 +763,7 @@ export function LibraryPanel({
           const paper: Paper = {
             id: result.id, title: result.title, authors: result.authors, year: result.year,
             keywords: result.keywords, abstract: result.abstract, content: result.content,
+            journal: result.journal, doi: result.doi,
             rawContent: result.rawContent,
             shortName: result.shortName, fileName: result.fileName, fileType: result.fileType,
             fileSize: result.fileSize, fileUrl: result.fileUrl, fileKey: result.fileKey,
@@ -788,10 +847,10 @@ export function LibraryPanel({
 
   // Discovered web sources arrive as ready-made text files and reuse the
   // regular upload/ingestion pipeline.
-  const handleIngestDiscoveredFiles = useCallback(async (files: File[]) => {
+  const handleIngestDiscoveredFiles = useCallback(async (files: File[], signal?: AbortSignal) => {
     if (files.length === 0) return;
     const targetFolder = ensureUploadTarget();
-    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId });
+    const outcome = await uploadDiscoveredSourceFiles({ files, notebookId, signal });
     if (outcome.papers.length === 0) {
       throw new Error(outcome.errors[0] || '来源入库失败，请重试。');
     }
@@ -800,11 +859,47 @@ export function LibraryPanel({
       window.setTimeout(() => togglePaperSelection(paper.id), 0);
     });
     if (outcome.errors.length > 0) {
-      setSkippedFilesNotice(`${outcome.papers.length} 个来源已加入；${outcome.errors.length} 个入库失败。`);
+      setSkippedFilesNotice(`${outcome.papers.length} 个来源已加入；${outcome.errors.length} 个未加入。`);
     }
     window.setTimeout(() => { void syncIngestionSources(); }, 0);
-    return outcome.papers.length;
+    return { added: outcome.papers.length, errors: outcome.errors, successfulFileIndexes: outcome.successfulFileIndexes };
   }, [addPaper, ensureUploadTarget, notebookId, syncIngestionSources, togglePaperSelection]);
+
+  const handleUrlAsSource = useCallback(async () => {
+    if (urlSourceState === 'loading') return;
+    const input = sourceUrl.trim();
+    let url: URL;
+    try {
+      url = new URL(input);
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('unsupported protocol');
+    } catch {
+      setUrlSourceError('网址格式不正确，请输入完整的 http:// 或 https:// 链接。');
+      return;
+    }
+
+    setUrlSourceState('loading');
+    setUrlSourceError(null);
+    try {
+      const response = await fetch(clientApiPath('/api/discover/fetch'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
+        body: JSON.stringify({ url: url.toString(), notebookId }),
+      });
+      const data = await response.json() as { success?: boolean; title?: string; text?: string; error?: string };
+      if (!response.ok || !data.success || !data.text?.trim()) {
+        throw new Error(data.error || '网页正文为空');
+      }
+      const title = (data.title?.trim() || url.hostname).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
+      const file = new globalThis.File([`来源网址：${url.toString()}\n\n${data.text.trim()}`], `${title}.txt`, { type: 'text/plain' });
+      await handleIngestDiscoveredFiles([file]);
+      setSourceUrl('');
+      dismissSourceGuide();
+    } catch (error) {
+      setUrlSourceError(`网页抓取失败：${error instanceof Error ? error.message : '请稍后重试'}`);
+    } finally {
+      setUrlSourceState('idle');
+    }
+  }, [dismissSourceGuide, handleIngestDiscoveredFiles, notebookId, sourceUrl, urlSourceState]);
 
   const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -838,13 +933,36 @@ export function LibraryPanel({
     });
   }, [setActiveFolder]);
 
+  const handleRemovePaper = useCallback(async (paper: Paper) => {
+    const ownerFolder = folders.find(folder => folder.papers.some(item => item.id === paper.id));
+    if (!ownerFolder) return;
+    setSourceMutationError(null);
+    if (!paper.isSample) {
+      const params = new URLSearchParams({ id: paper.id });
+      if (notebookId) params.set('notebookId', notebookId);
+      try {
+        const response = await fetch(clientApiPath(`/api/ingestion/sources?${params.toString()}`), {
+          method: 'DELETE',
+          headers: accountAuthHeaders(),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      } catch {
+        setSourceMutationError('来源删除失败，未改动文献库；请检查网络后重试。');
+        return;
+      }
+    }
+    removePaper(ownerFolder.id, paper.id);
+  }, [folders, notebookId, removePaper]);
+
   const copyShortName = useCallback((paper: Paper) => {
     navigator.clipboard.writeText(`[${paper.shortName}]`);
     setContextMenu(null);
+    setPendingRemovePaperId(null);
   }, []);
 
   const handleContextMenu = useCallback((e: React.MouseEvent, paper: Paper) => {
     e.preventDefault();
+    setPendingRemovePaperId(null);
     setContextMenu({ x: e.clientX, y: e.clientY, paper });
   }, []);
 
@@ -864,11 +982,14 @@ export function LibraryPanel({
 
   return (
     <div
-      className="h-full flex flex-col relative"
+      className={`h-full flex flex-col relative ${compact ? "quiet-library" : ""}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClick={() => setContextMenu(null)}
+      onClick={() => {
+        setContextMenu(null);
+        setPendingRemovePaperId(null);
+      }}
     >
       {/* Drag overlay */}
       {isDragOver && (
@@ -882,33 +1003,43 @@ export function LibraryPanel({
       )}
 
       {/* Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-[var(--border-subtle)]">
+      <div className="quiet-library-header px-4 pt-4 pb-3 border-b border-[var(--border-subtle)]">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-[var(--text-primary)]">文献库</p>
-            <p className="mt-0.5 text-[11px] text-[var(--text-tertiary)]">
+            <p className="quiet-library-title text-xs font-semibold text-[var(--text-primary)]">{compact ? <>资料 <span>{totalPapers}</span></> : "文献库"}</p>
+            <p className={`${compact && ingestionSyncState !== 'error' ? 'hidden' : ''} mt-0.5 text-[11px] text-[var(--text-tertiary)]`}>
               {totalPapers} 个来源{ingestionSyncState === 'syncing' ? ' · 同步中' : ingestionSyncState === 'error' ? ' · 状态同步失败' : ''}
             </p>
+            {ingestionSyncState === 'error' && <button type="button" className="mt-1 text-xs underline" onClick={() => void syncIngestionSources(true)}>重试读取资料</button>}
           </div>
           <div className="flex items-center gap-1.5">
             <button
-              onClick={() => setIsDiscoverOpen(true)}
-              data-testid="library-discover"
+              onClick={() => setIsSourceGuideOpen(true)}
+              data-testid="library-add-source"
               className="flex h-8 items-center gap-1.5 rounded-xl liquid-glass-btn px-2.5 !py-0 text-[11px] font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              aria-label="搜索网络信源"
-              title="搜索网络信源并加入文献库"
+              aria-label="添加来源"
+              title="上传文件、添加网页或粘贴文本"
             >
-              <Globe2 className="h-3.5 w-3.5 text-blue-400" />
-              发现信源
+              {compact ? <Plus size={21} /> : <Upload className="h-3.5 w-3.5 text-blue-400" />}
+              {!compact && "添加来源"}
             </button>
-            <button
+            {compact ? <DropdownMenu>
+              <DropdownMenuTrigger asChild><button type="button" className="quiet-library-more" aria-label="资料操作"><MoreHorizontal size={18} /></button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setIsCreatingFolder(true)}>新建文献分组</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => folders.flatMap(folder => folder.papers).filter(paper => !selectedPapers.includes(paper.id)).forEach(paper => togglePaperSelection(paper.id))}>全选资料</DropdownMenuItem>
+                <DropdownMenuItem onSelect={clearSelection}>清除选择</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void syncIngestionSources(true)}>重新读取资料</DropdownMenuItem>
+                {selectedPapers.length >= 2 && <DropdownMenuItem onSelect={() => setIsSourceMatrixOpen(true)}>文献矩阵</DropdownMenuItem>}
+              </DropdownMenuContent>
+            </DropdownMenu> : <button
               onClick={() => setIsCreatingFolder(true)}
               className="w-8 h-8 rounded-xl liquid-glass-btn !p-0 flex items-center justify-center"
               aria-label="新建文献分组"
               title="新建文献分组"
             >
               <FolderPlus className="h-4 w-4" />
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -926,7 +1057,7 @@ export function LibraryPanel({
       </div>
 
       {/* Selection bar */}
-      {selectedPapers.length > 0 && (
+      {!compact && selectedPapers.length > 0 && (
         <div
           data-testid="library-selection-count"
           className="px-5 py-2.5 bg-blue-500/[0.06] border-b border-blue-500/10 flex flex-wrap items-center justify-between gap-2 animate-fade-in"
@@ -1008,6 +1139,11 @@ export function LibraryPanel({
           <p className="text-[11px] leading-relaxed text-amber-300">{skippedFilesNotice}(支持 PDF/DOCX/TXT/MD 等)</p>
         </div>
       )}
+      {sourceMutationError && (
+        <div className="mx-4 mt-2 rounded-xl border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] text-red-300" data-testid="library-source-mutation-error">
+          {sourceMutationError}
+        </div>
+      )}
 
       {/* Paper list */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
@@ -1024,7 +1160,7 @@ export function LibraryPanel({
               className="mt-4 rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-4 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:bg-[var(--glass-hover)]"
               data-testid="library-empty-examples"
             >
-              查看示例
+              添加第一条来源
             </button>
           </div>
         ) : (
@@ -1032,7 +1168,7 @@ export function LibraryPanel({
             <div key={folder.id} className="mb-2">
               {/* Folder header */}
               <div
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 group ${
+                className={`${compact && folders.length === 1 && folder.name === '文献库' ? 'hidden' : 'flex'} items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 group ${
                   activeFolderId === folder.id ? 'bg-[var(--glass-subtle)]' : 'hover:bg-[var(--glass-subtle)]'
                 }`}
                 onClick={() => handleFolderClick(folder.id)}
@@ -1069,39 +1205,61 @@ export function LibraryPanel({
                     <div
                       key={paper.id}
                       data-testid={`library-paper-${paper.id}`}
-                      aria-selected={selectedPapers.includes(paper.id)}
-                      className={`library-source-card flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 group animate-fade-in-up ${
+                      className={`library-source-card relative flex items-start gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 group animate-fade-in-up ${
                         selectedPapers.includes(paper.id)
                           ? 'library-source-card-selected'
                           : ''
                       } ${flashPaperId === paper.id ? 'ring-2 ring-blue-400/80 bg-blue-500/10' : ''}`}
                       style={{ animationDelay: `${idx * 40}ms` }}
-                      onClick={() => togglePaperSelection(paper.id)}
                       onContextMenu={(e) => handleContextMenu(e, paper)}
                     >
+                      <button
+                        type="button"
+                        data-testid={`library-source-open-${paper.id}`}
+                        aria-label={`打开来源${paper.title}`}
+                        aria-pressed={sourcePreview?.paper.id === paper.id}
+                        className="absolute inset-0 z-0 rounded-xl bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/70"
+                        onClick={() => { void openSourcePreview(paper); }}
+                      />
+
                       {/* Checkbox */}
-                      <div className="mt-0.5 flex-shrink-0">
-                        {selectedPapers.includes(paper.id) ? (
+                      <button
+                        type="button"
+                        aria-label={selectedPapers.includes(paper.id) ? `取消选择${paper.title}` : `选择${paper.title}`}
+                        title={selectedPapers.includes(paper.id) ? '取消选择来源' : '选择来源'}
+                        className={`${compact ? 'quiet-source-checkbox' : 'rounded-full'} relative z-10 mt-0.5 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300/70`}
+                        aria-pressed={selectedPapers.includes(paper.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          togglePaperSelection(paper.id);
+                        }}
+                      >
+                        {compact ? (selectedPapers.includes(paper.id) && <Check size={15} strokeWidth={2.5} />) : selectedPapers.includes(paper.id) ? (
                           <CheckCircle2 className="h-4 w-4 text-blue-400" />
                         ) : (
                           <Circle className="h-4 w-4 text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors" />
                         )}
-                      </div>
+                      </button>
 
-                      <FileTypeIcon fileType={paper.fileType} />
+                      <span className="pointer-events-none relative z-10">
+                        <FileTypeIcon fileType={paper.fileType} />
+                      </span>
 
-                      <div className="flex-1 min-w-0">
+                      <div className="pointer-events-none relative z-10 flex-1 min-w-0">
                         <p className="text-[13px] truncate font-medium text-[var(--text-primary)] leading-tight">{paper.title}</p>
                         <p className="text-[11px] text-[var(--text-secondary)] mt-1 truncate">
-                          {paper.authors.join(', ')} · {paper.year}
+                          {[paper.authors.join(', '), paper.year].filter(Boolean).join(' · ') || `${paper.fileType.toUpperCase()} · ${formatFileSize(paper.fileSize)}`}
                         </p>
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold border ${fileTypeBadgeStyle(paper.fileType)}`}>
+                        <div className={`flex items-center gap-1.5 mt-1.5 flex-wrap ${compact ? "quiet-source-metadata" : ""}`}>
+                          <span className={`${compact ? "hidden" : ""} text-[9px] px-1.5 py-0.5 rounded-md font-semibold border ${fileTypeBadgeStyle(paper.fileType)}`}>
                             {paper.fileType.toUpperCase()}
                           </span>
+                          {paper.isSample && (
+                            <span className="rounded-md border border-violet-400/20 bg-violet-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-violet-300">示例</span>
+                          )}
                           {(() => {
                             const badge = ingestionBadge(paper);
-                            return badge ? (
+                            return badge && (!compact || paper.ingestionStatus !== "succeeded") ? (
                               <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold border ${badge.className}`}>
                                 {badge.label}
                               </span>
@@ -1115,8 +1273,8 @@ export function LibraryPanel({
                               </span>
                             ) : null;
                           })()}
-                          <span className="text-[10px] text-[var(--text-tertiary)]">{formatFileSize(paper.fileSize)}</span>
-                          {paper.keywords.length > 0 && (
+                          {!compact && <span className="text-[10px] text-[var(--text-tertiary)]">{formatFileSize(paper.fileSize)}</span>}
+                          {!compact && paper.keywords.length > 0 && (
                             <span className="text-[10px] text-[var(--text-tertiary)] truncate">
                               · {paper.keywords.slice(0, 2).join(', ')}
                             </span>
@@ -1125,7 +1283,7 @@ export function LibraryPanel({
                         {citationFocus?.paperId === paper.id && (
                           <div
                             data-testid="library-citation-focus"
-                            className="mt-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-blue-100"
+                            className="pointer-events-auto relative z-20 mt-2 rounded-lg border border-blue-400/25 bg-blue-500/10 px-2.5 py-2 text-[10px] leading-relaxed text-blue-100"
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-300">
@@ -1169,7 +1327,7 @@ export function LibraryPanel({
                                   <span>{citationContext.snippet.locator}</span>
                                 </div>
                                 <p className="mt-1 text-[var(--text-secondary)]">
-                                  &ldquo;{truncateEvidenceText(citationContext.snippet.text, 180)}&rdquo;
+                                  &ldquo;{truncateEvidenceText(citationContext.snippet.text, 360)}&rdquo;
                                 </p>
                               </div>
                             )}
@@ -1189,8 +1347,12 @@ export function LibraryPanel({
 
                       {/* More button */}
                       <button
+                        type="button"
+                        data-testid={`library-source-menu-${paper.id}`}
+                        aria-label={`管理来源${paper.title}`}
+                        title="管理来源"
                         onClick={(e) => { e.stopPropagation(); handleContextMenu(e, paper); }}
-                        className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg flex items-center justify-center text-zinc-600 hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] transition-all mt-0.5"
+                        className="relative z-10 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card)] transition-all mt-0.5"
                       >
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
@@ -1211,10 +1373,13 @@ export function LibraryPanel({
           accept={ACCEPT_STRING}
           multiple
           className="hidden"
-          onChange={(e) => handleFileSelect(e.target.files)}
+          onChange={(e) => {
+            void handleFileSelect(e.currentTarget.files);
+            e.currentTarget.value = '';
+          }}
         />
 
-        <div className="mb-3 flex items-center gap-2">
+        <div className={compact && folders.length <= 1 ? "hidden" : "mb-3 flex items-center gap-2"}>
           <label className="min-w-0 flex-1 text-[10px] font-medium text-[var(--text-tertiary)]">
             上传到
             <select
@@ -1238,6 +1403,9 @@ export function LibraryPanel({
           </label>
         </div>
 
+        {compact ? (
+          <button type="button" onClick={() => setIsSourceGuideOpen(true)} className="quiet-add-source flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--border-subtle)] text-sm text-[var(--accent-blue)]"><Plus size={22} />添加资料</button>
+        ) : (
         <div
           className="border border-dashed border-[var(--border-subtle)] rounded-2xl p-5 text-center cursor-pointer hover:border-[var(--border-hover)] hover:bg-[var(--glass-subtle)] transition-all duration-500"
           onClick={() => {
@@ -1249,6 +1417,7 @@ export function LibraryPanel({
           <p className="text-xs font-medium text-[var(--text-tertiary)]">拖拽文献或资料文件到此处上传</p>
           <p className="text-[10px] text-[var(--text-quaternary)] mt-1">或点击选择论文、笔记、表格等文件</p>
         </div>
+        )}
       </div>
 
       {/* Create folder dialog */}
@@ -1261,6 +1430,18 @@ export function LibraryPanel({
           onPasteTitleChange={setPastedSourceTitle}
           onPasteSubmit={handlePasteTextAsSource}
           onUpload={openFilePickerFromGuide}
+          sourceUrl={sourceUrl}
+          urlState={urlSourceState}
+          urlError={urlSourceError}
+          onUrlChange={value => {
+            setSourceUrl(value);
+            setUrlSourceError(null);
+          }}
+          onUrlSubmit={() => { void handleUrlAsSource(); }}
+          onDiscover={() => {
+            dismissSourceGuide();
+            setIsDiscoverOpen(true);
+          }}
         />
       )}
 
@@ -1422,23 +1603,16 @@ export function LibraryPanel({
 
       {/* Source chunks detail */}
       {sourcePreview && (
-        <div
-          className="absolute inset-0 z-[80] flex items-center justify-center bg-[var(--bg-primary)]/65 p-4 backdrop-blur-sm animate-fade-in"
-          onClick={() => {
-            setSourcePreview(null);
-            setSourcePreviewFocus(null);
-          }}
-        >
+        <div className="absolute inset-0 z-[80] flex h-full flex-col overflow-hidden bg-[var(--bg-primary)] animate-fade-in">
           <div
             data-testid="library-source-detail-panel"
-            className="liquid-glass-card flex max-h-[82vh] w-full max-w-[420px] flex-col p-0 animate-scale-in"
-            onClick={(e) => e.stopPropagation()}
+            className="flex h-full w-full flex-col overflow-hidden bg-[var(--bg-primary)]"
           >
             <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-4 py-3.5">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
                   <FileText className="h-4 w-4 text-blue-400" />
-                  <span>来源片段</span>
+                  <span>来源阅读</span>
                 </div>
                 <p className="mt-1 truncate text-xs text-[var(--text-secondary)]">{sourcePreview.paper.title}</p>
               </div>
@@ -1469,7 +1643,15 @@ export function LibraryPanel({
               )}
               {sourcePreview.status === 'error' && (
                 <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-3 text-xs leading-relaxed text-red-200">
-                  来源片段读取失败，请稍后重试。
+                  <p>来源片段读取失败，请检查网络后重试。</p>
+                  <button
+                    type="button"
+                    data-testid="library-source-retry"
+                    className="mt-2 rounded-lg border border-red-300/30 bg-red-200/10 px-3 py-1.5 font-semibold text-red-100 transition hover:bg-red-200/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200/70"
+                    onClick={() => { void openSourcePreview(sourcePreview.paper, sourcePreviewFocus); }}
+                  >
+                    重新读取
+                  </button>
                 </div>
               )}
               {sourcePreview.status === 'ready' && (() => {
@@ -1487,6 +1669,11 @@ export function LibraryPanel({
                 const citationLeads = buildSourceCitationLeads(chunks);
                 return (
                   <div className="space-y-2">
+                    {sourcePreview.paper.isSample && (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-2 text-[11px] font-medium text-blue-700">
+                        示例来源 · 已随模板保存在当前副本中
+                      </div>
+                    )}
                     {sourcePreviewFocus && (
                       <div
                         data-testid="library-source-matrix-focus"
@@ -1557,11 +1744,11 @@ export function LibraryPanel({
                     {citationLeads.length > 0 && (
                       <div
                         data-testid="library-source-citation-leads"
-                        className="rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-3"
+                        className="rounded-xl border border-blue-200 bg-blue-50/80 px-3 py-3"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-xs font-semibold text-blue-200">引用线索</div>
-                          <div className="text-[10px] text-blue-200/65">基于已入库片段</div>
+                          <div className="text-xs font-semibold text-blue-700">引用线索</div>
+                          <div className="text-[10px] text-blue-600">基于已入库片段</div>
                         </div>
                         <p className="mt-1 text-[10px] leading-relaxed text-[var(--text-tertiary)]">
                           以下候选句只来自当前来源片段，用于写作时回查证据，不替代阅读全文。
@@ -1571,11 +1758,11 @@ export function LibraryPanel({
                             <div
                               key={lead.id}
                               data-testid="library-source-citation-lead"
-                              className="rounded-lg border border-blue-300/15 bg-black/10 px-2.5 py-2"
+                              className="rounded-lg border border-blue-200 bg-white/80 px-2.5 py-2"
                             >
-                              <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-200">
+                              <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-700">
                                 <span>线索 {index + 1}</span>
-                                <span className="text-blue-300/45">·</span>
+                                <span className="text-blue-300">·</span>
                                 <span>{lead.locator}</span>
                               </div>
                               <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
@@ -1602,11 +1789,11 @@ export function LibraryPanel({
                             : 'border-[var(--border-subtle)] bg-[var(--glass-subtle)]'
                         }`}
                       >
-                        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-300">
+                        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-blue-600">
                           <span>{sourceChunkLocator(chunk)}</span>
                           {chunk.sourceTitle && chunk.sourceTitle !== sourcePreview.source.title && (
                             <>
-                              <span className="text-blue-300/45">·</span>
+                              <span className="text-blue-300">·</span>
                               <span className="truncate text-[var(--text-tertiary)]">{chunk.sourceTitle}</span>
                             </>
                           )}
@@ -1627,7 +1814,7 @@ export function LibraryPanel({
       {/* Context menu */}
       {contextMenu && (
         <div
-          className="fixed z-[100] liquid-glass-card py-1.5 min-w-[180px] animate-scale-in"
+          className="!fixed z-[100] liquid-glass-card py-1.5 min-w-[180px] animate-scale-in"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1643,6 +1830,7 @@ export function LibraryPanel({
             onClick={() => {
               const paper = contextMenu.paper;
               setContextMenu(null);
+              setPendingRemovePaperId(null);
               void openSourcePreview(paper);
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
@@ -1655,16 +1843,18 @@ export function LibraryPanel({
             data-testid="library-remove-paper"
             onClick={() => {
               const paper = contextMenu.paper;
-              const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paper.id));
-              if (ownerFolder && window.confirm(`移除来源「${paper.title}」?`)) {
-                removePaper(ownerFolder.id, paper.id);
+              if (pendingRemovePaperId === paper.id) {
+                void handleRemovePaper(paper);
+                setContextMenu(null);
+                setPendingRemovePaperId(null);
+                return;
               }
-              setContextMenu(null);
+              setPendingRemovePaperId(paper.id);
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+            className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors ${pendingRemovePaperId === contextMenu.paper.id ? 'bg-red-500/10 font-semibold' : ''}`}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            移除来源
+            {pendingRemovePaperId === contextMenu.paper.id ? '再次点击确认移除' : '移除来源'}
           </button>
         </div>
       )}

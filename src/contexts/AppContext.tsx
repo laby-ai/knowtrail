@@ -24,11 +24,15 @@ import type {
   KnowledgeMapViewer,
   Citation,
 } from '@/types';
+import { CHAT_HISTORY_LIMIT } from '@/lib/chat-generation-lifecycle';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyChatHistory, isChatHistoryDocument, legacyChatHistory, type ChatHistoryDocument } from '@/lib/chat-history-document';
+import type { StudioGenerationState } from '@/lib/studio-generation-readiness';
 import {
-  chatHistoryStorageKey,
-  parseStoredChatHistory,
-  serializeChatHistory,
-} from '@/lib/chat-generation-lifecycle';
+  parseStoredSourceSelection,
+  serializeSourceSelection,
+  sourceSelectionStorageKey,
+} from '@/lib/source-selection-storage';
 
 export type CitationReveal = Pick<Citation, 'chunkId' | 'chunkIndex' | 'page' | 'excerpt' | 'sourceTitle' | 'paperShortName'>;
 
@@ -96,9 +100,14 @@ interface AppContextType extends AppState {
   clearSelection: () => void;
   setActiveFolder: (folderId: string | null) => void;
   getSelectedPapers: () => Paper[];
+  sourceReadiness: StudioGenerationState;
+  sourceSyncState: 'idle' | 'syncing' | 'error';
+  setSourceSyncState: (value: 'idle' | 'syncing' | 'error') => void;
   // 让左侧文献库定位并高亮引用对应的证据来源。
   revealPaperRequest: RevealPaperRequest | null;
   revealPaper: (paperId: string, citation?: Citation) => void;
+
+  chatPersistence: ReturnType<typeof usePrivateNotebookDocument<ChatHistoryDocument>>;
 
   // 编辑器操作
   setEditorMode: (mode: EditorMode) => void;
@@ -216,34 +225,49 @@ export function AppProvider({
     selectedPapers: initialSelectedPaperIds,
     activeFolderId: initialFolders[0]?.id || null,
   }));
-  const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
+  const chatPersistence = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'chat-history', endpoint: '/api/studio/artifacts?kind=chat-history', empty: emptyChatHistory, validate: isChatHistoryDocument, readLegacy: legacyChatHistory });
+  const { update: updateChatHistory } = chatPersistence;
+  const [sourceSelectionLoaded, setSourceSelectionLoaded] = useState(false);
+  const [sourceSyncState, setSourceSyncState] = useState<'idle' | 'syncing' | 'error'>('syncing');
+  const availableSourceIds = new Set(state.folders.flatMap(folder => folder.papers.map(paper => paper.id)));
+  const missingSelectedCount = state.selectedPapers.filter(id => !availableSourceIds.has(id)).length;
+  const sourceReadiness: StudioGenerationState = {
+    ready: sourceSelectionLoaded && missingSelectedCount === 0,
+    message: !sourceSelectionLoaded ? '正在恢复资料选择…' : missingSelectedCount > 0
+      ? sourceSyncState === 'syncing' ? `正在读取 ${missingSelectedCount} 份已选资料，完成后可发送。`
+        : `有 ${missingSelectedCount} 份已选资料暂不可用，可在“资料操作”中重新读取或清除选择。`
+      : '',
+  };
 
   React.useEffect(() => {
-    let messages: ChatMessage[] = [];
+    let selectedPapers = [...initialSelectedPaperIds];
     try {
-      messages = parseStoredChatHistory(window.localStorage.getItem(chatHistoryStorageKey(storageScopeKey)));
-    } catch {
-      // localStorage can be unavailable in privacy modes; the in-memory chat remains usable.
-    }
-    setState((previous) => ({
-      ...previous,
-      storageScopeKey,
-      chatMessages: messages,
-    }));
-    setChatHistoryLoaded(true);
-  }, [storageScopeKey]);
-
-  React.useEffect(() => {
-    if (!chatHistoryLoaded) return;
-    try {
-      window.localStorage.setItem(
-        chatHistoryStorageKey(storageScopeKey),
-        serializeChatHistory(state.chatMessages),
+      selectedPapers = parseStoredSourceSelection(
+        window.localStorage.getItem(sourceSelectionStorageKey(storageScopeKey)),
+        initialSelectedPaperIds,
       );
     } catch {
-      // The visible in-memory history remains authoritative when browser storage is unavailable.
+      // Browser storage can be unavailable; the visible selection remains usable in memory.
     }
-  }, [chatHistoryLoaded, state.chatMessages, storageScopeKey]);
+    setState(previous => ({
+      ...previous,
+      storageScopeKey,
+      selectedPapers,
+    }));
+    setSourceSelectionLoaded(true);
+  }, [initialSelectedPaperIds, storageScopeKey]);
+
+  React.useEffect(() => {
+    if (!sourceSelectionLoaded) return;
+    try {
+      window.localStorage.setItem(
+        sourceSelectionStorageKey(storageScopeKey),
+        serializeSourceSelection(state.selectedPapers),
+      );
+    } catch {
+      // Browser storage can be unavailable; the visible selection remains usable in memory.
+    }
+  }, [sourceSelectionLoaded, state.selectedPapers, storageScopeKey]);
 
   React.useEffect(() => {
     try {
@@ -383,24 +407,16 @@ export function AppProvider({
   }, []);
 
   const updateChatMessage = useCallback((id: string, updates: Partial<ChatMessage>) => {
-    setState(prev => ({
-      ...prev,
-      chatMessages: prev.chatMessages.map(msg =>
-        msg.id === id ? { ...msg, ...updates } : msg
-      ),
-    }));
-  }, []);
+    updateChatHistory(previous => ({ ...previous, messages: previous.messages.map(message => message.id === id ? { ...message, ...updates } : message) }));
+  }, [updateChatHistory]);
 
   const addChatMessage = useCallback((message: ChatMessage) => {
-    setState(prev => ({
-      ...prev,
-      chatMessages: [...prev.chatMessages, message],
-    }));
-  }, []);
+    updateChatHistory(previous => ({ ...previous, messages: [...previous.messages, message].slice(-CHAT_HISTORY_LIMIT) }));
+  }, [updateChatHistory]);
 
   const clearChat = useCallback(() => {
-    setState(prev => ({ ...prev, chatMessages: [] }));
-  }, []);
+    updateChatHistory(previous => ({ ...previous, messages: [] }));
+  }, [updateChatHistory]);
 
   const setCurrentReport = useCallback((report: Report | null) => {
     setState(prev => ({ ...prev, currentReport: report }));
@@ -650,6 +666,8 @@ export function AppProvider({
 
   const contextValue: AppContextType = {
     ...state,
+    chatMessages: chatPersistence.data.messages,
+    chatPersistence,
     addFolder,
     deleteFolder,
     addPaper,
@@ -660,6 +678,9 @@ export function AppProvider({
     clearSelection,
     setActiveFolder,
     getSelectedPapers,
+    sourceReadiness,
+    sourceSyncState,
+    setSourceSyncState,
     revealPaperRequest,
     revealPaper,
     setEditorMode,

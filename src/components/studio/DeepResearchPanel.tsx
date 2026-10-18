@@ -1,12 +1,18 @@
 'use client';
 
+import type { ResearchComposerRenderer } from '@/components/editor/ResearchComposer';
+
 import { clientApiRequest } from '@/lib/client-api';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileSearch, Search } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useApp } from '@/contexts/AppContext';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyResearchReport, isResearchReportDocument, preferSavedResearchReport, researchReportDocument, researchReportLengthWarning, type ResearchReportDocument, type ResearchStatusPayload } from '@/lib/research-report-document';
+import type { NotebookDocument } from '@/lib/private-notebook-document';
+import { studioSessionStorageKey } from '@/lib/studio-session-storage';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Citation, CitationAuditResult, Paper, RetrievalMetadata } from '@/types';
@@ -15,18 +21,12 @@ import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgr
 
 type ResearchAnswerStatus = 'idle' | 'running' | 'complete' | 'incomplete' | 'error';
 
-type ResearchStatusPayload = {
-  answerStatus?: 'complete' | 'incomplete' | 'no-evidence';
-  sectionCoverage?: {
-    status?: string;
-    missingSections?: string[];
-    emptySections?: string[];
-    uncitedClaims?: Array<{ section?: string; text?: string }>;
-  };
-  retrievalLimits?: string[];
-  removedUncitedClaims?: number;
-  repairAttempted?: boolean;
-};
+function legacyReportQuestion(scopeKey: string): ResearchReportDocument | null {
+  try {
+    const value: unknown = JSON.parse(window.sessionStorage.getItem(studioSessionStorageKey(scopeKey, 'deep-research', 'question')) || 'null');
+    return typeof value === 'string' && value ? { questionDraft: value, report: null } : null;
+  } catch { return null; }
+}
 
 const RESEARCH_STAGES: StudioJobProgressStage[] = [
   { key: 'retrieving', label: '核对选定来源' },
@@ -52,12 +52,17 @@ function toPaperRequest(paper: Paper) {
   };
 }
 
-export function DeepResearchPanel() {
+export function DeepResearchPanel({ renderComposer }: { renderComposer?: ResearchComposerRenderer }) {
   const { getSelectedPapers, storageScopeKey } = useApp();
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
-  const [question, setQuestion] = useState('');
+  const savedReport = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'research-report', endpoint: '/api/studio/artifacts?kind=research-report',
+    empty: emptyResearchReport, validate: isResearchReportDocument, readLegacy: legacyReportQuestion, preferSaved: preferSavedResearchReport });
+  const question = savedReport.data.questionDraft;
+  const setQuestion = (next: string) => savedReport.update(previous => ({ ...previous, questionDraft: next }));
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; abortRef.current?.abort(); }; }, []);
   const [answer, setAnswer] = useState('');
   const [citations, setCitations] = useState<Citation[]>([]);
   const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(null);
@@ -68,6 +73,18 @@ export function DeepResearchPanel() {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('填写研究问题后开始。');
   const [error, setError] = useState<string | null>(null);
+  const lengthWarning = status === 'running' ? undefined : researchReportLengthWarning(savedReport.data.report);
+
+  useEffect(() => {
+    if (status === 'running' || savedReport.loading) return;
+    const restored = savedReport.data.report;
+    setAnswer(restored?.answer || '');
+    setCitations(restored?.citations || []);
+    setRetrieval(restored?.retrieval || null);
+    setCitationAudit(restored?.citationAudit || null);
+    setResearchStatus(restored?.researchStatus || null);
+    setStatus(restored?.status || 'idle');
+  }, [savedReport.data.report, savedReport.loading, status]);
 
   const sourceSummary = useMemo(
     () => selectedPapers.slice(0, 3).map(paper => paper.shortName || paper.title).join('、'),
@@ -77,7 +94,7 @@ export function DeepResearchPanel() {
   const runResearch = useCallback(async () => {
     const trimmedQuestion = question.trim();
     const papers = getSelectedPapers();
-    if (!trimmedQuestion || papers.length === 0 || status === 'running') return;
+    if (!trimmedQuestion || papers.length === 0 || status === 'running' || savedReport.loading || savedReport.error || (savedReport.unsaved && error)) return;
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -94,7 +111,22 @@ export function DeepResearchPanel() {
 
     let streamedAnswer = '';
     let finalResearchStatus: ResearchStatusPayload | null = null;
+    let latestCitations: Citation[] = [];
+    let latestRetrieval: RetrievalMetadata | null = null;
+    let latestAudit: CitationAuditResult | null = null;
+    let acknowledged = false;
+    let unsavedDocument: ResearchReportDocument | null = null;
+    let lastCheckpoint = 0;
+    const runId = crypto.randomUUID();
+    const checkpoint = (force = false) => {
+      if (!streamedAnswer || (!force && Date.now() - lastCheckpoint < 300)) return;
+      lastCheckpoint = Date.now();
+      savedReport.updateLocal(() => researchReportDocument({ runId, question: trimmedQuestion, answer: streamedAnswer, citations: latestCitations,
+        retrieval: latestRetrieval, citationAudit: latestAudit, researchStatus: finalResearchStatus, status: 'incomplete' }));
+    };
     try {
+      if (!await savedReport.flush()) throw new Error('当前内容尚未保存，请先重试保存。');
+      if (controller.signal.aborted) return;
       const response = await clientApiRequest('/api/ai/deep-research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
@@ -103,6 +135,7 @@ export function DeepResearchPanel() {
         signal: controller.signal,
         body: JSON.stringify({
           question: trimmedQuestion,
+          persistArtifact: true, runId, expectedRevision: savedReport.revision.current,
           notebookId,
           papers: papers.map(toPaperRequest),
         }),
@@ -119,6 +152,7 @@ export function DeepResearchPanel() {
       let buffer = '';
       while (true) {
         const { done, value } = await reader.read();
+        if (!mounted.current) return;
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const events = buffer.split(/\r?\n\r?\n/);
@@ -140,31 +174,39 @@ export function DeepResearchPanel() {
             researchStatus?: ResearchStatusPayload;
             progress?: { stage?: string; progress?: number; message?: string };
             error?: string;
+            document?: NotebookDocument<ResearchReportDocument>;
+            unsavedDocument?: ResearchReportDocument;
+            saveError?: string;
           };
           if (payload.progress) {
             setStage(payload.progress.stage || 'writing');
             setProgress(payload.progress.progress || 0);
             setMessage(payload.progress.message || '正在进行深度研究。');
           }
-          if (payload.citations) setCitations(payload.citations);
-          if (payload.retrieval) setRetrieval(payload.retrieval);
+          if (payload.citations) { latestCitations = payload.citations; setCitations(payload.citations); }
+          if (payload.retrieval) { latestRetrieval = payload.retrieval; setRetrieval(payload.retrieval); }
           if (payload.content) {
             streamedAnswer += payload.content;
             setAnswer(streamedAnswer);
+            checkpoint();
           }
           if (payload.replaceContent) {
             streamedAnswer = payload.replaceContent;
             setAnswer(streamedAnswer);
+            checkpoint();
           }
-          if (payload.citationAudit) setCitationAudit(payload.citationAudit);
+          if (payload.citationAudit) { latestAudit = payload.citationAudit; setCitationAudit(payload.citationAudit); }
           if (payload.researchStatus) {
             finalResearchStatus = payload.researchStatus;
             setResearchStatus(payload.researchStatus);
           }
+          if (payload.document) { acknowledged = true; savedReport.acceptSaved(payload.document); }
+          if (payload.unsavedDocument) { unsavedDocument = payload.unsavedDocument; savedReport.updateLocal(() => payload.unsavedDocument!); }
           if (payload.error) throw new Error(payload.error);
         }
       }
 
+      if (!acknowledged) throw new Error('报告尚未确认保存，请重试读取。');
       if (!streamedAnswer) throw new Error('没有生成可展示的研究正文。');
       const completed = finalResearchStatus?.answerStatus === 'complete';
       setStatus(completed ? 'complete' : 'incomplete');
@@ -172,6 +214,8 @@ export function DeepResearchPanel() {
       setProgress(completed ? 100 : 96);
       setMessage(completed ? '报告章节与引用覆盖检查通过。' : '已保留研究草稿，但仍有章节或引用需要补充。');
     } catch (caught) {
+      if (!mounted.current) return;
+      if (!acknowledged && !unsavedDocument) checkpoint(true);
       const stopped = controller.signal.aborted;
       const userMessage = stopped
         ? '已停止生成；已返回的正文和证据仍保留为未完成草稿。'
@@ -179,10 +223,11 @@ export function DeepResearchPanel() {
       setError(userMessage);
       setStatus(streamedAnswer ? 'incomplete' : stopped ? 'idle' : 'error');
       setMessage(userMessage);
+      if (!acknowledged && !unsavedDocument && streamedAnswer) savedReport.retryRead();
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [getSelectedPapers, notebookId, question, status]);
+  }, [error, getSelectedPapers, notebookId, question, savedReport, status]);
 
   const stopResearch = useCallback(() => {
     abortRef.current?.abort();
@@ -193,6 +238,7 @@ export function DeepResearchPanel() {
 
   return (
     <div className="space-y-4" data-testid="deep-research-panel">
+      {!renderComposer && <>
       <div>
         <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
           <FileSearch className="h-4 w-4 text-blue-500" />
@@ -209,13 +255,26 @@ export function DeepResearchPanel() {
           : `已选择 ${selectedPapers.length} 个来源：${sourceSummary}${selectedPapers.length > 3 ? ' 等' : ''}`}
       </div>
 
+      </>}
+      {savedReport.loading && <p className="text-xs text-[var(--text-secondary)]" data-testid="research-report-restoring">正在读取报告…</p>}
+      {savedReport.saving && <p className="text-xs text-[var(--text-secondary)]">正在保存…</p>}
+      {(savedReport.error || (savedReport.unsaved && status !== 'running' && error)) && (
+        <div className="space-y-2 rounded-xl border border-rose-400/25 p-3 text-xs text-rose-700" data-testid="research-report-save-error">
+          <p>{savedReport.error || error || '当前内容尚未保存。'}</p>
+          {savedReport.conflict && <p>当前修改尚未保存；读取已保存内容会替换当前草稿。</p>}
+          {savedReport.unsaved && !savedReport.conflict && <button type="button" onClick={() => { void savedReport.flush().then(ok => { if (ok) setError(null); }); }}>重试保存</button>}
+          <button type="button" onClick={() => { setError(null); if (savedReport.readFailed && !savedReport.conflict) savedReport.retryRead(); else savedReport.reload(); }} className="ml-3">{savedReport.readFailed && !savedReport.conflict ? '重试读取' : '读取已保存内容'}</button>
+        </div>
+      )}
+
+      {!renderComposer && <>
       <label className="block">
         <span className="text-[11px] font-medium text-[var(--text-secondary)]">研究问题</span>
         <textarea
           value={question}
           onChange={event => setQuestion(event.target.value)}
           maxLength={1200}
-          disabled={status === 'running'}
+          disabled={status === 'running' || savedReport.loading || savedReport.readFailed}
           data-testid="deep-research-question"
           placeholder="例如：这些研究对证据合成偏差的主要解释、分歧和待验证问题是什么？"
           className="mt-1.5 min-h-24 w-full resize-y rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 py-2.5 text-sm leading-relaxed text-[var(--text-primary)] outline-none transition focus:border-blue-400/60"
@@ -225,7 +284,7 @@ export function DeepResearchPanel() {
       <button
         type="button"
         onClick={() => void runResearch()}
-        disabled={missingEvidence || !question.trim() || status === 'running'}
+        disabled={missingEvidence || !question.trim() || status === 'running' || savedReport.loading || Boolean(savedReport.error) || (savedReport.unsaved && Boolean(error))}
         data-testid="deep-research-start"
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-500 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-45"
       >
@@ -233,6 +292,14 @@ export function DeepResearchPanel() {
         开始深度研究
       </button>
 
+      </>}
+      {renderComposer?.({
+        label: '深度研究', value: question, onChange: setQuestion, onSubmit: () => void runResearch(), onStop: stopResearch,
+        busy: status === 'running', disabled: savedReport.loading || savedReport.readFailed || savedReport.conflict,
+        canSubmit: !missingEvidence && Boolean(question.trim()) && status !== 'running' && !savedReport.loading && !savedReport.readFailed && !savedReport.conflict && !savedReport.error && !(savedReport.unsaved && Boolean(error)), maxLength: 1200,
+        placeholder: '输入研究问题、范围和重点…',
+        hint: missingEvidence ? '请先选择资料。' : undefined,
+      })}
       {status === 'running' && (
         <StudioJobProgress
           title="深度研究进行中"
@@ -247,7 +314,7 @@ export function DeepResearchPanel() {
         />
       )}
 
-      {error && status !== 'running' && (
+      {error && status !== 'running' && !(savedReport.unsaved && error.includes('保存')) && (
         <div className="flex items-start gap-2 rounded-xl border border-rose-400/25 bg-rose-500/10 px-3 py-2" data-testid="deep-research-error">
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-400" />
           <p className="text-[11px] leading-relaxed text-rose-700 dark:text-rose-200">{error}</p>
@@ -256,17 +323,17 @@ export function DeepResearchPanel() {
 
       {answer && (
         <div className="space-y-3" data-testid="deep-research-result">
-          <div className={status === 'complete'
+          <div className={status === 'complete' && !lengthWarning
             ? 'flex items-start gap-2 rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-3 py-2'
             : 'flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2'}
           >
-            {status === 'complete'
+            {status === 'complete' && !lengthWarning
               ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
               : <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />}
             <p className="text-[11px] leading-relaxed text-[var(--text-secondary)]">
-              {status === 'complete'
+              {status === 'complete' && !lengthWarning
                 ? `报告结构与引用编号检查通过；关键结论仍建议定位来源核验原文。${researchStatus?.removedUncitedClaims ? ` 已移除 ${researchStatus.removedUncitedClaims} 条无引用陈述。` : ''}`
-                : '当前为未完成研究草稿，不能直接作为已核验报告。请补齐缺失章节或引用后再使用。'}
+                : researchStatus?.outputConstraint?.warning || lengthWarning || '当前为未完成研究草稿，不能直接作为已核验报告。请补齐缺失章节或引用后再使用。'}
             </p>
           </div>
 

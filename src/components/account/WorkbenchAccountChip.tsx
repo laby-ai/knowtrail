@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { clientApiPath } from '@/lib/client-api';
 import { LogOut, UserRound } from 'lucide-react';
 import { readStoredAccountSession } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
-import { BailianProviderButton } from '@/components/account/BailianProviderButton';
 
 export function WorkbenchAccountChip({
   accountSession,
@@ -31,7 +31,7 @@ export function WorkbenchAccountChip({
       if (!cancelled) setStoredSession(stored);
 
       try {
-        const response = await fetch('/api/account/session', {
+        const response = await fetch(clientApiPath('/api/account/session'), {
           cache: 'no-store',
           headers: { Authorization: `Bearer ${stored.token}` },
         });
@@ -72,7 +72,6 @@ export function WorkbenchAccountChip({
           {session.member.email}
         </p>
       </div>
-      <BailianProviderButton session={session} compact />
       <button
         type="button"
         onClick={onSignOut}

@@ -2,40 +2,20 @@
 
 import { clientApiRequest } from '@/lib/client-api';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileSearch, GitBranch, Loader2, Sparkles } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
-import type { KnowledgeMapData } from '@/lib/knowledge-map-types';
-import type { Citation, CitationAuditResult, RetrievalMetadata } from '@/types';
+import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
+import { emptyKnowledgeMap, isKnowledgeMapDocument, type KnowledgeMapDocument, type KnowledgeMapSession } from '@/lib/knowledge-map-document';
+import type { NotebookDocument } from '@/lib/private-notebook-document';
 
-interface KnowledgeMapCacheData {
-  hit: boolean;
-  storedAt?: string;
-}
-
-interface KnowledgeMapSession {
-  map: KnowledgeMapData;
-  citations: Citation[];
-  retrieval: RetrievalMetadata | null;
-  citationAudit: CitationAuditResult | null;
-  cache: KnowledgeMapCacheData | null;
-  sourceCount: number;
-}
-
-function readSessionJson<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') return fallback;
+function legacyMap(scopeKey: string): KnowledgeMapDocument | null {
   try {
-    const cached = sessionStorage.getItem(key);
-    return cached ? JSON.parse(cached) as T : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function scopedSessionKey(scope: string, key: string) {
-  return `lingbi:${scope}:${key}`;
+    const candidate = { session: JSON.parse(sessionStorage.getItem(`lingbi:${scopeKey}:knowledge_map_session`) || 'null') };
+    return candidate.session && isKnowledgeMapDocument(candidate) ? candidate : null;
+  } catch { return null; }
 }
 
 function formatCacheAge(storedAt?: string) {
@@ -81,19 +61,13 @@ export function KnowledgeMapPanel() {
     : activeFolderPapers.length > 0
       ? activeFolderPapers
       : availablePapers;
-  const [session, setSession] = useState<KnowledgeMapSession | null>(() => readSessionJson(scopedSessionKey(storageScopeKey, 'knowledge_map_session'), null));
+  const savedMap = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'knowledge-map', endpoint: '/api/studio/artifacts?kind=knowledge-map', empty: emptyKnowledgeMap, validate: isKnowledgeMapDocument, readLegacy: legacyMap });
+  const session = savedMap.data.session;
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const sessionKey = scopedSessionKey(storageScopeKey, 'knowledge_map_session');
-    if (session) {
-      sessionStorage.setItem(sessionKey, JSON.stringify(session));
-    } else {
-      sessionStorage.removeItem(sessionKey);
-    }
-  }, [session, storageScopeKey]);
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => { if (!savedMap.unsaved) setError(null); }, [savedMap.unsaved]);
 
   const openCurrentMap = useCallback((nextSession = session) => {
     if (!nextSession) return;
@@ -113,6 +87,7 @@ export function KnowledgeMapPanel() {
   }, [openKnowledgeMap, session]);
 
   const generateMap = useCallback(async (forceRefresh = false) => {
+    if (savedMap.loading || savedMap.error || savedMap.unsaved || isGenerating) return;
     if (mapCandidatePapers.length === 0) {
       setError('先添加资料，再生成研究脉络。');
       return;
@@ -127,7 +102,10 @@ export function KnowledgeMapPanel() {
 
     setIsGenerating(true);
     setError(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
+      if (!await savedMap.flush()) throw new Error('当前内容尚未保存，请先重试保存。');
       const paperContents = mapCandidatePapers.map(paper => ({
         id: paper.id,
         title: paper.title,
@@ -144,29 +122,29 @@ export function KnowledgeMapPanel() {
       const response = await clientApiRequest('/api/ai/knowledge-map', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
-        body: JSON.stringify({ papers: paperContents, aiConfig, notebookId, forceRefresh }),
+        body: JSON.stringify({ papers: paperContents, aiConfig, notebookId, forceRefresh, persistArtifact: !storageScopeKey.startsWith('guest:'), expectedRevision: savedMap.revision.current }),
+        signal: controller.signal, timeoutMs: 120_000,
       });
-      const data = await response.json();
-      if (!response.ok || !data.map?.nodes?.length || !data.map?.edges?.length) {
+      const data = await response.json() as Partial<KnowledgeMapSession> & { error?: string; document?: NotebookDocument<KnowledgeMapDocument>; unsavedDocument?: KnowledgeMapDocument };
+      if (controller.signal.aborted) return;
+      if (isKnowledgeMapDocument(data.unsavedDocument)) savedMap.updateLocal(() => data.unsavedDocument!);
+      if (!response.ok) {
         throw new Error(data.error || '研究脉络生成失败');
       }
-
-      const nextSession: KnowledgeMapSession = {
-        map: { ...data.map, title: normalizeMapTitle(data.map?.title) },
-        citations: Array.isArray(data.citations) ? data.citations : [],
-        retrieval: data.retrieval || null,
-        citationAudit: data.citationAudit || null,
-        cache: data.cache || null,
-        sourceCount: mapCandidatePapers.length,
-      };
-      setSession(nextSession);
+      const next = { session: { ...data, sourceCount: mapCandidatePapers.length } };
+      if (!isKnowledgeMapDocument(next) || !next.session) throw new Error('研究脉络格式不完整，请重试。');
+      const nextSession = next.session;
+      if (data.document && isKnowledgeMapDocument(data.document.data)) savedMap.acceptSaved(data.document);
+      else if (storageScopeKey.startsWith('guest:')) savedMap.updateLocal(() => next);
+      else throw new Error('研究脉络缺少保存回执，请重新读取。');
       openCurrentMap(nextSession);
     } catch (event) {
-      setError(event instanceof Error ? event.message : '研究脉络生成失败');
+      if (!controller.signal.aborted) setError(event instanceof Error ? event.message : '研究脉络生成失败');
     } finally {
-      setIsGenerating(false);
+      if (!controller.signal.aborted) setIsGenerating(false);
+      if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [activeFolderId, aiConfig, folders, mapCandidatePapers, notebookId, openCurrentMap, selectAllPapers, selectedPapers.length]);
+  }, [activeFolderId, aiConfig, folders, isGenerating, mapCandidatePapers, notebookId, openCurrentMap, savedMap, selectAllPapers, selectedPapers.length, storageScopeKey]);
 
   const hasSelectedPapers = selectedPapers.length > 0;
   const hasAvailablePapers = mapCandidatePapers.length > 0;
@@ -190,7 +168,7 @@ export function KnowledgeMapPanel() {
         <button
           type="button"
           onClick={() => void generateMap(false)}
-          disabled={!hasAvailablePapers || isGenerating}
+          disabled={!hasAvailablePapers || isGenerating || savedMap.loading || savedMap.unsaved || Boolean(savedMap.error)}
           className="liquid-glass-btn mt-4 w-full px-4 py-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-45"
           title={!hasAvailablePapers ? '请先添加资料' : '生成研究脉络并在中间工作区打开'}
           data-testid="knowledge-map-generate"
@@ -239,7 +217,16 @@ export function KnowledgeMapPanel() {
         )}
       </div>
 
-      {session && (
+      {savedMap.loading && <p className="text-xs text-[var(--text-secondary)]" data-testid="knowledge-map-restoring">正在读取已保存研究脉络…</p>}
+      {savedMap.error && <div className="rounded-xl border p-3 text-xs" role="alert" data-testid="knowledge-map-save-error">
+        <p>{savedMap.error}</p>
+        <button type="button" className="mt-2 underline" onClick={savedMap.conflict ? savedMap.reload : savedMap.readFailed ? savedMap.retryRead : savedMap.retry}>
+          {savedMap.conflict ? '读取已保存内容（将替换当前草稿）' : savedMap.readFailed ? '重试读取' : '重试保存'}
+        </button>
+      </div>}
+      {savedMap.unsaved && !savedMap.error && !isGenerating && <button type="button" className="text-xs underline" onClick={savedMap.retry}>内容尚未保存，重试保存</button>}
+      {storageScopeKey.startsWith('guest:') && <p className="text-xs text-[var(--text-secondary)]">访客研究脉络仅保存在当前浏览器。</p>}
+      {session && !savedMap.loading && (
         <div className="liquid-glass-card p-4 space-y-3" data-testid="knowledge-map-summary">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-secondary)]">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />

@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import { mkdtemp,readFile,writeFile } from 'node:fs/promises';
+import os from 'node:os'; import path from 'node:path';
+import { getNotebookCatalog,saveNotebookCatalog,NotebookCatalogConflict } from '../src/lib/notebook-catalog-store';
+async function main(){
+const dir=await mkdtemp(path.join(os.tmpdir(),'knowtrail-catalog-'));process.env.NOTEBOOK_CATALOG_STORE_PATH=path.join(dir,'catalog.json');
+const notebooks=[{id:'test-book',title:'Acceptance',sourceCount:0,updatedAt:'2026-10-16T00:00:00Z',accent:''}];
+assert.equal(await getNotebookCatalog('A'),null);
+const first=await saveNotebookCatalog('A',{notebooks,expectedRevision:null});assert.ok(first.revision);
+assert.equal((await saveNotebookCatalog('A',{notebooks,expectedRevision:null})).revision,first.revision);
+const writes=await Promise.allSettled(['One','Two'].map(title=>saveNotebookCatalog('A',{notebooks:[{...notebooks[0],title}],expectedRevision:first.revision})));
+assert.equal(writes.filter(w=>w.status==='fulfilled').length,1);assert.ok(writes.some(w=>w.status==='rejected'&&w.reason instanceof NotebookCatalogConflict));
+const latest=await getNotebookCatalog('A');assert.ok(latest);
+const archived=await saveNotebookCatalog('A',{notebooks:[{...latest.notebooks[0],archivedAt:'2026-10-16T01:00:00Z'}],expectedRevision:latest.revision});
+assert.equal((await getNotebookCatalog('A'))?.notebooks[0].archivedAt,'2026-10-16T01:00:00Z');
+const {archivedAt:_archivedAt,...restored}=archived.notebooks[0];await saveNotebookCatalog('A',{notebooks:[restored],expectedRevision:archived.revision});
+await saveNotebookCatalog('B',{notebooks,expectedRevision:null});assert.equal((await getNotebookCatalog('B'))?.notebooks[0].title,'Acceptance');
+const corrupt='{not valid';await writeFile(process.env.NOTEBOOK_CATALOG_STORE_PATH,corrupt);
+await assert.rejects(()=>getNotebookCatalog('A'));await assert.rejects(()=>saveNotebookCatalog('A',{notebooks,expectedRevision:null}));assert.equal(await readFile(process.env.NOTEBOOK_CATALOG_STORE_PATH,'utf8'),corrupt);
+console.log(JSON.stringify({ok:true,concurrentStaleWriteRejected:true,archiveRestore:true,ownerIsolation:true,corruptStorePreserved:true,paidCalls:0}));
+}void main();

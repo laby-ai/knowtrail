@@ -1,0 +1,115 @@
+{
+  "hypothesis": {
+    "hypotheses": [
+      {
+        "id": "H1",
+        "title": "缺失处理的一致性1",
+        "statement": "检查时间戳可能提高模拟记录筛选的一致性。",
+        "reasoningBasis": "原文记录12条、剔除2条后保留10条[1]。",
+        "competingExplanation": "不同标注规则也可能解释数量差异。",
+        "falsifiablePrediction": "相同规则下若保留数不同则推翻一致性假设。",
+        "validationPlan": "预先固定规则后复核，不声称实验已完成。",
+        "evidenceMarkers": [
+          1
+        ],
+        "uncertainty": "只有软件模拟记录，不能外推科研性能。"
+      },
+      {
+        "id": "H2",
+        "title": "缺失处理的一致性2",
+        "statement": "检查时间戳可能提高模拟记录筛选的一致性。",
+        "reasoningBasis": "原文记录12条、剔除2条后保留10条[1]。",
+        "competingExplanation": "不同标注规则也可能解释数量差异。",
+        "falsifiablePrediction": "相同规则下若保留数不同则推翻一致性假设。",
+        "validationPlan": "预先固定规则后复核，不声称实验已完成。",
+        "evidenceMarkers": [
+          1
+        ],
+        "uncertainty": "只有软件模拟记录，不能外推科研性能。"
+      },
+      {
+        "id": "H3",
+        "title": "缺失处理的一致性3",
+        "statement": "检查时间戳可能提高模拟记录筛选的一致性。",
+        "reasoningBasis": "原文记录12条、剔除2条后保留10条[1]。",
+        "competingExplanation": "不同标注规则也可能解释数量差异。",
+        "falsifiablePrediction": "相同规则下若保留数不同则推翻一致性假设。",
+        "validationPlan": "预先固定规则后复核，不声称实验已完成。",
+        "evidenceMarkers": [
+          1
+        ],
+        "uncertainty": "只有软件模拟记录，不能外推科研性能。"
+      }
+    ]
+  },
+  "experiment": {
+    "title": "模拟记录核验规则的采集前协议",
+    "studyMode": "exploratory",
+    "designType": "独立批次随机对照",
+    "designRationale": "四步核验作为拟验证流程，不是已验证性能[1]。",
+    "researchQuestion": "不同核验规则是否影响记录保留一致性？",
+    "hypothesis": "完整核验流程可能减少规则不一致。",
+    "experimentalUnit": "独立模拟批次",
+    "replicationLevel": "批次内记录不是独立重复。",
+    "arms": [
+      {
+        "name": "四步核验",
+        "role": "treatment",
+        "intervention": "固定导入、检查、剔除、人工核对。"
+      },
+      {
+        "name": "既有核验",
+        "role": "control",
+        "intervention": "固定现有流程。"
+      }
+    ],
+    "primaryOutcome": {
+      "name": "预定义一致率",
+      "timing": "每批核验完成后",
+      "measurement": "按预先冻结规则编码，不对本12条作显著性检验。"
+    },
+    "secondaryOutcomes": [
+      "排除原因完整度"
+    ],
+    "randomization": {
+      "method": "独立批次随机分配",
+      "unit": "批次",
+      "seedPlan": "实施前归档seed",
+      "allocationConcealment": "编码前隐藏分组"
+    },
+    "blockingAndBlinding": [
+      "编码人员盲法"
+    ],
+    "confounders": [
+      {
+        "factor": "规则定义",
+        "control": "预先固定"
+      }
+    ],
+    "sampleSizePlan": {
+      "effectBasis": "原文无效应量",
+      "testFamily": "待结局定义后确定",
+      "assumptions": "待先验依据",
+      "nextAction": "效应依据补齐后执行功效计算"
+    },
+    "dataCollectionPlan": [
+      "保留原文和时间戳缺失标记"
+    ],
+    "analysisPlan": [
+      "按批次分析"
+    ],
+    "stoppingRules": [
+      "预先固定停止规则"
+    ],
+    "exclusionRules": [
+      "仅按时间戳缺失规则剔除"
+    ],
+    "ethicsAndFeasibility": "尚未执行实验或获得伦理审批，需执行者确认。",
+    "evidenceMarkers": [
+      1
+    ],
+    "limitations": [
+      "12条是软件验收模拟记录，不能证明性能或显著性。"
+    ]
+  }
+}

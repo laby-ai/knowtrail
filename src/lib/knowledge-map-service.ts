@@ -68,6 +68,8 @@ export interface KnowledgeMapRequestInput {
   debugAnswerText?: string;
   forceRefresh?: boolean;
   deepExtract?: boolean;
+  question?: string;
+  signal?: AbortSignal;
   ownerMemberId?: string;
   notebookId?: string;
 }
@@ -115,18 +117,22 @@ export async function buildKnowledgeMapPayload(input: KnowledgeMapRequestInput) 
   }
 
   const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
-  const scope = { ownerMemberId, notebookId };
+  const question = input.question?.trim() || '';
+  const scope = { ownerMemberId, notebookId, question, deepExtract: Boolean(deepExtract) };
+  input.signal?.throwIfAborted();
   if (!debugRetrievalOnly && !forceRefresh) {
     const cached = await readKnowledgeMapCache(papers, runtimeConfig, scope);
+    input.signal?.throwIfAborted();
     if (cached) return { body: cached, status: 200 as const };
   }
 
   const grounded = await buildGroundedRetrievalContext(
-    '抽取核心概念、方法、发现和它们之间的关系，生成可视化资料脉络',
+    question || '抽取核心概念、方法、发现和它们之间的关系，生成可视化资料脉络',
     papers,
     runtimeConfig,
     { topK: 8, ownerMemberId, notebookId },
   );
+  input.signal?.throwIfAborted();
 
   if (debugRetrievalOnly) {
     return {
@@ -188,9 +194,10 @@ export async function buildKnowledgeMapPayload(input: KnowledgeMapRequestInput) 
     { role: 'system' as const, content: SYSTEM_PROMPT },
     {
       role: 'user' as const,
-      content: `请基于以下检索证据生成资料关系网络。所有节点 summary 和边 evidence 必须使用 [1]、[2] 这样的来源编号标注证据。\n\n${evidenceContext}`,
+      content: `请基于以下检索证据生成资料关系网络。所有节点 summary 和边 evidence 必须使用 [1]、[2] 这样的来源编号标注证据。${question ? `\n本轮研究问题（用户要求，非来源事实）：${question}` : ''}\n\n${evidenceContext}`,
     },
   ], { temperature: 0.1, maxTokens: 2600 }, undefined, runtimeConfig);
+  input.signal?.throwIfAborted();
 
   const map = parseKnowledgeMapResult(result, papers, grounded.citations.length);
   if (map.nodes.length === 0 || map.edges.length === 0) {

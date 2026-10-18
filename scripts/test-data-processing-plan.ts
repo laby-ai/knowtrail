@@ -41,7 +41,7 @@ assert.equal(plan.dataset.rowCount, 4);
 assert.equal(plan.dataset.columnCount, 4);
 assert.equal(plan.contract.sampleUnit, '单个患者');
 assert.equal(plan.contract.targetColumn, 'response');
-assert.deepEqual(plan.contract.inputColumns, ['patient_id', 'site', 'age']);
+assert.deepEqual(plan.contract.inputColumns, ['age'], 'Identifier, split and target columns cannot become predictive inputs');
 assert.match(plan.dataQuality.warnings.join(' '), /age.*缺失 1/);
 assert.match(plan.dataQuality.warnings.join(' '), /patient_id.*标识列|标识列.*patient_id/);
 assert.match(plan.recommendation.baseline, /多数类|逻辑回归|RandomForest/);
