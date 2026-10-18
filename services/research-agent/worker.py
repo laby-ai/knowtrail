@@ -145,7 +145,13 @@ async def main():
     emit({"type": "ready", "engine": "agentscope", "version": "2.0.10"})
     if await dispatch_report(bootstrap, toolkit, state, emit):
         return
-    agent = Agent(name="KnowTrail", system_prompt=bootstrap["systemPrompt"], model=model,
+    system_prompt = bootstrap["systemPrompt"]
+    if bootstrap.get("inlineSkill"):
+        method = next(skill for skill in skills if skill.name == bootstrap["inlineSkill"])
+        if not method.markdown.strip():
+            raise ValueError("The selected text method is unavailable")
+        system_prompt += "\n\n本轮已加载以下原生方法，直接按用户范围执行，无需重复读取：\n" + method.markdown
+    agent = Agent(name="KnowTrail", system_prompt=system_prompt, model=model,
                   toolkit=toolkit, state=state,
                   react_config=ReActConfig(max_iters=7))
     # Tool-bearing intermediate text is not the final writing body.
