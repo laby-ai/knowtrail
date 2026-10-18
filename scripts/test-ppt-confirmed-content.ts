@@ -8,6 +8,7 @@ import { genAcademicOutline } from '../src/lib/ppt/academic-planner';
 import { buildAcademicPptx } from '../src/lib/ppt/academic-renderer';
 import { formatPptOutlineDraftForPrompt, sanitizePptOutlineDraft } from '../src/lib/ppt/outline-draft';
 import { saveStructuredPpt, readStructuredPpt } from '../src/lib/structured-ppt-store';
+import { getLlmCallLogs, resetLlmCallLogs } from '../src/lib/ppt/academic-observability';
 
 // Gillon et al., arXiv:1703.01424v1, PDF p.3, "In a third phase".
 // Real source excerpt; the provider response below is an engineering replay.
@@ -21,11 +22,12 @@ async function main() {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'knowtrail-ppt-content-'));
   const originalEnv = { ...process.env };
   let calls = 0;
+  let steps = ['分析TTV信号', '进行N体积分'];
   const gateway = createServer(async (request, response) => {
     for await (const chunk of request) assert(Buffer.isBuffer(chunk));
-    const bullets = bodies[calls++];
+    const bullets = bodies[Math.min(calls++, 1)];
     response.writeHead(200, { 'Content-Type': 'application/json' });
-    response.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: JSON.stringify([{ bullets, layout: 'full_text', note: 'arXiv:1703.01424v1, PDF p.3, In a third phase.' }]) }, finish_reason: 'stop' }], usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } }));
+    response.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: JSON.stringify([{ bullets, flow: { steps, sourceText: source }, layout: 'full_text', note: 'arXiv:1703.01424v1, PDF p.3, In a third phase.' }]) }, finish_reason: 'stop' }], usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } }));
   });
   await new Promise<void>(resolve => gateway.listen(0, '127.0.0.1', resolve));
   try {
@@ -57,7 +59,16 @@ async function main() {
     assert((await readStructuredPpt(scope))?.buffer.equals(buffer));
     assert((await readStructuredPpt(scope, artifact.id))?.buffer.equals(buffer));
     assert.equal(await readStructuredPpt({ ...scope, ownerMemberId: 'other-fixture' }, artifact.id), null);
-    console.log(JSON.stringify({ ok: true, confirmedContentFirst: true, nativePages: 2, sameStoredBytes: true, paidCalls: 0, scientificModelGeneration: false, browserOrPowerPointEditing: false }));
+    const flowDraft = [{ ...outlineDraft[0], title: 'TTV动力学流程', focus: '用原文标签制作原生流程图。' }];
+    resetLlmCallLogs();
+    await genAcademicOutline(papers, { ...options, outlineDraft: flowDraft, outlineDraftPrompt: formatPptOutlineDraftForPrompt(flowDraft) });
+    assert(getLlmCallLogs().some(log => log.fallbackTriggered && log.fallbackReason.includes('原文不符')), 'Requested invalid structures must still fail provenance validation');
+    steps = ['TTV signals', 'N-body integrations'];
+    resetLlmCallLogs();
+    const validFlow = await genAcademicOutline(papers, { ...options, outlineDraft: flowDraft, outlineDraftPrompt: formatPptOutlineDraftForPrompt(flowDraft) });
+    assert.deepEqual(validFlow[0].flow?.steps, steps);
+    assert(getLlmCallLogs().every(log => !log.fallbackTriggered));
+    console.log(JSON.stringify({ ok: true, confirmedContentFirst: true, unrequestedStructureDoesNotReplaceBody: true, requestedNativeProvenanceStillEnforced: true, nativePages: 2, sameStoredBytes: true, paidCalls: 0, scientificModelGeneration: false, browserOrPowerPointEditing: false }));
   } finally {
     await new Promise<void>((resolve, reject) => gateway.close(error => error ? reject(error) : resolve()));
     for (const key of Object.keys(process.env)) if (!(key in originalEnv)) delete process.env[key];

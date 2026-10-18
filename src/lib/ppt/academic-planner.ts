@@ -578,8 +578,16 @@ ${figureFull}
 
       const batchResults = (arr as Record<string, unknown>[]).map((s, idx): EnhancedSlideSpec => {
         const structItem = batchStructure[idx];
+        const confirmedPage = options?.outlineDraft?.[batchStart + idx];
+        const confirmedText = confirmedPage ? `${confirmedPage.title}\n${confirmedPage.focus}` : '';
+        // The confirmed page decides its objects; unsolicited model fields must not replace its body.
+        const nativeContent = confirmedPage ? {
+          ...s,
+          table: /表格|数据表|对比表|对照表|\btable\b/i.test(confirmedText) ? s.table : undefined,
+          flow: /流程|\bflow(?:chart)?\b/i.test(confirmedText) ? s.flow : undefined,
+        } : s;
         return {
-          ...parseNativeContent(s, paperContent),
+          ...parseNativeContent(nativeContent, paperContent),
           type: structItem?.type || (validTypes.includes(s.type as SlideSpec['type']) ? (s.type as SlideSpec['type']) : 'synthesis'),
           title: structItem?.title || String(s.title || ''),
           bullets: Array.isArray(s.bullets) && s.bullets.length > 0
