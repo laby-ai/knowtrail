@@ -122,7 +122,7 @@ async def main():
         tools = []
     elif bootstrap.get("canReadEvidence"):
         tools.append(FunctionTool(read_selected_evidence, is_read_only=True, is_concurrency_safe=False,
-                                  input_schema={"type":"object","properties":{"skill":{"type":"string","enum":["academic-writing","literature-review"]}},"required":["skill"],"additionalProperties":False}))
+                                  input_schema={"type":"object","properties":{"skill":{"type":"string","enum":["academic-writing","literature-review","text-polishing","peer-review"]}},"required":["skill"],"additionalProperties":False}))
     config = bootstrap["model"]
     model = OpenAIChatModel(
         credential=OpenAICredential(api_key=config["apiKey"], base_url=config["apiBase"]),
