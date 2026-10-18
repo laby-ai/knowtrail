@@ -56,6 +56,7 @@ async function main() {
     const loaded = requests.flatMap(r => r.messages.filter(m => m.role === 'tool').map(m => text(m.content))).join('\n');
     assert.ok(loaded.includes('## 执行步骤'), 'The actual SDK must consume the native reusable method, not a mode label');
     const initial = requests[0].messages.filter(m => m.role === 'system').map(m => text(m.content)).join('\n');
+    assert.ok(!initial.includes('引用格式：[第一作者. 发表年份]'), 'A source locator must not compete with an author-year formatting rule');
     assert.ok(initial.includes('global minimum') && initial.includes('existing degeneracies'), 'The complete verified original paragraph must reach the inline model');
     assert.ok(!initial.includes('FORGED_CLIENT_CONTENT'));
     assert.ok(requests.every(r => r.tools.every(t => /skill/i.test(t.function.name))), 'Explicit text modes must not expose artifact generators');
