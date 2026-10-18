@@ -799,6 +799,15 @@ function createRecord(input: IngestionSourceInput): StoredSourceRecord {
   };
 }
 
+export async function recordSourceExtractionFailure(input: IngestionSourceInput, error: string): Promise<StoredSourceRecord> {
+  const record = createRecord(input);
+  record.status = 'failed';
+  record.error = error;
+  record.stages = setStage(record.stages, 'store', 'succeeded');
+  record.stages = setStage(record.stages, 'extract', 'failed', error);
+  return saveSourceRecord(record);
+}
+
 export async function ingestExtractedSource(
   input: IngestionSourceInput,
   options: IngestExtractedSourceOptions = {},

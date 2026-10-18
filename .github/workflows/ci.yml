@@ -77,6 +77,13 @@ jobs:
       - name: Source text fidelity through retrieval
         run: pnpm exec tsx scripts/test-source-text-fidelity.ts
 
+      - name: Upload and file failure boundaries
+        run: |
+          pnpm exec tsx scripts/test-upload-access-boundary.ts
+          pnpm exec tsx scripts/test-source-store-failure-safety.ts
+          pnpm exec tsx scripts/test-image-extraction-failure.ts
+          pnpm exec tsx scripts/test-file-access-boundary.ts
+
       - name: Provide the existing PDF renderer for CI
         run: |
           if ! command -v pdfinfo || ! command -v pdftoppm; then

@@ -4,7 +4,7 @@ import path from 'path';
 import { isProduction, storeFile, retrieveFileBuffer, downloadToTemp } from '@/lib/storage';
 import { parseRuntimeAIConfigJson, resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { resolveInternalAppOrigin } from '@/lib/internal-origin';
-import { ingestExtractedSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
+import { ingestExtractedSource, recordSourceExtractionFailure, updateSourceMinerUStatus } from '@/lib/ingestion-store';
 import { classifyMinerUJobFailure, mineruJobErrorMessage, mineruJobOptionsFromEnv } from '@/lib/mineru-job';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import { sourceBibliography } from '@/lib/source-bibliography';
@@ -464,6 +464,7 @@ export async function POST(request: NextRequest) {
 
         // 普通文本先走快路径入库；需要视觉/结构理解的资料再调用 AI 分析。
         let analysis = null;
+        let analysisError = '图片内容尚未识别，请稍后重新上传。';
         const needsAIAnalysis = shouldAnalyzeUploadWithAI(ext, fileContent);
         if (needsAIAnalysis) try {
           // 对文本类文件，发送提取的文本内容（截断到 15000 字符以适应 LLM 上下文）
@@ -473,24 +474,35 @@ export async function POST(request: NextRequest) {
 
           const analyzeRes = await fetch(`${internalOrigin}/api/ai/analyze`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: visionHeaders,
             body: JSON.stringify({
               fileName: file.name,
               fileType: ext,
               fileContent: textContent,
               imageBase64: isImage ? fileContent : undefined,
+              notebookId,
               aiConfig,
             }),
+            signal: request.signal,
           });
 
-          if (analyzeRes.ok) {
-            const analyzeData = await analyzeRes.json();
-            if (analyzeData.success && analyzeData.analysis) {
-              analysis = analyzeData.analysis;
-            }
+          const analyzeData = await analyzeRes.json();
+          if (analyzeRes.ok && analyzeData.success && analyzeData.analysis) {
+            analysis = analyzeData.analysis;
+          } else if (typeof analyzeData.error === 'string') {
+            analysisError = analyzeData.error;
           }
         } catch (analyzeErr) {
           console.error('[Upload] AI analysis failed:', analyzeErr instanceof Error ? analyzeErr.message : 'unknown');
+        }
+        if (isImageType(ext) && !(typeof analysis?.content === 'string' && analysis.content.trim())) {
+          const failed = await recordSourceExtractionFailure({
+            id: `paper-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            ownerMemberId, notebookId, fileName: file.name, fileType: ext, fileSize: file.size,
+            fileKey, fileUrl: fileKey, title: baseName,
+          }, analysisError);
+          results.push({ id: failed.id, fileName: file.name, ingestionStatus: failed.status, error: `原文件已保存，识别失败：${analysisError}` });
+          continue;
         }
 
         const title = analysis?.title || baseName;
