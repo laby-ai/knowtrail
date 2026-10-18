@@ -7,6 +7,7 @@ import {
   resolveServerRuntimeAIConfig,
 } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
 const VISION_TEST_TIMEOUT_MS = 60000;
 const EMBEDDING_TEST_TIMEOUT_MS = 30000;
@@ -41,12 +42,17 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 export async function POST(request: NextRequest) {
   let apiKeyForRedaction = '';
   try {
+    const scope = await resolveAccountNotebookScope(request, {
+      loginMessage: '请先登录国科大科教平台，再测试模型服务。',
+      requireAuthenticatedPaperHost: true,
+    });
+    if (!scope.ok) return scope.response;
     const { aiConfig } = await request.json() as { aiConfig?: Partial<RuntimeAIConfig> };
     const runtimeConfig = resolveServerRuntimeAIConfig(aiConfig);
     apiKeyForRedaction = runtimeConfig.apiKey || aiConfig?.apiKey || '';
 
     if (!runtimeConfig.apiBase?.trim() || !runtimeConfig.apiKey?.trim()) {
-      return NextResponse.json({ ok: false, error: '账号绑定的模型服务尚未配置，请稍后再试。' }, { status: 400 });
+      return NextResponse.json({ ok: false, error: '账号绑定的模型服务尚未配置，请稍后再试。' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
     }
 
     try {
@@ -59,7 +65,7 @@ export async function POST(request: NextRequest) {
         error instanceof Error ? error.message : '模型服务配置不正确',
         runtimeConfig.apiKey,
       );
-      return NextResponse.json({ ok: false, error: message }, { status: 400 });
+      return NextResponse.json({ ok: false, error: message }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
     }
 
     const content = await withTimeout(
@@ -116,12 +122,12 @@ export async function POST(request: NextRequest) {
       sample: content.slice(0, 80),
       visionSample: visionSample?.slice(0, 80),
       embeddingDimension,
-    });
+    }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error: unknown) {
     const message = redactRuntimeAISecrets(
       error instanceof Error ? error.message : '连接测试失败',
       apiKeyForRedaction,
     );
-    return NextResponse.json({ ok: false, error: message }, { status: 502 });
+    return NextResponse.json({ ok: false, error: message }, { status: 502, headers: { 'Cache-Control': 'private, no-store' } });
   }
 }

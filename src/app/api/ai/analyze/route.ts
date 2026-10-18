@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { llmInvoke } from '@/lib/ai-service';
 import { hasRuntimeAIProvider, resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import type { RuntimeAIConfig } from '@/types';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 
 const isImageType = (ext: string) => ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
 
@@ -22,30 +23,39 @@ function fallbackAnalysis(fileName: string, fileContent: string, abstract = 'AI�
 
 export async function POST(request: NextRequest) {
   try {
-    const { fileContent, fileName, fileType, imageBase64, aiConfig } = await request.json() as {
+    const { fileContent, fileName, fileType, imageBase64, aiConfig, notebookId } = await request.json() as {
       fileContent?: string;
       fileName?: string;
       fileType?: string;
       imageBase64?: string;
       aiConfig?: Partial<RuntimeAIConfig>;
+      notebookId?: string;
     };
+    const scope = await resolveAccountNotebookScope(request, {
+      notebookId,
+      loginMessage: '请先登录国科大科教平台，再分析资料。',
+      requireAuthenticatedPaperHost: true,
+    });
+    if (!scope.ok) return scope.response;
 
     if (!fileContent && !fileName && !imageBase64) {
-      return NextResponse.json({ error: '缺少文件内容' }, { status: 400 });
+      return NextResponse.json({ error: '缺少文件内容' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
     }
 
     const isImage = isImageType(fileType || '');
-
-    if (isImage && imageBase64) {
-      return await analyzeImage(imageBase64, fileName || 'image', aiConfig);
+    if (isImage && !imageBase64) {
+      return NextResponse.json({ success: false, error: '缺少图片内容。' }, { status: 400, headers: { 'Cache-Control': 'private, no-store' } });
     }
 
-    // 文本类文件走 LLM 分析
-    return await analyzeText(fileContent || '', fileName || 'document', fileType || 'txt', aiConfig);
+    const response = isImage && imageBase64
+      ? await analyzeImage(imageBase64, fileName || 'image', aiConfig)
+      : await analyzeText(fileContent || '', fileName || 'document', fileType || 'txt', aiConfig);
+    response.headers.set('Cache-Control', 'private, no-store');
+    return response;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error || '分析失败');
     console.error('[Analyze API Error]', msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500, headers: { 'Cache-Control': 'private, no-store' } });
   }
 }
 
@@ -53,8 +63,8 @@ async function analyzeImage(imageBase64: string, fileName: string, aiConfig?: Pa
   if (!hasRuntimeAIProvider(aiConfig) && !hasServerFallbackModel()) {
     return NextResponse.json({
       success: false,
-      analysis: fallbackAnalysis(fileName, `[图片文件: ${fileName}]`, '未配置视觉模型，已跳过图片 AI 分析。'),
-    });
+      error: '未配置视觉模型，图片内容尚未识别。',
+    }, { status: 503 });
   }
 
   const prompt = `请仔细分析这张图片，提取其中的学术信息。
@@ -94,11 +104,11 @@ async function analyzeImage(imageBase64: string, fileName: string, aiConfig?: Pa
       vision: true,
     }, undefined, aiConfig);
 
-    const parsed = parseJsonFromResponse(fullContent, fileName);
+    const parsed = parseJsonFromResponse(fullContent, fileName, true);
     return NextResponse.json({ success: true, analysis: parsed });
   } catch (err) {
     console.error('[Analyze] Vision model failed:', err instanceof Error ? err.message : String(err));
-    return await analyzeText(`[图片文件: ${fileName}]`, fileName, 'image', aiConfig);
+    return NextResponse.json({ success: false, error: '图片识别失败，未生成识别正文，请稍后重试。' }, { status: 502 });
   }
 }
 
@@ -173,18 +183,20 @@ ${fileContent.slice(0, 15000)}
   }
 }
 
-function parseJsonFromResponse(response: string, fileName: string): Record<string, unknown> {
+function parseJsonFromResponse(response: string, fileName: string, requireContent = false): Record<string, unknown> {
   try {
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      if (requireContent && (typeof parsed?.content !== 'string' || !parsed.content.trim())) throw new Error('图片识别未返回有效正文');
       if (typeof parsed.year === 'string' && /^\d{4}$/.test(parsed.year.trim())) {
         parsed.year = Number(parsed.year.trim());
       }
       return parsed;
     }
     throw new Error('No JSON found');
-  } catch {
+  } catch (error) {
+    if (requireContent) throw error;
     return {
       title: fileName.replace(/\.[^.]+$/, '') || '未解析文档',
       authors: [],
