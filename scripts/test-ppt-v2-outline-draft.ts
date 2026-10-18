@@ -95,6 +95,9 @@ assert.match(prompt, /1\. 资料背景 \| 来源: 来源 A/);
 assert.match(prompt, /重点: 使用 用户确认的重点/);
 assert.match(prompt, /2\. /);
 assert.equal(inferPptOutlineDraftSlideType(sanitized[0], 1, 3), 'background');
+assert.equal(inferPptOutlineDraftSlideType(sanitized[0], 0, 3), 'background', 'page position must not discard confirmed content');
+assert.equal(inferPptOutlineDraftSlideType(built[0], 0, built.length), 'cover', 'the existing explicit cover remains supported');
+assert.notEqual(inferPptOutlineDraftSlideType({ ...sanitized[0], focus: '直接讲研究方法，不要封面。' }, 0, 2), 'cover', 'mentioning a cover in focus must not create one');
 
 console.log(JSON.stringify({
   ok: true,
