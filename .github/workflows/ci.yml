@@ -109,7 +109,10 @@ jobs:
         run: pnpm exec tsx scripts/test-discover-search-recovery.ts && pnpm run test:notebook-catalog-store && pnpm exec tsx scripts/test-notebook-catalog-recovery.ts
 
       - name: Native PPT concurrent persistence
-        run: pnpm exec tsx scripts/test-native-ppt-concurrency.ts
+        run: |
+          pnpm exec tsx scripts/test-native-ppt-concurrency.ts
+          pnpm exec tsx scripts/test-ppt-v2-outline-draft.ts
+          pnpm exec tsx scripts/test-ppt-confirmed-content.ts
 
       - name: Source metadata recovery contract
         run: pnpm run test:source-metadata-recovery

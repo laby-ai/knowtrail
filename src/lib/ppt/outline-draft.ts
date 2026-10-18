@@ -154,7 +154,7 @@ export function inferPptOutlineDraftSlideType(
   total: number,
 ): PptOutlineDraftSlideType {
   const text = `${item.title} ${item.focus}`;
-  if (index === 0 || /封面|汇报目标|开场/.test(text)) return 'cover';
+  if (/^封面(?:$|[：:与、\s])/.test(item.title.trim())) return 'cover';
   if (index === total - 1 && /综合|判断|建议|总结|结论|下一步/.test(text)) return 'conclusion';
   if (/背景|目标|范围|现状/.test(text)) return 'background';
   if (/风险|局限|挑战|缺口|问题/.test(text)) return 'gap';
