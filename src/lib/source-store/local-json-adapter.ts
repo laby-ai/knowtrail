@@ -29,6 +29,7 @@ export class LocalJsonSourceStoreAdapter implements SourceStoreAdapter {
       }
       return parsed as SourceStoreFile;
     } catch (error) {
+      if (error instanceof SyntaxError) throw new Error('资料索引格式损坏，已停止写入以保留原文件。');
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
 

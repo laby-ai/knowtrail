@@ -29,6 +29,10 @@ async function main() {
       assert.equal(await readFile(target, 'utf8'), raw, 'Failed reads must preserve every original byte');
     }
     const inaccessible = path.join(directory, 'directory-instead-of-file');
+    const privateFragment = 'PRIVATE_LIBRARY_FRAGMENT_do_not_echo';
+    await writeFile(target, privateFragment);
+    await assert.rejects(() => adapter.read(), error => error instanceof Error && !error.message.includes('PRIVATE_LI'), 'Parser diagnostics must not expose global library fragments to upload callers');
+    assert.equal(await readFile(target, 'utf8'), privateFragment);
     await mkdir(inaccessible);
     process.env.SOURCE_STORE_PATH = inaccessible;
     await assert.rejects(() => adapter.read(), 'I/O errors other than ENOENT must propagate');
