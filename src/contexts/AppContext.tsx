@@ -1,4 +1,5 @@
 'use client';
+import { canMoveFolder, reparentFolder, deleteFolderKeepingChildren } from '@/lib/folder-hierarchy';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import type {
@@ -93,6 +94,7 @@ interface AppContextType extends AppState {
   reloadCloudHistory: () => Promise<void> | undefined;
   // 左侧文献库操作
   addFolder: (name: string) => string;
+  moveFolder: (folderId: string, parentId: string | null) => boolean;
   deleteFolder: (folderId: string) => void;
   addPaper: (folderId: string, paper: Paper) => void;
   updatePaper: (paperId: string, updates: Partial<Paper>) => void;
@@ -292,7 +294,7 @@ export function AppProvider({
 
   // ==================== 左侧文献库操作 ====================
   const addFolder = useCallback((name: string): string => {
-    const id = `folder-${Date.now()}`;
+    const id = `folder-${crypto.randomUUID()}`;
     const newFolder: ProjectFolder = {
       id,
       name,
@@ -308,10 +310,16 @@ export function AppProvider({
     return id;
   }, []);
 
+  const moveFolder = useCallback((folderId: string, parentId: string | null): boolean => {
+    if (!canMoveFolder(state.folders, folderId, parentId)) return false;
+    setState(previous => ({ ...previous, folders: reparentFolder(previous.folders, folderId, parentId) }));
+    return true;
+  }, [state.folders]);
+
   const deleteFolder = useCallback((folderId: string) => {
     setState(prev => ({
       ...prev,
-      folders: prev.folders.filter(f => f.id !== folderId),
+      folders: deleteFolderKeepingChildren(prev.folders, folderId),
       activeFolderId: prev.activeFolderId === folderId ? null : prev.activeFolderId,
       selectedPapers: prev.selectedPapers.filter(id => {
         const folder = prev.folders.find(f => f.id === folderId);
@@ -696,6 +704,7 @@ export function AppProvider({
     cloudHistoryStatus: cloudHistory.status,
     reloadCloudHistory: cloudHistory.reload,
     addFolder,
+    moveFolder,
     deleteFolder,
     addPaper,
     updatePaper,

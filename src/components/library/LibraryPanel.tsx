@@ -1,10 +1,13 @@
 'use client';
 import { checkedApiFetch, responseFailureMessage } from '@/lib/api-response';
+import { folderRows } from '@/lib/folder-hierarchy';
+import { FolderMoveDialog } from './FolderMoveDialog';
 
 import { selectedCommerceHeaders } from '@/lib/commerce/client-confirmation';
 import { useState, useCallback, useRef, useEffect, DragEvent } from 'react';
 import {
   FolderPlus,
+  FolderInput,
   Trash2,
   CheckCircle2,
   Circle,
@@ -381,6 +384,7 @@ export function LibraryPanel({
     selectedPapers,
     activeFolderId,
     addFolder,
+    moveFolder,
     deleteFolder,
     addPaper,
     removePaper,
@@ -396,6 +400,7 @@ export function LibraryPanel({
 
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [movingFolderId, setMovingFolderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const lastAutoExpandedFolderRef = useRef<string | null | undefined>(undefined);
@@ -460,7 +465,7 @@ export function LibraryPanel({
     const targetId = activeFolderId || folders[0].id;
     if (lastAutoExpandedFolderRef.current === targetId) return;
     lastAutoExpandedFolderRef.current = targetId;
-    setExpandedFolders(new Set([targetId]));
+    setExpandedFolders(new Set([...(folderRows(folders).find(row => row.folder.id === targetId)?.ancestors || []), targetId]));
   }, [activeFolderId, folders]);
 
   // Citation click-through: expand the owning folder, scroll to the source and flash it.
@@ -475,7 +480,7 @@ export function LibraryPanel({
     const ownerFolder = folders.find(folder => folder.papers.some(p => p.id === paperId));
     if (!ownerFolder) return;
     handledRevealTokenRef.current = token;
-    setExpandedFolders(prev => new Set([...prev, ownerFolder.id]));
+    setExpandedFolders(prev => new Set([...prev, ...(folderRows(folders).find(row => row.folder.id === ownerFolder.id)?.ancestors || []), ownerFolder.id]));
     setSearchQuery('');
     setCitationContext(null);
     const timer = window.setTimeout(() => {
@@ -607,7 +612,7 @@ export function LibraryPanel({
       let importFolderId = activeFolderId || folders[0]?.id || null;
       if (missingSources.length > 0 && !importFolderId) {
         importFolderId = addFolder('文献库');
-        setExpandedFolders(prev => new Set([...prev, importFolderId!]));
+        setExpandedFolders(prev => new Set([...prev, ...(folderRows(foldersRef.current).find(row => row.folder.id === importFolderId)?.ancestors || []), importFolderId!]));
         setActiveFolder(importFolderId);
       }
 
@@ -1006,7 +1011,7 @@ export function LibraryPanel({
         knownPaperIdsRef.current.add(paper.id);
         addPaper(targetFolder, paper);
       }
-      setExpandedFolders(prev => new Set([...prev, ownerFolder?.id || targetFolder]));
+      setExpandedFolders(prev => new Set([...prev, ...(folderRows(foldersRef.current).find(row => row.folder.id === (ownerFolder?.id || targetFolder))?.ancestors || []), ownerFolder?.id || targetFolder]));
       return { literature: paper.literature, fullText: data.fullText };
     } finally {
       literatureImportInFlightRef.current = false;
@@ -1064,6 +1069,14 @@ export function LibraryPanel({
       paper.keywords.some(k => k.toLowerCase().includes(searchQuery.toLowerCase()))
     ).toSorted((a, b) => sourceSortTime(b) - sourceSortTime(a)),
   })).filter(folder => folder.papers.length > 0 || folder.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const hierarchy = folderRows(folders);
+  const filteredById = new Map(filteredFolders.map(folder => [folder.id, folder]));
+  const matchingIds = new Set(filteredById.keys());
+  if (searchQuery.trim()) {
+    for (const row of hierarchy) if (filteredById.has(row.folder.id)) for (const ancestor of row.ancestors) matchingIds.add(ancestor);
+  }
+  const visibleFolders = hierarchy.filter(row => searchQuery.trim() ? matchingIds.has(row.folder.id) : row.ancestors.every(id => expandedFolders.has(id)))
+    .map(row => ({ ...row, folder: filteredById.get(row.folder.id) || { ...row.folder, papers: [] } }));
 
   const totalPapers = folders.reduce((sum, f) => sum + f.papers.length, 0);
   const selectedSourceRows = folders
@@ -1151,6 +1164,7 @@ export function LibraryPanel({
           <DialogHeader>
             <DialogTitle>确认删除{removal?.folderId ? '分组和文献' : '文献'}</DialogTitle>
             <DialogDescription>将从当前文献本删除 {removal?.ids.length || 0} 个来源，删除后无法撤销。取消选择不会删除文献。</DialogDescription>
+            {removal?.folderId && folders.some(folder => folder.parentId === removal.folderId) && <p className="text-sm text-[var(--text-secondary)]">子分组及其中资料会保留，并提升一级。</p>}
           </DialogHeader>
           {removalError && <p role="alert" className="my-3 text-sm text-red-500">{removalError}</p>}
           <div className="mt-5 flex justify-end gap-3">
@@ -1264,7 +1278,7 @@ export function LibraryPanel({
 
       {/* Paper list */}
       <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
-        {filteredFolders.length === 0 ? (
+        {visibleFolders.length === 0 ? (
           <div className="flex flex-col items-center justify-center min-h-full py-8">
             <div className="w-16 h-16 rounded-2xl liquid-glass-inset flex items-center justify-center mx-auto mb-4">
               <FileText className="h-7 w-7 text-zinc-700" />
@@ -1281,8 +1295,8 @@ export function LibraryPanel({
             </button>
           </div>
         ) : (
-          filteredFolders.map((folder) => (
-            <div key={folder.id} className="mb-2">
+          visibleFolders.map(({ folder, depth }) => (
+            <div key={folder.id} className="mb-2" style={{ marginLeft: Math.min(depth, 8) * 12 }} data-testid={`library-folder-${folder.id}`} data-folder-depth={depth}>
               {/* Folder header */}
               <div
                 className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-300 group ${
@@ -1290,10 +1304,11 @@ export function LibraryPanel({
                 }`}
                 onClick={() => handleFolderClick(folder.id)}
               >
-                <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform duration-300 ${!expandedFolders.has(folder.id) ? '-rotate-90' : ''}`} />
+                <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform duration-300 ${!expandedFolders.has(folder.id) && !searchQuery.trim() ? '-rotate-90' : ''}`} />
                 <FolderPlus className="h-4 w-4 text-blue-400" />
                 <span className="flex-1 truncate text-sm font-medium text-[var(--text-primary)]">{folder.name}</span>
                 <span className="text-[11px] text-zinc-600 tabular-nums">{folder.papers.length}</span>
+                <button type="button" onClick={event => { event.stopPropagation(); setMovingFolderId(folder.id); }} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:bg-[var(--glass-subtle)] hover:text-[var(--text-primary)]" aria-label={`移动分组 ${folder.name}`} title="移动分组"><FolderInput className="h-3.5 w-3.5" /></button>
                 <button
                   onClick={(e) => { e.stopPropagation(); selectAllPapers(folder.id); }}
                   className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded-lg bg-[var(--bg-card)] flex items-center justify-center text-zinc-500 hover:text-[var(--text-primary)] transition-all"
@@ -1314,7 +1329,7 @@ export function LibraryPanel({
               </div>
 
               {/* Papers */}
-              {expandedFolders.has(folder.id) && (
+              {(expandedFolders.has(folder.id) || !!searchQuery.trim()) && (
                 <div className="ml-5 mt-1 space-y-0.5">
                   {folder.papers.map((paper, idx) => (
                     <div
@@ -1489,7 +1504,7 @@ export function LibraryPanel({
               className="mt-1 h-9 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 text-xs text-[var(--text-secondary)] outline-none focus:border-blue-400/50"
             >
               <option value="">文献库（首次上传自动创建）</option>
-              {folders.map(folder => <option key={folder.id} value={folder.id}>{folder.name}</option>)}
+              {hierarchy.map(row => <option key={row.folder.id} value={row.folder.id}>{row.path}</option>)}
               <option value="__new__">+ 新建目录…</option>
             </select>
           </label>
@@ -1509,6 +1524,12 @@ export function LibraryPanel({
       </div>
 
       {/* Create folder dialog */}
+      {movingFolderId && <FolderMoveDialog key={movingFolderId} folderId={movingFolderId} folders={folders} onClose={() => setMovingFolderId(null)} onMove={parentId => {
+        if (!moveFolder(movingFolderId, parentId)) return false;
+        const ancestors = hierarchy.find(row => row.folder.id === parentId)?.ancestors || [];
+        setExpandedFolders(previous => new Set([...previous, ...ancestors, ...(parentId ? [parentId] : [])]));
+        return true;
+      }} />}
       {isSourceGuideOpen && (
         <SourceGuideModal
           pastedSourceText={pastedSourceText}

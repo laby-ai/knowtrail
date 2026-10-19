@@ -85,6 +85,7 @@ export interface Paper {
 export interface ProjectFolder {
   id: string;
   name: string;
+  parentId?: string | null;
   papers: Paper[];
   createdAt: string;
   updatedAt: string;
