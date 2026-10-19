@@ -42,7 +42,7 @@ const SOURCE_LABELS: Record<LiteratureProviderId, string> = {
   arxiv: 'arXiv',
   pubmed: 'PubMed',
   scite: 'Scite',
-  giiisp: '集思谱',
+  giiisp: '论文检索',
 };
 
 const SOURCE_COLORS: Record<LiteratureProviderId, string> = {
@@ -279,7 +279,7 @@ export function LiteratureSearchDialog({
           <div className="space-y-3 flex-shrink-0">
             <div className="flex flex-wrap items-center gap-2">
               <Button variant={engine === 'standard' ? 'default' : 'outline'} disabled={loading} onClick={() => { setEngine('standard'); setResults([]); }}>多库检索</Button>
-              <Button variant={engine === 'giiisp' ? 'default' : 'outline'} disabled={loading || !notebookId} onClick={() => { setEngine('giiisp'); setResults([]); }}>集思谱检索</Button>
+              <Button variant={engine === 'giiisp' ? 'default' : 'outline'} disabled={loading || !notebookId} onClick={() => { setEngine('giiisp'); setResults([]); }}>论文检索</Button>
               {engine === 'giiisp' && <Select value={mcpMode} onValueChange={setMcpMode}><SelectTrigger className="w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="oa">开放论文</SelectItem><SelectItem value="arxiv-title">arXiv 题名</SelectItem><SelectItem value="arxiv-abstract">arXiv 摘要</SelectItem><SelectItem value="arxiv-id">arXiv 编号</SelectItem><SelectItem value="arxiv-multi">arXiv 多字段</SelectItem></SelectContent></Select>}
             </div>
             <div className="flex items-center gap-3">

@@ -11,7 +11,7 @@ const LITERATURE_TOOLS: Record<Exclude<LiteratureProviderId, 'giiisp'>, string> 
 };
 
 export function getLiteratureToolName(providerId: LiteratureProviderId): string {
-  if (providerId === 'giiisp') throw new Error('集思谱必须通过已鉴权的科研检索接口调用。');
+  if (providerId === 'giiisp') throw new Error('论文检索必须通过已鉴权的科研检索接口调用。');
   return LITERATURE_TOOLS[providerId];
 }
 

@@ -16,7 +16,7 @@ function secureUrl(value: string | null): string | undefined {
 export async function POST(request: NextRequest) {
   try {
     const session = await resolveAccountSessionFromRequest(request);
-    if (!session) return NextResponse.json({ error: '请登录后使用集思谱检索。' }, { status: 401 });
+    if (!session) return NextResponse.json({ error: '请登录后使用论文检索。' }, { status: 401 });
     const text = new TextDecoder().decode(await readResearchBody(request, 100_000));
     let body: unknown;
     try { body = JSON.parse(text); } catch { return NextResponse.json({ error: '请求格式无效。' }, { status: 400 }); }
@@ -30,18 +30,18 @@ export async function POST(request: NextRequest) {
       value = JSON.parse(parts.map(part => part.text || '').join('\n'));
     }
     const payload = payloadSchema.parse(value);
-    if (raw.isError === true || payload.ok !== true || payload.dry_run) throw new ResearchMcpError('集思谱检索未完成，请稍后重试。');
+    if (raw.isError === true || payload.ok !== true || payload.dry_run) throw new ResearchMcpError('论文检索未完成，请稍后重试。');
     const papers: LiteraturePaper[] = (payload.normalized_results || []).flatMap(paper => {
       if (!paper.title?.trim()) return [];
       const arxivId = paper.arxiv_id || paper.pdf_url?.match(/\/pdf\/(\d{4}\.\d{4,5}(?:v\d+)?)/)?.[1];
       const doi = paper.doi && /^10\.\d{4,9}\/\S+$/.test(paper.doi) ? paper.doi : undefined;
       const url = secureUrl(paper.url) || (doi ? `https://doi.org/${doi}` : arxivId && /^\d{4}\.\d{4,5}(?:v\d+)?$/.test(arxivId) ? `https://arxiv.org/abs/${arxivId}` : '');
       const pdf = secureUrl(paper.pdf_url);
-      return [{ title: paper.title.replace(/<[^>]+>/g, '').trim(), authors: paper.authors.filter(name => name.trim()).map(name => ({ name })), year: paper.year || '', abstract: paper.abstract || '', venue: paper.venue || '', doi, arxivId, url, source: 'giiisp', provider: '集思谱', evidenceScope: paper.abstract ? 'abstract' : 'metadata', oaLocations: pdf ? [{ url: url || pdf, pdfUrl: pdf, source: '集思谱' }] : undefined }];
+      return [{ title: paper.title.replace(/<[^>]+>/g, '').trim(), authors: paper.authors.filter(name => name.trim()).map(name => ({ name })), year: paper.year || '', abstract: paper.abstract || '', venue: paper.venue || '', doi, arxivId, url, source: 'giiisp', provider: '论文检索', evidenceScope: paper.abstract ? 'abstract' : 'metadata', oaLocations: pdf ? [{ url: url || pdf, pdfUrl: pdf, source: '论文检索' }] : undefined }];
     });
     const results = prepareLiteratureResults(papers, input.data);
     return NextResponse.json({ success: true, results, total: results.length }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof ResearchMcpError ? error.message : '集思谱返回异常，请稍后重试。' }, { status: error instanceof ResearchMcpError ? error.status : 502 });
+    return NextResponse.json({ error: error instanceof ResearchMcpError ? error.message : '论文检索返回异常，请稍后重试。' }, { status: error instanceof ResearchMcpError ? error.status : 502 });
   }
 }

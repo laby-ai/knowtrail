@@ -9,7 +9,7 @@ const SPECS = {
   labmate: { port: 9307, name: 'LabMate', description: '实验计算、化合物检索与实验参考', tools: ['search_compound', 'get_compound_properties', 'calculate_molarity', 'calculate_dilution', 'calculate_yield', 'calculate_concentration', 'calculate_isotope_pattern', 'validate_cas_number', 'convert_units', 'lookup_periodic_table', 'calculate_buffer_ph', 'lookup_named_reaction', 'lookup_buffer_recipe', 'lookup_nmr_solvent', 'lookup_amino_acid_properties'] },
   pubcrawl: { port: 9308, name: 'PubCrawl', description: '生物医学文献、摘要和临床试验', tools: ['search_pubmed', 'search_europepmc', 'get_abstract', 'search_trials', 'get_trial', 'trending_papers', 'format_citation'] },
   prisma: { port: 9309, name: 'PRISMA', description: '配置系统综述、筛选文献并导出流程图', tools: ['configure_project', 'get_project_config', 'start_pipeline', 'get_pipeline_progress', 'get_screening_stats', 'get_papers_to_screen', 'get_paper_details', 'screen_paper', 'batch_screen_papers', 'generate_report', 'read_report'] },
-  giiisp: { port: 9301, name: '集思谱论文检索', description: '开放论文与 arXiv 题名、摘要、编号检索', tools: ['search_papers'] },
+  giiisp: { port: 9301, name: '论文检索', description: '开放论文与 arXiv 题名、摘要、编号检索', tools: ['search_papers'] },
   papercheck: { port: 9310, name: '论文引用核验', description: '上传论文抽取引证，检索引用候选并核对出处', tools: ['check_papercheck_env', 'extract_citation_evidence', 'audit_citation_candidates'] },
 } satisfies Record<ResearchMcpId, { port: number; name: string; description: string; tools: string[] }>;
 const parameter = z.object({ type: z.string().optional(), description: z.string().optional(), default: z.union([z.string(), z.number(), z.boolean()]).optional(), enum: z.array(z.union([z.string(), z.number()])).optional() });

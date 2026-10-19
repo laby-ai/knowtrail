@@ -386,7 +386,7 @@ export function searchLiterature(
     case 'arxiv': return searchArxiv(query, limit);
     case 'pubmed': return searchPubmed(query, limit);
     case 'scite': return searchScite(query, limit);
-    case 'giiisp': throw new Error('集思谱检索需要登录并选择当前文献本。');
+    case 'giiisp': throw new Error('论文检索需要登录并选择当前文献本。');
   }
 }
 
@@ -398,5 +398,5 @@ export const SOURCE_DISPLAY_NAMES: Record<LiteratureProviderId, string> = {
   arxiv: 'arXiv',
   pubmed: 'PubMed',
   scite: 'Scite',
-  giiisp: '集思谱',
+  giiisp: '论文检索',
 };
