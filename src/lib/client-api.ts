@@ -213,5 +213,9 @@ export async function clientApiDownloadBlob(path: string, options: ClientApiOpti
   }
   const blob = await response.blob();
   if (blob.size === 0) throw new ClientRequestError('empty_download', 'download_error', response.status);
+  if (!/^attachment\b/i.test(response.headers.get('content-disposition') || '')) {
+    const prefix = await blob.slice(0, 256).text();
+    if (/^\s*(?:<!doctype\s+html\b|<html\b)/i.test(prefix)) throw new ClientRequestError('下载接口返回了错误页面，没有获得有效文件。', 'download_error', response.status);
+  }
   return blob;
 }

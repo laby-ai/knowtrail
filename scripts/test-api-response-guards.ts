@@ -24,6 +24,8 @@ async function main() {
     assert.equal(await (await clientApiRequest('/api/stream')).text(), 'data: hello\n\n');
     makeResponse = () => new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/png' } });
     assert.equal((await clientApiDownloadBlob('/api/image')).size, 3);
+    makeResponse = () => new Response('<html>mislabeled image</html>', { headers: { 'Content-Type': 'image/png' } });
+    await assert.rejects(clientApiDownloadBlob('/api/image'), /错误页面/);
     await assertApiResponse(new Response('<html>user-owned document</html>', { headers: { 'Content-Type': 'text/html', 'Content-Disposition': 'attachment; filename="document.html"' } }), '下载', true);
     await assert.rejects(assertApiResponse(new Response('<html>error</html>')), /非预期数据/);
     console.log('PASS: central and direct API guards, gateway HTML, malformed JSON, preserved JSON errors, streams, binary downloads and intentional HTML attachments');
