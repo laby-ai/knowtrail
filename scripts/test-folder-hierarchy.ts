@@ -13,6 +13,9 @@ assert.equal(folderRows(reparentFolder(nested, '11', null)).find(row => row.fold
 const promoted = deleteFolderKeepingChildren(nested, '1');
 assert.equal(promoted.find(folder => folder.id === '11')?.parentId, null);
 assert.equal(promoted.length, 2);
+const subtree = [...nested, { ...folders[0], id: '111', name: '111', parentId: '11' }];
+assert.equal(folderRows(reparentFolder(subtree, '11', '2')).find(row => row.folder.id === '111')?.path, '2 / 11 / 111');
+assert.equal(deleteFolderKeepingChildren(subtree, '11').find(folder => folder.id === '111')?.parentId, '1');
 assert.deepEqual(folders.map(folder => folder.parentId), [undefined, undefined, undefined]);
 const damaged = folders.map(folder => ({ ...folder, parentId: folder.id === '1' ? '11' : folder.id === '11' ? '1' : 'missing' }));
 assert.equal(new Set(folderRows(damaged).map(row => row.folder.id)).size, 3);

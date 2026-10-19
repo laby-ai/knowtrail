@@ -445,7 +445,7 @@ export function AppProvider({
 
   const clearChat = useCallback(() => {
     void cloudHistory.clear().catch(() => undefined);
-  }, [cloudHistory.clear]);
+  }, [cloudHistory]);
 
   const setCurrentReport = useCallback((report: Report | null) => {
     setState(prev => ({ ...prev, currentReport: report }));
