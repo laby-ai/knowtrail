@@ -8,7 +8,7 @@ export const MCP_TOOL_LABELS: Record<string, string> = {
   search_compound: '化合物检索', get_compound_properties: '化合物性质', calculate_molarity: '摩尔浓度计算', calculate_dilution: '稀释计算', calculate_yield: '产率计算', calculate_concentration: '浓度换算', calculate_isotope_pattern: '同位素分布', validate_cas_number: 'CAS 编号核验', convert_units: '单位换算', lookup_periodic_table: '元素性质', calculate_buffer_ph: '缓冲液 pH', lookup_named_reaction: '命名反应', lookup_buffer_recipe: '缓冲液配方', lookup_nmr_solvent: 'NMR 溶剂参考', lookup_amino_acid_properties: '氨基酸性质',
   search_pubmed: 'PubMed 检索', search_europepmc: 'Europe PMC 检索', get_abstract: '读取论文摘要', search_trials: '临床试验检索', get_trial: '临床试验详情', trending_papers: '近期文献', format_citation: '引用格式转换',
   configure_project: '配置系统综述', get_project_config: '读取综述配置', start_pipeline: '启动检索与初筛', get_pipeline_progress: '查看流程进度', get_screening_stats: '筛选统计', get_papers_to_screen: '待筛选文献', get_paper_details: '文献详情', screen_paper: '记录筛选决定', batch_screen_papers: '批量筛选决定', generate_report: '生成流程图与报告', read_report: '读取导出成果',
-  search_papers: '论文检索', check_papercheck_env: '检查核验服务', extract_citation_evidence: '抽取论文引用证据', audit_citation_candidates: '检索与核对引用候选',
+  search_papers: '集思谱论文检索', check_papercheck_env: '检查核验服务', extract_citation_evidence: '抽取论文引用证据', audit_citation_candidates: '检索与核对引用候选',
 };
 
 export const MCP_PARAMETER_LABELS: Record<string, string> = {
