@@ -1,6 +1,7 @@
 'use client';
 
 import { ClientRequestError, clientApiRequest } from '@/lib/client-api';
+import { readApiJson, verifyPptxResponse } from '@/lib/api-response';
 import dynamic from 'next/dynamic';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
@@ -164,8 +165,7 @@ export function StructuredPresentationPanel() {
       timers.forEach(clearTimeout);
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || '生成失败');
+        await readApiJson(res, 'PPT 生成');
       }
 
       // Model observability: keep fallback warnings understandable.
@@ -188,7 +188,7 @@ export function StructuredPresentationPanel() {
         } catch { /* ignore parse errors */ }
       }
 
-      const blob = await res.blob();
+      const blob = await verifyPptxResponse(res);
       const url = URL.createObjectURL(blob);
       setPptxUrl(url);
       setMineruStatus('');

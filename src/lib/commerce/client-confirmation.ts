@@ -1,5 +1,6 @@
 'use client';
 import { COMMERCE_OPERATIONS } from './contracts';
+import { readApiJson } from '@/lib/api-response';
 export type QuoteConfirmation = { id: string; maxPoints: number; accountId: string; payerLabel: string; source: string; expiresAt: string; operation: string };
 export type ConfirmationEvent = { quote: QuoteConfirmation; resolve: (approved: boolean) => void };
 export function selectedCommerceHeaders(): Record<string, string> {
@@ -18,8 +19,10 @@ export async function commerceRequestHeaders(path: string, options: RequestInit,
   } catch { /* Account service chooses canonical personal account. */ }
   const basePath = window.location.pathname.startsWith('/lingbi') ? '/lingbi' : '';
   const response = await fetch(`${basePath}/api/account/commerce/quote`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, signal: options.signal, body: JSON.stringify({ path, body: options.body, accountId: selection.accountId, source: selection.source, idempotencyKey: new Headers(options.headers).get('Idempotency-Key') || crypto.randomUUID() }) });
-  const quote = await response.json() as QuoteConfirmation & { requiresConfirmation?: boolean; error?: string };
-  if (!response.ok) throw new Error(quote.error || '无法读取本次费用，请重试。');
+  const payload = await readApiJson(response, '费用预检查');
+  if (typeof payload.requiresConfirmation !== 'boolean') throw new Error('费用预检查结果无效，请稍后重试。');
+  if (payload.requiresConfirmation && (typeof payload.id !== 'string' || typeof payload.maxPoints !== 'number' || !Number.isFinite(payload.maxPoints) || payload.maxPoints < 0 || typeof payload.accountId !== 'string' || typeof payload.source !== 'string')) throw new Error('费用确认信息不完整，请稍后重试。');
+  const quote = payload as QuoteConfirmation & { requiresConfirmation: boolean };
   if (quote.requiresConfirmation) {
     const approved = await new Promise<boolean>(resolve => {
       if (options.signal?.aborted) return resolve(false);
