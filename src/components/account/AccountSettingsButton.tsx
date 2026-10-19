@@ -1,4 +1,5 @@
 'use client';
+import { checkedApiFetch } from '@/lib/api-response';
 
 import { MembershipPanel } from './commerce/MembershipPanel';
 import { useEffect, useState } from 'react';
@@ -36,7 +37,7 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
     setProfileError('');
     async function loadAccount() {
       try {
-        const response = await fetch('/api/account/session', {
+        const response = await checkedApiFetch('/api/account/session', {
           headers: { Authorization: `Bearer ${session.token}` },
           cache: 'no-store', signal: controller.signal,
         });

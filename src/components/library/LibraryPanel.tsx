@@ -1,4 +1,5 @@
 'use client';
+import { checkedApiFetch, responseFailureMessage } from '@/lib/api-response';
 
 import { selectedCommerceHeaders } from '@/lib/commerce/client-confirmation';
 import { useState, useCallback, useRef, useEffect, DragEvent } from 'react';
@@ -507,7 +508,7 @@ export function LibraryPanel({
         setCitationContext({ token, paperId, status: 'loading' });
         const detailParams = new URLSearchParams({ id: paperId });
         if (notebookId) detailParams.set('notebookId', notebookId);
-        const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+        const response = await checkedApiFetch(`/api/ingestion/sources?${detailParams.toString()}`, {
           cache: 'no-store',
           headers: accountHeaders,
         });
@@ -545,7 +546,7 @@ export function LibraryPanel({
     setRemovalError(null);
     try {
       if (removal.ids.length > 0) {
-        const response = await fetch('/api/ingestion/sources', {
+        const response = await checkedApiFetch('/api/ingestion/sources', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
           body: JSON.stringify({ ids: removal.ids, notebookId }),
@@ -592,7 +593,7 @@ export function LibraryPanel({
     try {
       setIngestionSyncState('syncing');
       const notebookQuery = notebookId ? `?notebookId=${encodeURIComponent(notebookId)}` : '';
-      const response = await fetch(`/api/ingestion/sources${notebookQuery}`, {
+      const response = await checkedApiFetch(`/api/ingestion/sources${notebookQuery}`, {
         cache: 'no-store',
         headers: accountHeaders,
       });
@@ -623,7 +624,7 @@ export function LibraryPanel({
         }
         const detailParams = new URLSearchParams({ id: source.id });
         if (notebookId) detailParams.set('notebookId', notebookId);
-        const detailResponse = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+        const detailResponse = await checkedApiFetch(`/api/ingestion/sources?${detailParams.toString()}`, {
           cache: 'no-store',
           headers: accountHeaders,
         });
@@ -698,7 +699,7 @@ export function LibraryPanel({
           const detailParams = new URLSearchParams({ id: source.id });
           if (notebookId) detailParams.set('notebookId', notebookId);
           try {
-            const detailResponse = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+            const detailResponse = await checkedApiFetch(`/api/ingestion/sources?${detailParams.toString()}`, {
               cache: 'no-store',
               headers: accountHeaders,
             });
@@ -769,7 +770,7 @@ export function LibraryPanel({
     try {
       const detailParams = new URLSearchParams({ id: paper.id });
       if (notebookId) detailParams.set('notebookId', notebookId);
-      const response = await fetch(`/api/ingestion/sources?${detailParams.toString()}`, {
+      const response = await checkedApiFetch(`/api/ingestion/sources?${detailParams.toString()}`, {
         cache: 'no-store',
         headers: accountHeaders,
       });
@@ -852,9 +853,9 @@ export function LibraryPanel({
         };
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('服务器响应解析失败')); }
+            try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('上传接口返回了异常页面，文件是否保存尚未确认。请刷新文献库检查后再重试。')); }
           } else {
-            reject(new Error(`上传失败(HTTP ${xhr.status})`));
+            reject(new Error(responseFailureMessage(xhr.status, '文件上传')));
           }
         };
         xhr.onerror = () => reject(new Error('网络错误,上传中断'));
@@ -981,7 +982,7 @@ export function LibraryPanel({
     literatureImportInFlightRef.current = true;
     literatureImportVersionRef.current += 1;
     try {
-      const response = await fetch('/api/literature/import', {
+      const response = await checkedApiFetch('/api/literature/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
         body: JSON.stringify({ resultToken: result.resultId, notebookId }),

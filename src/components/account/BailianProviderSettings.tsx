@@ -1,4 +1,5 @@
 'use client';
+import { checkedApiFetch } from '@/lib/api-response';
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, LoaderCircle, Trash2 } from 'lucide-react';
@@ -35,7 +36,7 @@ export function BailianProviderSettings({ session }: { session: AccountAuthSessi
   const loadProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/account/provider-profile', {
+      const response = await checkedApiFetch('/api/account/provider-profile', {
         headers: { Authorization: `Bearer ${session.token}` },
         cache: 'no-store',
       });
@@ -63,7 +64,7 @@ export function BailianProviderSettings({ session }: { session: AccountAuthSessi
     setSaving(true);
     setMessage('');
     try {
-      const response = await fetch('/api/account/provider-profile', {
+      const response = await checkedApiFetch('/api/account/provider-profile', {
         method: 'PUT',
         headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ api_key: apiKey.trim(), workspace_id: workspaceId.trim(), region: 'cn-beijing' }),
@@ -84,7 +85,7 @@ export function BailianProviderSettings({ session }: { session: AccountAuthSessi
     setSaving(true);
     setMessage('');
     try {
-      const response = await fetch('/api/account/provider-profile', {
+      const response = await checkedApiFetch('/api/account/provider-profile', {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${session.token}` },
       });

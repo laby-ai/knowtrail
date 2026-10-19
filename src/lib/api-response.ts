@@ -1,10 +1,36 @@
 /** Never expose proxy HTML as a JSON syntax error or downloadable artifact. */
 export function responseFailureMessage(status: number, operation: string): string {
+  if (status >= 200 && status < 300) return `${operation}接口返回了非预期数据，请刷新页面后重试。`;
   if (status === 413) return `${operation}请求中的资料过大，请减少所选资料后重试（HTTP 413）。`;
   if (status === 502 || status === 503) return `${operation}服务暂时不可用，请稍后重试（HTTP ${status}）。`;
   if (status === 504 || status === 408) return `${operation}等待超时，服务端可能仍在处理。请先确认任务状态，避免重复生成（HTTP ${status}）。`;
   if (status === 401 || status === 403) return `${operation}未获授权，请重新登录或检查账号权限（HTTP ${status}）。`;
+  if (status === 429) return `${operation}请求过于频繁，请稍后重试（HTTP 429）。`;
   return `${operation}接口返回异常（HTTP ${status}），请稍后重试。`;
+}
+
+export async function assertApiResponse(response: Response, operation = '服务请求', allowHtmlAttachment = false): Promise<void> {
+  const type = response.headers.get('content-type') || '';
+  if (/(?:text\/html|application\/xhtml\+xml)/i.test(type)) {
+    if (allowHtmlAttachment && response.ok && /^attachment\b/i.test(response.headers.get('content-disposition') || '')) return;
+    throw new Error(responseFailureMessage(response.status, operation));
+  }
+  if (/application\/(?:[\w.-]+\+)?json\b/i.test(type) && response.status !== 204) {
+    try { await response.clone().json(); }
+    catch { throw new Error(responseFailureMessage(response.status, operation)); }
+  }
+  if ((!type || /^text\/plain\b/i.test(type)) && response.status !== 204) {
+    const text = await response.clone().text();
+    if (/^\s*(?:<!doctype\s+html\b|<html\b)/i.test(text)) throw new Error(responseFailureMessage(response.status, operation));
+  }
+}
+
+/** Preserve fetch semantics; apply validation only to application API URLs. */
+export async function checkedApiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await fetch(input, init);
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  if (/(?:^|\/)api\//.test(url)) await assertApiResponse(response);
+  return response;
 }
 
 export async function readApiJson(response: Response, operation: string): Promise<Record<string, unknown>> {

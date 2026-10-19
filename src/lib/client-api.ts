@@ -1,5 +1,6 @@
 'use client';
 import { commerceRequestHeaders, selectedCommerceHeaders } from '@/lib/commerce/client-confirmation';
+import { assertApiResponse, responseFailureMessage } from '@/lib/api-response';
 
 const ACCOUNT_TOKEN_KEYS = ["knowtrail-account-session","account_entitlement_token"];
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -118,7 +119,7 @@ function httpError(response: Response, payload: unknown, codeOverride?: ClientRe
         ? 'rate_limited'
         : 'http_error');
   return new ClientRequestError(
-    messageFromPayload(payload, `request_failed_${response.status}`),
+    messageFromPayload(payload, responseFailureMessage(response.status, '服务请求')),
     code,
     response.status,
     payload,
@@ -169,6 +170,8 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
       if (redirectOnUnauthorized && typeof window !== 'undefined') window.location.replace(accountLoginUrl());
       throw httpError(response, payload);
     }
+    try { await assertApiResponse(response, '服务请求', true); }
+    catch (error) { throw new ClientRequestError(error instanceof Error ? error.message : '服务响应无效。', response.ok ? 'invalid_payload' : 'http_error', response.status); }
     responseReturned = true;
     return response;
   } catch (error) {
@@ -195,8 +198,8 @@ export async function clientApiFetch<T>(path: string, options: ClientApiOptions 
   const response = await executeFetch(path, options);
   const payload = await parseResponseBody(response);
   if (!response.ok) throw httpError(response, payload);
-  if (payload === null || payload === '') {
-    throw new ClientRequestError('invalid_response_payload', 'invalid_payload', response.status);
+  if (payload === null || payload === '' || typeof payload === 'string') {
+    throw new ClientRequestError('接口未返回有效 JSON 数据，请稍后重试。', 'invalid_payload', response.status);
   }
   return payload as T;
 }

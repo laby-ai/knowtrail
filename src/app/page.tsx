@@ -1,4 +1,5 @@
 'use client';
+import { checkedApiFetch } from '@/lib/api-response';
 
 import { clientApiRequest } from '@/lib/client-api';
 import { useState, useEffect, useCallback } from 'react';
@@ -124,7 +125,7 @@ export default function HomePage() {
   const [reloadNotebooks, setReloadNotebooks] = useState(0);
 
   useEffect(() => {
-    fetch('/api/account/status')
+    checkedApiFetch('/api/account/status')
       .then(res => res.json())
       .then(data => setAccountStatus(data))
       .catch(() => setAccountStatus(null));

@@ -1,4 +1,5 @@
 'use client';
+import { checkedApiFetch } from '@/lib/api-response';
 
 import { useState, useEffect } from 'react';
 
@@ -21,7 +22,7 @@ export function ExternalMcpPanel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/mcp/external')
+    checkedApiFetch('/api/mcp/external')
       .then(res => res.json())
       .then(data => {
         setMcps(data.mcps || []);

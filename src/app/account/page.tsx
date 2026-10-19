@@ -1,4 +1,5 @@
 'use client';
+import { checkedApiFetch } from '@/lib/api-response';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ArrowRight, BookOpen, FileText, Loader2, LogIn, Quote, Sparkles } from 'lucide-react';
@@ -81,7 +82,7 @@ export default function AccountPage() {
         return;
       }
       try {
-        const response = await fetch('/api/account/session', {
+        const response = await checkedApiFetch('/api/account/session', {
           cache: 'no-store',
           headers: { Authorization: `Bearer ${stored.token}` },
         });
@@ -124,7 +125,7 @@ export default function AccountPage() {
     setError('');
     setIsSubmitting(true);
     try {
-      const response = await fetch('/api/account/auth', {
+      const response = await checkedApiFetch('/api/account/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode, email, password, displayName }),

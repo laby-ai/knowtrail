@@ -1,4 +1,5 @@
 'use client';
+import { checkedApiFetch } from '@/lib/api-response';
 
 import { useEffect, useState } from 'react';
 import { readStoredAccountSession } from '@/lib/account-session-browser';
@@ -30,7 +31,7 @@ export function WorkbenchAccountChip({
       if (!cancelled) setStoredSession(stored);
 
       try {
-        const response = await fetch('/api/account/session', {
+        const response = await checkedApiFetch('/api/account/session', {
           cache: 'no-store',
           headers: { Authorization: `Bearer ${stored.token}` },
         });

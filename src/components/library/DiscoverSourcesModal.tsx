@@ -1,4 +1,5 @@
 'use client';
+import { checkedApiFetch } from '@/lib/api-response';
 import { clientApiRequest } from '@/lib/client-api';
 
 // NotebookLM-style "discover sources": search the web from the library
@@ -188,7 +189,7 @@ export function DiscoverSourcesModal({
     for (const item of picked) {
       try {
         const file = await createDiscoveredSourceFile(item, async url => {
-          const res = await fetch('/api/discover/fetch', {
+          const res = await checkedApiFetch('/api/discover/fetch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...accountAuthHeaders() },
             body: JSON.stringify({ url, notebookId }),
@@ -240,7 +241,7 @@ export function DiscoverSourcesModal({
     try {
       const year = item.date && Number.isFinite(new Date(item.date).getTime()) ? new Date(item.date).getFullYear() : 0;
       const authors = (item.authors || []).map(name => ({ name }));
-      const res = await fetch('/api/literature/cite', {
+      const res = await checkedApiFetch('/api/literature/cite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -272,7 +273,7 @@ export function DiscoverSourcesModal({
     setFulltextError(null);
     setFulltextLoading(item.link);
     try {
-      const res = await fetch('/api/literature/fulltext', {
+      const res = await checkedApiFetch('/api/literature/fulltext', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'url', pdfUrl: item.link }),

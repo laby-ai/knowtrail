@@ -1,4 +1,5 @@
 'use client';
+import { checkedApiFetch } from '@/lib/api-response';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useResearchPreferences } from '@/components/research/ResearchPreferencesProvider';
@@ -213,7 +214,7 @@ export function LiteratureSearchDialog({
     const generation = searchGenerationRef.current;
     setCiteError(null);
     try {
-      const res = await fetch('/api/literature/cite', {
+      const res = await checkedApiFetch('/api/literature/cite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
