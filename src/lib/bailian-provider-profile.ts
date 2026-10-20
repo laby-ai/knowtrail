@@ -101,7 +101,7 @@ export async function resolveRequestRuntimeAIConfig(request: NextRequest | Reque
 }
 
 export function bailianProfileFromRuntimeConfig(config: Partial<RuntimeAIConfig>): MemberProviderProfile | null {
-  if (config.providerId !== 'aliyun-bailian' || !config.apiKey) return null;
+  if (config.providerId !== 'aliyun-bailian' || !config.workspaceId || !config.apiKey) return null;
   return {
     tenant_id: '',
     member_id: '',

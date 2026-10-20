@@ -4,6 +4,8 @@ The existing account-service encrypted profile table remains authoritative. No n
 
 Preset endpoint/model pairs are server-controlled; clients cannot supply arbitrary destinations. Public responses expose only a mask. The existing signed internal resolver decrypts keys. Non-Bailian profiles are restricted to KnowTrail when resolving; legacy other-application consumers cannot receive an incompatible provider key.
 
+Bailian text calls accept a key alone. The existing workspace-scoped image and audio integrations still require a business workspace ID in advanced settings; missing IDs block those operations rather than using a server key.
+
 Supported presets: Bailian (existing defaults preserved), Kimi China platform (`kimi-k3`), DeepSeek (`deepseek-flash`). Kimi sampling parameters are omitted per official constraints. Kimi and DeepSeek presets do not advertise image generation or TTS; those BYOK operations are rejected before execution, without platform fallback. Saving from Lingbi also enables the account's BYOK preference; failure to activate is shown separately from successful encrypted storage. Removing a profile does not automatically enable paid platform calls.
 
 Sources verified 2026-10-20:

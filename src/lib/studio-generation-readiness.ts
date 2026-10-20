@@ -11,6 +11,7 @@ export type StudioGenerationReadiness = Record<StudioGenerationProduct, StudioGe
 
 export type MemberGenerationProfile = {
   provider_id?: string;
+  workspace_id?: string;
   configured?: boolean;
   text_model?: string;
   image_model?: string;
@@ -84,7 +85,7 @@ export function resolveMemberAwareGenerationReadiness(
   if (!profile?.configured) return requireMemberProfile ? profileRequiredState : globalState;
   const textReady = Boolean(profile.text_model?.trim());
   const imageReady = Boolean(profile.image_model?.trim());
-  if (['moonshot', 'deepseek'].includes(profile.provider_id || '') && (product === 'imagePpt' || product === 'scientificIllustration')) return { ready: false, message: '当前自带密钥服务不提供图片生成，请在模型配置中选择支持绘图的服务。' };
+  if ((['moonshot', 'deepseek'].includes(profile.provider_id || '') || (profile.provider_id === 'aliyun-bailian' && !profile.workspace_id)) && (product === 'imagePpt' || product === 'scientificIllustration')) return { ready: false, message: '当前自带密钥配置暂不能生成图片。百炼请补充业务空间 ID，其他服务请确认是否支持绘图。' };
   const memberReady = product === 'scientificIllustration'
     ? imageReady
     : product === 'imagePpt'

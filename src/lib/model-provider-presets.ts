@@ -12,5 +12,5 @@ export function modelProviderPreset(id: string) {
   return preset;
 }
 export function providerCapabilityUnavailable(config: Partial<RuntimeAIConfig>, operation: string): boolean {
-  return (config.providerId === 'moonshot' || config.providerId === 'deepseek') && ['ppt', 'ppt-slide-revise', 'scientific-illustration', 'tts', 'podcast'].includes(operation);
+  return (config.providerId === 'moonshot' || config.providerId === 'deepseek' || (config.providerId === 'aliyun-bailian' && !config.workspaceId)) && ['ppt', 'ppt-slide-revise', 'scientific-illustration', 'tts', 'podcast'].includes(operation);
 }

@@ -20,7 +20,7 @@ async function main() {
       globalThis.fetch = async (input, init) => {
         const url = String(input);
         if (url.endsWith('/v1/auth/me')) return Response.json({ tenant_id: 'fixture-tenant', member: { id: 'fixture-provider-member', email: 'fixture@example.invalid', display_name: 'Fixture' } });
-        if (url.endsWith('/v1/lingbi/internal/provider')) return Response.json({ provider_id: preset.id, workspace_id: '', region: 'global', text_model: preset.model, image_model: preset.image, tts_model: preset.tts, api_key: 'fixture-' + preset.id });
+        if (url.endsWith('/v1/lingbi/internal/provider')) return Response.json({ provider_id: preset.id, workspace_id: preset.id === 'aliyun-bailian' ? 'fixture-workspace' : '', region: 'global', text_model: preset.model, image_model: preset.image, tts_model: preset.tts, api_key: 'fixture-' + preset.id });
         assert.equal(url, preset.apiBase + '/chat/completions');
         assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer fixture-' + preset.id);
         const body = JSON.parse(String(init?.body));
@@ -40,6 +40,8 @@ async function main() {
       });
       assert.ok(invoked);
     }
+    assert.equal(providerCapabilityUnavailable({ providerId: 'aliyun-bailian', workspaceId: '' }, 'scientific-illustration'), true);
+    assert.equal(providerCapabilityUnavailable({ providerId: 'aliyun-bailian', workspaceId: '' }, 'chat'), false);
     assert.throws(() => modelProviderPreset('https://untrusted.invalid'));
     console.log('PASS: account-bound provider endpoint/key/model routing, no platform substitution, Kimi parameter constraints and capability checks');
   } finally { globalThis.fetch = original; }
