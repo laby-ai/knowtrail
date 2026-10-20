@@ -8,10 +8,11 @@ import Link from 'next/link';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { clearAccountSession, readStoredAccountSession, saveAccountSession } from '@/lib/account-session-browser';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
+import type { AccountCenterStatus } from '@/lib/account-center';
 import type { LucideIcon } from 'lucide-react';
 
 type AuthMode = 'login' | 'register';
-type SessionGateState = 'checking' | 'guest' | 'signed-in';
+type SessionGateState = 'checking' | 'guest' | 'signed-in' | 'unavailable';
 
 const NOTEBOOK_HOME_HREF = appPublicPath('/?view=notebooks');
 const ACCOUNT_HIGHLIGHTS: Array<{ icon: LucideIcon; title: string; body: string }> = [
@@ -75,11 +76,29 @@ export default function AccountPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     const nextTarget = nextHref();
     setTarget(nextTarget);
     setHydrated(true);
 
     async function resumeExistingSession() {
+      try {
+        const response = await fetch(clientApiPath('/api/account/status'), { cache: 'no-store', signal: controller.signal });
+        if (!response.ok) throw new Error('login_status_unavailable');
+        const status = await response.json() as AccountCenterStatus;
+        if (cancelled) return;
+        if (status.paperHostLoginHref === '/research-agent') {
+          window.location.replace(status.paperHostLoginHref);
+          return;
+        }
+        if (!status.apiBaseConfigured) {
+          setSessionGate('unavailable');
+          return;
+        }
+      } catch {
+        if (!cancelled) setSessionGate('unavailable');
+        return;
+      }
       const stored = readStoredAccountSession();
       if (!stored) {
         if (!cancelled) setSessionGate('guest');
@@ -89,12 +108,14 @@ export default function AccountPage() {
         const response = await fetch(clientApiPath('/api/account/session'), {
           cache: 'no-store',
           headers: { Authorization: `Bearer ${stored.token}` },
+          signal: controller.signal,
         });
         if (!response.ok) {
           if (!cancelled) clearAccountSession();
           throw new Error('invalid_or_expired_session');
         }
         const context = await response.json() as Partial<AccountAuthSession>;
+        if (cancelled) return;
         const merged = { ...stored, ...context, token: stored.token, expires_at: stored.expires_at } as AccountAuthSession;
         if (!isOrdinaryUser(merged)) {
           if (!cancelled) clearAccountSession();
@@ -119,6 +140,7 @@ export default function AccountPage() {
     void resumeExistingSession();
     return () => {
       cancelled = true;
+      controller.abort();
       cancelRedirect();
     };
   }, []);
@@ -256,7 +278,19 @@ export default function AccountPage() {
 
           <div className="rounded-[32px] border border-blue-100 bg-white/94 p-3 shadow-[0_28px_80px_rgba(37,99,235,0.14)] backdrop-blur">
             <div className="rounded-[26px] bg-[#f8fbff] p-6 sm:p-8">
-              {sessionGate === 'signed-in' && existingSession ? (
+              {sessionGate === 'checking' || sessionGate === 'unavailable' ? (
+                <div className="py-6" role="status" data-testid="account-login-status">
+                  {sessionGate === 'checking' && <Loader2 size={22} className="mb-4 animate-spin text-blue-600" />}
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+                    {sessionGate === 'checking' ? '正在打开登录入口' : '登录服务暂不可用'}
+                  </h2>
+                  {sessionGate === 'unavailable' && (
+                    <button type="button" onClick={() => window.location.reload()} className="mt-6 inline-flex h-12 items-center justify-center rounded-full bg-blue-600 px-5 text-sm font-semibold text-white">
+                      重新检查
+                    </button>
+                  )}
+                </div>
+              ) : sessionGate === 'signed-in' && existingSession ? (
                 <div className="py-6" data-testid="account-existing-session">
                   <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
                     <Sparkles size={22} />
@@ -288,7 +322,7 @@ export default function AccountPage() {
                   <div className="mb-7">
                     <div>
                       <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                        {sessionGate === 'checking' ? <Loader2 size={22} className="animate-spin" /> : <LogIn size={22} />}
+                        <LogIn size={22} />
                       </div>
                       <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
                         {mode === 'login' ? '欢迎回来' : '开始新的工作本'}
@@ -303,7 +337,7 @@ export default function AccountPage() {
                     <button
                       type="button"
                       onClick={() => switchMode('login')}
-                      disabled={!hydrated || sessionGate === 'checking'}
+                      disabled={!hydrated}
                       aria-pressed={mode === 'login'}
                       data-testid="account-mode-login"
                       className={`rounded-full px-4 py-3 transition disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'login' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
@@ -313,7 +347,7 @@ export default function AccountPage() {
                     <button
                       type="button"
                       onClick={() => switchMode('register')}
-                      disabled={!hydrated || sessionGate === 'checking'}
+                      disabled={!hydrated}
                       aria-pressed={mode === 'register'}
                       data-testid="account-mode-register"
                       className={`rounded-full px-4 py-3 transition disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'register' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
@@ -424,13 +458,13 @@ export default function AccountPage() {
 
                     <button
                       type="submit"
-                      disabled={isSubmitting || !hydrated || sessionGate === 'checking'}
+                      disabled={isSubmitting || !hydrated}
                       data-testid="account-submit"
                       className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-4 text-base font-semibold text-white shadow-[0_14px_30px_rgba(37,99,235,0.22)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {isSubmitting || !hydrated || sessionGate === 'checking' ? <Loader2 size={20} className="animate-spin" /> : null}
-                      {sessionGate === 'checking' ? '正在准备' : mode === 'login' ? '进入工作本' : '创建并进入'}
-                      {!isSubmitting && hydrated && sessionGate !== 'checking' && <ArrowRight size={18} />}
+                      {isSubmitting || !hydrated ? <Loader2 size={20} className="animate-spin" /> : null}
+                      {mode === 'login' ? '进入工作本' : '创建并进入'}
+                      {!isSubmitting && hydrated && <ArrowRight size={18} />}
                     </button>
                   </form>
                 </>

@@ -182,7 +182,9 @@ jobs:
         run: pnpm run test:client-request-contract
 
       - name: Home deployment path contract
-        run: node scripts/test-home-base-path.mjs
+        run: |
+          node scripts/test-home-base-path.mjs
+          pnpm exec tsx scripts/test-account-login-entry.ts
 
       - name: Loopback listener contract
         run: pnpm run test:loopback-listener-contract

@@ -2,6 +2,7 @@ export type AccountCenterStatus = {
   configured: boolean;
   publicUrl: string | null;
   apiBaseConfigured: boolean;
+  paperHostLoginHref: '/research-agent' | null;
   tenantIdConfigured: boolean;
   memberBindingConfigured: boolean;
   appSignatureConfigured: boolean;
@@ -38,6 +39,7 @@ export function getAccountCenterStatus(): AccountCenterStatus {
     configured: Boolean(publicUrl) || apiBaseConfigured || Boolean(localQuotaPath),
     publicUrl: publicUrl || null,
     apiBaseConfigured,
+    paperHostLoginHref: envValue('PAPER_HOST_SESSION_VERIFY_URL') ? '/research-agent' : null,
     tenantIdConfigured,
     memberBindingConfigured,
     appSignatureConfigured,
