@@ -2,6 +2,7 @@
 import { checkedApiFetch, responseFailureMessage } from '@/lib/api-response';
 import { folderRows } from '@/lib/folder-hierarchy';
 import { FolderMoveDialog } from './FolderMoveDialog';
+import { ResizableUploadArea } from './ResizableUploadArea';
 
 import { selectedCommerceHeaders } from '@/lib/commerce/client-confirmation';
 import { useState, useCallback, useRef, useEffect, DragEvent } from 'react';
@@ -1277,7 +1278,7 @@ export function LibraryPanel({
       )}
 
       {/* Paper list */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2">
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2" data-library-scroll data-testid="library-source-list">
         {visibleFolders.length === 0 ? (
           <div className="flex flex-col items-center justify-center min-h-full py-8">
             <div className="w-16 h-16 rounded-2xl liquid-glass-inset flex items-center justify-center mx-auto mb-4">
@@ -1476,7 +1477,8 @@ export function LibraryPanel({
       </div>
 
       {/* Bottom upload area */}
-      <div className="px-4 py-4 border-t border-[var(--border-subtle)]">
+      <ResizableUploadArea storageKey={storageScopeKey}>
+      <div className="flex h-full min-h-0 flex-col px-4 pb-4">
         <input
           ref={fileInputRef}
           type="file"
@@ -1486,7 +1488,7 @@ export function LibraryPanel({
           onChange={(e) => handleFileSelect(e.target.files)}
         />
 
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-3 flex shrink-0 items-center gap-2">
           <label className="min-w-0 flex-1 text-[11px] font-medium text-[var(--text-tertiary)]">
             上传到
             <select
@@ -1511,7 +1513,7 @@ export function LibraryPanel({
         </div>
 
         <div
-          className="border border-dashed border-[var(--border-subtle)] rounded-2xl p-5 text-center cursor-pointer hover:border-[var(--border-hover)] hover:bg-[var(--glass-subtle)] transition-all duration-500"
+          className="flex min-h-32 flex-1 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border-subtle)] p-4 text-center transition-colors duration-200 hover:border-[var(--border-hover)] hover:bg-[var(--glass-subtle)]"
           onClick={() => {
             ensureUploadTarget();
             fileInputRef.current?.click();
@@ -1522,6 +1524,7 @@ export function LibraryPanel({
           <p className="text-[11px] text-[var(--text-quaternary)] mt-1">或点击选择论文、笔记、表格等文件</p>
         </div>
       </div>
+      </ResizableUploadArea>
 
       {/* Create folder dialog */}
       {movingFolderId && <FolderMoveDialog key={movingFolderId} folderId={movingFolderId} folders={folders} onClose={() => setMovingFolderId(null)} onMove={parentId => {
