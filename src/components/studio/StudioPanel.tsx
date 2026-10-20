@@ -59,13 +59,13 @@ export function StudioPanel() {
             <NavIcon className="h-4 w-4 text-[var(--text-secondary)]" />
           </div>
           <div>
-            <h2 className="text-base font-semibold tracking-tight text-[var(--text-primary)]">产物中心</h2>
-            <p className="text-xs text-[var(--text-tertiary)]">资料工具与生成结果</p>
+            <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">产物中心</h2>
+            <p className="text-sm leading-6 text-[var(--text-tertiary)]">资料工具与生成结果</p>
           </div>
         </div>
 
         <StudioToolSwitcher activeTab={activeTab} onSelect={openTool} />
-        <p data-testid="studio-nav-helper" className="mt-3 text-[11px] leading-relaxed text-[var(--text-quaternary)]">
+        <p data-testid="studio-nav-helper" className="mt-3 text-xs leading-5 text-[var(--text-tertiary)]">
           点击入口打开弹窗，检索或生成需在弹窗内确认。
         </p>
       </div>

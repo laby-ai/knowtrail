@@ -69,7 +69,7 @@ export function StudioToolSwitcher({
         aria-haspopup="dialog"
         type="button"
         onClick={() => onSelect(item.id)}
-        className={`spotlight-glass-card rounded-xl border px-3 py-2.5 text-left transition-all ${
+        className={`spotlight-glass-card h-full min-h-24 w-full rounded-xl border px-3 py-3 text-left transition-all ${
           isActive
             ? 'border-blue-400/50 bg-blue-500/10'
             : 'border-[var(--glass-border)] bg-[var(--glass-subtle)] hover:border-[var(--border-hover)]'
@@ -81,8 +81,8 @@ export function StudioToolSwitcher({
             <Icon className="h-4 w-4 text-[var(--text-secondary)]" />
           </span>
           <span className="min-w-0">
-            <span className="block truncate text-[11px] font-semibold leading-tight text-[var(--text-primary)]">{item.label}</span>
-            <span className="mt-0.5 block truncate text-[10px] leading-tight text-[var(--text-tertiary)]">{item.desc}</span>
+            <span className="line-clamp-2 break-words text-sm font-semibold leading-5 text-[var(--text-primary)]">{item.label}</span>
+            <span className="mt-1 line-clamp-2 break-words text-xs leading-[18px] text-[var(--text-tertiary)]">{item.desc}</span>
           </span>
         </span>
       </button>
@@ -96,7 +96,7 @@ export function StudioToolSwitcher({
     <div className="space-y-3" data-testid="studio-tool-switcher">
       {visibleCategories.map(category => (
         <section key={category.id} data-testid={`studio-category-${category.id}`}>
-          <h3 className="mb-2 text-[10px] font-semibold text-[var(--text-tertiary)]">{category.label}</h3>
+          <h3 className="mb-2 text-xs font-semibold leading-5 text-[var(--text-secondary)]">{category.label}</h3>
           <div className="grid grid-cols-2 gap-2">
             {category.products.map(product => {
               const item = STUDIO_NAV.find(navItem => navItem.id === product.id);
