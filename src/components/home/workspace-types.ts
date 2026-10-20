@@ -1,4 +1,5 @@
 import type { AccountAuthSession } from '@/lib/account-auth-client';
+import { appPublicPath } from '@/lib/app-public-path';
 
 export interface WorkspaceNotebook {
   id: string;
@@ -30,11 +31,9 @@ export type AccountCenterStatus = {
 export const NOTEBOOKS_STORAGE_KEY = 'lingbi-workspace-notebooks';
 export const ACTIVE_NOTEBOOK_STORAGE_KEY = 'lingbi-active-workspace-notebook';
 export const DEFAULT_WORKSPACE_UPDATED_AT = '2026-01-01T00:00:00.000Z';
-// The app is mounted under /lingbi/ on airai.world, so post-login return
-// targets must be prefixed — otherwise login bounces users to the company
-// homepage (/) instead of back into the workbench.
-export const NOTEBOOK_HOME_HREF = '/lingbi/?view=notebooks';
-export const ACCOUNT_NOTEBOOK_NEXT = '%2Flingbi%2F%3Fview%3Dnotebooks';
+// Next Link adds basePath itself; native post-login redirects need the full path.
+export const NOTEBOOK_HOME_HREF = '/?view=notebooks';
+export const ACCOUNT_NOTEBOOK_NEXT = encodeURIComponent(appPublicPath(NOTEBOOK_HOME_HREF));
 
 export function scopedStorageKey(base: string, session: AccountAuthSession | null): string {
   return `${base}:${session?.member.id || 'guest'}`;

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { clientApiPath } from '@/lib/client-api';
+import { appPublicPath } from '@/lib/app-public-path';
 import { ArrowRight, BookOpen, FileText, Loader2, LogIn, Mail, Quote, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { BrandMark } from '@/components/brand/BrandMark';
@@ -12,7 +13,7 @@ import type { LucideIcon } from 'lucide-react';
 type AuthMode = 'login' | 'register';
 type SessionGateState = 'checking' | 'guest' | 'signed-in';
 
-const NOTEBOOK_HOME_HREF = '/?view=notebooks';
+const NOTEBOOK_HOME_HREF = appPublicPath('/?view=notebooks');
 const ACCOUNT_HIGHLIGHTS: Array<{ icon: LucideIcon; title: string; body: string }> = [
   { icon: BookOpen, title: '工作本', body: '上次打开的内容会继续保留。' },
   { icon: FileText, title: '资料', body: '上传过的文件和网页还能接着用。' },
@@ -265,14 +266,14 @@ export default function AccountPage() {
                     {existingSession.member.display_name} · {existingSession.member.email}
                   </p>
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <Link
+                    <a
                       href={target}
                       className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-blue-600 px-5 text-sm font-semibold text-white shadow-[0_12px_26px_rgba(37,99,235,0.20)] transition hover:bg-blue-700"
                       data-testid="account-continue"
                     >
                       打开工作本
                       <ArrowRight className="h-4 w-4" />
-                    </Link>
+                    </a>
                     <button
                       type="button"
                       onClick={switchToGuestLogin}
