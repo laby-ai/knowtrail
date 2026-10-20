@@ -1,5 +1,6 @@
 'use client';
 
+import { UiText } from '@/components/account/UiText';
 import { CardSpotlight } from '@/components/ui/card-spotlight';
 import { ArrowUpRight, Clock3, FileText, Plus } from 'lucide-react';
 import {
@@ -19,7 +20,7 @@ export function CreateNotebookCard({ disabled, onCreate }: { disabled: boolean; 
       <span className="flex h-12 w-12 items-center justify-center rounded-lg text-blue-300" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)' }}>
         <Plus className="h-5 w-5" />
       </span>
-      <span className="mt-4 block text-base font-semibold tracking-tight text-white">新建文献本</span>
+      <span className="mt-4 block text-base font-semibold tracking-tight text-white"><UiText>新建文献本</UiText></span>
     </button>
     </CardSpotlight>
   );
@@ -60,14 +61,14 @@ export function NotebookCard({
         <h2 className="line-clamp-2 text-lg font-semibold leading-snug tracking-tight text-white">{notebook.title}</h2>
         <p className="mt-3 flex items-center gap-1.5 text-xs text-white/60">
           <Clock3 className="h-3.5 w-3.5" />
-          {formatNotebookDate(notebook.updatedAt)} · {notebook.sourceCount} 个来源
+          {formatNotebookDate(notebook.updatedAt)} · {notebook.sourceCount} <UiText>个来源</UiText>
         </p>
         <span
           className="mt-4 inline-flex text-xs font-semibold text-blue-300"
           data-testid={`notebook-home-open-${notebook.id}`}
-        >
+        ><UiText>
           打开文献本
-        </span>
+        </UiText></span>
       </div>
     </button>
     </CardSpotlight>

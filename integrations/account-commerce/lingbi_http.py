@@ -64,14 +64,21 @@ def dispatch(handler, method):
         if method == "GET":
             args = parse_qs(parsed.query)
             account = args.get("accountId", [None])[0]
-            if path == "membership":
+            if path == "account-closure":
+                from lingbi_account_closure import closure
+                result = closure(tenant, member)
+            elif path == "membership":
                 result = {**summary(tenant, member, account), "accounts": list_accounts(tenant, member), "readiness": readiness()}
             else:
                 raise AuthError(404, "commerce_route_not_found")
         else:
             data = internal_data if internal_data is not None else handler.read_json()
             account = data.get("accountId") or ensure_personal(tenant, member)
-            if path == "preferences":
+            if path == "account-closure":
+                handler.check_rate_limit(bucket="account.closure:" + member, max_requests=5, window=300)
+                from lingbi_account_closure import closure
+                result = closure(tenant, member, data)
+            elif path == "preferences":
                 result = preference(tenant, member, data.get("modelSource"))
             elif path == "teams":
                 result = create_team(tenant, member, data.get("name"))

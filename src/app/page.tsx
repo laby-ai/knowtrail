@@ -1,4 +1,5 @@
 'use client';
+import { UiText } from '@/components/account/UiText';
 import { checkedApiFetch } from '@/lib/api-response';
 
 import { clientApiRequest } from '@/lib/client-api';
@@ -91,7 +92,7 @@ function AcademicPresenterContent({
     <div className="relative isolate h-dvh w-full min-w-0 overflow-hidden flex flex-col">
       <ResearchSky variant="workspace" />
       <header className="flex shrink-0 items-center gap-4 border-b border-[var(--border-subtle)] px-4 py-2">
-        <button type="button" onClick={onBackHome} className="shrink-0 text-sm text-blue-500">返回文献本</button>
+        <button type="button" onClick={onBackHome} className="shrink-0 text-sm text-blue-500"><UiText>返回文献本</UiText></button>
         <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">{notebooks.find(n => n.id === activeNotebookId)?.title}</h1>
         {accountSession && <ResearchModeButton />}
         {accountSession && <ResearchCollaboration />}
@@ -270,7 +271,7 @@ export default function HomePage() {
             onOpenNotebookHome={handleOpenNotebookHome}
           />
         )}
-        {view === 'notebooks' && notebookError && <div role="alert" className="p-4 text-red-600">{notebookError}<button className="ml-3 underline" onClick={() => setReloadNotebooks(value => value + 1)}>重试</button></div>}
+        {view === 'notebooks' && notebookError && <div role="alert" className="p-4 text-red-600">{notebookError}<button className="ml-3 underline" onClick={() => setReloadNotebooks(value => value + 1)}><UiText>重试</UiText></button></div>}
         {view === 'notebooks' && (
           <NotebookHome
             sharingEntry={accountSession ? (

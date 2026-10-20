@@ -1,4 +1,5 @@
 'use client';
+import { UiText } from '@/components/account/UiText';
 import { checkedApiFetch, responseFailureMessage } from '@/lib/api-response';
 import { folderRows } from '@/lib/folder-hierarchy';
 import { FolderMoveDialog } from './FolderMoveDialog';
@@ -1100,8 +1101,8 @@ export function LibraryPanel({
         <div className="absolute inset-0 z-50 bg-blue-500/5 border-2 border-dashed border-blue-500/30 rounded-2xl flex items-center justify-center backdrop-blur-sm">
           <div className="text-center animate-scale-in">
             <Upload className="h-10 w-10 text-blue-400 mx-auto mb-3 animate-float" />
-            <p className="text-sm font-medium text-[var(--text-primary)]">释放文献或资料文件以上传</p>
-            <p className="text-xs text-zinc-500 mt-1">PDF / Word / 图片 / Excel / PPT / TXT</p>
+            <p className="text-sm font-medium text-[var(--text-primary)]"><UiText>释放文献或资料文件以上传</UiText></p>
+            <p className="text-xs text-zinc-500 mt-1"><UiText>PDF / Word / 图片 / Excel / PPT / TXT</UiText></p>
           </div>
         </div>
       )}
@@ -1110,7 +1111,7 @@ export function LibraryPanel({
       <div className="px-4 pt-4 pb-3 border-b border-[var(--border-subtle)]">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[var(--text-primary)]">文献库</p>
+            <p className="text-sm font-semibold text-[var(--text-primary)]"><UiText>文献库</UiText></p>
             <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">
               {totalPapers} 个来源{ingestionSyncState === 'syncing' ? ' · 同步中' : ingestionSyncState === 'error' ? ' · 状态同步失败' : ''}
             </p>
@@ -1123,9 +1124,9 @@ export function LibraryPanel({
               aria-label="文献检索"
               title="从学术数据库搜索文献"
             >
-              <BookOpen className="h-3.5 w-3.5 text-purple-400" />
+              <BookOpen className="h-3.5 w-3.5 text-purple-400" /><UiText>
               文献检索
-            </button>
+            </UiText></button>
             <button
               onClick={() => setIsDiscoverOpen(true)}
               data-testid="library-discover"
@@ -1133,9 +1134,9 @@ export function LibraryPanel({
               aria-label="搜索网络信源"
               title="搜索网络信源并加入文献库"
             >
-              <Globe2 className="h-3.5 w-3.5 text-blue-400" />
+              <Globe2 className="h-3.5 w-3.5 text-blue-400" /><UiText>
               发现信源
-            </button>
+            </UiText></button>
             <button
               onClick={() => setIsCreatingFolder(true)}
               className="w-8 h-8 rounded-xl liquid-glass-btn !p-0 flex items-center justify-center"
@@ -1165,11 +1166,11 @@ export function LibraryPanel({
           <DialogHeader>
             <DialogTitle>确认删除{removal?.folderId ? '分组和文献' : '文献'}</DialogTitle>
             <DialogDescription>将从当前文献本删除 {removal?.ids.length || 0} 个来源，删除后无法撤销。取消选择不会删除文献。</DialogDescription>
-            {removal?.folderId && folders.some(folder => folder.parentId === removal.folderId) && <p className="text-sm text-[var(--text-secondary)]">子分组及其中资料会保留，并提升一级。</p>}
+            {removal?.folderId && folders.some(folder => folder.parentId === removal.folderId) && <p className="text-sm text-[var(--text-secondary)]"><UiText>子分组及其中资料会保留，并提升一级。</UiText></p>}
           </DialogHeader>
           {removalError && <p role="alert" className="my-3 text-sm text-red-500">{removalError}</p>}
           <div className="mt-5 flex justify-end gap-3">
-            <button type="button" disabled={removing} onClick={() => setRemoval(null)} className="liquid-glass-btn">取消</button>
+            <button type="button" disabled={removing} onClick={() => setRemoval(null)} className="liquid-glass-btn"><UiText>取消</UiText></button>
             <button type="button" disabled={removing} onClick={() => void confirmRemoval()} data-testid="library-confirm-delete" className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">{removing ? '正在删除…' : '确认删除'}</button>
           </div>
         </DialogContent>
@@ -1186,8 +1187,8 @@ export function LibraryPanel({
           </span>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" data-testid="library-delete-selected" onClick={() => requestRemoval(selectedPapers)} className="btn-ghost px-2 py-1 text-xs text-red-500">
-              <Trash2 className="h-3 w-3" /> 删除所选
-            </button>
+              <Trash2 className="h-3 w-3" /><UiText> 删除所选
+            </UiText></button>
             {selectedPapers.length >= 2 && (
               <button
                 type="button"
@@ -1199,8 +1200,8 @@ export function LibraryPanel({
                 className="btn-ghost text-xs text-[var(--accent-blue)] hover:opacity-80 py-1 px-2"
                 style={{ cursor: 'pointer', pointerEvents: 'auto' }}
               >
-                <FileSpreadsheet className="h-3 w-3" /> 文献矩阵
-              </button>
+                <FileSpreadsheet className="h-3 w-3" /><UiText> 文献矩阵
+              </UiText></button>
             )}
             <button
               type="button"
@@ -1214,8 +1215,8 @@ export function LibraryPanel({
               className="btn-ghost text-xs text-[var(--accent-blue)] hover:opacity-80 py-1 px-2"
               style={{ cursor: 'pointer', pointerEvents: 'auto' }}
             >
-              <X className="h-3 w-3" /> 取消选择
-            </button>
+              <X className="h-3 w-3" /><UiText> 取消选择
+            </UiText></button>
           </div>
         </div>
       )}
@@ -1224,7 +1225,7 @@ export function LibraryPanel({
       {showUploadProgress && uploadItems.length > 0 && (
         <div className="px-5 py-3 border-b border-[var(--border-subtle)] bg-[var(--bg-card)] space-y-2">
           <div className="flex items-center justify-between">
-            <span className="section-label">上传进度</span>
+            <span className="section-label"><UiText>上传进度</UiText></span>
             <button
               onClick={() => {
                 if (uploadItems.every(i => i.status !== 'uploading')) {
@@ -1284,16 +1285,16 @@ export function LibraryPanel({
             <div className="w-16 h-16 rounded-2xl liquid-glass-inset flex items-center justify-center mx-auto mb-4">
               <FileText className="h-7 w-7 text-zinc-700" />
             </div>
-            <p className="text-sm text-zinc-500 font-medium">暂无文献来源</p>
-            <p className="text-xs text-zinc-600 mt-1.5">拖拽论文、网页笔记或资料文件到此处，建立文献本来源。</p>
+            <p className="text-sm text-zinc-500 font-medium"><UiText>暂无文献来源</UiText></p>
+            <p className="text-xs text-zinc-600 mt-1.5"><UiText>拖拽论文、网页笔记或资料文件到此处，建立文献本来源。</UiText></p>
             <button
               type="button"
               onClick={() => setIsSourceGuideOpen(true)}
               className="mt-4 rounded-full border border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-4 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:border-[var(--border-hover)] hover:bg-[var(--glass-hover)]"
               data-testid="library-empty-examples"
-            >
+            ><UiText>
               添加资料
-            </button>
+            </UiText></button>
           </div>
         ) : (
           visibleFolders.map(({ folder, depth }) => (
@@ -1402,7 +1403,7 @@ export function LibraryPanel({
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-300">
-                                <span>证据定位</span>
+                                <span><UiText>证据定位</UiText></span>
                                 <span className="text-blue-300/50">·</span>
                                 <span>{formatCitationReveal(citationFocus.citation)}</span>
                               </div>
@@ -1429,7 +1430,7 @@ export function LibraryPanel({
                               </p>
                             )}
                             {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'loading' && (
-                              <p className="mt-1.5 text-[var(--text-tertiary)]">正在调取来源片段...</p>
+                              <p className="mt-1.5 text-[var(--text-tertiary)]"><UiText>正在调取来源片段...</UiText></p>
                             )}
                             {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'ready' && (
                               <div
@@ -1437,7 +1438,7 @@ export function LibraryPanel({
                                 className="mt-1.5 rounded-md border border-blue-300/15 bg-black/15 px-2 py-1.5"
                               >
                                 <div className="flex flex-wrap items-center gap-1.5 font-semibold text-blue-200">
-                                  <span>原文片段</span>
+                                  <span><UiText>原文片段</UiText></span>
                                   <span className="text-blue-300/50">·</span>
                                   <span>{citationContext.snippet.locator}</span>
                                 </div>
@@ -1447,14 +1448,14 @@ export function LibraryPanel({
                               </div>
                             )}
                             {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'missing' && (
-                              <p className="mt-1.5 text-[var(--text-tertiary)]">
+                              <p className="mt-1.5 text-[var(--text-tertiary)]"><UiText>
                                 当前卡片已有引用摘录；完整来源片段尚未同步到文献库。
-                              </p>
+                              </UiText></p>
                             )}
                             {citationContext?.token === citationFocus.token && citationContext.paperId === paper.id && citationContext.status === 'error' && (
-                              <p className="mt-1.5 text-[var(--text-tertiary)]">
+                              <p className="mt-1.5 text-[var(--text-tertiary)]"><UiText>
                                 来源片段读取失败，请稍后重试。
-                              </p>
+                              </UiText></p>
                             )}
                           </div>
                         )}
@@ -1489,9 +1490,9 @@ export function LibraryPanel({
         />
 
         <div className="mb-3 flex shrink-0 items-center gap-2">
-          <label className="min-w-0 flex-1 text-[11px] font-medium text-[var(--text-tertiary)]">
+          <label className="min-w-0 flex-1 text-[11px] font-medium text-[var(--text-tertiary)]"><UiText>
             上传到
-            <select
+            </UiText><select
               value={resolvedUploadTarget || ''}
               onChange={event => {
                 const value = event.target.value;
@@ -1505,9 +1506,9 @@ export function LibraryPanel({
               data-testid="library-upload-target"
               className="mt-1 h-9 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)] px-3 text-xs text-[var(--text-secondary)] outline-none focus:border-blue-400/50"
             >
-              <option value="">文献库（首次上传自动创建）</option>
+              <option value=""><UiText>文献库（首次上传自动创建）</UiText></option>
               {hierarchy.map(row => <option key={row.folder.id} value={row.folder.id}>{row.path}</option>)}
-              <option value="__new__">+ 新建目录…</option>
+              <option value="__new__"><UiText>+ 新建目录…</UiText></option>
             </select>
           </label>
         </div>
@@ -1520,8 +1521,8 @@ export function LibraryPanel({
           }}
         >
           <Upload className="h-6 w-6 mx-auto mb-2 text-[var(--text-quaternary)]" />
-          <p className="text-xs font-medium text-[var(--text-tertiary)]">拖拽文献或资料文件到此处上传</p>
-          <p className="text-[11px] text-[var(--text-quaternary)] mt-1">或点击选择论文、笔记、表格等文件</p>
+          <p className="text-xs font-medium text-[var(--text-tertiary)]"><UiText>拖拽文献或资料文件到此处上传</UiText></p>
+          <p className="text-[11px] text-[var(--text-quaternary)] mt-1"><UiText>或点击选择论文、笔记、表格等文件</UiText></p>
         </div>
       </div>
       </ResizableUploadArea>
@@ -1570,8 +1571,8 @@ export function LibraryPanel({
       {isCreatingFolder && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--bg-primary)]/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsCreatingFolder(false)}>
           <div className="readable-dialog liquid-glass-card max-h-[90dvh] w-[300px] overflow-y-auto p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">新建文献分组</h3>
-            <p className="text-xs text-zinc-500 mb-4">按课题、实验或组会主题组织文献、网页和笔记来源。</p>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2"><UiText>新建文献分组</UiText></h3>
+            <p className="text-xs text-zinc-500 mb-4"><UiText>按课题、实验或组会主题组织文献、网页和笔记来源。</UiText></p>
             <input
               type="text"
               placeholder="课题或分组名称..."
@@ -1582,8 +1583,8 @@ export function LibraryPanel({
               autoFocus
             />
             <div className="flex gap-2">
-              <button onClick={() => setIsCreatingFolder(false)} className="liquid-glass-btn flex-1 py-2 text-xs">取消</button>
-              <button onClick={handleCreateFolder} className="liquid-glass-btn !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 flex-1 py-2 text-xs">创建</button>
+              <button onClick={() => setIsCreatingFolder(false)} className="liquid-glass-btn flex-1 py-2 text-xs"><UiText>取消</UiText></button>
+              <button onClick={handleCreateFolder} className="liquid-glass-btn !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 flex-1 py-2 text-xs"><UiText>创建</UiText></button>
             </div>
           </div>
         </div>
@@ -1609,7 +1610,7 @@ export function LibraryPanel({
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
                   <FileText className="h-4 w-4 text-blue-400" />
-                  <span>来源片段</span>
+                  <span><UiText>来源片段</UiText></span>
                 </div>
                 <p className="mt-1 truncate text-xs text-[var(--text-secondary)]">{sourcePreview.paper.title}</p>
               </div>
@@ -1639,27 +1640,27 @@ export function LibraryPanel({
                   </p>
                   {previewLiterature.abstract && <p className="whitespace-pre-wrap">摘要：{previewLiterature.abstract}</p>}
                   {previewLiterature.url && (
-                    <a href={previewLiterature.url} target="_blank" rel="noopener noreferrer" className="inline-block underline" style={{ color: '#1d4ed8' }}>
+                    <a href={previewLiterature.url} target="_blank" rel="noopener noreferrer" className="inline-block underline" style={{ color: '#1d4ed8' }}><UiText>
                       打开原文链接
-                    </a>
+                    </UiText></a>
                   )}
                 </div>
               )}
               {sourcePreview.status === 'loading' && (
                 <div className="flex items-center gap-2 rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-3 text-xs text-blue-200">
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" /><UiText>
                   正在读取来源片段...
-                </div>
+                </UiText></div>
               )}
               {sourcePreview.status === 'missing' && (
-                <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
+                <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200"><UiText>
                   当前来源尚未同步完整片段列表；仍可使用已保存的标题、摘要和引用摘录。
-                </div>
+                </UiText></div>
               )}
               {sourcePreview.status === 'error' && (
-                <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-3 text-xs leading-relaxed text-red-200">
+                <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-3 text-xs leading-relaxed text-red-200"><UiText>
                   来源片段读取失败，请稍后重试。
-                </div>
+                </UiText></div>
               )}
               {sourcePreview.status === 'ready' && (() => {
                 const chunks = (sourcePreview.source.chunks || [])
@@ -1669,9 +1670,9 @@ export function LibraryPanel({
                 if (chunks.length === 0 && previewLiterature?.evidenceScope === 'metadata') return null;
                 if (chunks.length === 0 && !dataPreview) {
                   return (
-                    <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
+                    <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200"><UiText>
                       来源详情已找到，但暂未包含可展示的原文片段。
-                    </div>
+                    </UiText></div>
                   );
                 }
                 const citationLeads = buildSourceCitationLeads(chunks);
@@ -1696,16 +1697,16 @@ export function LibraryPanel({
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-1.5 text-xs font-semibold text-teal-100">
                             <FileSpreadsheet className="h-3.5 w-3.5" />
-                            <span>数据速览</span>
+                            <span><UiText>数据速览</UiText></span>
                           </div>
                           <div className="text-[11px] text-teal-100/65">
                             {dataPreview.sheetName ? `${dataPreview.sheetName} · ` : ''}
                             {dataPreview.rowCount} 行 · {dataPreview.columnCount} 列
                           </div>
                         </div>
-                        <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                        <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]"><UiText>
                           基于上传表格文本的本地采样分析，用于确认变量、缺失值和 Results 写作线索；不替代正式统计检验。
-                        </p>
+                        </UiText></p>
                         <div className="mt-2 grid gap-1.5">
                           {dataPreview.columns.slice(0, 6).map(column => (
                             <div
@@ -1740,9 +1741,9 @@ export function LibraryPanel({
                       </div>
                     )}
                     {chunks.length === 0 && (
-                      <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
+                      <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200"><UiText>
                         当前来源暂未包含可展示的原文片段；可先使用数据速览检查表格结构。
-                      </div>
+                      </UiText></div>
                     )}
                     {citationLeads.length > 0 && (
                       <div
@@ -1750,12 +1751,12 @@ export function LibraryPanel({
                         className="rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-3"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-xs font-semibold text-blue-200">引用线索</div>
-                          <div className="text-[11px] text-blue-200/65">基于已入库片段</div>
+                          <div className="text-xs font-semibold text-blue-200"><UiText>引用线索</UiText></div>
+                          <div className="text-[11px] text-blue-200/65"><UiText>基于已入库片段</UiText></div>
                         </div>
-                        <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+                        <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-tertiary)]"><UiText>
                           以下候选句只来自当前来源片段，用于写作时回查证据，不替代阅读全文。
-                        </p>
+                        </UiText></p>
                         <div className="mt-2 space-y-1.5">
                           {citationLeads.map((lead, index) => (
                             <div
@@ -1837,9 +1838,9 @@ export function LibraryPanel({
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
           >
-            <FileText className="h-3.5 w-3.5 text-blue-400" />
+            <FileText className="h-3.5 w-3.5 text-blue-400" /><UiText>
             查看来源片段
-          </button>
+          </UiText></button>
           <div className="h-px bg-[var(--border-subtle)] my-1" />
           <button
             data-testid="library-remove-paper"
@@ -1849,9 +1850,9 @@ export function LibraryPanel({
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" /><UiText>
             删除文献
-          </button>
+          </UiText></button>
         </div>
       )}
     </div>

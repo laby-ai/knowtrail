@@ -1,5 +1,6 @@
 'use client';
 
+import { UiText, useUiText } from '@/components/account/UiText';
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ResearchSky } from '@/components/home/ResearchSky';
@@ -53,7 +54,7 @@ function AccountArea({
         data-testid="notebook-home-account"
       >
         <UserRound className="h-4 w-4" />
-        <span className="hidden sm:inline">登录账号</span>
+        <span className="hidden sm:inline"><UiText>登录账号</UiText></span>
       </Link>
     );
   }
@@ -74,6 +75,7 @@ export function NotebookHome({
   onShowLanding,
   onSignOut,
 }: NotebookHomeProps) {
+  const t = useUiText();
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLowerCase();
   const filteredNotebooks = notebooks.filter(notebook => notebook.title.toLowerCase().includes(normalizedQuery));
@@ -96,7 +98,7 @@ export function NotebookHome({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索文献本"
+              placeholder={t('搜索文献本')}
               className="liquid-glass-input h-10 w-full rounded-lg px-3.5 text-sm"
               data-testid="notebook-home-search"
             />
@@ -117,7 +119,7 @@ export function NotebookHome({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="搜索文献本"
+              placeholder={t('搜索文献本')}
               className="liquid-glass-input h-11 w-full rounded-lg px-3.5 text-sm"
             />
           </label>
@@ -125,8 +127,8 @@ export function NotebookHome({
 
         <section className="mx-auto max-w-7xl px-4 py-6 sm:px-5 sm:py-8">
           <div className="mb-4 flex items-center justify-between gap-4">
-            <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">最近打开</h1>
-            <span className="text-sm tabular-nums text-white/60">{filteredNotebooks.length} 个文献本</span>
+            <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl"><UiText>最近打开</UiText></h1>
+            <span className="text-sm tabular-nums text-white/60">{filteredNotebooks.length} <UiText>个文献本</UiText></span>
           </div>
 
           {filteredNotebooks.length > 0 ? (
@@ -162,12 +164,12 @@ export function NotebookHome({
         {accountStatus?.configured && !accountSession && (
           <div className="liquid-glass-card mx-auto mt-6 flex max-w-7xl items-center justify-between gap-4 rounded-xl p-4 text-sm text-white/90">
             <div className="flex items-center gap-2">
-              <BrandMark compact className="h-7 w-7" />
+              <BrandMark compact className="h-7 w-7" /><UiText>
               登录后可以继续保存和打开你的文献本。
-            </div>
-            <Link href={`/account?next=${ACCOUNT_NOTEBOOK_NEXT}`} className="font-semibold text-blue-300 underline underline-offset-4">
+            </UiText></div>
+            <Link href={`/account?next=${ACCOUNT_NOTEBOOK_NEXT}`} className="font-semibold text-blue-300 underline underline-offset-4"><UiText>
               去登录
-            </Link>
+            </UiText></Link>
           </div>
         )}
       </main>

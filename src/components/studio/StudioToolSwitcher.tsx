@@ -1,4 +1,5 @@
 'use client';
+import { UiText } from '@/components/account/UiText';
 import { CardSpotlight } from '@/components/ui/card-spotlight';
 
 import type { ElementType } from 'react';
@@ -74,15 +75,15 @@ export function StudioToolSwitcher({
             ? 'border-blue-400/50 bg-blue-500/10'
             : 'border-[var(--glass-border)] bg-[var(--glass-subtle)] hover:border-[var(--border-hover)]'
         }`}
-        title={`${item.label}：${item.desc}`}
+        title={`$<UiText>{item.label}</UiText>：$<UiText>{item.desc}</UiText>`}
       >
         <span className="flex items-center gap-2">
           <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${item.accent}`}>
             <Icon className="h-4 w-4 text-[var(--text-secondary)]" />
           </span>
           <span className="min-w-0">
-            <span className="line-clamp-2 break-words text-sm font-semibold leading-5 text-[var(--text-primary)]">{item.label}</span>
-            <span className="mt-1 line-clamp-2 break-words text-xs leading-[18px] text-[var(--text-tertiary)]">{item.desc}</span>
+            <span className="line-clamp-2 break-words text-sm font-semibold leading-5 text-[var(--text-primary)]"><UiText>{item.label}</UiText></span>
+            <span className="mt-1 line-clamp-2 break-words text-xs leading-[18px] text-[var(--text-tertiary)]"><UiText>{item.desc}</UiText></span>
           </span>
         </span>
       </button>
@@ -96,7 +97,7 @@ export function StudioToolSwitcher({
     <div className="space-y-3" data-testid="studio-tool-switcher">
       {visibleCategories.map(category => (
         <section key={category.id} data-testid={`studio-category-${category.id}`}>
-          <h3 className="mb-2 text-xs font-semibold leading-5 text-[var(--text-secondary)]">{category.label}</h3>
+          <h3 className="mb-2 text-xs font-semibold leading-5 text-[var(--text-secondary)]"><UiText>{category.label}</UiText></h3>
           <div className="grid grid-cols-2 gap-2">
             {category.products.map(product => {
               const item = STUDIO_NAV.find(navItem => navItem.id === product.id);

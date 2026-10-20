@@ -1,3 +1,4 @@
+import { outputLanguageInstruction } from '@/lib/app-preferences';
 import type { RuntimeAIConfig } from '@/types';
 import { hasRuntimeAIProvider, redactRuntimeAISecrets, resolveOpenAIChatEndpoint, resolveServerRuntimeAIConfig } from '@/lib/runtime-ai-config';
 import { buildOpenAIHeaders, fetchWithTransientRetry, shouldRetryTransientError, waitForTransientRetry } from '@/lib/runtime-ai-http';
@@ -111,7 +112,7 @@ async function* openAICompatStream(
     signal: options?.signal,
     body: JSON.stringify({
       model: resolveRuntimeModel(options, runtimeConfig),
-      messages,
+      messages: outputLanguageInstruction(runtimeConfig?.outputLanguage || 'auto') ? [{ role: 'system', content: outputLanguageInstruction(runtimeConfig?.outputLanguage || 'auto') }, ...messages] : messages,
       temperature: options?.temperature ?? 0.7,
       ...maxTokensPayload,
       stream: true,

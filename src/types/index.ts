@@ -252,6 +252,7 @@ export interface VoiceClone {
 
 // 模型运行配置。C 端默认由账号绑定的服务端配置托管；仅在显式兼容旧 BYOK 流程时使用请求侧配置。
 export interface RuntimeAIConfig {
+  outputLanguage?: 'auto' | 'zh-CN' | 'en';
   apiBase: string;
   apiKey: string;
   model: string;

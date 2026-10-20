@@ -1,5 +1,6 @@
 'use client';
 
+import { UiText } from '@/components/account/UiText';
 import Link from 'next/link';
 import { ResearchSky } from '@/components/home/ResearchSky';
 import {
@@ -124,7 +125,7 @@ function ResearchPartnerSection() {
   return (
     <section className="mx-auto max-w-7xl px-5 py-20">
       <MotionReveal>
-        <h2 className="text-center text-4xl font-normal tracking-tight text-white md:text-5xl">从文献到证据链</h2>
+        <h2 className="text-center text-4xl font-normal tracking-tight text-white md:text-5xl"><UiText>从文献到证据链</UiText></h2>
       </MotionReveal>
       <div className="mt-12 space-y-16">
         {researchFeatures.map((feature, index) => {
@@ -157,13 +158,13 @@ function ResearchRoadmapSection() {
     <section className="mx-auto max-w-7xl px-5 py-20">
       <MotionReveal>
         <div className="max-w-3xl">
-          <p className="text-sm font-semibold text-blue-300">科研能力路线图</p>
-          <h2 className="mt-3 text-4xl font-normal tracking-tight text-white md:text-5xl">
+          <p className="text-sm font-semibold text-blue-300"><UiText>科研能力路线图</UiText></p>
+          <h2 className="mt-3 text-4xl font-normal tracking-tight text-white md:text-5xl"><UiText>
             围绕真实来源完成研究与交付
-          </h2>
-          <p className="mt-5 text-lg leading-8 text-white/70">
+          </UiText></h2>
+          <p className="mt-5 text-lg leading-8 text-white/70"><UiText>
             灵笔会沿着文献调研、实验设计、数据分析、论文写作和投稿准备逐步打磨。当前先把可信来源、证据溯源和研究产物闭环做稳。
-          </p>
+          </UiText></p>
         </div>
       </MotionReveal>
 
@@ -209,10 +210,10 @@ function WorkPrincipleSection() {
   return (
     <section className="mx-auto grid max-w-7xl items-center gap-10 px-5 py-20 lg:grid-cols-[0.72fr_1.28fr]">
       <MotionReveal>
-        <h2 className="text-4xl font-normal tracking-tight text-white md:text-5xl">科研工作流</h2>
-        <p className="mt-6 max-w-md text-lg leading-8 text-white/70">
+        <h2 className="text-4xl font-normal tracking-tight text-white md:text-5xl"><UiText>科研工作流</UiText></h2>
+        <p className="mt-6 max-w-md text-lg leading-8 text-white/70"><UiText>
           把来源放进一个文献本。提问时，回答会围绕这组来源组织，并保留可复核的依据。
-        </p>
+        </UiText></p>
       </MotionReveal>
 
       <MotionReveal delay={0.1}>
@@ -248,13 +249,13 @@ function WorkPrincipleSection() {
             transition={{ duration: 8.5, repeat: Infinity, ease: 'easeInOut' }}
           >
             <div className="flex items-center justify-between gap-4">
-              <div className="rounded-full border border-blue-400/30 bg-blue-500/20 px-4 py-2 text-sm font-semibold text-blue-200">
+              <div className="rounded-full border border-blue-400/30 bg-blue-500/20 px-4 py-2 text-sm font-semibold text-blue-200"><UiText>
                 证据溯源回答
-              </div>
+              </UiText></div>
               <div className="flex items-center gap-2 text-xs font-semibold text-white/50">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="h-2 w-2 rounded-full bg-emerald-400" /><UiText>
                 引用线索已检查
-              </div>
+              </UiText></div>
             </div>
             <div className="mt-8 space-y-3">
               <span className="block h-3 w-3/4 rounded-full bg-white/20" />
@@ -282,7 +283,7 @@ function WorkPrincipleSection() {
             <BrandMark compact className="h-10 w-10 border-white/20 shadow-none" />
             <div>
               <div className="text-sm font-semibold text-white">KnowTrail</div>
-              <div className="text-xs text-white/60">问题、回答和引用依据保存在一起。</div>
+              <div className="text-xs text-white/60"><UiText>问题、回答和引用依据保存在一起。</UiText></div>
             </div>
           </motion.div>
         </div>
@@ -317,12 +318,12 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
           <div className="research-sky-hero liquid-glass-card mx-auto max-w-[1560px] rounded-[34px] px-5 pb-6 pt-16 md:px-8 md:pt-28">
             <ResearchSky />
             <div className="relative mx-auto max-w-5xl text-center">
-              <h1 className="text-5xl font-normal leading-[1.08] tracking-[-0.03em] text-white md:text-7xl">
-                读懂<span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent">每篇文献</span>
+              <h1 className="text-5xl font-normal leading-[1.08] tracking-[-0.03em] text-white md:text-7xl"><UiText>
+                读懂</UiText><span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent"><UiText>每篇文献</UiText></span>
               </h1>
-              <p className="mx-auto mt-7 max-w-3xl text-xl leading-8 text-white/70">
+              <p className="mx-auto mt-7 max-w-3xl text-xl leading-8 text-white/70"><UiText>
                 以你信任的来源为基础，把论文 PDF、网页、音频和研究笔记放进一个文献本，用提问、引用和组会材料继续研究。
-              </p>
+              </UiText></p>
               <div className="mt-8 flex justify-center">
                 <Link
                   href={accountUrl}
@@ -330,9 +331,9 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
                   className="liquid-glass-btn-primary inline-flex h-14 items-center justify-center gap-2 rounded-full px-8 text-lg font-semibold"
                   style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%)', border: '1px solid rgba(255,255,255,0.3)' }}
                   data-testid="hero-login-account"
-                >
+                ><UiText>
                   开启科研模式
-                </Link>
+                </UiText></Link>
               </div>
             </div>
             <div className="mt-10 md:mt-12">
@@ -354,8 +355,8 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
                 <Sparkles className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="text-2xl font-normal tracking-tight text-white">从一个文献本开始</h2>
-                <p className="mt-1 text-sm text-white/70">上传文献、提出研究问题、保存可追溯结果。</p>
+                <h2 className="text-2xl font-normal tracking-tight text-white"><UiText>从一个文献本开始</UiText></h2>
+                <p className="mt-1 text-sm text-white/70"><UiText>上传文献、提出研究问题、保存可追溯结果。</UiText></p>
               </div>
             </div>
             <Link
@@ -364,9 +365,9 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
               className="liquid-glass-btn-primary inline-flex h-12 items-center justify-center gap-2 rounded-full px-6 text-sm font-semibold"
               style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%)', border: '1px solid rgba(255,255,255,0.3)' }}
               data-testid="hero-open-notebooks"
-            >
+            ><UiText>
               进入文献本
-              <BookOpen className="h-4 w-4" />
+              </UiText><BookOpen className="h-4 w-4" />
             </Link>
           </div>
         </section>

@@ -1821,3 +1821,6 @@ body {
 [data-theme="light"] [data-slot="select-trigger"]:hover {
   background: rgba(0, 0, 0, 0.06) !important;
 }
+
+/* User motion preference also covers decorative sky layers. */
+html[data-reduce-motion="true"] *, html[data-reduce-motion="true"] *::before, html[data-reduce-motion="true"] *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }

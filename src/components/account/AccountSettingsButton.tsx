@@ -1,9 +1,13 @@
 'use client';
 import { checkedApiFetch } from '@/lib/api-response';
 
+import { useAppPreferences } from './AppPreferencesProvider';
+import { GeneralSettings } from './GeneralSettings';
+import { HistorySettings } from './HistorySettings';
+import { AccountClosureSettings } from './AccountClosureSettings';
 import { MembershipPanel } from './commerce/MembershipPanel';
 import { useEffect, useState } from 'react';
-import { Settings, UserRound, ShieldCheck, KeyRound, LogOut, Wallet } from 'lucide-react';
+import { Settings, UserRound, ShieldCheck, KeyRound, LogOut, Wallet, SlidersHorizontal, History, Info } from 'lucide-react';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -26,6 +30,8 @@ function SecuritySettings({ session, onSignOut }: { session: AccountAuthSession;
 }
 
 export function AccountSettingsButton({ session, onSignOut }: { session: AccountAuthSession; onSignOut: () => void }) {
+  const { preferences } = useAppPreferences();
+  const en = preferences.interfaceLanguage === 'en';
   const [open, setOpen] = useState(false);
   const [resolvedSession, setResolvedSession] = useState<AccountAuthSession | null>(null);
   const [profileError, setProfileError] = useState('');
@@ -63,36 +69,50 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button type="button" aria-label="设置" data-testid="account-settings-button" className="liquid-glass-btn pointer-events-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-medium text-[var(--text-primary)]">
-          <Settings className="h-5 w-5" /><span>设置</span>
+          <Settings className="h-5 w-5" /><span>{en ? 'Settings' : '设置'}</span>
         </button>
       </DialogTrigger>
-      <DialogContent data-testid="account-settings-dialog" className="grid max-h-[calc(100dvh-2rem)] gap-6 overflow-y-auto p-5 sm:max-w-4xl sm:p-7" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      <DialogContent data-testid="account-settings-dialog" className="grid max-h-[calc(100dvh-2rem)] gap-5 overflow-y-auto p-5 sm:max-w-5xl sm:p-7" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
         <DialogHeader className="space-y-3 text-left">
-          <DialogTitle>设置</DialogTitle>
-          <DialogDescription className="leading-6">管理账号、安全、模型配置与会员用量。</DialogDescription>
+          <DialogTitle>{en ? 'Settings' : '设置'}</DialogTitle>
+          <DialogDescription className="leading-6">{en ? 'Manage preferences, account, research history and usage.' : '管理通用偏好、账号安全、研究历史与会员用量。'}</DialogDescription>
         </DialogHeader>
         {profileError ? <div className="mt-5 space-y-3">
           <p role="alert" className="text-sm text-red-600">{profileError}</p>
           <button type="button" onClick={() => setRefresh(value => value + 1)} className="liquid-glass-btn px-3 py-2 text-sm">重新加载</button>
           <button type="button" onClick={() => { setOpen(false); onSignOut(); }} className="ml-3 text-sm text-red-600">退出账号</button>
-        </div> : !account ? <p role="status" className="mt-5 text-sm text-[var(--text-secondary)]">正在同步账号信息…</p> : <Tabs defaultValue="account" className="mt-5">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 sm:grid-cols-4">
-            <TabsTrigger value="account"><UserRound className="h-4 w-4" />账号</TabsTrigger>
-            <TabsTrigger value="security"><ShieldCheck className="h-4 w-4" />安全</TabsTrigger>
-            <TabsTrigger value="bailian"><KeyRound className="h-4 w-4" />百炼</TabsTrigger>
-            <TabsTrigger value="membership"><Wallet className="h-4 w-4" />会员与用量</TabsTrigger>
+        </div> : !account ? <p role="status" className="mt-5 text-sm text-[var(--text-secondary)]">正在同步账号信息…</p> : <Tabs defaultValue="general" className="mt-1 min-w-0 gap-6 md:flex-row md:items-start">
+          <TabsList aria-label={en ? 'Settings categories' : '设置分类'} className="grid h-auto w-full shrink-0 grid-cols-2 gap-1 rounded-xl bg-[var(--glass-subtle)] p-2 sm:grid-cols-4 md:w-44 md:grid-cols-1 [&>button]:h-auto [&>button]:justify-start [&>button]:whitespace-normal [&>button]:px-3 [&>button]:py-3">
+            <TabsTrigger value="general"><SlidersHorizontal className="h-4 w-4" />{en ? 'General' : '通用'}</TabsTrigger>
+            <TabsTrigger value="account"><UserRound className="h-4 w-4" />{en ? 'Account' : '账号管理'}</TabsTrigger>
+            <TabsTrigger value="security"><ShieldCheck className="h-4 w-4" />{en ? 'Security' : '安全'}</TabsTrigger>
+            <TabsTrigger value="history"><History className="h-4 w-4" />{en ? 'History & downloads' : '历史与下载'}</TabsTrigger>
+            <TabsTrigger value="bailian"><KeyRound className="h-4 w-4" />{en ? 'Bailian' : '百炼'}</TabsTrigger>
+            <TabsTrigger value="membership"><Wallet className="h-4 w-4" />{en ? 'Membership & usage' : '会员与用量'}</TabsTrigger>
+            <TabsTrigger value="about"><Info className="h-4 w-4" />{en ? 'About' : '关于'}</TabsTrigger>
           </TabsList>
+          <div className="min-w-0 flex-1 md:min-h-[28rem] md:border-l md:border-[var(--border-subtle)] md:pl-6">
+          <TabsContent value="general" className="min-w-0"><GeneralSettings /></TabsContent>
+          <TabsContent value="history" className="min-w-0"><HistorySettings session={account} /></TabsContent>
+          <TabsContent value="about" className="min-w-0 space-y-5">
+            <h3 className="text-xl font-semibold">灵笔 · KnowTrail</h3>
+            <p className="text-sm leading-relaxed text-[var(--text-secondary)]">{en ? 'A research workspace for literature, evidence-based conversations, writing and collaboration.' : '围绕文献、来源证据、学术对话与课题组协作开展研究。'}</p>
+            <p className="rounded-xl border border-[var(--border-subtle)] p-4 text-sm leading-relaxed">{en ? 'AI-generated content may contain errors. Check source texts, citations and analytical conclusions before use. Save and download important work regularly.' : 'AI 生成内容可能存在错误。使用前请核对来源原文、引用与分析结论，并定期保存、下载重要研究资料。'}</p>
+            <p className="text-sm text-[var(--text-secondary)]">{en ? 'Web application · Updates are applied after deployment and page refresh.' : '网页版 · 服务更新发布后，刷新页面即可使用。'}</p>
+          </TabsContent>
           <TabsContent value="account" className="min-w-0 pt-5 leading-6">
-            <h3 className="mb-4 text-sm font-semibold">账号信息</h3>
+            <h3 className="mb-4 text-sm font-semibold">{en ? 'Account information' : '账号信息'}</h3>
             <dl className="space-y-5 text-sm">
-              <div><dt className="text-[var(--text-secondary)]">显示名称</dt><dd className="mt-1 break-words">{account.member.display_name || '未设置'}</dd></div>
-              <div><dt className="text-[var(--text-secondary)]">邮箱</dt><dd className="mt-1 break-all">{account.member.email || '账号系统未提供邮箱'}</dd></div>
-              {account.tenant_name && <div><dt className="text-[var(--text-secondary)]">所属组织</dt><dd className="mt-1 break-words">{account.tenant_name}</dd></div>}
+              <div><dt className="text-[var(--text-secondary)]">{en ? 'Display name' : '显示名称'}</dt><dd className="mt-1 break-words">{account.member.display_name || '未设置'}</dd></div>
+              <div><dt className="text-[var(--text-secondary)]">{en ? 'Email' : '邮箱'}</dt><dd className="mt-1 break-all">{account.member.email || '账号系统未提供邮箱'}</dd></div>
+              {account.tenant_name && <div><dt className="text-[var(--text-secondary)]">{en ? 'Organization' : '所属组织'}</dt><dd className="mt-1 break-words">{account.tenant_name}</dd></div>}
             </dl>
+            <AccountClosureSettings session={account} />
           </TabsContent>
           <TabsContent value="security" className="min-w-0 pt-5 leading-6"><SecuritySettings session={account} onSignOut={() => { setOpen(false); onSignOut(); }} /></TabsContent>
           <TabsContent value="bailian" className="min-w-0 pt-5 leading-6"><BailianProviderSettings session={account} /></TabsContent>
           <TabsContent value="membership" className="min-w-0 pt-5 leading-6"><MembershipPanel memberId={account.member.id} /></TabsContent>
+          </div>
         </Tabs>}
       </DialogContent>
     </Dialog>

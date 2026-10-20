@@ -1,5 +1,6 @@
 'use client';
 
+import { UiText } from '@/components/account/UiText';
 import { useRef, useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from '@/components/ui/dialog';
@@ -59,15 +60,15 @@ export function StudioPanel() {
             <NavIcon className="h-4 w-4 text-[var(--text-secondary)]" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]">产物中心</h2>
-            <p className="text-sm leading-6 text-[var(--text-tertiary)]">资料工具与生成结果</p>
+            <h2 className="text-lg font-semibold tracking-tight text-[var(--text-primary)]"><UiText>产物中心</UiText></h2>
+            <p className="text-sm leading-6 text-[var(--text-tertiary)]"><UiText>资料工具与生成结果</UiText></p>
           </div>
         </div>
 
         <StudioToolSwitcher activeTab={activeTab} onSelect={openTool} />
-        <p data-testid="studio-nav-helper" className="mt-3 text-xs leading-5 text-[var(--text-tertiary)]">
+        <p data-testid="studio-nav-helper" className="mt-3 text-xs leading-5 text-[var(--text-tertiary)]"><UiText>
           点击入口打开弹窗，检索或生成需在弹窗内确认。
-        </p>
+        </UiText></p>
       </div>
 
       <div className="px-5 py-4"><StudioSkillsTools /><ResearchMcpPanel /></div>

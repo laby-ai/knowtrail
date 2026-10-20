@@ -1,13 +1,13 @@
 /* Scoped to application dialogs; page typography and exported artifacts are unchanged. */
-.readable-dialog { font-size: 17px; line-height: 1.65; }
-.readable-dialog :is([class~="text-[9px]"], [class~="text-[10px]"]) { font-size: 12px; line-height: 1.6; }
-.readable-dialog [class~="text-[11px]"] { font-size: 13px; line-height: 1.6; }
-.readable-dialog :is(.text-xs, [class~="text-[12px]"]) { font-size: 14px; line-height: 1.6; }
-.readable-dialog [class~="text-[13px]"] { font-size: 15px; line-height: 1.6; }
-.readable-dialog :is(.text-sm, [class~="text-[14px]"]) { font-size: 15px; line-height: 1.6; }
-.readable-dialog [class~="text-[15px]"] { font-size: 16px; line-height: 1.6; }
-.readable-dialog :is(.text-base, [class~="text-[16px]"]) { font-size: 17px; line-height: 1.6; }
-.readable-dialog :is(.text-lg, [class~="text-[18px]"]) { font-size: 19px; line-height: 1.4; }
-.readable-dialog :is(.text-xl, [class~="text-[20px]"]) { font-size: 21px; line-height: 1.4; }
-.readable-dialog :is(.text-2xl, [class~="text-[24px]"]) { font-size: 25px; line-height: 1.4; }
-.readable-dialog :is(input, textarea, select, button[role="combobox"]) { font-size: max(1em, 16px); }
+.readable-dialog { font-size: 1.0625rem; line-height: 1.65; }
+.readable-dialog :is([class~="text-[0.5625rem]"], [class~="text-[0.625rem]"]) { font-size: 0.75rem; line-height: 1.6; }
+.readable-dialog [class~="text-[0.6875rem]"] { font-size: 0.8125rem; line-height: 1.6; }
+.readable-dialog :is(.text-xs, [class~="text-[0.75rem]"]) { font-size: 0.875rem; line-height: 1.6; }
+.readable-dialog [class~="text-[0.8125rem]"] { font-size: 0.9375rem; line-height: 1.6; }
+.readable-dialog :is(.text-sm, [class~="text-[0.875rem]"]) { font-size: 0.9375rem; line-height: 1.6; }
+.readable-dialog [class~="text-[0.9375rem]"] { font-size: 1.0rem; line-height: 1.6; }
+.readable-dialog :is(.text-base, [class~="text-[1.0rem]"]) { font-size: 1.0625rem; line-height: 1.6; }
+.readable-dialog :is(.text-lg, [class~="text-[1.125rem]"]) { font-size: 1.1875rem; line-height: 1.4; }
+.readable-dialog :is(.text-xl, [class~="text-[1.25rem]"]) { font-size: 1.3125rem; line-height: 1.4; }
+.readable-dialog :is(.text-2xl, [class~="text-[1.5rem]"]) { font-size: 1.5625rem; line-height: 1.4; }
+.readable-dialog :is(input, textarea, select, button[role="combobox"]) { font-size: max(1em, 1.0rem); }

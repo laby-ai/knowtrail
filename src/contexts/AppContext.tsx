@@ -1,4 +1,5 @@
 'use client';
+import { useAppPreferences } from '@/components/account/AppPreferencesProvider';
 import { canMoveFolder, reparentFolder, deleteFolderKeepingChildren } from '@/lib/folder-hierarchy';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
@@ -251,11 +252,12 @@ export function AppProvider({
     if (!foldersLoaded) return;
     try { window.localStorage.setItem(`knowtrail:folders:${encodeURIComponent(storageScopeKey)}`, JSON.stringify(state.folders)); } catch { /* Server sources remain available. */ }
   }, [foldersLoaded, state.folders, storageScopeKey]);
+  const { preferences: appPreferences, ready: appPreferencesReady } = useAppPreferences();
   const [chatHistoryLoaded, setChatHistoryLoaded] = useState(false);
   const hydrateCloudHistory = useCallback((update: (current: ChatMessage[]) => ChatMessage[]) => {
     setState(previous => ({ ...previous, chatMessages: update(previous.chatMessages) }));
   }, []);
-  const cloudHistory = useCloudResearchHistory(storageScopeKey, state.chatMessages, chatHistoryLoaded, hydrateCloudHistory);
+  const cloudHistory = useCloudResearchHistory(storageScopeKey, state.chatMessages, chatHistoryLoaded && appPreferencesReady && appPreferences.saveHistory, hydrateCloudHistory);
 
   React.useEffect(() => {
     let messages: ChatMessage[] = [];
@@ -273,7 +275,7 @@ export function AppProvider({
   }, [storageScopeKey]);
 
   React.useEffect(() => {
-    if (!chatHistoryLoaded) return;
+    if (!chatHistoryLoaded || !appPreferencesReady || !appPreferences.saveHistory) return;
     try {
       window.localStorage.setItem(
         chatHistoryStorageKey(storageScopeKey),
@@ -282,7 +284,7 @@ export function AppProvider({
     } catch {
       // The visible in-memory history remains authoritative when browser storage is unavailable.
     }
-  }, [chatHistoryLoaded, state.chatMessages, storageScopeKey]);
+  }, [chatHistoryLoaded, appPreferencesReady, appPreferences.saveHistory, state.chatMessages, storageScopeKey]);
 
   React.useEffect(() => {
     try {

@@ -1,3 +1,4 @@
+import { readAppPreferences } from '@/lib/app-preferences-store';
 import { requestedModelSource, registerProvider } from '@/lib/commerce/context';
 import { commerceAccount } from '@/lib/commerce/account-client';
 import type { NextRequest } from 'next/server';
@@ -62,7 +63,7 @@ export async function resolveMemberBailianProfile(request: NextRequest | Request
   }
 }
 
-export async function resolveRequestRuntimeAIConfig(
+async function resolveProviderRuntimeAIConfig(
   request: NextRequest | Request,
   fallbackInput?: Partial<RuntimeAIConfig>,
 ): Promise<Partial<RuntimeAIConfig>> {
@@ -119,6 +120,13 @@ export async function resolveRequestRuntimeAIConfig(
     }
     throw error;
   }
+}
+
+export async function resolveRequestRuntimeAIConfig(request: NextRequest | Request, fallbackInput?: Partial<RuntimeAIConfig>): Promise<Partial<RuntimeAIConfig>> {
+  const config = await resolveProviderRuntimeAIConfig(request, fallbackInput);
+  const session = await resolveAccountSessionFromRequest(request);
+  const preferences = session ? await readAppPreferences(session.member.id) : null;
+  return { ...config, outputLanguage: preferences?.outputLanguage || 'auto' };
 }
 
 export function bailianProfileFromRuntimeConfig(config: Partial<RuntimeAIConfig>): MemberProviderProfile | null {

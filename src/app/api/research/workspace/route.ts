@@ -1,3 +1,4 @@
+import { readAppPreferences } from '@/lib/app-preferences-store';
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { resolveAccountSessionFromRequest } from "@/lib/account-session";
@@ -21,6 +22,7 @@ async function handle(request: NextRequest, write: boolean) {
     const notebookId = normalizeNotebookId(input?.notebookId || request.nextUrl.searchParams.get("notebookId"));
     if (!notebookId) return Response.json({ error: "文献本编号无效。" }, { status: 400 });
     const actor = { tenantId: session.tenant_id, memberId: session.member.id, notebookId };
+    if (input?.action === "merge" && !(await readAppPreferences(session.member.id)).saveHistory) return Response.json({ error: "已关闭历史保存。" }, { status: 409 });
     let state;
     if (input?.action === "artifact") {
       const sources = await listIngestionSources({ ownerMemberId: actor.memberId, notebookId });

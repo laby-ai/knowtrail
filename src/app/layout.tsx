@@ -1,3 +1,4 @@
+import { AppPreferencesProvider } from '@/components/account/AppPreferencesProvider';
 import { CommerceConfirmationHost } from '@/components/account/commerce/CommerceConfirmationHost';
 import type { Metadata } from 'next';
 import { ThemeScript } from '@/components/ThemeScript';
@@ -48,8 +49,10 @@ export default function RootLayout({
     <html lang="zh-CN" suppressHydrationWarning>
       <body className="antialiased bg-[var(--bg-primary)] text-[var(--text-primary)]">
         <ThemeScript />
-        {children}
-        <CommerceConfirmationHost />
+        <AppPreferencesProvider>
+          {children}
+          <CommerceConfirmationHost />
+        </AppPreferencesProvider>
       </body>
     </html>
   );
