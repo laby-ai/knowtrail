@@ -196,7 +196,9 @@ jobs:
         run: pnpm run test:grounded-operational-observability
 
       - name: Grounded task lifecycle contract
-        run: pnpm run test:grounded-task-lifecycle
+        run: |
+          pnpm run test:grounded-task-lifecycle
+          pnpm exec tsx scripts/test-agent-preparation-cancellation.ts
 
       - name: Architecture ownership guard
         run: ARCH_GUARD_STRICT=true pnpm run check:architecture
