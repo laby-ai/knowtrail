@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { checkedApiFetch } from '@/lib/api-response';
 import { BookOpen, Quote, FlaskConical, Presentation, UsersRound, ArrowRight } from 'lucide-react';
 import { useAppPreferences } from './AppPreferencesProvider';
 
@@ -14,10 +16,22 @@ const capabilities = [
 export function AboutSettings({ onNavigate }: { onNavigate: (section: string) => void }) {
   const { preferences } = useAppPreferences();
   const en = preferences.interfaceLanguage === 'en';
+  const [release, setRelease] = useState('');
+  const [releaseFailed, setReleaseFailed] = useState(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    void checkedApiFetch('/api/app-info', { cache: 'no-store', signal: controller.signal }).then(async response => {
+      const payload: unknown = await response.json();
+      if (!response.ok || !payload || typeof payload !== 'object' || !('releaseId' in payload) || typeof payload.releaseId !== 'string') throw new Error('release_unavailable');
+      if (!controller.signal.aborted) setRelease(payload.releaseId);
+    }).catch(() => { if (!controller.signal.aborted) setReleaseFailed(true); });
+    return () => controller.abort();
+  }, []);
   return <div data-testid="about-settings" className="space-y-7">
     <section className="space-y-3 border-b border-[var(--border-subtle)] pb-6">
       <span className="inline-flex rounded-full bg-blue-500/10 px-3 py-1 text-xs font-medium text-[var(--accent-blue)]">{en ? 'Research workspace · Web' : '科研工作空间 · 网页版'}</span>
       <h3 className="text-xl font-semibold">灵笔 · KnowTrail</h3>
+      <p className="break-all text-xs text-[var(--text-tertiary)]">{en ? 'Release: ' : '当前发布：'}{release || (releaseFailed ? (en ? 'Unavailable' : '暂时无法读取') : (en ? 'Loading…' : '正在读取…'))}</p>
       <p className="text-sm leading-relaxed text-[var(--text-secondary)]">{en ? 'Bring literature, evidence, conversations and research outputs into one workspace. Start from sources, preserve your reasoning and return to evidence when revising.' : '把文献、证据、对话与研究成果放在同一个工作空间。从资料出发提出问题，保留研究过程，在修改与交流中随时回到来源。'}</p>
     </section>
 
