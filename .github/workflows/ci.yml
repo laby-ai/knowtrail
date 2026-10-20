@@ -121,6 +121,7 @@ jobs:
         run: |
           node scripts/test-library-source-sync.mjs
           node scripts/test-source-preview-lifecycle.mjs
+          pnpm exec tsx scripts/test-source-text-reader.ts
 
       - name: Learning materials recovery contract
         run: pnpm exec tsx scripts/test-learning-materials-recovery.ts

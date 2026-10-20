@@ -38,6 +38,7 @@ import type { DataColumnSummary } from '@/lib/data-table-preview';
 import type { SourceMatrixFacet } from '@/lib/source-matrix';
 import type { Paper, FileType } from '@/types';
 import { SourceGuideModal } from './SourceGuideModal';
+import { SourceTextReader } from './SourceTextReader';
 import { DiscoverSourcesModal } from './DiscoverSourcesModal';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
@@ -1669,7 +1670,7 @@ export function LibraryPanel({
                   .filter(chunk => Boolean(chunk.text?.trim()))
                   .slice(0, 12);
                 const dataPreview = buildSourceDataPreview(sourcePreview.paper, sourcePreview.source);
-                if (chunks.length === 0 && !dataPreview) {
+                if (chunks.length === 0 && !sourcePreview.source.rawContent?.trim() && !dataPreview) {
                   return (
                     <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-3 py-3 text-xs leading-relaxed text-amber-200">
                       来源详情已找到，但暂未包含可展示的原文片段。
@@ -1695,6 +1696,11 @@ export function LibraryPanel({
                         </p>
                       </div>
                     )}
+                    <SourceTextReader
+                      key={`${sourcePreview.source.id}:${sourcePreview.source.updatedAt}`}
+                      rawContent={sourcePreview.source.rawContent}
+                      chunks={sourcePreview.source.chunks}
+                    />
                     {dataPreview && (
                       <div
                         data-testid="library-data-table-preview"
