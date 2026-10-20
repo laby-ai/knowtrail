@@ -108,9 +108,9 @@ export function bailianProfileFromRuntimeConfig(config: Partial<RuntimeAIConfig>
     provider_id: 'aliyun-bailian',
     workspace_id: config.workspaceId || '',
     region: 'cn-beijing',
-    text_model: BAILIAN_TEXT_MODEL,
-    image_model: BAILIAN_IMAGE_MODEL,
-    tts_model: BAILIAN_TTS_MODEL,
+    text_model: config.model || BAILIAN_TEXT_MODEL,
+    image_model: config.imageModel || BAILIAN_IMAGE_MODEL,
+    tts_model: config.ttsModel || BAILIAN_TTS_MODEL,
     api_key: config.apiKey,
   };
 }
