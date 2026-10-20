@@ -443,7 +443,7 @@ export function LibraryPanel({
   const [sourcePreviewFocus, setSourcePreviewFocus] = useState<SourceMatrixPreviewFocus | null>(null);
   const sourcePreviewRequestRef = useRef<AbortController | null>(null);
   const [isSourceMatrixOpen, setIsSourceMatrixOpen] = useState(false);
-  const ingestionSyncInFlightRef = useRef(false);
+  const ingestionSyncRequestRef = useRef<AbortController | null>(null);
   const lastIngestionSyncAtRef = useRef(0);
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const resolvedUploadTarget = resolveLibraryUploadTarget(uploadTargetFolderId, folders);
@@ -535,8 +535,9 @@ export function LibraryPanel({
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     if (accountAuthRequired && !accountHeaders.Authorization) return;
     const now = Date.now();
-    if (ingestionSyncInFlightRef.current || (!force && now - lastIngestionSyncAtRef.current < 5000)) return;
-    ingestionSyncInFlightRef.current = true;
+    if (ingestionSyncRequestRef.current || (!force && now - lastIngestionSyncAtRef.current < 5000)) return;
+    const controller = new AbortController();
+    ingestionSyncRequestRef.current = controller;
     lastIngestionSyncAtRef.current = now;
     const knownPapers = new Map<string, Paper>();
     folders.forEach(folder => folder.papers.forEach(paper => knownPapers.set(paper.id, paper)));
@@ -547,27 +548,30 @@ export function LibraryPanel({
       const response = await fetch(clientApiPath(`/api/ingestion/sources${notebookQuery}`), {
         cache: 'no-store',
         headers: accountHeaders,
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
       if (!response.ok) throw new Error('ingestion sources request failed');
       const data = await response.json() as { sources?: IngestionSourceSummary[] };
+      if (controller.signal.aborted) return;
       const sources = data.sources || [];
 
       const missingSources = sources.filter(source => !knownPapers.has(source.id));
       let detailReadFailed = false;
       let importFolderId = activeFolderId || folders[0]?.id || null;
-      if (missingSources.length > 0 && !importFolderId) {
-        importFolderId = addFolder('文献库');
-        setExpandedFolders(prev => new Set([...prev, importFolderId!]));
-        setActiveFolder(importFolderId);
-      }
-
       for (const source of missingSources) {
-        if (!importFolderId) continue;
-        const detailResponse = await fetchIngestionSourceDetail(source.id, notebookId, accountHeaders);
+        const detailResponse = await fetchIngestionSourceDetail(source.id, notebookId, accountHeaders, controller.signal);
+        if (controller.signal.aborted) return;
         if (!detailResponse.ok) { detailReadFailed = true; continue; }
         const detailData = await detailResponse.json() as { source?: IngestionSourceDetail };
+        if (controller.signal.aborted) return;
         const detail = detailData.source;
         if (!detail) { detailReadFailed = true; continue; }
+        if (!importFolderId) {
+          importFolderId = addFolder('文献库');
+          setExpandedFolders(prev => new Set([...prev, importFolderId!]));
+          setActiveFolder(importFolderId);
+        }
         const rawContent = (detail.chunks || [])
           .map(chunk => chunk.text || '')
           .filter(Boolean)
@@ -639,11 +643,17 @@ export function LibraryPanel({
       }
       setIngestionSyncState(detailReadFailed ? 'error' : 'idle');
     } catch {
-      setIngestionSyncState('error');
+      if (!controller.signal.aborted) setIngestionSyncState('error');
     } finally {
-      ingestionSyncInFlightRef.current = false;
+      if (ingestionSyncRequestRef.current === controller) ingestionSyncRequestRef.current = null;
     }
   }, [accountAuthRequired, accountSession?.token, activeFolderId, addFolder, addPaper, folders, notebookId, setActiveFolder, setIngestionSyncState, updatePaper]);
+
+  useEffect(() => () => {
+    ingestionSyncRequestRef.current?.abort();
+    ingestionSyncRequestRef.current = null;
+    lastIngestionSyncAtRef.current = 0;
+  }, [accountSession?.token, notebookId]);
 
   useEffect(() => {
     void syncIngestionSources();

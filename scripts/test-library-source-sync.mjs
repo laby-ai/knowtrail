@@ -42,7 +42,7 @@ async function execute({ known = [], authenticated = true, detailStatus = 200 } 
     URLSearchParams, Date, Map,
     accountSession: authenticated ? { token: 'fixture-session' } : null,
     accountAuthRequired: true,
-    ingestionSyncInFlightRef: { current: false }, lastIngestionSyncAtRef: { current: 0 },
+    AbortController, ingestionSyncRequestRef: { current: null }, lastIngestionSyncAtRef: { current: 0 },
     folders: [{ id: 'trappist-1', papers: known }], activeFolderId: 'trappist-1',
     notebookId: 'trappist-1', clientApiPath: p => '/knowtrail' + p,
     setIngestionSyncState: state => states.push(state),
@@ -62,7 +62,7 @@ async function execute({ known = [], authenticated = true, detailStatus = 200 } 
     },
   };
   await vm.runInNewContext(js, context)(true);
-  assert.equal(context.ingestionSyncInFlightRef.current, false);
+  assert.equal(context.ingestionSyncRequestRef.current, null);
   return { added, updates, states, requests };
 }
 
