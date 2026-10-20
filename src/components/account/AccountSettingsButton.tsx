@@ -2,6 +2,7 @@
 import { checkedApiFetch } from '@/lib/api-response';
 
 import { useAppPreferences } from './AppPreferencesProvider';
+import { AboutSettings } from './AboutSettings';
 import { GeneralSettings } from './GeneralSettings';
 import { HistorySettings } from './HistorySettings';
 import { AccountClosureSettings } from './AccountClosureSettings';
@@ -100,12 +101,7 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
           <div className="min-w-0 flex-1 md:min-h-[28rem] md:border-l md:border-[var(--border-subtle)] md:pl-6">
           <TabsContent value="general" className="min-w-0"><GeneralSettings /></TabsContent>
           <TabsContent value="history" className="min-w-0"><HistorySettings session={account} /></TabsContent>
-          <TabsContent value="about" className="min-w-0 space-y-5">
-            <h3 className="text-xl font-semibold">灵笔 · KnowTrail</h3>
-            <p className="text-sm leading-relaxed text-[var(--text-secondary)]">{en ? 'A research workspace for literature, evidence-based conversations, writing and collaboration.' : '围绕文献、来源证据、学术对话与课题组协作开展研究。'}</p>
-            <p className="rounded-xl border border-[var(--border-subtle)] p-4 text-sm leading-relaxed">{en ? 'AI-generated content may contain errors. Check source texts, citations and analytical conclusions before use. Save and download important work regularly.' : 'AI 生成内容可能存在错误。使用前请核对来源原文、引用与分析结论，并定期保存、下载重要研究资料。'}</p>
-            <p className="text-sm text-[var(--text-secondary)]">{en ? 'Web application · Updates are applied after deployment and page refresh.' : '网页版 · 服务更新发布后，刷新页面即可使用。'}</p>
-          </TabsContent>
+          <TabsContent value="about" className="min-w-0"><AboutSettings onNavigate={setSection} /></TabsContent>
           <TabsContent value="account" className="min-w-0 pt-5 leading-6">
             <h3 className="mb-4 text-sm font-semibold">{en ? 'Account information' : '账号信息'}</h3>
             <dl className="space-y-5 text-sm">
