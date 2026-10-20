@@ -1,5 +1,6 @@
 'use client';
 
+import { useAppPreferences } from '@/components/account/AppPreferencesProvider';
 import { clientApiRequest } from '@/lib/client-api';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
@@ -99,13 +100,14 @@ function ScaledSlideFrame({ html, className }: { html: string; className?: strin
 }
 
 export function HtmlPresentationPanel() {
+  const { preferences } = useAppPreferences();
   const { getSelectedPapers, aiConfig, storageScopeKey } = useApp();
   const generationReadiness = useStudioGenerationReadiness('htmlPpt');
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
 
   const [selectedStyle, setSelectedStyle] = useState(HTML_DECK_STYLES[0].id);
   const [pageCount, setPageCount] = useState(10);
-  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  const [language, setLanguage] = useState<'zh' | 'en'>(() => preferences.outputLanguage === 'en' ? 'en' : 'zh');
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');

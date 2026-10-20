@@ -13,7 +13,7 @@ def closure(tenant, member, data=None):
                 raise AuthError(400, "closure_confirmation_required")
             user = conn.execute("SELECT password_hash,password_salt FROM local_auth_users WHERE tenant_id=? AND member_id=? AND status='active'", (tenant, member)).fetchone()
             password = data.get("password")
-            if not user or not isinstance(password, str) or len(password) > 512 or not verify_password(password, user["password_hash"], user["password_salt"]):
+            if not user or not isinstance(password, str) or len(password) < 8 or len(password) > 512 or not verify_password(password, user["password_hash"], user["password_salt"]):
                 raise AuthError(403, "closure_password_invalid")
             timestamp = datetime.now(timezone.utc).isoformat()
             request_id = "closure_" + uuid.uuid4().hex

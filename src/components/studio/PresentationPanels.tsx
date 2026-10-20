@@ -1,5 +1,6 @@
 'use client';
 
+import { useAppPreferences } from '@/components/account/AppPreferencesProvider';
 import { clientApiRequest } from '@/lib/client-api';
 import { useStudioGenerationReadiness } from '@/hooks/use-studio-generation-readiness';
 
@@ -111,6 +112,7 @@ const ASPECT_RATIOS = [
 ];
 
 function PresentationPanel() {
+  const { preferences } = useAppPreferences();
   const { slides, setSlides, getSelectedPapers, aiConfig, storageScopeKey } = useApp();
   const generationReadiness = useStudioGenerationReadiness('imagePpt');
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
@@ -120,7 +122,7 @@ function PresentationPanel() {
   const [activeSlideIdx, setActiveSlideIdx] = useState(0);
   const [selectedStyle, setSelectedStyle] = useState<PPTStyleId>('academic');
   const [selectedDetailLevel, setSelectedDetailLevel] = useState<DetailLevelId>('default');
-  const [selectedLang, setSelectedLang] = useState<LangId>('zh');
+  const [selectedLang, setSelectedLang] = useState<LangId>(() => preferences.outputLanguage === 'en' ? 'en' : 'zh');
   const [pageCount, setPageCount] = useState(8);
   const [selectedAspectRatio, setSelectedAspectRatio] = useState('16:9');
   const [isExporting, setIsExporting] = useState(false);
