@@ -1,6 +1,7 @@
 "use client";
 import { useAppPreferences } from './AppPreferencesProvider';
 const EN: Record<string, string> = {
+  '输入你的问题': 'Ask a research question', '输入问题加入等待队列…': 'Add a question to the queue…', 'Enter 发送，Shift+Enter 换行': 'Enter to send, Shift+Enter for a new line', '内容由 AI 生成，可能不准确，请注意核实。': 'AI-generated content may be inaccurate. Please verify important information.',
   '设置': 'Settings', '返回文献本': 'Back to notebooks', '产物中心': 'Research tools', '资料工具与生成结果': 'Research tools and generated results',
   '点击入口打开弹窗，检索或生成需在弹窗内确认。': 'Open a tool to search or generate. Confirm the task in its dialog.',
   '新建文献本': 'New notebook', '打开文献本': 'Open notebook', '最近打开': 'Recent notebooks', '个文献本': 'notebooks', '个来源': 'sources',

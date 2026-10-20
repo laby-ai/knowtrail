@@ -1,4 +1,6 @@
 'use client';
+import { ChatMessageInput } from './ChatMessageInput';
+import { UiText } from '@/components/account/UiText';
 import { ResearchWorkflow } from '@/components/ui/research-motif';
 import { clientApiRequest } from '@/lib/client-api';
 
@@ -648,17 +650,10 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQues
       )}
 
       {/* Input */}
-      <div className="px-6 pb-5 pt-3 border-t border-[var(--border-subtle)]">
-        <div className="max-w-2xl mx-auto flex items-center gap-3 relative">
-          <input
-            type="text"
-            placeholder={isGenerating ? "输入问题加入等待队列..." : "输入你的问题..."}
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && inputMessage.trim()) { onSend(); setInputMessage(''); } }}
-            className="liquid-glass-input flex-1"
-          />
-          <button onClick={() => { if (inputMessage.trim()) { onSend(); setInputMessage(''); } }} disabled={!inputMessage.trim()} className="liquid-glass-btn !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 py-2.5 px-4">
+      <div className="shrink-0 px-4 pb-3 pt-3 sm:px-6 border-t border-[var(--border-subtle)]">
+        <div className="max-w-2xl mx-auto flex items-end gap-3 relative">
+          <ChatMessageInput value={inputMessage} onChange={setInputMessage} queued={isGenerating} onSend={() => { onSend(); setInputMessage(''); }} />
+          <button type="button" aria-label="发送消息" data-testid="chat-composer-send" onClick={() => { if (inputMessage.trim()) { onSend(); setInputMessage(''); } }} disabled={!inputMessage.trim()} className="liquid-glass-btn !bg-gradient-to-r !from-blue-500 !to-blue-600 hover:!from-blue-400 hover:!to-blue-500 !text-white !border-0 mb-1 shrink-0 py-2.5 px-4">
             <Send className="h-4 w-4" />
           </button>
 
@@ -698,6 +693,7 @@ function ChatView({ messages, inputMessage, setInputMessage, onSend, onQuickQues
             />
           </div>
         </div>
+        <p data-testid="chat-ai-disclaimer" className="mx-auto mt-2 max-w-2xl text-center text-xs leading-relaxed text-[var(--text-tertiary)]"><UiText>内容由 AI 生成，可能不准确，请注意核实。</UiText></p>
       </div>
     </div>
   );
