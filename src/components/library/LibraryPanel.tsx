@@ -377,10 +377,10 @@ function sourceSortTime(paper: Paper): number {
   return Number.isFinite(time) ? time : 0;
 }
 
-async function fetchIngestionSourceDetail(id: string, notebookId: string | undefined, headers: Record<string, string>) {
+async function fetchIngestionSourceDetail(id: string, notebookId: string | undefined, headers: Record<string, string>, signal?: AbortSignal) {
   const params = new URLSearchParams({ id });
   if (notebookId) params.set('notebookId', notebookId);
-  return fetch(clientApiPath(`/api/ingestion/sources?${params.toString()}`), { cache: 'no-store', headers });
+  return fetch(clientApiPath(`/api/ingestion/sources?${params.toString()}`), { cache: 'no-store', headers, signal });
 }
 
 export function LibraryPanel({
@@ -440,6 +440,7 @@ export function LibraryPanel({
   const [urlSourceError, setUrlSourceError] = useState<string | null>(null);
   const [sourcePreview, setSourcePreview] = useState<SourcePreviewState | null>(null);
   const [sourcePreviewFocus, setSourcePreviewFocus] = useState<SourceMatrixPreviewFocus | null>(null);
+  const sourcePreviewRequestRef = useRef<AbortController | null>(null);
   const [isSourceMatrixOpen, setIsSourceMatrixOpen] = useState(false);
   const ingestionSyncInFlightRef = useRef(false);
   const lastIngestionSyncAtRef = useRef(0);
@@ -652,6 +653,9 @@ export function LibraryPanel({
   }, [folders.length, syncIngestionSources]);
 
   const openSourcePreview = useCallback(async (paper: Paper, focus: SourceMatrixPreviewFocus | null = null) => {
+    sourcePreviewRequestRef.current?.abort();
+    const controller = new AbortController();
+    sourcePreviewRequestRef.current = controller;
     const accountHeaders: Record<string, string> = accountSession?.token ? { Authorization: `Bearer ${accountSession.token}` } : {};
     const localPreview = localSourcePreviewFromPaper(paper);
     setSourcePreviewFocus(focus);
@@ -662,7 +666,8 @@ export function LibraryPanel({
     }
 
     try {
-      const response = await fetchIngestionSourceDetail(paper.id, notebookId, accountHeaders);
+      const response = await fetchIngestionSourceDetail(paper.id, notebookId, accountHeaders, controller.signal);
+      if (controller.signal.aborted) return;
       if (!response.ok) {
         setSourcePreview(localPreview
           ? { paper, status: 'ready', source: localPreview }
@@ -670,15 +675,19 @@ export function LibraryPanel({
         return;
       }
       const data = await response.json() as { source?: IngestionSourceDetail };
+      if (controller.signal.aborted) return;
       if (!data.source) {
         setSourcePreview(localPreview ? { paper, status: 'ready', source: localPreview } : { paper, status: 'missing' });
         return;
       }
       setSourcePreview({ paper, status: 'ready', source: data.source });
     } catch {
+      if (controller.signal.aborted) return;
       setSourcePreview(localPreview ? { paper, status: 'ready', source: localPreview } : { paper, status: 'error' });
     }
   }, [accountAuthRequired, accountSession?.token, notebookId]);
+
+  useEffect(() => () => sourcePreviewRequestRef.current?.abort(), [accountSession?.token, notebookId]);
 
   const handleCreateFolder = useCallback(() => {
     if (newFolderName.trim()) {
@@ -1619,6 +1628,7 @@ export function LibraryPanel({
               <button
                 type="button"
                 onClick={() => {
+                  sourcePreviewRequestRef.current?.abort();
                   setSourcePreview(null);
                   setSourcePreviewFocus(null);
                 }}
