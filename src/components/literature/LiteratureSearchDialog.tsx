@@ -319,7 +319,7 @@ export function LiteratureSearchDialog({
               <p className="text-[10px] text-[var(--text-quaternary)]">点击切换数据源，选中后将从该数据库检索文献</p>
             </div>}
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--text-tertiary)]">引用格式:</span>
                 <Select value={citeStyle} onValueChange={v => { citationChanged.current = true; setCiteStyle(v as CitationStyle); }}>
