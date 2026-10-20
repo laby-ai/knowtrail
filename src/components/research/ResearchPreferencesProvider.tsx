@@ -83,7 +83,7 @@ export function ResearchPreferencesProvider({ ownerId, children }: { ownerId?: s
           </label>)}</div>
           <label className="flex items-center gap-2 pt-2 text-sm"><input type="checkbox" checked={draft.researchMode} onChange={event => setDraft(current => ({ ...current, researchMode: event.target.checked }))} />科研模式</label>
           <p className="text-xs text-[var(--text-secondary)]">科研模式强调基于来源的推理和引用；检索源与引用格式仍可手动调整。</p>
-          <p className="text-xs text-[var(--text-secondary)]">Ctrl / ⌘ + Shift + L 检索文献；C 插入所选文献条目；T 打开数据分析。</p>
+          <p className="text-xs text-[var(--text-secondary)]">研究领域将陆续扩充，并持续更新。</p>
         </fieldset>
         {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
         <button className="liquid-glass-btn px-4 py-3" disabled={!ownerId || busy || !draft.disciplines.length} onClick={() => void save()}>{busy ? '正在保存…' : '保存研究偏好'}</button>

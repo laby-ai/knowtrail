@@ -2,13 +2,14 @@
 import { checkedApiFetch } from '@/lib/api-response';
 
 import { useAppPreferences } from './AppPreferencesProvider';
+import { ShortcutSettings } from './ShortcutSettings';
 import { AboutSettings } from './AboutSettings';
 import { GeneralSettings } from './GeneralSettings';
 import { HistorySettings } from './HistorySettings';
 import { AccountClosureSettings } from './AccountClosureSettings';
 import { MembershipPanel } from './commerce/MembershipPanel';
 import { useEffect, useState } from 'react';
-import { Settings, UserRound, ShieldCheck, KeyRound, LogOut, Wallet, SlidersHorizontal, History, Info } from 'lucide-react';
+import { Settings, UserRound, ShieldCheck, KeyRound, LogOut, Wallet, SlidersHorizontal, History, Info, Keyboard } from 'lucide-react';
 import type { AccountAuthSession } from '@/lib/account-auth-client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -86,7 +87,7 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
         </div> : !account ? <p role="status" className="mt-5 text-sm text-[var(--text-secondary)]">正在同步账号信息…</p> : <Tabs value={section} onValueChange={setSection} className="mt-1 min-w-0 gap-6 md:flex-row md:items-start">
           <label className="block text-sm md:hidden">{en ? 'Settings category' : '设置分类'}
             <select aria-label="设置分类" value={section} onChange={event => setSection(event.target.value)} className="liquid-glass-input mt-2 w-full rounded-xl bg-[var(--bg-primary)] px-3 py-3">
-              <option value="general">{en ? 'General' : '通用'}</option><option value="account">{en ? 'Account' : '账号管理'}</option><option value="security">{en ? 'Security' : '安全'}</option><option value="history">{en ? 'History & downloads' : '历史与下载'}</option><option value="bailian">{en ? 'Bailian' : '百炼'}</option><option value="membership">{en ? 'Membership & usage' : '会员与用量'}</option><option value="about">{en ? 'About' : '关于'}</option>
+              <option value="general">{en ? 'General' : '通用'}</option><option value="account">{en ? 'Account' : '账号管理'}</option><option value="security">{en ? 'Security' : '安全'}</option><option value="history">{en ? 'History & downloads' : '历史与下载'}</option><option value="bailian">{en ? 'Bailian' : '百炼'}</option><option value="membership">{en ? 'Membership & usage' : '会员与用量'}</option><option value="shortcuts">{en ? 'Keyboard shortcuts' : '快捷键'}</option><option value="about">{en ? 'About' : '关于'}</option>
             </select>
           </label>
           <TabsList aria-label={en ? 'Settings categories' : '设置分类'} className="hidden h-auto w-full shrink-0 grid-cols-2 gap-1 rounded-xl bg-[var(--glass-subtle)] p-2 sm:grid-cols-4 md:grid md:w-44 md:grid-cols-1 [&>button]:h-auto [&>button]:justify-start [&>button]:whitespace-normal [&>button]:px-3 [&>button]:py-3">
@@ -96,11 +97,13 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
             <TabsTrigger value="history"><History className="h-4 w-4" />{en ? 'History & downloads' : '历史与下载'}</TabsTrigger>
             <TabsTrigger value="bailian"><KeyRound className="h-4 w-4" />{en ? 'Bailian' : '百炼'}</TabsTrigger>
             <TabsTrigger value="membership"><Wallet className="h-4 w-4" />{en ? 'Membership & usage' : '会员与用量'}</TabsTrigger>
+            <TabsTrigger value="shortcuts"><Keyboard className="h-4 w-4" />{en ? 'Shortcuts' : '快捷键'}</TabsTrigger>
             <TabsTrigger value="about"><Info className="h-4 w-4" />{en ? 'About' : '关于'}</TabsTrigger>
           </TabsList>
           <div className="min-w-0 flex-1 md:min-h-[28rem] md:border-l md:border-[var(--border-subtle)] md:pl-6">
           <TabsContent value="general" className="min-w-0"><GeneralSettings /></TabsContent>
           <TabsContent value="history" className="min-w-0"><HistorySettings session={account} /></TabsContent>
+          <TabsContent value="shortcuts" className="min-w-0"><ShortcutSettings /></TabsContent>
           <TabsContent value="about" className="min-w-0"><AboutSettings onNavigate={setSection} /></TabsContent>
           <TabsContent value="account" className="min-w-0 pt-5 leading-6">
             <h3 className="mb-4 text-sm font-semibold">{en ? 'Account information' : '账号信息'}</h3>
