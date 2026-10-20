@@ -49,6 +49,7 @@ import {
 import { resolveEmbeddedEntryState } from '@/lib/embedded-entry-state';
 import { loadNotebookSourceCounts, mergeNotebookSourceCounts } from '@/lib/notebook-source-counts';
 import { clientApiFetch, clientApiPath } from '@/lib/client-api';
+import { appPublicPath } from '@/lib/app-public-path';
 import {
   archiveNotebook,
   renameNotebook,
@@ -429,7 +430,7 @@ export default function HomePage() {
   const requiresAccountSignIn = accountAuthRequired && accountSessionReady && !accountSession;
   const interactionBlocked = requiresAccountSignIn || paperHostSignInRequired;
   const redirectToAccount = useCallback(() => {
-    window.location.replace(`/account?next=${ACCOUNT_NOTEBOOK_NEXT}`);
+    window.location.replace(appPublicPath(`/account?next=${ACCOUNT_NOTEBOOK_NEXT}`));
   }, []);
 
   useEffect(() => {
@@ -553,7 +554,7 @@ export default function HomePage() {
       await revokeStoredAccountSession();
       setAccountSession(null);
       setAccountSessionReady(true);
-      window.location.href = `/account?next=${ACCOUNT_NOTEBOOK_NEXT}`;
+      window.location.href = appPublicPath(`/account?next=${ACCOUNT_NOTEBOOK_NEXT}`);
     } catch {
       window.alert('暂时无法安全退出，请检查网络后重试。');
     }
