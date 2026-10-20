@@ -1,3 +1,4 @@
+import { providerCapabilityUnavailable } from '@/lib/model-provider-presets';
 import { randomUUID } from 'node:crypto';
 import { NextRequest } from 'next/server';
 import { resolveRequestRuntimeAIConfig } from '@/lib/bailian-provider-profile';
@@ -20,6 +21,7 @@ export async function prepareCommerceQuote(request: NextRequest) {
   if (!membership.readiness.chargingReady) return { mode: 'observe', requiresConfirmation: false, maxPoints: null, source, accountId: membership.accountId, payerLabel: membership.accountName, message: '当前仅采集用量，不扣科研点数。' };
   const context = { requestId: randomUUID(), operation, accountId: membership.accountId, tenantId: session.tenant_id, memberId: session.member.id, source, providers: new Map<string, ModelSource>(), resources: [], calls: new Set<string>(), enforcing: false, startedAt: Date.now() };
   const config = await commerceContext.run(context, () => resolveRequestRuntimeAIConfig(request));
+  if (providerCapabilityUnavailable(config, operation)) throw new CommerceError(422, 'provider_capability_unavailable');
   const host = (base?: string) => { try { return new URL(base || '').hostname; } catch { throw new CommerceError(503, 'provider_not_configured'); } };
   const simple = ['chat', 'text-polishing', 'hypothesis-generation', 'experiment-design', 'academic-writing', 'peer-review', 'citation-verification', 'scientific-illustration'].includes(operation);
   const resources: CommerceResource[] = [{ rateKey: `${host(config.apiBase)}:${config.model}`, source, inputTokens: Math.max(Buffer.byteLength(body.body) * 4, simple ? 32768 : 128000), outputTokens: simple ? 8000 : 32000 }];

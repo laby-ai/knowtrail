@@ -113,7 +113,7 @@ async function* openAICompatStream(
     body: JSON.stringify({
       model: resolveRuntimeModel(options, runtimeConfig),
       messages: outputLanguageInstruction(runtimeConfig?.outputLanguage || 'auto') ? [{ role: 'system', content: outputLanguageInstruction(runtimeConfig?.outputLanguage || 'auto') }, ...messages] : messages,
-      temperature: options?.temperature ?? 0.7,
+      ...(runtimeConfig.providerId === 'moonshot' ? { reasoning_effort: 'low' } : { temperature: options?.temperature ?? 0.7 }),
       ...maxTokensPayload,
       stream: true,
     }),

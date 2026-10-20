@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import { assertApiResponse } from '@/lib/api-response';
 import type { NextRequest } from 'next/server';
 import { getAccountApiBase } from '@/lib/account-auth-client';
 import { bearerTokenFromRequest } from '@/lib/account-session';
@@ -11,7 +13,11 @@ async function forward(request: NextRequest, method: 'GET' | 'PUT' | 'DELETE') {
   const baseUrl = getAccountApiBase();
   if (!baseUrl) return Response.json({ error: 'account_api_not_configured' }, { status: 503, headers: NO_STORE });
 
-  const body = method === 'PUT' ? JSON.stringify(await request.json()) : undefined;
+  let body: string | undefined;
+  if (method === 'PUT') {
+    try { body = JSON.stringify(z.object({ provider_id: z.enum(['aliyun-bailian', 'moonshot', 'deepseek']).optional(), api_key: z.string().trim().min(8).max(4096), workspace_id: z.string().max(128).optional(), region: z.literal('cn-beijing').optional() }).strict().parse(await request.json())); }
+    catch { return Response.json({ error: '请选择支持的模型服务并填写有效 API Key。' }, { status: 400, headers: NO_STORE }); }
+  }
   const response = await fetch(`${baseUrl}${PROFILE_PATH}`, {
     method,
     headers: {
@@ -22,7 +28,8 @@ async function forward(request: NextRequest, method: 'GET' | 'PUT' | 'DELETE') {
     cache: 'no-store',
     signal: AbortSignal.timeout(15_000),
   });
-  const payload = await response.json().catch(() => ({ error: 'account_provider_profile_invalid_response' }));
+  try { await assertApiResponse(response, '模型配置'); } catch { return Response.json({ error: '模型配置服务暂时不可用，请稍后重试。' }, { status: 502, headers: NO_STORE }); }
+  const payload = await response.json();
   return Response.json(payload, { status: response.status, headers: NO_STORE });
 }
 

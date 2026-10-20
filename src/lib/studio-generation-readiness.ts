@@ -10,6 +10,7 @@ export type StudioGenerationState = {
 export type StudioGenerationReadiness = Record<StudioGenerationProduct, StudioGenerationState>;
 
 export type MemberGenerationProfile = {
+  provider_id?: string;
   configured?: boolean;
   text_model?: string;
   image_model?: string;
@@ -77,19 +78,20 @@ export function resolveMemberAwareGenerationReadiness(
 ): StudioGenerationState {
   const profileRequiredState: StudioGenerationState = {
     ready: false,
-    message: '请先在右上角配置百炼 API Key 和业务空间 ID，再使用模型能力。',
+    message: '请先在设置的“模型配置”中选择服务并保存 API Key。',
   };
   if (!requireMemberProfile && globalState.ready) return globalState;
   if (!profile?.configured) return requireMemberProfile ? profileRequiredState : globalState;
   const textReady = Boolean(profile.text_model?.trim());
   const imageReady = Boolean(profile.image_model?.trim());
+  if (['moonshot', 'deepseek'].includes(profile.provider_id || '') && (product === 'imagePpt' || product === 'scientificIllustration')) return { ready: false, message: '当前自带密钥服务不提供图片生成，请在模型配置中选择支持绘图的服务。' };
   const memberReady = product === 'scientificIllustration'
     ? imageReady
     : product === 'imagePpt'
       ? textReady && imageReady
       : textReady;
   return memberReady
-    ? { ready: true, message: '当前账号的百炼生成服务已就绪。' }
+    ? { ready: true, message: '当前账号的模型服务已就绪。' }
     : requireMemberProfile ? profileRequiredState : globalState;
 }
 

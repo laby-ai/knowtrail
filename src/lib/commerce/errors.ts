@@ -1,4 +1,5 @@
 const messages: Record<string, string> = {
+  provider_capability_unavailable: '当前自带密钥服务不支持此绘图或语音功能。请配置支持该能力的服务，或明确选择平台模型后重试。',
   account_login_required: '请先登录账号。', commercial_acceptance_pending: '收费验收尚未完成，暂未开放购买。',
   confirmed_quote_required: '请先确认本次任务费用。', quote_already_consumed: '该任务已提交，请勿重复操作。', quote_expired: '报价已过期，请重新确认费用。',
   quote_payload_changed: '任务内容已修改，请重新确认费用。', quote_operation_or_source_mismatch: '任务或模型来源已修改，请重新报价。',

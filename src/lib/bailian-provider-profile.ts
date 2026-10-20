@@ -1,3 +1,4 @@
+import { modelProviderPreset } from '@/lib/model-provider-presets';
 import { readAppPreferences } from '@/lib/app-preferences-store';
 import { requestedModelSource, registerProvider } from '@/lib/commerce/context';
 import { commerceAccount } from '@/lib/commerce/account-client';
@@ -22,7 +23,7 @@ export class BailianProfileRequiredError extends Error {
   readonly code = 'bailian_profile_required';
 
   constructor() {
-    super('请先在右上角配置百炼 API Key 和业务空间 ID，再使用模型能力。');
+    super('请先在设置的“模型配置”中选择服务并保存 API Key，再使用模型能力。');
     this.name = 'BailianProfileRequiredError';
   }
 }
@@ -73,46 +74,16 @@ async function resolveProviderRuntimeAIConfig(
     registerProvider(config.apiKey || '', 'platform');
     return config;
   }
-  if (requested === 'byok') {
-    const token = request.headers.get('authorization') || '';
-    const response = await fetch(`${getAccountApiBase()}/v1/me/provider-key-profile`, { headers: { Authorization: token }, cache: 'no-store' });
-    if (!response.ok) throw new BailianProfileRequiredError();
-    // Public profile contains no key. The signed internal resolver owns decryption.
-    const profile = await resolveMemberBailianProfile(request);
-    registerProvider(profile.api_key, 'byok');
-    return { apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1', apiKey: profile.api_key, model: profile.text_model, visionModel: profile.text_model, providerId: profile.provider_id, workspaceId: profile.workspace_id, region: profile.region, imageModel: profile.image_model, ttsModel: profile.tts_model };
-  }
   try {
     const profile = await resolveMemberBailianProfile(request);
-    const envConfig = serverRuntimeAIConfigFromEnv();
-
-    // Prefer ARK/OpenAI env vars over DashScope when available
-    const useEnvProvider = envConfig.apiBase && envConfig.apiKey &&
-      !envConfig.apiBase.includes('dashscope.aliyuncs.com');
-
-    if (useEnvProvider) {
-      return {
-        ...envConfig,
-        providerId: profile.provider_id,
-        workspaceId: profile.workspace_id,
-        region: profile.region,
-        imageModel: profile.image_model,
-        ttsModel: profile.tts_model,
-      };
-    }
-
+    const preset = modelProviderPreset(profile.provider_id);
+    registerProvider(profile.api_key, 'byok');
     return {
-      apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-      apiKey: profile.api_key,
-      model: profile.text_model,
-      visionModel: profile.text_model,
-      embeddingModel: '',
-      ttsSpeaker: 'longanhuan_v3.6',
-      providerId: profile.provider_id,
-      workspaceId: profile.workspace_id,
-      region: profile.region,
-      imageModel: profile.image_model,
-      ttsModel: profile.tts_model,
+      apiBase: preset.apiBase, apiKey: profile.api_key, model: profile.text_model,
+      visionModel: profile.provider_id === 'deepseek' ? '' : profile.text_model,
+      embeddingModel: '', ttsSpeaker: 'longanhuan_v3.6', providerId: profile.provider_id,
+      workspaceId: profile.workspace_id, region: profile.region,
+      imageModel: profile.image_model, ttsModel: profile.tts_model,
     };
   } catch (error) {
     if (error instanceof BailianProfileRequiredError && !accountAuthRequired()) {
@@ -130,12 +101,12 @@ export async function resolveRequestRuntimeAIConfig(request: NextRequest | Reque
 }
 
 export function bailianProfileFromRuntimeConfig(config: Partial<RuntimeAIConfig>): MemberProviderProfile | null {
-  if (config.providerId !== 'aliyun-bailian' || !config.workspaceId || !config.apiKey) return null;
+  if (config.providerId !== 'aliyun-bailian' || !config.apiKey) return null;
   return {
     tenant_id: '',
     member_id: '',
     provider_id: 'aliyun-bailian',
-    workspace_id: config.workspaceId,
+    workspace_id: config.workspaceId || '',
     region: 'cn-beijing',
     text_model: BAILIAN_TEXT_MODEL,
     image_model: BAILIAN_IMAGE_MODEL,

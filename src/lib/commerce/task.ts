@@ -1,3 +1,4 @@
+import { providerCapabilityUnavailable } from '@/lib/model-provider-presets';
 import { createHash, randomUUID } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { bearerTokenFromRequest, resolveAccountSessionFromRequest } from '@/lib/account-session';
@@ -45,6 +46,7 @@ export async function runCommerceTask(request: NextRequest, operation: string, e
       }
       try {
         context.config = await resolveRequestRuntimeAIConfig(request);
+        if (providerCapabilityUnavailable(context.config, operation)) throw new CommerceError(422, 'provider_capability_unavailable');
         const response = await execute();
         if (!response.ok || !response.body) { await finish(0, 'failed'); return response; }
         const reader = response.body.getReader();

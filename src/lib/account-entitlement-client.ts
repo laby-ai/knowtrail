@@ -14,9 +14,9 @@ export type AccountReservationResponse = {
 export type MemberProviderProfile = {
   tenant_id: string;
   member_id: string;
-  provider_id: 'aliyun-bailian';
+  provider_id: 'aliyun-bailian' | 'moonshot' | 'deepseek';
   workspace_id: string;
-  region: 'cn-beijing';
+  region: string;
   text_model: string;
   image_model: string;
   tts_model: string;
