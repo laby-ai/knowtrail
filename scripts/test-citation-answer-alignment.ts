@@ -41,10 +41,26 @@ assert.deepEqual(
   'Ambiguous prose must not trigger a guessed reorder.',
 );
 
+const located = [
+  { ...ideas, sourceId: 'ideas', chunkId: 'ideas-chunk-0' },
+  { ...feedback, sourceId: 'feedback', chunkId: 'feedback-chunk-0' },
+];
+assert.deepEqual(
+  alignCitationsToAnswerMarkers(legacyAnswer, located),
+  located,
+  'Server-bound source/chunk numbers must not be reassigned by title words in the answer.',
+);
+assert.deepEqual(
+  alignCitationsToAnswerMarkers(legacyAnswer, [located[0], feedback]),
+  [located[0], feedback],
+  'Partial located metadata must not be mixed into a guessed legacy remapping.',
+);
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
     'legacy citation cards align with explicit source meaning in answer markers',
     'already aligned and ambiguous answers remain stable',
+    'server source/chunk identity remains authoritative, including mixed metadata',
   ],
 }));

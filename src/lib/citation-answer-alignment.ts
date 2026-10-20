@@ -5,6 +5,8 @@ const CONTEXT_BOUNDARY = /[。！？；;]/u;
 
 export function alignCitationsToAnswerMarkers<T extends Citation>(answer: string, citations: T[]): T[] {
   if (citations.length < 2) return citations;
+  // Located citations are numbered by the server prompt; titles cannot change that binding.
+  if (citations.some(citation => citation.sourceId || citation.chunkId)) return citations;
 
   const markerContexts = citations.map((_, index) => contextForMarker(answer, index + 1));
   if (markerContexts.some(context => !context)) return citations;
