@@ -307,11 +307,9 @@ function findCitationContextSnippet(
 ): CitationContextSnippet | null {
   if (!chunks || chunks.length === 0) return null;
   const excerpt = normalizeEvidenceText(citation.excerpt);
-  const matched = chunks.find(chunk => (
-    (citation.chunkId && chunk.id === citation.chunkId) ||
-    (typeof citation.chunkIndex === 'number' && chunk.chunkIndex === citation.chunkIndex) ||
-    (excerpt && normalizeEvidenceText(chunk.text).includes(excerpt.slice(0, Math.min(excerpt.length, 80))))
-  ));
+  const matched = (citation.chunkId ? chunks.find(chunk => chunk.id === citation.chunkId) : undefined)
+    ?? (typeof citation.chunkIndex === 'number' ? chunks.find(chunk => chunk.chunkIndex === citation.chunkIndex) : undefined)
+    ?? (excerpt ? chunks.find(chunk => normalizeEvidenceText(chunk.text).includes(excerpt.slice(0, Math.min(excerpt.length, 80)))) : undefined);
   if (!matched?.text) return null;
   const text = matched.text.replace(/\s+/g, ' ').trim();
   const citedText = citation.excerpt?.replace(/\s+/g, ' ').trim();
