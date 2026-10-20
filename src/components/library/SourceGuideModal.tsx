@@ -27,7 +27,7 @@ export function SourceGuideModal({
       onClick={onClose}
     >
       <div
-        className="liquid-glass-card max-h-[92vh] w-[min(560px,100%)] overflow-y-auto rounded-3xl p-6 animate-scale-in"
+        className="readable-dialog liquid-glass-card max-h-[92vh] w-[min(560px,100%)] overflow-y-auto rounded-3xl p-6 animate-scale-in"
         onClick={(event) => event.stopPropagation()}
         data-testid="source-guide-modal"
       >

@@ -307,7 +307,7 @@ export function DiscoverSourcesModal({
     >
       <div
         className={variant === 'modal'
-          ? 'flex max-h-[86vh] w-full max-w-3xl flex-col gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in'
+          ? 'readable-dialog flex max-h-[86vh] w-full max-w-3xl flex-col gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in'
           : 'flex w-full flex-col gap-3'}
         onClick={e => e.stopPropagation()}
       >

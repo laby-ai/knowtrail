@@ -4,6 +4,7 @@
 @import "katex/dist/katex.min.css";
 @import "tailwindcss";
 @import "../styles/home-motion.css";
+@import "../styles/dialog-typography.css";
 
 
 /* ═══════════════════════════════════════════════════════
