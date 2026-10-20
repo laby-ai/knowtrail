@@ -1,3 +1,4 @@
+import type { ModelProviderId } from '@/lib/model-provider-presets';
 import { createHash, createHmac } from 'node:crypto';
 
 export type AccountReservation = {
@@ -14,7 +15,7 @@ export type AccountReservationResponse = {
 export type MemberProviderProfile = {
   tenant_id: string;
   member_id: string;
-  provider_id: 'aliyun-bailian' | 'moonshot' | 'deepseek';
+  provider_id: ModelProviderId;
   workspace_id: string;
   region: string;
   text_model: string;

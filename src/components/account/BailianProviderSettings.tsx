@@ -128,7 +128,7 @@ export function BailianProviderSettings({ session }: { session: AccountAuthSessi
         <label className="block text-sm font-medium text-slate-800">模型服务
           <select aria-label="模型服务" data-testid="model-provider-select" disabled={loading || saving} value={providerId} onChange={event => { setProviderId(modelProviderPreset(event.target.value).id); setApiKey(''); setMessage('请粘贴新选择服务的 API Key，保存后生效。'); }} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-3 text-sm">{MODEL_PROVIDER_PRESETS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
         </label>
-        <p className="text-xs leading-5 text-slate-500">选择服务后粘贴对应 Key 即可，接口地址和默认模型自动匹配。同一账号当前使用一组自带密钥配置；保存会替换现有配置并启用自带密钥。供应商可能直接收取调用费用。</p>
+        <p className="text-xs leading-5 text-slate-500">选择服务后粘贴对应 Key 即可，接口地址和默认模型自动匹配。同一账号当前使用一组自带密钥配置；保存会替换现有配置并启用自带密钥。供应商可能直接收取调用费用。请使用所选平台的标准 API Key，并确认已开通默认模型；编程套餐等专用密钥可能不通用。</p>
         <label className="block text-sm font-medium text-slate-800">
           API Key
           <input disabled={loading || saving} type="password" value={apiKey} onChange={event => setApiKey(event.target.value)} autoComplete="off" placeholder={profile.configured ? `重新填写以替换 ${profile.secret_mask || '现有 Key'}` : 'sk-...'} className="mt-1.5 h-10 w-full rounded-md border border-slate-300 px-3 font-mono text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" data-testid="bailian-api-key" />

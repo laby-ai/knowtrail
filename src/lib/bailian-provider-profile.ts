@@ -80,7 +80,7 @@ async function resolveProviderRuntimeAIConfig(
     registerProvider(profile.api_key, 'byok');
     return {
       apiBase: preset.apiBase, apiKey: profile.api_key, model: profile.text_model,
-      visionModel: profile.provider_id === 'deepseek' ? '' : profile.text_model,
+      visionModel: ['aliyun-bailian', 'moonshot', 'volcengine', 'minimax'].includes(profile.provider_id) ? profile.text_model : '',
       embeddingModel: '', ttsSpeaker: 'longanhuan_v3.6', providerId: profile.provider_id,
       workspaceId: profile.workspace_id, region: profile.region,
       imageModel: profile.image_model, ttsModel: profile.tts_model,

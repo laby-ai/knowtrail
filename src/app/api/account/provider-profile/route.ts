@@ -1,3 +1,4 @@
+import { MODEL_PROVIDER_PRESETS, type ModelProviderId } from '@/lib/model-provider-presets';
 import { z } from 'zod';
 import { assertApiResponse } from '@/lib/api-response';
 import type { NextRequest } from 'next/server';
@@ -15,7 +16,7 @@ async function forward(request: NextRequest, method: 'GET' | 'PUT' | 'DELETE') {
 
   let body: string | undefined;
   if (method === 'PUT') {
-    try { body = JSON.stringify(z.object({ provider_id: z.enum(['aliyun-bailian', 'moonshot', 'deepseek']).optional(), api_key: z.string().trim().min(8).max(4096), workspace_id: z.string().max(128).optional(), region: z.literal('cn-beijing').optional() }).strict().parse(await request.json())); }
+    try { body = JSON.stringify(z.object({ provider_id: z.enum(MODEL_PROVIDER_PRESETS.map(item => item.id) as [ModelProviderId, ...ModelProviderId[]]).optional(), api_key: z.string().trim().min(8).max(4096), workspace_id: z.string().max(128).optional(), region: z.literal('cn-beijing').optional() }).strict().parse(await request.json())); }
     catch { return Response.json({ error: '请选择支持的模型服务并填写有效 API Key。' }, { status: 400, headers: NO_STORE }); }
   }
   const response = await fetch(`${baseUrl}${PROFILE_PATH}`, {

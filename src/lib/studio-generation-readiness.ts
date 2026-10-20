@@ -85,7 +85,7 @@ export function resolveMemberAwareGenerationReadiness(
   if (!profile?.configured) return requireMemberProfile ? profileRequiredState : globalState;
   const textReady = Boolean(profile.text_model?.trim());
   const imageReady = Boolean(profile.image_model?.trim());
-  if ((['moonshot', 'deepseek'].includes(profile.provider_id || '') || (profile.provider_id === 'aliyun-bailian' && !profile.workspace_id)) && (product === 'imagePpt' || product === 'scientificIllustration')) return { ready: false, message: '当前自带密钥配置暂不能生成图片。百炼请补充业务空间 ID，其他服务请确认是否支持绘图。' };
+  if ((!imageReady || (profile.provider_id === 'aliyun-bailian' && !profile.workspace_id)) && (product === 'imagePpt' || product === 'scientificIllustration')) return { ready: false, message: '当前自带密钥配置暂不能生成图片。百炼请补充业务空间 ID，其他服务请确认是否支持绘图。' };
   const memberReady = product === 'scientificIllustration'
     ? imageReady
     : product === 'imagePpt'

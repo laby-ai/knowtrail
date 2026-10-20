@@ -20,6 +20,10 @@ PROVIDERS = {
     "aliyun-bailian": (TEXT_MODEL, IMAGE_MODEL, TTS_MODEL),
     "moonshot": ("kimi-k3", "", ""),
     "deepseek": ("deepseek-flash", "", ""),
+    "zhipu": ("glm-5.3", "", ""),
+    "siliconflow": ("Qwen/Qwen3.6-27B", "", ""),
+    "volcengine": ("doubao-seed-2-1-pro-260915", "", ""),
+    "minimax": ("MiniMax-M3.1-Flash", "", ""),
 }
 
 

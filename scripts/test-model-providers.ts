@@ -25,7 +25,7 @@ async function main() {
         assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer fixture-' + preset.id);
         const body = JSON.parse(String(init?.body));
         assert.equal(body.model, preset.model);
-        if (preset.id === 'moonshot') { assert.equal(body.reasoning_effort, 'low'); assert.ok(!('temperature' in body)); }
+        if (preset.id === 'moonshot' || preset.id === 'minimax') { assert.equal(body.reasoning_effort, 'low'); assert.ok(!('temperature' in body)); }
         invoked = true;
         return new Response('data: {"choices":[{"delta":{"content":"isolated provider result"}}]}\n\ndata: [DONE]\n\n', { headers: { 'Content-Type': 'text/event-stream' } });
       };
@@ -42,6 +42,7 @@ async function main() {
     }
     assert.equal(providerCapabilityUnavailable({ providerId: 'aliyun-bailian', workspaceId: '' }, 'scientific-illustration'), true);
     assert.equal(providerCapabilityUnavailable({ providerId: 'aliyun-bailian', workspaceId: '' }, 'chat'), false);
+    assert.equal(MODEL_PROVIDER_PRESETS.length, 7);
     assert.throws(() => modelProviderPreset('https://untrusted.invalid'));
     console.log('PASS: account-bound provider endpoint/key/model routing, no platform substitution, Kimi parameter constraints and capability checks');
   } finally { globalThis.fetch = original; }
