@@ -18,6 +18,7 @@ export function ResizableUploadArea({ storageKey, children }: { storageKey: stri
     const parent = element?.parentElement;
     if (!element || !parent) return;
     const measure = () => {
+      if (!parent.clientHeight || !element.getClientRects().length) return;
       const siblings = Array.from(parent.children).filter(child => child !== element && !child.hasAttribute('data-library-scroll') && !['absolute', 'fixed'].includes(getComputedStyle(child).position));
       const fixedHeight = siblings.reduce((sum, child) => sum + child.getBoundingClientRect().height, 0);
       const max = Math.max(140, Math.min(480, parent.clientHeight - fixedHeight - 160));
