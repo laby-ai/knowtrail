@@ -35,6 +35,7 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
   const [open, setOpen] = useState(false);
   const [resolvedSession, setResolvedSession] = useState<AccountAuthSession | null>(null);
   const [profileError, setProfileError] = useState('');
+  const [section, setSection] = useState('general');
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     if (!open) return;
@@ -81,8 +82,13 @@ export function AccountSettingsButton({ session, onSignOut }: { session: Account
           <p role="alert" className="text-sm text-red-600">{profileError}</p>
           <button type="button" onClick={() => setRefresh(value => value + 1)} className="liquid-glass-btn px-3 py-2 text-sm">重新加载</button>
           <button type="button" onClick={() => { setOpen(false); onSignOut(); }} className="ml-3 text-sm text-red-600">退出账号</button>
-        </div> : !account ? <p role="status" className="mt-5 text-sm text-[var(--text-secondary)]">正在同步账号信息…</p> : <Tabs defaultValue="general" className="mt-1 min-w-0 gap-6 md:flex-row md:items-start">
-          <TabsList aria-label={en ? 'Settings categories' : '设置分类'} className="grid h-auto w-full shrink-0 grid-cols-2 gap-1 rounded-xl bg-[var(--glass-subtle)] p-2 sm:grid-cols-4 md:w-44 md:grid-cols-1 [&>button]:h-auto [&>button]:justify-start [&>button]:whitespace-normal [&>button]:px-3 [&>button]:py-3">
+        </div> : !account ? <p role="status" className="mt-5 text-sm text-[var(--text-secondary)]">正在同步账号信息…</p> : <Tabs value={section} onValueChange={setSection} className="mt-1 min-w-0 gap-6 md:flex-row md:items-start">
+          <label className="block text-sm md:hidden">{en ? 'Settings category' : '设置分类'}
+            <select aria-label="设置分类" value={section} onChange={event => setSection(event.target.value)} className="liquid-glass-input mt-2 w-full rounded-xl bg-[var(--bg-primary)] px-3 py-3">
+              <option value="general">{en ? 'General' : '通用'}</option><option value="account">{en ? 'Account' : '账号管理'}</option><option value="security">{en ? 'Security' : '安全'}</option><option value="history">{en ? 'History & downloads' : '历史与下载'}</option><option value="bailian">{en ? 'Bailian' : '百炼'}</option><option value="membership">{en ? 'Membership & usage' : '会员与用量'}</option><option value="about">{en ? 'About' : '关于'}</option>
+            </select>
+          </label>
+          <TabsList aria-label={en ? 'Settings categories' : '设置分类'} className="hidden h-auto w-full shrink-0 grid-cols-2 gap-1 rounded-xl bg-[var(--glass-subtle)] p-2 sm:grid-cols-4 md:grid md:w-44 md:grid-cols-1 [&>button]:h-auto [&>button]:justify-start [&>button]:whitespace-normal [&>button]:px-3 [&>button]:py-3">
             <TabsTrigger value="general"><SlidersHorizontal className="h-4 w-4" />{en ? 'General' : '通用'}</TabsTrigger>
             <TabsTrigger value="account"><UserRound className="h-4 w-4" />{en ? 'Account' : '账号管理'}</TabsTrigger>
             <TabsTrigger value="security"><ShieldCheck className="h-4 w-4" />{en ? 'Security' : '安全'}</TabsTrigger>

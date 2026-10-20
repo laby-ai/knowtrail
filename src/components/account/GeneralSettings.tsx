@@ -17,7 +17,7 @@ export function GeneralSettings() {
   const selectClass = 'liquid-glass-input mt-2 w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-3';
   return <div className="space-y-6">
     <label className="block text-sm font-medium">{en ? 'Interface language' : '界面语言'}
-      <select aria-label="界面语言" disabled={!ready || busy} value={preferences.interfaceLanguage} onChange={event => void change({ interfaceLanguage: event.target.value as AppPreferences['interfaceLanguage'] })} className={selectClass}><option value="zh-CN">简体中文</option><option value="en">English（逐步完善 / Preview）</option></select>
+      <select aria-label="界面语言" disabled={!ready || busy} value={preferences.interfaceLanguage} onChange={event => void change({ interfaceLanguage: event.target.value as AppPreferences['interfaceLanguage'] })} className={selectClass}><option value="zh-CN">简体中文</option><option value="en">English (Preview)</option></select>
       <span className="mt-2 block text-xs font-normal text-[var(--text-secondary)]">{en ? 'English is available for settings and primary navigation. Untranslated screens retain their original text.' : '英文目前覆盖设置与主要导航，未翻译页面保留原文。'}</span>
     </label>
     <label className="block text-sm font-medium">{en ? 'AI output language' : 'AI 输出语言'}
