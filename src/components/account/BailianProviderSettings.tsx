@@ -30,6 +30,7 @@ export function BailianProviderSettings({ session }: { session: AccountAuthSessi
   const [profile, setProfile] = useState<PublicProfile>(EMPTY_PROFILE);
   const [providerId, setProviderId] = useState<ModelProviderId>('aliyun-bailian');
   const preset = modelProviderPreset(providerId);
+  const preview = profile.configured && profile.provider_id === providerId ? { model: profile.text_model, image: profile.image_model, tts: profile.tts_model } : preset;
   const [apiKey, setApiKey] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -135,9 +136,9 @@ export function BailianProviderSettings({ session }: { session: AccountAuthSessi
         {providerId === 'aliyun-bailian' && <details className="text-sm text-slate-600"><summary className="cursor-pointer">高级选项（可选）</summary><label className="mt-3 block">业务空间 ID<input disabled={loading || saving} value={workspaceId} onChange={event => setWorkspaceId(event.target.value)} placeholder="使用特定业务空间时填写" className="mt-1.5 h-10 w-full rounded-md border border-slate-300 px-3 font-mono text-sm" data-testid="bailian-workspace-id" /></label></details>}
 
         <div className="grid gap-2 rounded-md bg-slate-50 p-3 text-xs sm:grid-cols-3">
-          <div><span className="text-slate-500">文本</span><strong className="mt-1 block break-all text-slate-800">{preset.model}</strong></div>
-          <div><span className="text-slate-500">科研绘图</span><strong className="mt-1 block break-all text-slate-800">{preset.image || '此服务配置不提供绘图'}</strong></div>
-          <div><span className="text-slate-500">语音</span><strong className="mt-1 block break-all text-slate-800">{preset.tts || '此服务配置不提供语音'}</strong></div>
+          <div><span className="text-slate-500">文本</span><strong className="mt-1 block break-all text-slate-800">{preview.model}</strong></div>
+          <div><span className="text-slate-500">科研绘图</span><strong className="mt-1 block break-all text-slate-800">{preview.image || '此服务配置不提供绘图'}</strong></div>
+          <div><span className="text-slate-500">语音</span><strong className="mt-1 block break-all text-slate-800">{preview.tts || '此服务配置不提供语音'}</strong></div>
         </div>
 
         {message && <p className="flex items-start gap-2 text-xs leading-5 text-slate-600" role="status"><AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none" />{message}</p>}
