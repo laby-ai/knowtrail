@@ -40,8 +40,10 @@ function extractEmbeddings(payload: OpenAIEmbeddingsResponse): number[][] {
   return [];
 }
 
-async function parseEmbeddingResponse(res: Response, apiKey: string, expectedCount: number): Promise<number[][]> {
+async function parseEmbeddingResponse(res: Response, apiKey: string, expectedCount: number, signal?: AbortSignal): Promise<number[][]> {
+  signal?.throwIfAborted();
   const rawBody = await res.text().catch(() => '');
+  signal?.throwIfAborted();
   if (!res.ok) {
     const safeError = redactRuntimeAISecrets(rawBody, apiKey);
     throw new Error(`OpenAI-compatible embeddings API error: ${res.status}${safeError ? ` - ${safeError}` : ''}`);
@@ -68,7 +70,9 @@ async function parseEmbeddingResponse(res: Response, apiKey: string, expectedCou
 export async function embedTexts(
   inputs: string[],
   runtimeConfig?: Partial<RuntimeAIConfig>,
+  signal?: AbortSignal,
 ): Promise<number[][]> {
+  signal?.throwIfAborted();
   const resolvedRuntimeConfig = resolveServerRuntimeAIConfig(runtimeConfig);
   if (!hasRuntimeAIProvider(resolvedRuntimeConfig)) {
     throw new Error('账号绑定的向量模型服务尚未配置，无法生成向量。');
@@ -82,15 +86,17 @@ export async function embedTexts(
   if (isMultimodalEmbeddingModel(model)) {
     const embeddings: number[][] = [];
     for (const text of normalizedInputs) {
+      signal?.throwIfAborted();
       const res = await fetchWithTransientRetry(endpoint, {
         method: 'POST',
+        signal,
         headers: buildOpenAIHeaders(resolvedRuntimeConfig.apiKey),
         body: JSON.stringify({
           model,
           input: [{ type: 'text', text }],
         }),
       }, { label: 'openai-compatible multimodal embeddings' });
-      const [embedding] = await parseEmbeddingResponse(res, resolvedRuntimeConfig.apiKey, 1);
+      const [embedding] = await parseEmbeddingResponse(res, resolvedRuntimeConfig.apiKey, 1, signal);
       embeddings.push(embedding);
     }
     return embeddings;
@@ -99,13 +105,15 @@ export async function embedTexts(
   const batchSize = /^qwen3\.7-text-embedding(?:-flash)?$/.test(model) ? 20 : normalizedInputs.length;
   const embeddings: number[][] = [];
   for (let offset = 0; offset < normalizedInputs.length; offset += batchSize) {
+    signal?.throwIfAborted();
     const batch = normalizedInputs.slice(offset, offset + batchSize);
     const res = await fetchWithTransientRetry(endpoint, {
       method: 'POST',
+      signal,
       headers: buildOpenAIHeaders(resolvedRuntimeConfig.apiKey),
       body: JSON.stringify({ model, input: batch }),
     }, { label: 'openai-compatible embeddings' });
-    const vectors = await parseEmbeddingResponse(res, resolvedRuntimeConfig.apiKey, batch.length);
+    const vectors = await parseEmbeddingResponse(res, resolvedRuntimeConfig.apiKey, batch.length, signal);
     const dimension = embeddings[0]?.length || vectors[0].length;
     if (vectors.some(vector => vector.length !== dimension)) {
       throw new Error('向量模型返回了不一致的向量维度。');

@@ -22,7 +22,8 @@ export interface GroundedRetrievalOptions {
   topK?: number;
   ownerMemberId?: string;
   notebookId?: string;
-  embedder?: (texts: string[]) => Promise<number[][]>;
+  signal?: AbortSignal;
+  embedder?: (texts: string[], signal?: AbortSignal) => Promise<number[][]>;
 }
 
 function sourceIdentity(source: RagSourceInput): string | undefined {
@@ -105,6 +106,8 @@ export async function buildGroundedRetrievalContext(
   aiConfig?: Partial<RuntimeAIConfig>,
   options: GroundedRetrievalOptions = {},
 ): Promise<GroundedRetrievalContext> {
+  const signal = options.signal;
+  signal?.throwIfAborted();
   const topK = options.topK || DEFAULT_TOP_K;
   const identities = [...selectedSourceIds(requestSources)];
   let persistedChunks = await listReadySourceChunks({
@@ -114,19 +117,23 @@ export async function buildGroundedRetrievalContext(
     query: question,
     topK: Math.max(topK * 20, topK),
   });
+  signal?.throwIfAborted();
   if (persistedChunks.chunks.length === 0 && question.trim()) {
     persistedChunks = await listReadySourceChunks({ identities, ownerMemberId: options.ownerMemberId, notebookId: options.notebookId });
+    signal?.throwIfAborted();
   }
   const scopedChunks = persistedChunks.chunks;
 
   if (persistedChunks.vectorIndexedSourceCount > 0 && (options.embedder || hasRuntimeAIProvider(aiConfig))) {
     try {
       const [queryEmbedding] = options.embedder
-        ? await options.embedder([question])
-        : await embedTexts([question], aiConfig);
+        ? await options.embedder([question], signal)
+        : await embedTexts([question], aiConfig, signal);
+      signal?.throwIfAborted();
       const allowedSourceIds = new Set(persistedChunks.sourceIds);
       const vectorCandidateLimit = Math.max(topK * 50, scopedChunks.length * 50, 250);
       const candidates = await querySourceChunks(queryEmbedding, { topK: vectorCandidateLimit });
+      signal?.throwIfAborted();
       const citations = dedupeCitations(
         candidates.filter(candidate => allowedSourceIds.has(candidate.sourceId)),
         topK,
@@ -144,6 +151,7 @@ export async function buildGroundedRetrievalContext(
         );
       }
     } catch {
+      signal?.throwIfAborted();
       // Vector retrieval should never break chat; persisted keyword retrieval remains the fallback.
     }
   }
