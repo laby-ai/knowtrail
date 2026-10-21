@@ -254,7 +254,7 @@ function SourceStatusLine({
           精确到 {citationCount} 个证据片段
         </span>
       )}
-      {((audit?.sourceCoverage && audit.sourceCoverage.covered < audit.sourceCoverage.total) || Boolean(audit?.numericPreservation?.missing.length)) && (
+      {((audit?.sourceCoverage && audit.sourceCoverage.covered < audit.sourceCoverage.total) || Boolean(audit?.numericPreservation?.missing.length || audit?.numericSupport?.missing.length || audit?.numericSupport?.unavailableCitations.length)) && (
         <p role="status" className="basis-full leading-relaxed text-[var(--text-secondary)]">{audit?.warning}</p>
       )}
     </div>
@@ -265,14 +265,14 @@ function getReadableAuditLabel(audit?: CitationAuditResult) {
   if (!audit || audit.status === 'none') return '来源待校验';
   if (audit.sourceCoverage && audit.sourceCoverage.covered < audit.sourceCoverage.total) return `来源 ${audit.sourceCoverage.covered}/${audit.sourceCoverage.total}`;
   if (audit.status === 'needs-review') return '数值待核对';
-  if (audit.status === 'pass') return '来源已校验';
+  if (audit.status === 'pass') return '引用编号有效';
   if (audit.status === 'invalid-markers') return '引用需检查';
   return '引用待补充';
 }
 
 function getReadableAuditDetail(audit: CitationAuditResult) {
   if (audit.warning) return audit.warning;
-  if (audit.status === 'pass') return `回答中的引用标记已和 ${audit.citationCount} 个来源对应。`;
+  if (audit.status === 'pass') return `回答中的引用编号均存在于本条证据列表；不代表原文支持每个断言，仍需核对对应片段。`;
   if (audit.status === 'invalid-markers') return `有引用编号未匹配到来源：${audit.invalidNumbers.map(number => `[${number}]`).join('、')}`;
   if (audit.status === 'missing-markers') return '回答已找到来源，但正文里还缺少明确引用标记。';
   return '';

@@ -1,0 +1,626 @@
+{
+  "sourceHead": "8832b8c09f73f213e2b832f8a6a100a3d3c56679",
+  "kind": "Actual approved 3+4 acceptance output and canonical retrieved citation chunks; no provider/session/owner credentials, not a full vector replay",
+  "cases": [
+    {
+      "id": "fact",
+      "answer": "Webb望远镜主镜直径为6.5米（approximately）[2]。",
+      "citations": [
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。\n\n原始内容：Explore Webb\nThe James Webb Space Telescope (sometimes called JWST or Webb) is an orbiting infrared observatory that will complement and extend the discoveries of the Hubble Space Telescope, with longer wavelength coverage and gr",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-2",
+          "sourceTitle": "webb-facts",
+          "score": 0.749689,
+          "distance": 0.33388710021972656,
+          "chunkIndex": 1
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "yer sunshield that protects the telescope from the infrared radiation of the Sun, Earth, and Moon; like having sun protection of SPF 1 million.\nUnprecedented Sensitivity\niIt will peer back in time over 13.5 billion years to see the first galaxies born after the Big Bang.in the ISS.\nKey Facts\nLaunch Date\nDecember 25, 20",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-3",
+          "sourceTitle": "webb-facts",
+          "score": 0.733205,
+          "distance": 0.3638758063316345,
+          "chunkIndex": 2
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "n Solar System, and investigate the potential for life in those systems\nInstruments\nNear Infrared Camera\n(NIRCam)\nNear Infrared Spectrograph\n(NIRSpec)\nMid Infrared Instrument\n(MIRI)\nFine Guidance Sensors/Near Infrared Imager and Slitless Spectrograph\n(FGS/NIRISS)\nMajor Innovations\nMIRRORS -\nFolding segmented mirror\n:\nT",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-5",
+          "sourceTitle": "webb-facts",
+          "score": 0.732035,
+          "distance": 0.3660557270050049,
+          "chunkIndex": 4
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "d to 1/10,000th the thickness of a human hair. What's even more amazing is that the engineers and scientists working on the Webb telescope literally had to invent how to do this.\"\nMIRRORS -\nWave Front Sensing\n:\nWavefront sensing and control was developed to sense and correct any errors in the telescope's optics. This i",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-6",
+          "sourceTitle": "webb-facts",
+          "score": 0.719058,
+          "distance": 0.39070868492126465,
+          "chunkIndex": 5
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-1",
+          "sourceTitle": "webb-facts",
+          "score": 0.709705,
+          "distance": 0.409035325050354,
+          "chunkIndex": 0
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "sting than their predecessors.\nMicro-shutters\n:\nMicroshutters are tiny windows with shutters that each measure 100 by 200 microns, or about the size of a bundle of only a few human hairs. The microshutter device can select many objects in one viewing for simultaneous high-resolution observation which means much more sc",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-7",
+          "sourceTitle": "webb-facts",
+          "score": 0.698384,
+          "distance": 0.4318763017654419,
+          "chunkIndex": 6
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "62 m (69.5 ft x 46.5 ft)\nTemperature of Sun Shield Layers\nLayer 1:\nMax temperature 383K = approx 231F\nLayer 5:\nMax temperature 221K = approx -80F\nMin temperature 36K = approx -394F\nOrbit\n1.5 million km from Earth orbiting the\nL2 Point\nOperating Temperature\nunder 50 K (-370 °F)\nGold Coating\nThickness of gold coating = 1",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-4",
+          "sourceTitle": "webb-facts",
+          "score": 0,
+          "chunkIndex": 3
+        }
+      ],
+      "chunks": [
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-2",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 1,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。\n\n原始内容：Explore Webb\nThe James Webb Space Telescope (sometimes called JWST or Webb) is an orbiting infrared observatory that will complement and extend the discoveries of the Hubble Space Telescope, with longer wavelength coverage and greatly improved sensitivity. The longer wavelengths enable Webb to look much closer to the beginning of time and to hunt for the unobserved formation of the first galaxies, as well as to look inside dust clouds where stars and planetary systems are forming today.\nKey Facts\nMission Goals\nInstruments\nMajor Innovations\nKey Facts\nPremiere Telescope of Next Decade\nextending the tantalizing discoveries of the Hubble Space Telescope.\nFolding Design\nSo big it has to fold origami-style to fit in the rocket and will unfold like a “Transformer” in space.\n1.5 Million km\nWebb orbits the Sun 1.5 million kilometers from the Earth. (Hubble orbits 560 kilometers above the Earth.)\nSPF 1 Million\nWebb has a 5-layer sunshield that protects the telescope from the infrared radiation of the Sun, Earth, and Moon; like having sun protection of SPF 1 million.\nUnprecedented Sensitivity\niIt will p",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-3",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 2,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "yer sunshield that protects the telescope from the infrared radiation of the Sun, Earth, and Moon; like having sun protection of SPF 1 million.\nUnprecedented Sensitivity\niIt will peer back in time over 13.5 billion years to see the first galaxies born after the Big Bang.in the ISS.\nKey Facts\nLaunch Date\nDecember 25, 2021 07:20am EST (2021-12-25 12:20 GMT/UTC)\nLaunch Vehicle\nAriane 5 ECA\nMission Duration\n5 - 10 years\nTotal Payload Mass\nApprox 6200 kg, including observatory, on-orbit consumables and launch vehicle adaptor.\nDiameter of Primary Mirror\n6.5 m (21.3 ft) approximately\nClear Aperture of Primary Mirror\n25 m\n2\nPrimary Mirror Material\nberyllium coated with gold\nMass of Primary Mirror\n705 kg\nMass of a Single Primary Mirror Segment\n20.1 kg for a single beryllium mirror, 39.48 kg for one entire primary mirror segment assembly (PMSA).\nFocal Length\n131.4 meters\nNumber of Primary Mirror Segments\n18\nOptical Resolution\n~0.1 arc-seconds\nWavelength Coverage\n0.6 - 28.5 microns\nSize of Sun Shield\n21.197 m x 14.162 m (69.5 ft x 46.5 ft)\nTemperature of Sun Shield Layers\nLayer 1:\nMax temperature 383K = approx 231F\nLayer 5:\nMax temperature 221K = approx -80F\nMin temperature 36K = approx -394F",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-5",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 4,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "n Solar System, and investigate the potential for life in those systems\nInstruments\nNear Infrared Camera\n(NIRCam)\nNear Infrared Spectrograph\n(NIRSpec)\nMid Infrared Instrument\n(MIRI)\nFine Guidance Sensors/Near Infrared Imager and Slitless Spectrograph\n(FGS/NIRISS)\nMajor Innovations\nMIRRORS -\nFolding segmented mirror\n:\nThe Webb Telescope team also decided to build the mirror in segments on a structure which folds up, like the leaves of a drop-leaf table, so that it can fit into a rocket.\nMIRRORS -\nLightweight optics\n:\nNASA set out to research new ways to build mirrors for telescopes. The Advanced Mirror System Demonstrator (AMSD) program was a four-year partnership between NASA, the National Reconnaissance Office and the US Air Force to study ways to build lightweight mirrors.\nMIRRORS -\nCryogenic actuators & mirror control\n:\nLee Feinberg, Webb Optical Telescope Element Manager at NASA Goddard explains, \"Aligning the primary mirror segments as though they are a single large mirror means each mirror is aligned to 1/10,000th the thickness of a human hair. What's even more amazing is that the engineers and scientists working on the Webb telescope literally had to invent how to do this.\"\n",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-6",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 5,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "d to 1/10,000th the thickness of a human hair. What's even more amazing is that the engineers and scientists working on the Webb telescope literally had to invent how to do this.\"\nMIRRORS -\nWave Front Sensing\n:\nWavefront sensing and control was developed to sense and correct any errors in the telescope's optics. This is essential to making the 18 mirror segments work together as a single giant mirror.\nWebb's Sunshield\n:\nThe sunshield reduces the temperature between the hot and cold side of the spacecraft by almost 600 degrees Fahrenheit in the span of its 5 layer, 4.8m height - from approximately 185F (85C) on the hot side to approximately -388F (-233C) on the cold side.\nSunshield coatings\n:\nWebb deployed a tennis-court sized Sunshield made of five thin layers of Kapton E with aluminum and doped-silicon coatings to reflect the sun's heat back into space.\nImproved Detectors\n:\nWebb has extended the state of the art for infrared detectors by producing arrays that are lower noise, larger format, and longer lasting than their predecessors.\nMicro-shutters\n:\nMicroshutters are tiny windows with shutters that each measure 100 by 200 microns, or about the size of a bundle of only a few human",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-1",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 0,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。",
+          "tokenEstimate": 33
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-7",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 6,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "sting than their predecessors.\nMicro-shutters\n:\nMicroshutters are tiny windows with shutters that each measure 100 by 200 microns, or about the size of a bundle of only a few human hairs. The microshutter device can select many objects in one viewing for simultaneous high-resolution observation which means much more scientific investigation can get done in less time.\nCryocooler\n:\nWebb's MIRI instrument carries detectors that need to be at a temperature of less than 7 kelvin to operate properly. This temperature is not possible on Webb by passive means alone, so Webb carries an innovative \"cryocooler\" that is dedicated to cooling MIRI's detectors\nBackplane\n:\nThe backplane must carry more than 2400kg (2 1/2 tons) of hardware. It is required to be essentially motionless so the mirrors can see far into deep space. To meet this requirement, the backplane was engineered to be steady down to 32 nanometers, which is 1/10,000 the diameter of a human hair\n.\nCryogenic Data Acquisition ASIC\n:\n\"A-to-D\" conversion is nothing new, but the technical challenge that Webb faced was doing it at the observatory's super-cold cryogenic operating temperatures in an Application-Specific Integrated Circuit (ASIC).",
+          "tokenEstimate": 465
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-4",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 3,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "62 m (69.5 ft x 46.5 ft)\nTemperature of Sun Shield Layers\nLayer 1:\nMax temperature 383K = approx 231F\nLayer 5:\nMax temperature 221K = approx -80F\nMin temperature 36K = approx -394F\nOrbit\n1.5 million km from Earth orbiting the\nL2 Point\nOperating Temperature\nunder 50 K (-370 °F)\nGold Coating\nThickness of gold coating = 100 x 10\n-9\nmeters (1000 angstroms). Surface area = 25 m\n2\n. Using these numbers plus the density of gold at room temperature (19.3 g/cm\n3\n), the coating is calculated to use 48.25g of gold, about equal to the mass of a golf ball. (A golf ball has a mass of 45.9 grams. Note mass does not equal size!)\nMission Goals\nEarly Universe :\nSearch for the first galaxies or luminous objects formed after the Big Bang\nGalaxies Over Time:\nDetermine how galaxies evolved from their formation until now\nStar Lifecycle:\nObserve the formation of stars from their initial stages to the formation of planetary systems.\nOther Worlds :\nMeasure the physical and chemical properties of planetary systems, including our own Solar System, and investigate the potential for life in those systems\nInstruments\nNear Infrared Camera\n(NIRCam)\nNear Infrared Spectrograph\n(NIRSpec)\nMid Infrared Instrument\n(MIRI",
+          "tokenEstimate": 462
+        }
+      ],
+      "expected": "pass"
+    },
+    {
+      "id": "cross-source",
+      "answer": "-   **主镜直径**：Hubble为7.9英尺（2.4米）[1][3]；Webb约为6.5米（approximately）[6]。\n-   **反射层材料**：Hubble镀铝并覆盖氟化镁保护层 [1][2]；Webb为铍基底镀金 [6]。",
+      "citations": [
+        {
+          "paperId": "paper-1792594085879-45xyw9",
+          "paperShortName": "hubble-optics",
+          "excerpt": "标题：hubble-optics\n\n摘要：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n结构化总结：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n原始内容：Explore Hubble\nOptics\nHubble’s light-gathering ability lies in its 1,825-pound (828-kilogram), 7.9-foot (2.4-meter) diameter primary mirror.\nQuick Facts\nHubble's primary mirror collects 40,000 times more light than the h",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "chunkId": "paper-1792594085879-45xyw9::chunk-2",
+          "sourceTitle": "hubble-optics",
+          "score": 0.817242,
+          "distance": 0.22362792491912842,
+          "chunkIndex": 1
+        },
+        {
+          "paperId": "paper-1792594085879-45xyw9",
+          "paperShortName": "hubble-optics",
+          "excerpt": "s it to collect 40,000 times more light than the human eye, meaning that Hubble could see the landing lights of an airplane over San Francisco from Washington, D.C. Though the primary mirror is large, its design makes it as lightweight as possible. Instead of a solid core, Hubble’s primary mirror has a honeycomb interi",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "chunkId": "paper-1792594085879-45xyw9::chunk-5",
+          "sourceTitle": "hubble-optics",
+          "score": 0.792639,
+          "distance": 0.26160770654678345,
+          "chunkIndex": 4
+        },
+        {
+          "paperId": "paper-1792594085879-45xyw9",
+          "paperShortName": "hubble-optics",
+          "excerpt": "Cassegrain design.\nNASA\nHubble uses two mirrors, laid out in a Cassegrain telescope design, to collect and focus light. After light travels down the length of the telescope, it hits the concave, or bowl-shaped, primary mirror. The light reflects off of the primary mirror and travels back toward the front of the telesco",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "chunkId": "paper-1792594085879-45xyw9::chunk-4",
+          "sourceTitle": "hubble-optics",
+          "score": 0.771242,
+          "distance": 0.29660987854003906,
+          "chunkIndex": 3
+        },
+        {
+          "paperId": "paper-1792594085879-45xyw9",
+          "paperShortName": "hubble-optics",
+          "excerpt": "isible and ultraviolet light.\nThe OTA is supported by a graphite epoxy skeleton. Found in golf clubs, bicycles and tennis rackets, graphite epoxy was chosen for the frame of the OTA because it is lightweight, stiff and strong. Though the frame contracts slightly when water vapor embedded within it escapes into space, t",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "chunkId": "paper-1792594085879-45xyw9::chunk-3",
+          "sourceTitle": "hubble-optics",
+          "score": 0.751365,
+          "distance": 0.33091193437576294,
+          "chunkIndex": 2
+        },
+        {
+          "paperId": "paper-1792594085879-45xyw9",
+          "paperShortName": "hubble-optics",
+          "excerpt": "allery\nGo To Gallery\nLearn More\nTechnology Benefits\nHubble's mission is to capture observations of the universe, but its technology would alter life on the ground in unique and unexpected ways. Learn how Hubble mirror technology is used in the semiconductor industry.\nHubble vs Webb\nWhat's the same and what's different ",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "chunkId": "paper-1792594085879-45xyw9::chunk-9",
+          "sourceTitle": "hubble-optics",
+          "score": 0.746737,
+          "distance": 0.3391599655151367,
+          "chunkIndex": 8
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。\n\n原始内容：Explore Webb\nThe James Webb Space Telescope (sometimes called JWST or Webb) is an orbiting infrared observatory that will complement and extend the discoveries of the Hubble Space Telescope, with longer wavelength coverage and gr",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-2",
+          "sourceTitle": "webb-facts",
+          "score": 0.74648,
+          "distance": 0.3396209478378296,
+          "chunkIndex": 1
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "yer sunshield that protects the telescope from the infrared radiation of the Sun, Earth, and Moon; like having sun protection of SPF 1 million.\nUnprecedented Sensitivity\niIt will peer back in time over 13.5 billion years to see the first galaxies born after the Big Bang.in the ISS.\nKey Facts\nLaunch Date\nDecember 25, 20",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-3",
+          "sourceTitle": "webb-facts",
+          "score": 0,
+          "chunkIndex": 2
+        }
+      ],
+      "chunks": [
+        {
+          "id": "paper-1792594085879-45xyw9::chunk-2",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "sourceIndex": 0,
+          "chunkIndex": 1,
+          "paperShortName": "hubble-optics",
+          "sourceTitle": "hubble-optics",
+          "text": "标题：hubble-optics\n\n摘要：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n结构化总结：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n原始内容：Explore Hubble\nOptics\nHubble’s light-gathering ability lies in its 1,825-pound (828-kilogram), 7.9-foot (2.4-meter) diameter primary mirror.\nQuick Facts\nHubble's primary mirror collects 40,000 times more light than the human eye.\nHubble's primary mirror is coated with a reflective layer of aluminum and a protective layer of magnesium fluoride\nHubble's main mirror is so finely polished that if you scaled it to the diameter of Earth, you would not find a bump more than 6 inches (15 cm) tall.\nContents\nOverview\nCapturing Light\nFixing a Flaw\nCutaway diagram of the Hubble Space Telescope.\nNASA's Goddard Space Flight Center\nOverview\nThe Hubble Space Telescope’s mirror-based optical system collects and focuses light from the universe to be analyzed by science and guidance instruments. The optical system, called the Optical Telescope Assembly (OTA), gives Hubble a unique view of the universe by gathering infrared, visible and ultraviolet light.\nThe OTA is supported by a graphite epoxy skeleton. Found in golf clubs, bicycles and tennis rackets, graphite epoxy was chosen for the frame of the OT",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594085879-45xyw9::chunk-5",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "sourceIndex": 0,
+          "chunkIndex": 4,
+          "paperShortName": "hubble-optics",
+          "sourceTitle": "hubble-optics",
+          "text": "s it to collect 40,000 times more light than the human eye, meaning that Hubble could see the landing lights of an airplane over San Francisco from Washington, D.C. Though the primary mirror is large, its design makes it as lightweight as possible. Instead of a solid core, Hubble’s primary mirror has a honeycomb interior, reducing its weight from about 8,000 pounds (3,636 kg) to 1,800 pounds (818 kg). Both the primary and secondary mirrors are made of a high-silicon, Ultra-Low Expansion Glass developed by Corning Glass Works.\nBoth mirrors are coated with thin layers of aluminum and magnesium fluoride. The layer of aluminum is only 4/1,000,000th of an inch thick and provides the mirror’s reflectivity. The magnesium fluoride layer is coated on top of the aluminum to protect it from oxidation as well as to increase reflectivity of ultraviolet light. The mirrors and the coatings are very smooth. In fact, the primary mirror of Hubble is so smooth that if the mirror were expanded to the diameter of Earth, the largest bumps on the surface would only be six inches (15 cm) tall.\nThe graphite-epoxy truss of Hubble’s Optical Telescope Assembly can be seen in this photograph, taken during the ",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594085879-45xyw9::chunk-4",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "sourceIndex": 0,
+          "chunkIndex": 3,
+          "paperShortName": "hubble-optics",
+          "sourceTitle": "hubble-optics",
+          "text": "Cassegrain design.\nNASA\nHubble uses two mirrors, laid out in a Cassegrain telescope design, to collect and focus light. After light travels down the length of the telescope, it hits the concave, or bowl-shaped, primary mirror. The light reflects off of the primary mirror and travels back toward the front of the telescope. There it hits the secondary mirror, which is convex, or dome-shaped. The secondary mirror concentrates the light into a beam the size of a dinner plate that travels back toward and then through a hole in the primary mirror. The light is then directed into science and guidance instruments for analysis.\nHubble’s mirrors are curved hyperbolically, meaning that they have a deeper curve than a standard, parabolic Cassegrain mirror. This variation, called a Ritchey-Chrétien design, provides sharper images over a wider field of view.\nThe primary mirror is 7.9 feet (2.4 meters) in diameter, while the secondary mirror is only 12 inches (30.5 centimeters) wide. The size of the primary mirror allows it to collect 40,000 times more light than the human eye, meaning that Hubble could see the landing lights of an airplane over San Francisco from Washington, D.C. Though the prim",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594085879-45xyw9::chunk-3",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "sourceIndex": 0,
+          "chunkIndex": 2,
+          "paperShortName": "hubble-optics",
+          "sourceTitle": "hubble-optics",
+          "text": "isible and ultraviolet light.\nThe OTA is supported by a graphite epoxy skeleton. Found in golf clubs, bicycles and tennis rackets, graphite epoxy was chosen for the frame of the OTA because it is lightweight, stiff and strong. Though the frame contracts slightly when water vapor embedded within it escapes into space, the graphite epoxy is resistant to expansion and contraction caused by the extreme temperature fluctuations that Hubble experiences as it orbits Earth. Temperature fluctuations could also potentially warp Hubble's mirrors, causing its optics to go out of focus. For this reason, the mirrors are kept at a constant temperature of about 70 degrees Fahrenheit (21 degrees Celsius).\nCapturing Light\nWhen light from the universe enters the Hubble Space Telescope, it strikes the primary mirror and is reflected to the secondary mirror, then back through a hole in the center of the primary mirror before coming to a focal point and passing on to one of Hubble's instruments. This arrangement is called the Cassegrain design.\nNASA\nHubble uses two mirrors, laid out in a Cassegrain telescope design, to collect and focus light. After light travels down the length of the telescope, it hit",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594085879-45xyw9::chunk-9",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "sourceIndex": 0,
+          "chunkIndex": 8,
+          "paperShortName": "hubble-optics",
+          "sourceTitle": "hubble-optics",
+          "text": "allery\nGo To Gallery\nLearn More\nTechnology Benefits\nHubble's mission is to capture observations of the universe, but its technology would alter life on the ground in unique and unexpected ways. Learn how Hubble mirror technology is used in the semiconductor industry.\nHubble vs Webb\nWhat's the same and what's different between these two flagship missions, including the technology and specifications of their mirrors.\nExplore the Night Sky\nYou don't need a mirror like Hubble to enjoy astronomy and the night sky. Break out your telescope or binoculars and compare your observations with those of Hubble.",
+          "tokenEstimate": 233
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-2",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 1,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。\n\n原始内容：Explore Webb\nThe James Webb Space Telescope (sometimes called JWST or Webb) is an orbiting infrared observatory that will complement and extend the discoveries of the Hubble Space Telescope, with longer wavelength coverage and greatly improved sensitivity. The longer wavelengths enable Webb to look much closer to the beginning of time and to hunt for the unobserved formation of the first galaxies, as well as to look inside dust clouds where stars and planetary systems are forming today.\nKey Facts\nMission Goals\nInstruments\nMajor Innovations\nKey Facts\nPremiere Telescope of Next Decade\nextending the tantalizing discoveries of the Hubble Space Telescope.\nFolding Design\nSo big it has to fold origami-style to fit in the rocket and will unfold like a “Transformer” in space.\n1.5 Million km\nWebb orbits the Sun 1.5 million kilometers from the Earth. (Hubble orbits 560 kilometers above the Earth.)\nSPF 1 Million\nWebb has a 5-layer sunshield that protects the telescope from the infrared radiation of the Sun, Earth, and Moon; like having sun protection of SPF 1 million.\nUnprecedented Sensitivity\niIt will p",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-3",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 2,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "yer sunshield that protects the telescope from the infrared radiation of the Sun, Earth, and Moon; like having sun protection of SPF 1 million.\nUnprecedented Sensitivity\niIt will peer back in time over 13.5 billion years to see the first galaxies born after the Big Bang.in the ISS.\nKey Facts\nLaunch Date\nDecember 25, 2021 07:20am EST (2021-12-25 12:20 GMT/UTC)\nLaunch Vehicle\nAriane 5 ECA\nMission Duration\n5 - 10 years\nTotal Payload Mass\nApprox 6200 kg, including observatory, on-orbit consumables and launch vehicle adaptor.\nDiameter of Primary Mirror\n6.5 m (21.3 ft) approximately\nClear Aperture of Primary Mirror\n25 m\n2\nPrimary Mirror Material\nberyllium coated with gold\nMass of Primary Mirror\n705 kg\nMass of a Single Primary Mirror Segment\n20.1 kg for a single beryllium mirror, 39.48 kg for one entire primary mirror segment assembly (PMSA).\nFocal Length\n131.4 meters\nNumber of Primary Mirror Segments\n18\nOptical Resolution\n~0.1 arc-seconds\nWavelength Coverage\n0.6 - 28.5 microns\nSize of Sun Shield\n21.197 m x 14.162 m (69.5 ft x 46.5 ft)\nTemperature of Sun Shield Layers\nLayer 1:\nMax temperature 383K = approx 231F\nLayer 5:\nMax temperature 221K = approx -80F\nMin temperature 36K = approx -394F",
+          "tokenEstimate": 462
+        }
+      ],
+      "expected": "needs-review"
+    },
+    {
+      "id": "unsupported",
+      "answer": "当前上传的资料中没有相关内容，无法为你解答。已选证据仅包含Webb和Hubble的光学参数、任务目标及技术创新等信息[2][6][7]，未提供任何关于2026-01-01或任意日期的电力消耗（kWh）数据。",
+      "citations": [
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-1",
+          "sourceTitle": "webb-facts",
+          "score": 0.708245,
+          "distance": 0.41194117069244385,
+          "chunkIndex": 0
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。\n\n原始内容：Explore Webb\nThe James Webb Space Telescope (sometimes called JWST or Webb) is an orbiting infrared observatory that will complement and extend the discoveries of the Hubble Space Telescope, with longer wavelength coverage and gr",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-2",
+          "sourceTitle": "webb-facts",
+          "score": 0.697086,
+          "distance": 0.43454355001449585,
+          "chunkIndex": 1
+        },
+        {
+          "paperId": "paper-1792594085879-45xyw9",
+          "paperShortName": "hubble-optics",
+          "excerpt": "标题：hubble-optics\n\n摘要：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n结构化总结：该文件包含了关于hubble-optics的原始资料与数据记录。",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "chunkId": "paper-1792594085879-45xyw9::chunk-1",
+          "sourceTitle": "hubble-optics",
+          "score": 0.681708,
+          "distance": 0.46690303087234497,
+          "chunkIndex": 0
+        },
+        {
+          "paperId": "paper-1792594085879-45xyw9",
+          "paperShortName": "hubble-optics",
+          "excerpt": "allery\nGo To Gallery\nLearn More\nTechnology Benefits\nHubble's mission is to capture observations of the universe, but its technology would alter life on the ground in unique and unexpected ways. Learn how Hubble mirror technology is used in the semiconductor industry.\nHubble vs Webb\nWhat's the same and what's different ",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "chunkId": "paper-1792594085879-45xyw9::chunk-9",
+          "sourceTitle": "hubble-optics",
+          "score": 0.662607,
+          "distance": 0.5091900825500488,
+          "chunkIndex": 8
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "sting than their predecessors.\nMicro-shutters\n:\nMicroshutters are tiny windows with shutters that each measure 100 by 200 microns, or about the size of a bundle of only a few human hairs. The microshutter device can select many objects in one viewing for simultaneous high-resolution observation which means much more sc",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-7",
+          "sourceTitle": "webb-facts",
+          "score": 0.65778,
+          "distance": 0.5202651619911194,
+          "chunkIndex": 6
+        },
+        {
+          "paperId": "paper-1792594085879-45xyw9",
+          "paperShortName": "hubble-optics",
+          "excerpt": "标题：hubble-optics\n\n摘要：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n结构化总结：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n原始内容：Explore Hubble\nOptics\nHubble’s light-gathering ability lies in its 1,825-pound (828-kilogram), 7.9-foot (2.4-meter) diameter primary mirror.\nQuick Facts\nHubble's primary mirror collects 40,000 times more light than the h",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "chunkId": "paper-1792594085879-45xyw9::chunk-2",
+          "sourceTitle": "hubble-optics",
+          "score": 0.654273,
+          "distance": 0.5284140706062317,
+          "chunkIndex": 1
+        },
+        {
+          "paperId": "paper-1792594057885-u9sgy9",
+          "paperShortName": "webb-facts",
+          "excerpt": "yer sunshield that protects the telescope from the infrared radiation of the Sun, Earth, and Moon; like having sun protection of SPF 1 million.\nUnprecedented Sensitivity\niIt will peer back in time over 13.5 billion years to see the first galaxies born after the Big Bang.in the ISS.\nKey Facts\nLaunch Date\nDecember 25, 20",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "chunkId": "paper-1792594057885-u9sgy9::chunk-3",
+          "sourceTitle": "webb-facts",
+          "score": 0,
+          "chunkIndex": 2
+        },
+        {
+          "paperId": "paper-1792594085879-45xyw9",
+          "paperShortName": "hubble-optics",
+          "excerpt": "isible and ultraviolet light.\nThe OTA is supported by a graphite epoxy skeleton. Found in golf clubs, bicycles and tennis rackets, graphite epoxy was chosen for the frame of the OTA because it is lightweight, stiff and strong. Though the frame contracts slightly when water vapor embedded within it escapes into space, t",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "chunkId": "paper-1792594085879-45xyw9::chunk-3",
+          "sourceTitle": "hubble-optics",
+          "score": 0,
+          "chunkIndex": 2
+        }
+      ],
+      "chunks": [
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-1",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 0,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。",
+          "tokenEstimate": 33
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-2",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 1,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "标题：webb-facts\n\n摘要：该文件包含了关于webb-facts的原始资料与数据记录。\n\n结构化总结：该文件包含了关于webb-facts的原始资料与数据记录。\n\n原始内容：Explore Webb\nThe James Webb Space Telescope (sometimes called JWST or Webb) is an orbiting infrared observatory that will complement and extend the discoveries of the Hubble Space Telescope, with longer wavelength coverage and greatly improved sensitivity. The longer wavelengths enable Webb to look much closer to the beginning of time and to hunt for the unobserved formation of the first galaxies, as well as to look inside dust clouds where stars and planetary systems are forming today.\nKey Facts\nMission Goals\nInstruments\nMajor Innovations\nKey Facts\nPremiere Telescope of Next Decade\nextending the tantalizing discoveries of the Hubble Space Telescope.\nFolding Design\nSo big it has to fold origami-style to fit in the rocket and will unfold like a “Transformer” in space.\n1.5 Million km\nWebb orbits the Sun 1.5 million kilometers from the Earth. (Hubble orbits 560 kilometers above the Earth.)\nSPF 1 Million\nWebb has a 5-layer sunshield that protects the telescope from the infrared radiation of the Sun, Earth, and Moon; like having sun protection of SPF 1 million.\nUnprecedented Sensitivity\niIt will p",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594085879-45xyw9::chunk-1",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "sourceIndex": 0,
+          "chunkIndex": 0,
+          "paperShortName": "hubble-optics",
+          "sourceTitle": "hubble-optics",
+          "text": "标题：hubble-optics\n\n摘要：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n结构化总结：该文件包含了关于hubble-optics的原始资料与数据记录。",
+          "tokenEstimate": 36
+        },
+        {
+          "id": "paper-1792594085879-45xyw9::chunk-9",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "sourceIndex": 0,
+          "chunkIndex": 8,
+          "paperShortName": "hubble-optics",
+          "sourceTitle": "hubble-optics",
+          "text": "allery\nGo To Gallery\nLearn More\nTechnology Benefits\nHubble's mission is to capture observations of the universe, but its technology would alter life on the ground in unique and unexpected ways. Learn how Hubble mirror technology is used in the semiconductor industry.\nHubble vs Webb\nWhat's the same and what's different between these two flagship missions, including the technology and specifications of their mirrors.\nExplore the Night Sky\nYou don't need a mirror like Hubble to enjoy astronomy and the night sky. Break out your telescope or binoculars and compare your observations with those of Hubble.",
+          "tokenEstimate": 233
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-7",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 6,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "sting than their predecessors.\nMicro-shutters\n:\nMicroshutters are tiny windows with shutters that each measure 100 by 200 microns, or about the size of a bundle of only a few human hairs. The microshutter device can select many objects in one viewing for simultaneous high-resolution observation which means much more scientific investigation can get done in less time.\nCryocooler\n:\nWebb's MIRI instrument carries detectors that need to be at a temperature of less than 7 kelvin to operate properly. This temperature is not possible on Webb by passive means alone, so Webb carries an innovative \"cryocooler\" that is dedicated to cooling MIRI's detectors\nBackplane\n:\nThe backplane must carry more than 2400kg (2 1/2 tons) of hardware. It is required to be essentially motionless so the mirrors can see far into deep space. To meet this requirement, the backplane was engineered to be steady down to 32 nanometers, which is 1/10,000 the diameter of a human hair\n.\nCryogenic Data Acquisition ASIC\n:\n\"A-to-D\" conversion is nothing new, but the technical challenge that Webb faced was doing it at the observatory's super-cold cryogenic operating temperatures in an Application-Specific Integrated Circuit (ASIC).",
+          "tokenEstimate": 465
+        },
+        {
+          "id": "paper-1792594085879-45xyw9::chunk-2",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "sourceIndex": 0,
+          "chunkIndex": 1,
+          "paperShortName": "hubble-optics",
+          "sourceTitle": "hubble-optics",
+          "text": "标题：hubble-optics\n\n摘要：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n结构化总结：该文件包含了关于hubble-optics的原始资料与数据记录。\n\n原始内容：Explore Hubble\nOptics\nHubble’s light-gathering ability lies in its 1,825-pound (828-kilogram), 7.9-foot (2.4-meter) diameter primary mirror.\nQuick Facts\nHubble's primary mirror collects 40,000 times more light than the human eye.\nHubble's primary mirror is coated with a reflective layer of aluminum and a protective layer of magnesium fluoride\nHubble's main mirror is so finely polished that if you scaled it to the diameter of Earth, you would not find a bump more than 6 inches (15 cm) tall.\nContents\nOverview\nCapturing Light\nFixing a Flaw\nCutaway diagram of the Hubble Space Telescope.\nNASA's Goddard Space Flight Center\nOverview\nThe Hubble Space Telescope’s mirror-based optical system collects and focuses light from the universe to be analyzed by science and guidance instruments. The optical system, called the Optical Telescope Assembly (OTA), gives Hubble a unique view of the universe by gathering infrared, visible and ultraviolet light.\nThe OTA is supported by a graphite epoxy skeleton. Found in golf clubs, bicycles and tennis rackets, graphite epoxy was chosen for the frame of the OT",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594057885-u9sgy9::chunk-3",
+          "sourceId": "paper-1792594057885-u9sgy9",
+          "sourceIndex": 0,
+          "chunkIndex": 2,
+          "paperShortName": "webb-facts",
+          "sourceTitle": "webb-facts",
+          "text": "yer sunshield that protects the telescope from the infrared radiation of the Sun, Earth, and Moon; like having sun protection of SPF 1 million.\nUnprecedented Sensitivity\niIt will peer back in time over 13.5 billion years to see the first galaxies born after the Big Bang.in the ISS.\nKey Facts\nLaunch Date\nDecember 25, 2021 07:20am EST (2021-12-25 12:20 GMT/UTC)\nLaunch Vehicle\nAriane 5 ECA\nMission Duration\n5 - 10 years\nTotal Payload Mass\nApprox 6200 kg, including observatory, on-orbit consumables and launch vehicle adaptor.\nDiameter of Primary Mirror\n6.5 m (21.3 ft) approximately\nClear Aperture of Primary Mirror\n25 m\n2\nPrimary Mirror Material\nberyllium coated with gold\nMass of Primary Mirror\n705 kg\nMass of a Single Primary Mirror Segment\n20.1 kg for a single beryllium mirror, 39.48 kg for one entire primary mirror segment assembly (PMSA).\nFocal Length\n131.4 meters\nNumber of Primary Mirror Segments\n18\nOptical Resolution\n~0.1 arc-seconds\nWavelength Coverage\n0.6 - 28.5 microns\nSize of Sun Shield\n21.197 m x 14.162 m (69.5 ft x 46.5 ft)\nTemperature of Sun Shield Layers\nLayer 1:\nMax temperature 383K = approx 231F\nLayer 5:\nMax temperature 221K = approx -80F\nMin temperature 36K = approx -394F",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594085879-45xyw9::chunk-3",
+          "sourceId": "paper-1792594085879-45xyw9",
+          "sourceIndex": 0,
+          "chunkIndex": 2,
+          "paperShortName": "hubble-optics",
+          "sourceTitle": "hubble-optics",
+          "text": "isible and ultraviolet light.\nThe OTA is supported by a graphite epoxy skeleton. Found in golf clubs, bicycles and tennis rackets, graphite epoxy was chosen for the frame of the OTA because it is lightweight, stiff and strong. Though the frame contracts slightly when water vapor embedded within it escapes into space, the graphite epoxy is resistant to expansion and contraction caused by the extreme temperature fluctuations that Hubble experiences as it orbits Earth. Temperature fluctuations could also potentially warp Hubble's mirrors, causing its optics to go out of focus. For this reason, the mirrors are kept at a constant temperature of about 70 degrees Fahrenheit (21 degrees Celsius).\nCapturing Light\nWhen light from the universe enters the Hubble Space Telescope, it strikes the primary mirror and is reflected to the secondary mirror, then back through a hole in the center of the primary mirror before coming to a focal point and passing on to one of Hubble's instruments. This arrangement is called the Cassegrain design.\nNASA\nHubble uses two mirrors, laid out in a Cassegrain telescope design, to collect and focus light. After light travels down the length of the telescope, it hit",
+          "tokenEstimate": 462
+        }
+      ],
+      "expected": "pass"
+    },
+    {
+      "id": "long-document",
+      "answer": "本轮读取范围：已选证据 [1]（webb-faq, chunk-41），该片段完整包含工作温度与冷却方式信息。\n\n-   **NIRCam / NIRSpec / FGS-NIRISS**：工作温度约 39 K，采用被动冷却系统（passive cooling system）[1]。\n-   **MIRI**：工作温度 7 K，采用氦制冷机/低温冷却器系统（helium refrigerator, or cryocooler system）[1]。",
+      "citations": [
+        {
+          "paperId": "paper-1792594115463-8ypcz9",
+          "paperShortName": "webb-faq",
+          "excerpt": "lt into mosaics to give a larger field of view. NIRCam, NIRSpec and FGS-NIRISS use Mercury Cadmium Telluride (HgCdTe) detectors made by Teledyne Scientific & Imaging. MIRI employs arsenic doped silicon (Si:As) detectors produced by Raytheon.\nWhat is the operating temperature of the telescope and the instruments?\nThe la",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "chunkId": "paper-1792594115463-8ypcz9::chunk-41",
+          "sourceTitle": "webb-faq",
+          "score": 0.834185,
+          "distance": 0.1987748146057129,
+          "chunkIndex": 40
+        },
+        {
+          "paperId": "paper-1792594115463-8ypcz9",
+          "paperShortName": "webb-faq",
+          "excerpt": "d is used?\nWhy does Webb have a segmented, unfolding primary mirror?\nWhat is Webb's angular resolution, and how will its images compare to Hubble's? Will they be as beautiful?\nWebb's Instruments & Technology\nWhat kind of instruments does Webb have?\nWhat kind of detectors does Webb have?\nWhat is the operating temperatur",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "chunkId": "paper-1792594115463-8ypcz9::chunk-4",
+          "sourceTitle": "webb-faq",
+          "score": 0.748672,
+          "distance": 0.33569908142089844,
+          "chunkIndex": 3
+        },
+        {
+          "paperId": "paper-1792594115463-8ypcz9",
+          "paperShortName": "webb-faq",
+          "excerpt": "ailed and spectacular.\nThis\nfeature\nexplains how Hubble images are created; Hubble's detectors actually produce images in shades of black and white - color is added during image processing. The colors aren't always what we'd see if we were able to visit the imaged objects in a spacecraft. Color is a tool, which can enh",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "chunkId": "paper-1792594115463-8ypcz9::chunk-40",
+          "sourceTitle": "webb-faq",
+          "score": 0.736003,
+          "distance": 0.3586905598640442,
+          "chunkIndex": 39
+        },
+        {
+          "paperId": "paper-1792594115463-8ypcz9",
+          "paperShortName": "webb-faq",
+          "excerpt": "several weeks for them to cool all the way down and reach stable temperatures. This cooldown was carefully controlled with strategically-placed electric heater strips so that everything shrunk carefully and so that water trapped inside parts of the observatory could escape as gas to the vacuum of space and not freeze a",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "chunkId": "paper-1792594115463-8ypcz9::chunk-14",
+          "sourceTitle": "webb-faq",
+          "score": 0.727312,
+          "distance": 0.3749251365661621,
+          "chunkIndex": 13
+        },
+        {
+          "paperId": "paper-1792594115463-8ypcz9",
+          "paperShortName": "webb-faq",
+          "excerpt": "acquire and lock onto targets, and we took data mainly with NIRCam. But because the primary mirror segments had yet to be aligned to work as a single mirror, there were up to 18 distorted images of the same single target star. We then embarked on the long process of aligning all the telescope optics, beginning with ide",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "chunkId": "paper-1792594115463-8ypcz9::chunk-15",
+          "sourceTitle": "webb-faq",
+          "score": 0.72227,
+          "distance": 0.3845233917236328,
+          "chunkIndex": 14
+        },
+        {
+          "paperId": "paper-1792594115463-8ypcz9",
+          "paperShortName": "webb-faq",
+          "excerpt": "e small dust particles, allowing near-infrared light to escape from the dust clouds. By observing the emitted near-infrared light we can penetrate the dust and see the processes leading to star and planet formation. Objects of about Earth's temperature emit most of their radiation at mid-infrared wavelengths. These tem",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "chunkId": "paper-1792594115463-8ypcz9::chunk-44",
+          "sourceTitle": "webb-faq",
+          "score": 0.715869,
+          "distance": 0.3969041109085083,
+          "chunkIndex": 43
+        }
+      ],
+      "chunks": [
+        {
+          "id": "paper-1792594115463-8ypcz9::chunk-41",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "sourceIndex": 0,
+          "chunkIndex": 40,
+          "paperShortName": "webb-faq",
+          "sourceTitle": "webb-faq",
+          "text": "lt into mosaics to give a larger field of view. NIRCam, NIRSpec and FGS-NIRISS use Mercury Cadmium Telluride (HgCdTe) detectors made by Teledyne Scientific & Imaging. MIRI employs arsenic doped silicon (Si:As) detectors produced by Raytheon.\nWhat is the operating temperature of the telescope and the instruments?\nThe large sunshade protects the telescope from heating by direct sunlight, allowing it to cool down to a temperature below 50 Kelvin (-223° C or -370° F) by passively radiating its heat into space. The definition of the Kelvin temperature scale is that 0 K is \"absolute zero,\" the lowest possible temperature. Water freezes at 32 degree F, 0 degree C or about 273 K. The near-infrared instruments (NIRCam, NIRSpec, FGS/NIRISS) work at about 39 K (-234° C or -389° F) through a passive cooling system. The mid-infrared instrument (MIRI) will work at a temperature of 7 K (-266° C or -447° F), using a helium refrigerator, or cryocooler system.\nCan Webb take selfies?\nAs NASA’s James Webb Space Telescope made its way out to its intended orbit, ground teams monitored its vitals using a comprehensive set of sensors located throughout the entire spacecraft. Mechanical, thermal, and elect",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594115463-8ypcz9::chunk-4",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "sourceIndex": 0,
+          "chunkIndex": 3,
+          "paperShortName": "webb-faq",
+          "sourceTitle": "webb-faq",
+          "text": "d is used?\nWhy does Webb have a segmented, unfolding primary mirror?\nWhat is Webb's angular resolution, and how will its images compare to Hubble's? Will they be as beautiful?\nWebb's Instruments & Technology\nWhat kind of instruments does Webb have?\nWhat kind of detectors does Webb have?\nWhat is the operating temperature of the telescope and the instruments?\nCan Webb take selfies?\nWebb Science\nWhy is Webb optimized for near- and mid-infrared light?\nWhat about visible light?\nAt which wavelengths will Webb observe?\nHow faint can Webb see?\nWhat are the main science goals of Webb?\nHow far will Webb look?\nWill Webb see planets around other stars?\nCan Webb observe planets in our own solar system?\nWhat will Webb's first targets be?\nWill Webb contribute to the dark matter research?\nWhat about dark energy?\nWill Webb be able to tell us more about the Big Bang?\nBuilding and Using Webb\nWho are the partners in the Webb project?\nWhich states are involved?\nWhich countries are involved?\nWho will be able to use Webb and how is this decided?\nWebb and the Public\nWill I be able to see Webb pictures?\nWill Webb images look as good as Hubble's?\nWhere did Webb launch?\nBasic Science\nWhat will the first gala",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594115463-8ypcz9::chunk-40",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "sourceIndex": 0,
+          "chunkIndex": 39,
+          "paperShortName": "webb-faq",
+          "sourceTitle": "webb-faq",
+          "text": "ailed and spectacular.\nThis\nfeature\nexplains how Hubble images are created; Hubble's detectors actually produce images in shades of black and white - color is added during image processing. The colors aren't always what we'd see if we were able to visit the imaged objects in a spacecraft. Color is a tool, which can enhance an object's detail or visualize what could never been seen by the human eye. Webb image processing will be similar.\nWebb's Instruments & Technology\nWhat kind of instruments does Webb have?\nThe James Webb Space Telescope includes four scientific instruments: the\nNear Infrared Camera (NIRCam)\n, the\nNear-Infrared Spectrograph (NIRSpec)\n, the\nMid-Infrared Instrument (MIRI)\n, and the\nFine Guidance Sensor/ Near InfraRed Imager and Slitless Spectrograph (FGS-NIRISS)\n.\nWhat kind of detectors does Webb have?\nWebb has two types of detector arrays (SCA): visible to near-infrared arrays with 2,048 x 2,048 pixels, and mid-infrared arrays with about 1,024 x 1,024 pixels. Several detectors were be built into mosaics to give a larger field of view. NIRCam, NIRSpec and FGS-NIRISS use Mercury Cadmium Telluride (HgCdTe) detectors made by Teledyne Scientific & Imaging. MIRI employs ",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594115463-8ypcz9::chunk-14",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "sourceIndex": 0,
+          "chunkIndex": 13,
+          "paperShortName": "webb-faq",
+          "sourceTitle": "webb-faq",
+          "text": "several weeks for them to cool all the way down and reach stable temperatures. This cooldown was carefully controlled with strategically-placed electric heater strips so that everything shrunk carefully and so that water trapped inside parts of the observatory could escape as gas to the vacuum of space and not freeze as ice onto mirrors or detectors, which would degrade scientific performance. We unlocked all the primary mirror segments and the secondary mirror and verify that we could move them. Near the end of the first month, we executed the last mid-course maneuver to insert into the optimum orbit around L2. During this time we also powered-up the scientific instrument systems. The remaining five months of commissioning were all about aligning the optics and calibrating the scientific instruments.\nIn the second, third and fourth months:\nInitial optics checkouts, and telescope alignment.\nUsing the Fine Guidance Sensor, we pointed Webb at a single bright star and demonstrated that the observatory could acquire and lock onto targets, and we took data mainly with NIRCam. But because the primary mirror segments had yet to be aligned to work as a single mirror, there were up to 18 di",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594115463-8ypcz9::chunk-15",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "sourceIndex": 0,
+          "chunkIndex": 14,
+          "paperShortName": "webb-faq",
+          "sourceTitle": "webb-faq",
+          "text": "acquire and lock onto targets, and we took data mainly with NIRCam. But because the primary mirror segments had yet to be aligned to work as a single mirror, there were up to 18 distorted images of the same single target star. We then embarked on the long process of aligning all the telescope optics, beginning with identifying which primary mirror segment went with which image by moving each segment one at a time, ending a few months later with all the segments aligned as one and the secondary mirror aligned optimally. Cooldown effectively ended and the cryocooler started running at its lowest temperature and MIRI started taking good data too.\nIn the fifth and sixth months:\nCalibration and completion of commissioning.\nWe meticulously calibrated all of the scientific instruments’ many modes of operation while observing representative targets, and we demonstrated the ability to track “moving” targets, which are nearby objects like asteroids, comets, moons, and planets in our own solar system. We made “Early Release Observations,” that were revealed right after commissioning was over, that showcased the capabilities of the observatory.\nAfter six months:\n“Science operations!”\nWebb bega",
+          "tokenEstimate": 462
+        },
+        {
+          "id": "paper-1792594115463-8ypcz9::chunk-44",
+          "sourceId": "paper-1792594115463-8ypcz9",
+          "sourceIndex": 0,
+          "chunkIndex": 43,
+          "paperShortName": "webb-faq",
+          "sourceTitle": "webb-faq",
+          "text": "e small dust particles, allowing near-infrared light to escape from the dust clouds. By observing the emitted near-infrared light we can penetrate the dust and see the processes leading to star and planet formation. Objects of about Earth's temperature emit most of their radiation at mid-infrared wavelengths. These temperatures are also found in dusty regions forming stars and planets, so with mid-infrared radiation we can see the glow of the star and planet formation taking place. An infrared-optimized telescope allows us to penetrate dust clouds to see the birthplaces of stars and planets.\nWhat about visible light?\nThe reflective surface on Webb's mirrors is gold. Although gold absorbs blue light, it reflects yellow and red visible light, and Webb's cameras will detect that visible light.\nAt which wavelengths will Webb observe?\nWebb works from 0.6 to 28 micrometers, ranging from visible orange-colored light through the invisible mid-infrared. The short wavelength end is set by the gold coating on the primary mirror. The long wavelength cut-off is set by the sensitivity of the detectors in the Mid-Infrared Instrument.\nHow faint can Webb see?\nWebb is designed to discover and study ",
+          "tokenEstimate": 462
+        }
+      ],
+      "expected": "pass"
+    }
+  ]
+}

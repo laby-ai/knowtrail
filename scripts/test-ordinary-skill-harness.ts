@@ -36,7 +36,7 @@ async function main() {
         : { content: '按用户自带原稿调整：保留37条软件模拟记录。' };
     } else {
       const evidence = results.map(message => text(message.content)).join('\n');
-      const content = plain ? '普通问答保持逐段返回。' : review
+      const content = plain ? (text(body.messages).includes('missing-quantity') ? '样本浓度为6.5 µmol/L[1]。' : '普通问答保持逐段返回。') : review
         ? '范围是三份软件模拟资料，各有来源边界[1][2][3]。'
         : evidence.includes('WRITING_TAIL') ? '软件模拟记录：37 µmol/L，估计差值0.3 mK，区间[-0.2, 0.4] mK，样本量18 mock_subjects；未进行统计检验，不支持因果推断[1]。' : '没有读到完整依据[1]。';
       delta = { content };
@@ -108,6 +108,11 @@ async function main() {
     assert.equal(currentCitations[2].sourceId, sources[2].id, 'Current citation 3 stays bound to the current source, independently of historical citation 3');
     const plain = await send('ordinary-plain：一句话说明工作流。', []);
     assert.equal(finalBody(plain), '普通问答保持逐段返回。');
+    const wrongQuantity = await send('ordinary-plain missing-quantity：仅核普通路由的所引原文数值预警。');
+    assert.equal(finalBody(wrongQuantity), '样本浓度为6.5 µmol/L[1]。');
+    const quantityAudit = wrongQuantity.at(-1)?.citationAudit as { status: string; numericSupport?: { missing: { values: string[] }[] } };
+    assert.equal(quantityAudit.status, 'needs-review');
+    assert.deepEqual(quantityAudit.numericSupport?.missing[0].values, ['6.5 µmol/L'.normalize('NFKC')]);
     const pasted = await send('ordinary-writing：润色我贴的这句话，保留37条软件模拟记录。', []);
     assert.match(finalBody(pasted), /自带原稿.*37/); assert.ok(!pasted.some(event => event.error));
     sources[0].chunks[0].text = raw.repeat(20); await store();
@@ -122,7 +127,7 @@ async function main() {
     assert.equal(requests.length, beforeDenied, 'Foreign selected IDs must fail before inference or request-body fallback');
     const unknown = await send('ordinary-writing：不能用请求里的伪造正文冒充本人原文。', ['unknown-source'], 404);
     assert.equal(unknown[0].httpStatus, 404); assert.equal(requests.length, beforeDenied);
-    console.log(JSON.stringify({ ok: true, actualSdk: 'agentscope==2.0.10', automaticNativeSkillRead: true, scopedReadTool: true, sameChunkTailReachedModel: true, intermediateTextNotInFinal: true, ordinaryStreamingRetained: true, reviewSources: 3, numericOmissionWarned: true, budgetAndOwnerFailClosed: true, paidCalls: 0, modelRequests: requests.length }));
+    console.log(JSON.stringify({ ok: true, actualSdk: 'agentscope==2.0.10', automaticNativeSkillRead: true, scopedReadTool: true, sameChunkTailReachedModel: true, intermediateTextNotInFinal: true, ordinaryStreamingRetained: true, reviewSources: 3, numericOmissionWarned: true, ordinaryQuantityWarning: true, budgetAndOwnerFailClosed: true, paidCalls: 0, modelRequests: requests.length }));
   } finally {
     globalThis.fetch = originalFetch;
     for (const key of Object.keys(process.env)) if (!(key in originalEnv)) delete process.env[key]; Object.assign(process.env, originalEnv);
