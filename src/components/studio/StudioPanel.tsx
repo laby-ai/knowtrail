@@ -84,6 +84,7 @@ function StudioPanelContent() {
           </div>
         </div>
 
+        <StudioTaskRail onOpen={openTask} />
         <StudioToolSwitcher activeTab={activeTab} onSelect={openTool} />
         <p data-testid="studio-nav-helper" className="mt-3 text-xs leading-5 text-[var(--text-tertiary)]"><UiText>
           点击入口打开弹窗，检索或生成需在弹窗内确认。
@@ -91,7 +92,6 @@ function StudioPanelContent() {
       </div>
 
       <div className="px-5 py-4"><StudioSkillsTools /><ResearchMcpPanel /></div>
-      <StudioTaskRail onOpen={openTask} />
       <Dialog open={activeTab !== null} onOpenChange={open => { if (!open) setActiveTab(null); }}>
         <DialogContent
           data-testid="studio-tool-dialog"
@@ -102,6 +102,7 @@ function StudioPanelContent() {
           <DialogHeader className="shrink-0 border-b border-[var(--glass-border)] px-6 py-4 pr-12 text-left">
             <DialogTitle>{navItem.label}</DialogTitle>
             <DialogDescription>{navItem.desc}</DialogDescription>
+            {(activeTab === 'presentation' || activeTab === 'deep-research') && <p className="text-sm leading-6 text-[var(--text-secondary)]">生成中可关闭弹窗，在产物中心查看进度。请保留当前页面，刷新或离开文献本可能中断。</p>}
           </DialogHeader>
           <div ref={setBody} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6" data-testid="studio-tool-body">
             {activeTab === 'paper-search' && <PaperSearchPanel />}

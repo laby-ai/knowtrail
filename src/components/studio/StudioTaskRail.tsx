@@ -14,7 +14,7 @@ export function StudioTaskRail({ onOpen }: { onOpen: (task: StudioTask) => void 
     return () => clearInterval(timer);
   }, [running]);
   if (!tasks.length) return null;
-  return <section className="mx-5 my-4 space-y-3 rounded-xl border border-[var(--glass-border)] bg-[var(--bg-card)] p-3" data-testid="studio-task-rail">
+  return <section className="mb-4 space-y-3 rounded-xl border border-[var(--glass-border)] bg-[var(--bg-card)] p-3" data-testid="studio-task-rail">
     <h3 className="text-sm font-semibold">生成任务</h3>
     <p className="text-xs leading-5 text-[var(--text-secondary)]">关闭弹窗可继续处理。请保留当前页面；刷新或离开文献本可能中断。</p>
     {tasks.map(task => <div key={task.id} className="flex items-start gap-2 rounded-lg border border-[var(--border-subtle)] p-2" data-testid={`studio-task-${task.id}`} data-status={task.status}>
