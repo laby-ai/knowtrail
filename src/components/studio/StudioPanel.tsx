@@ -97,7 +97,11 @@ function StudioPanelContent() {
           data-testid="studio-tool-dialog"
           style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
           className="flex h-[min(860px,calc(100dvh-2rem))] max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden rounded-2xl border-[var(--glass-border)] p-0 sm:max-w-5xl"
-          onCloseAutoFocus={event => { event.preventDefault(); triggerRef.current?.focus(); }}
+          onCloseAutoFocus={event => {
+            event.preventDefault();
+            const taskEntry = document.querySelector<HTMLButtonElement>('[data-testid="studio-task-rail"] button');
+            (taskEntry || triggerRef.current)?.focus();
+          }}
         >
           <DialogHeader className="shrink-0 border-b border-[var(--glass-border)] px-6 py-4 pr-12 text-left">
             <DialogTitle>{navItem.label}</DialogTitle>
