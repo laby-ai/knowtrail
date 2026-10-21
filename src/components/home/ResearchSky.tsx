@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { ResearchParticles } from './motion/ResearchParticles';
-import { ResearchBiology } from './motion/ResearchBiology';
 
 const METEOR_NAMES = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'] as const;
 
@@ -19,7 +18,6 @@ export function ResearchSky({ variant = 'hero' }: { variant?: 'hero' | 'notebook
     <div className="research-sky" aria-hidden="true" data-paused={paused} data-page={variant}>
       <div className="research-sky-planet" />
       <ResearchParticles />
-      {variant === 'hero' && <ResearchBiology />}
       <div className="research-sky-meteors">
         {METEOR_NAMES.map(name => <span key={name} className={`research-sky-meteor research-sky-meteor-${name}`} />)}
       </div>
