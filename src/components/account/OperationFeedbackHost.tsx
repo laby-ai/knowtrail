@@ -14,5 +14,5 @@ export function OperationFeedbackHost() {
     window.addEventListener('storage', clear);
     return () => { observer.disconnect(); window.removeEventListener('knowtrail-account-session-changed', clear); window.removeEventListener('storage', clear); };
   }, []);
-  return <Toaster theme={theme} position="bottom-right" closeButton duration={4500} visibleToasts={3} toastOptions={{ style: { background: 'var(--bg-secondary)', color: 'var(--text-primary)', borderColor: 'var(--glass-border)', fontSize: '14px', lineHeight: '1.6' } }} />;
+  return <Toaster theme={theme} position="top-right" offset="72px" mobileOffset="80px" closeButton duration={4500} visibleToasts={2} toastOptions={{ style: { background: 'var(--bg-secondary)', color: 'var(--text-primary)', borderColor: 'var(--glass-border)', fontSize: '14px', lineHeight: '1.6' } }} />;
 }

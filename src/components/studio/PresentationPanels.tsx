@@ -297,7 +297,10 @@ function PresentationPanel() {
       setProgressMsg('');
       setProgressStage('');
     } catch (err) {
-      if (previousSlidesRef.current.length) setSlides(previousSlidesRef.current);
+      if (previousSlidesRef.current.length) {
+        setSlides(previousSlidesRef.current);
+        setGenerationNotice(`本次未完成，已保留上次生成的 ${previousSlidesRef.current.length} 页。`);
+      }
       const aborted = abortController.signal.aborted || (err instanceof DOMException && err.name === 'AbortError');
       if (aborted) {
         setGenerationNotice('已取消生成，可以调整资料、页数或风格后重新开始。');

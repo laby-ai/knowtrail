@@ -1,6 +1,6 @@
 /* Raise secondary text contrast while preserving the established glass palette. */
-:root:root { --text-secondary: rgba(255,255,255,.84); --text-tertiary: rgba(255,255,255,.68); --text-quaternary: rgba(255,255,255,.58); }
-:root:root[data-theme='light'] { --text-secondary: #414653; --text-tertiary: #5e6373; --text-quaternary: #6b7080; }
+html:root { --text-secondary: rgba(255,255,255,.84); --text-tertiary: rgba(255,255,255,.68); --text-quaternary: rgba(255,255,255,.58); }
+html:root[data-theme='light'] { --text-secondary: #414653; --text-tertiary: #5e6373; --text-quaternary: #6b7080; }
 [data-testid='studio-tool-switcher'] button { min-height: 112px; }
 [data-testid='studio-tool-body'] p, [data-testid='studio-tool-body'] li { line-height: 1.7; }
 [data-sonner-toaster] { z-index: 100 !important; }
