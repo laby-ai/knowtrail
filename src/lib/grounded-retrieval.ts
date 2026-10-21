@@ -34,15 +34,18 @@ function selectedSourceIds(sources: RagSourceInput[]): Set<string> {
   return new Set(sources.map(sourceIdentity).filter((value): value is string => Boolean(value)));
 }
 
-function toPromptContext(citations: GroundedCitation[]): string {
+function toPromptContext(citations: GroundedCitation[], chunks: SourceChunk[]): string {
   let usedChars = 0;
   const parts: string[] = [];
+  const chunksById = new Map(chunks.map(chunk => [chunk.id, chunk]));
 
   for (const [index, citation] of citations.entries()) {
     const remaining = MAX_PROMPT_CONTEXT_CHARS - usedChars;
     if (remaining <= 0) break;
 
-    const excerpt = citation.excerpt.slice(0, remaining);
+    const chunk = chunksById.get(citation.chunkId);
+    const text = chunk?.sourceId === citation.sourceId ? chunk.text : citation.excerpt;
+    const excerpt = text.slice(0, remaining);
     usedChars += excerpt.length;
     const pageLabel = citation.page ? `, 页码: ${citation.page}` : '';
     parts.push(`[${index + 1}] ${citation.paperShortName} - ${citation.sourceTitle}${pageLabel}
@@ -81,7 +84,7 @@ function makeResult(
   return {
     chunks,
     citations,
-    promptContext: toPromptContext(citations),
+    promptContext: toPromptContext(citations, chunks),
     retrievalMode,
     persistedSourceCount,
     vectorIndexedSourceCount,
