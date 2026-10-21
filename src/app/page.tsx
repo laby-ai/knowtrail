@@ -101,7 +101,7 @@ function AcademicPresenterContent({
       </header>
       <div className="min-h-0 flex-1">
       <ThreeColumnLayout
-        leftPanel={<LibraryPanel />}
+        leftPanel={<LibraryPanel accountSession={accountSession} accountAuthRequired={Boolean(accountSession)} />}
         centerPanel={<EditorPanel />}
         rightPanel={<StudioPanel />}
         defaultLeftWidth={320}
