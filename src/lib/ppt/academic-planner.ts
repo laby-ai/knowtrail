@@ -1,6 +1,6 @@
 import { buildPptStructureDraftFromOutline } from '@/lib/ppt/outline-draft';
 import type { MinerUFigureInput } from '@/lib/ppt/mineru-figures';
-import { llmInvokeObserved, markFallback, markJsonParsed, readPositiveIntEnv } from '@/lib/ppt/academic-observability';
+import { llmInvokeObserved, markFallbackRecovered, markFallback, markJsonParsed, readPositiveIntEnv } from '@/lib/ppt/academic-observability';
 import { buildContextualFallbackBullets, ensureSlideContentFromSources, mergeThinSlides } from '@/lib/ppt/academic-slide-quality';
 import type { EnhancedSlideSpec, LayoutType, PaperInput, PptOptions, SlideSpec } from '@/lib/ppt/academic-types';
 import type { RuntimeAIConfig } from '@/types';
@@ -788,6 +788,7 @@ export async function genAcademicOutline(papers: PaperInput[], options?: PptOpti
               markFallback('refineSlidePlanRetry', unsafeReason);
             } else {
               refined = retryRefined;
+              markFallbackRecovered('refineSlidePlan');
               console.log(`[PPT-V2] Retry refine succeeded: ${refined.length} slides`);
             }
           } else { markJsonParsed('refineSlidePlanRetry', false); }

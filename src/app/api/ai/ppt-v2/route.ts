@@ -10,7 +10,7 @@ import path from 'path';
 import { buildAcademicPptx } from '@/lib/ppt/academic-renderer';
 import type { PaperInput, PptOptions, SlideSpec } from '@/lib/ppt/academic-types';
 import { genAcademicOutline } from '@/lib/ppt/academic-planner';
-import { llmCallLogs, llmInvokeObserved, markFallback, markJsonParsed, resetLlmCallLogs } from '@/lib/ppt/academic-observability';
+import { getLlmCallLogs, llmInvokeObserved, markFallback, markJsonParsed, withLlmCallLogs } from '@/lib/ppt/academic-observability';
 import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import {
   resolveStudioGenerationReadiness,
@@ -119,8 +119,6 @@ Do NOT wrap in markdown code fences. Output ONLY the JSON array.`;
 }
 
 async function executePOST(request: NextRequest) {
-  // ── Clear LLM observability logs for this request ──
-  resetLlmCallLogs();
 
   try {
     const body = await request.json();
@@ -272,7 +270,8 @@ async function executePOST(request: NextRequest) {
     console.log(`[PPT-V2] Step 3/3: Done! ${fileName} (${(buffer.length / 1024).toFixed(1)} KB)`);
 
     // ── LLM Observability Summary ──
-    const fallbackStages = llmCallLogs.filter(l => l.fallbackTriggered).map(l => l.stage);
+    const llmCallLogs = getLlmCallLogs();
+    const fallbackStages = llmCallLogs.filter(l => l.fallbackTriggered && !l.fallbackRecovered).map(l => l.stage);
     const failedStages = llmCallLogs.filter(l => !l.success).map(l => l.stage);
     const llmSummary = {
       totalCalls: llmCallLogs.length,
@@ -291,6 +290,7 @@ async function executePOST(request: NextRequest) {
         timedOut: l.timedOut,
         jsonParsedOk: l.jsonParsedOk,
         fallbackTriggered: l.fallbackTriggered,
+        fallbackRecovered: l.fallbackRecovered === true,
         fallbackReason: l.fallbackReason.slice(0, 100),
         rawPreview: l.rawPreview.slice(0, 120),
         errorPreview: l.errorPreview.slice(0, 80),
@@ -331,5 +331,5 @@ async function executePOST(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  return runCommerceTask(request, 'ppt-v2', () => executePOST(request));
+  return withLlmCallLogs(() => runCommerceTask(request, 'ppt-v2', () => executePOST(request)));
 }
