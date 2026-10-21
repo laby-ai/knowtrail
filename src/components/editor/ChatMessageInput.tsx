@@ -32,7 +32,7 @@ export function ChatMessageInput({ value, onChange, onSend, queued }: {
     if (textarea.parentElement) observer.observe(textarea.parentElement);
     return () => observer.disconnect();
   }, [value, preferences.fontSize]);
-  return <textarea
+  return <div className="research-input-frame min-w-0 flex-1" data-testid="chat-input-glow"><textarea
     ref={field}
     rows={1}
     wrap="soft"
@@ -49,5 +49,5 @@ export function ChatMessageInput({ value, onChange, onSend, queued }: {
     }}
     className="liquid-glass-input min-w-0 flex-1 resize-none overflow-y-auto whitespace-pre-wrap break-words !py-3 !leading-6"
     style={{ minHeight: '3rem', maxHeight: 'min(12rem, 28dvh)', overflowWrap: 'anywhere' }}
-  />;
+  /></div>;
 }

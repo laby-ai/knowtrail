@@ -1,0 +1,25 @@
+/* Focus-only light, outside the text layer. No overlays can receive pointer input. */
+.research-input-frame {
+  position: relative; display: flex; overflow: hidden; border-radius: .75rem;
+  transition: box-shadow 220ms ease;
+}
+.research-input-frame:focus-within { box-shadow: 0 0 0 2px #8b9ee81a, 0 0 22px #7f9bdb26; }
+[data-theme='light'] .research-input-frame:focus-within { box-shadow: 0 0 0 2px #7e8cdd14, 0 5px 20px #8e9cd922; }
+.research-input-frame::before, .research-input-frame::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 1px; z-index: 2;
+  pointer-events: none; opacity: 0;
+  background: linear-gradient(100deg, transparent 20%, #8baeff99 43%, #bb9bffaa 50%, #82c6df88 57%, transparent 80%);
+  background-size: 250% 100%; background-position: 50% 0;
+  transition: opacity 220ms ease;
+}
+.research-input-frame::before { top: 0; }
+.research-input-frame::after { bottom: 0; }
+.research-input-frame:focus-within::before, .research-input-frame:focus-within::after { opacity: .8; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-reduce-motion='true']) .research-input-frame:focus-within::before,
+  html:not([data-reduce-motion='true']) .research-input-frame:focus-within::after { animation: research-input-light 5s ease-in-out infinite alternate; }
+  html:not([data-reduce-motion='true']) .research-input-frame:focus-within::after { animation-direction: alternate-reverse; }
+}
+@keyframes research-input-light { from { background-position: 0% 0; } to { background-position: 100% 0; } }
+@media (prefers-reduced-motion: reduce) { .research-input-frame { transition: none; } }
+html[data-reduce-motion='true'] .research-input-frame { transition: none; }
