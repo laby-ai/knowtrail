@@ -1,21 +1,4 @@
-/* Code-only scientific decoration. Scoped to ResearchSky; never receives input. */
-.research-orbit {
-  position: absolute;
-  top: 34px;
-  right: -32px;
-  width: clamp(220px, 28vw, 390px);
-  aspect-ratio: 1;
-  color: #8bafff;
-  opacity: .42;
-  contain: layout paint;
-}
-.research-orbit svg { display: block; width: 100%; height: 100%; overflow: hidden; }
-.research-orbit-shell, .research-orbit-electron {
-  transform-origin: 200px 200px;
-  animation: research-orbit-turn 90s linear infinite;
-}
-.research-orbit-electron { animation-duration: 48s; animation-direction: reverse; }
-[data-theme='light'] .research-orbit { color: #6876ce; opacity: .24; }
+/* Lightweight background particles and user-triggered card highlights. */
 .research-sky-particles { position: absolute; inset: 0; overflow: hidden; }
 .research-sky-particle {
   position: absolute;
@@ -29,9 +12,7 @@
 [data-theme='light'] .research-sky-particle { background: #6876ce; opacity: .28; }
 .research-sky[data-page='workspace'] .research-sky-particles { left: 29%; right: 26%; }
 .research-sky[data-page='workspace'] .research-sky-particle { opacity: .16; width: 2px; height: 2px; }
-.research-sky[data-paused='true'] .research-orbit *,
 .research-sky[data-paused='true'] .research-sky-particle { animation-play-state: paused; }
-@keyframes research-orbit-turn { to { transform: rotate(360deg); } }
 @keyframes research-particle-drift { to { transform: translate3d(12px, -24px, 0); opacity: .1; } }
 /* A local, user-triggered highlight rather than an endlessly flashing card. */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
@@ -44,14 +25,11 @@
   }
 }
 @media (max-width: 767px) {
-  .research-orbit { width: 200px; right: -62px; top: 8px; opacity: .22; }
-  [data-theme='light'] .research-orbit { opacity: .14; }
   .research-sky-particle:nth-child(n+7) { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .research-orbit *, .research-sky-particle { animation: none; }
+  .research-sky-particle { animation: none; }
   .research-sky-particles { display: none; }
 }
-html[data-reduce-motion='true'] .research-orbit * { animation: none; }
 html[data-reduce-motion='true'] .research-sky-particles,
 html[data-reduce-motion='true'] .research-sky-meteors { display: none; }

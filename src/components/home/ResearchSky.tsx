@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { ResearchOrbit } from './ResearchOrbit';
 
 const METEOR_NAMES = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'] as const;
 const PARTICLES = Array.from({ length: 16 }, (_, index) => ({
@@ -23,7 +22,6 @@ export function ResearchSky({ variant = 'hero' }: { variant?: 'hero' | 'notebook
   return (
     <div className="research-sky" aria-hidden="true" data-paused={paused} data-page={variant}>
       <div className="research-sky-planet" />
-      {variant === 'hero' && <ResearchOrbit />}
       <div className="research-sky-particles">
         {PARTICLES.map((style, index) => <span key={index} className="research-sky-particle" style={style} />)}
       </div>
