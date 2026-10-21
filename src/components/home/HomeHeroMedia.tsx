@@ -2,6 +2,7 @@
 
 import { BookOpen, FileText, Globe2, Headphones, Presentation, Sparkles } from 'lucide-react';
 import { BrandMark } from '@/components/brand/BrandMark';
+import { AudioWave } from './motion/AudioWave';
 
 const sourceTiles = [
   { label: '网页资料', icon: Globe2, className: 'left-[8%] top-[16%] border-emerald-400/30 bg-emerald-500/20 text-emerald-200' },
@@ -41,10 +42,10 @@ export function HomeHeroMedia() {
               <Icon className="h-4 w-4" />
               {tile.label}
             </div>
-            <div className="mt-3 space-y-2">
+            {tile.label === '音频资料' ? <AudioWave /> : <div className="mt-3 space-y-2">
               <span className="block h-2 w-24 rounded-full bg-current/15" />
               <span className="block h-2 w-36 rounded-full bg-current/12" />
-            </div>
+            </div>}
           </div>
         );
       })}

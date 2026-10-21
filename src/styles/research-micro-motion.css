@@ -1,0 +1,24 @@
+.research-shimmer-button { position: relative; overflow: hidden; isolation: isolate; }
+.research-shimmer-button::after {
+  content: ''; position: absolute; inset: -30% -60%; pointer-events: none;
+  background: linear-gradient(110deg, transparent 42%, #ffffff35 49%, transparent 56%);
+  transform: translateX(-60%); opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-reduce-motion='true']) .research-shimmer-button::after { animation: research-button-sheen 7s ease-in-out infinite; }
+  html:not([data-reduce-motion='true']) .research-audio-wave > span { animation: research-audio-pulse 1.7s ease-in-out infinite alternate; }
+}
+@keyframes research-button-sheen {
+  0%, 65% { transform: translateX(-60%); opacity: 0; }
+  70% { opacity: .7; }
+  90%, 100% { transform: translateX(60%); opacity: 0; }
+}
+.research-audio-wave { display: flex; align-items: center; justify-content: center; gap: 4px; height: 36px; margin-top: 8px; color: inherit; }
+.research-audio-wave > span { display: block; width: 3px; border-radius: 4px; background: currentColor; opacity: .6; transform-origin: center; }
+@keyframes research-audio-pulse { from { transform: scaleY(.4); opacity: .35; } to { transform: scaleY(1); opacity: .8; } }
+@media (hover: hover) {
+  .lingbi-card-spotlight:has(> button:not(:disabled)):hover { box-shadow: 0 8px 28px #8798df14; }
+  .lingbi-card-spotlight-light { background: radial-gradient(240px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%), #8b9ee836, #7ab9dc12 50%, transparent 76%); }
+}
+html[data-reduce-motion='true'] .research-shimmer-button::after { display: none; }
+html[data-reduce-motion='true'] .research-audio-wave > span { animation: none; }

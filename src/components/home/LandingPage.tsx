@@ -317,7 +317,7 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
         <section className="px-5 pb-12 pt-8 md:pt-14">
           <div className="research-sky-hero liquid-glass-card mx-auto max-w-[1560px] rounded-[34px] px-5 pb-6 pt-16 md:px-8 md:pt-28">
             <ResearchSky />
-            <div className="relative mx-auto max-w-5xl text-center">
+            <div className="research-hero-copy relative mx-auto max-w-5xl text-center">
               <h1 className="text-5xl font-normal leading-[1.08] tracking-[-0.03em] text-white md:text-7xl"><UiText>
                 读懂</UiText><span className="bg-gradient-to-r from-blue-400 via-purple-400 to-emerald-400 bg-clip-text text-transparent"><UiText>每篇文献</UiText></span>
               </h1>
@@ -328,7 +328,7 @@ export function LandingPage({ accountSession, onOpenNotebookHome }: LandingPageP
                 <Link
                   href={accountUrl}
                   onClick={accountLinkClick}
-                  className="liquid-glass-btn-primary inline-flex h-14 items-center justify-center gap-2 rounded-full px-8 text-lg font-semibold"
+                  className="research-shimmer-button liquid-glass-btn-primary inline-flex h-14 items-center justify-center gap-2 rounded-full px-8 text-lg font-semibold"
                   style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.95) 0%, rgba(139, 92, 246, 0.95) 100%)', border: '1px solid rgba(255,255,255,0.3)' }}
                   data-testid="hero-login-account"
                 ><UiText>
