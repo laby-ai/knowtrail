@@ -17,6 +17,7 @@ import { TextPolishingPanel } from './TextPolishingPanel';
 import { PeerReviewPanel } from './PeerReviewPanel';
 import { ScientificIllustrationPanel } from './ScientificIllustrationPanel';
 import { LearningArtifactsPanel } from './LearningArtifactsPanel';
+import type { StudioSavedOutput } from '@/lib/studio-saved-outputs';
 import {
   STUDIO_NAV,
   StudioToolSwitcher,
@@ -50,7 +51,7 @@ export function StudioPanel({
   }, []);
 
   if (compact) return <StudioModalWorkbench activeTab={activeTab} onSelect={onSelect} onClose={onClose} navItems={visibleNavItems}
-    renderTool={(tab, mode, onModeChange) => <StudioWorkspacePanel compact inDialog activeTab={tab} onClose={onClose} presentationMode={mode} onPresentationModeChange={onModeChange} />} />;
+    renderTool={(tab, mode, onModeChange, savedOutput) => <StudioWorkspacePanel compact inDialog activeTab={tab} onClose={onClose} presentationMode={mode} onPresentationModeChange={onModeChange} savedOutput={savedOutput} />} />;
 
   if (activeTab) {
     return (
@@ -97,6 +98,7 @@ export function StudioWorkspacePanel({
   onClose,
   presentationMode,
   onPresentationModeChange,
+  savedOutput,
 }: {
   compact?: boolean;
   inDialog?: boolean;
@@ -104,6 +106,7 @@ export function StudioWorkspacePanel({
   onClose: () => void;
   presentationMode?: PresentationMode;
   onPresentationModeChange?: (mode: PresentationMode) => void;
+  savedOutput?: StudioSavedOutput;
 }) {
   const navItem: StudioNavItem = STUDIO_NAV.find(item => item.id === activeTab) ?? STUDIO_NAV[0];
   const NavIcon = navItem.icon;
@@ -166,9 +169,8 @@ export function StudioWorkspacePanel({
             {activeTab === 'peer-review' && <PeerReviewPanel />}
             {activeTab === 'presentation' && <PresentationWorkspacePanel mode={presentationMode} onModeChange={onPresentationModeChange} />}
             {activeTab === 'knowledge' && <KnowledgeMapPanel />}
-            {activeTab === 'report' && <DeepResearchPanel />}
-            {activeTab === 'flashcards' && <LearningArtifactsPanel mode="flashcards" />}
-            {activeTab === 'quiz' && <LearningArtifactsPanel mode="quiz" />}
+            {activeTab === 'report' && <DeepResearchPanel savedOutput={savedOutput} />}
+            {(activeTab === 'flashcards' || activeTab === 'quiz') && <LearningArtifactsPanel mode={activeTab} savedOutput={savedOutput} />}
             {activeTab === 'virtual-classroom' && <VirtualClassroomPanel />}
           </div>
         </div>

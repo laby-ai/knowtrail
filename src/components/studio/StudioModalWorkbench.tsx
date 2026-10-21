@@ -12,11 +12,13 @@ import { StudioOutputViewer } from './StudioOutputViewer';
 import type { PresentationMode } from './PresentationModeSelector';
 import { STUDIO_NAV, StudioToolSwitcher, type StudioNavItem, type StudioTab } from './StudioToolSwitcher';
 
+const toolKey = (tab: StudioTab) => tab === 'quiz' ? 'flashcards' : tab;
+
 export function StudioModalWorkbench({ activeTab, onSelect, onClose, navItems, renderTool }: {
   activeTab: StudioTab | null; onSelect: (tab: StudioTab) => void; onClose: () => void; navItems: StudioNavItem[];
-  renderTool: (tab: StudioTab, mode: PresentationMode, onModeChange: (mode: PresentationMode) => void) => ReactNode;
+  renderTool: (tab: StudioTab, mode: PresentationMode, onModeChange: (mode: PresentationMode) => void, savedOutput?: StudioSavedOutput) => ReactNode;
 }) {
-  const [visited, setVisited] = useState<StudioTab[]>([]);
+  const [visited, setVisited] = useState<Array<{ tab: StudioTab; savedOutput?: StudioSavedOutput }>>([]);
   const [output, setOutput] = useState<StudioSavedOutput | null>(null);
   const [presentationMode, setPresentationMode] = useState<PresentationMode>('image');
   const [host, setHost] = useState<HTMLDivElement | null>(null);
@@ -35,7 +37,11 @@ export function StudioModalWorkbench({ activeTab, onSelect, onClose, navItems, r
     return () => container.remove();
   }, []);
   useEffect(() => {
-    if (activeTab) setVisited(previous => previous.includes(activeTab) ? previous : [...previous, activeTab]);
+    if (activeTab) setVisited(previous => {
+      const existing = previous.find(item => toolKey(item.tab) === toolKey(activeTab));
+      if (!existing) return [...previous, { tab: activeTab }];
+      return existing.tab === activeTab ? previous : previous.map(item => item === existing ? { ...item, tab: activeTab } : item);
+    });
   }, [activeTab]);
   useEffect(() => {
     if (previousReveal.current === revealPaperRequest) return;
@@ -54,6 +60,10 @@ export function StudioModalWorkbench({ activeTab, onSelect, onClose, navItems, r
   const openOutputTool = () => {
     if (!output) return;
     if (output.tool === 'presentation') setPresentationMode(output.kind === 'html-deck' ? 'html' : output.kind === 'structured-ppt' ? 'structured' : 'image');
+    setVisited(previous => {
+      const next = { tab: output.tool, savedOutput: { ...output } };
+      return previous.some(item => toolKey(item.tab) === toolKey(output.tool)) ? previous.map(item => toolKey(item.tab) === toolKey(output.tool) ? next : item) : [...previous, next];
+    });
     onSelect(output.tool); setOutput(null);
   };
 
@@ -64,8 +74,8 @@ export function StudioModalWorkbench({ activeTab, onSelect, onClose, navItems, r
       <StudioSavedOutputs onOpen={openOutput} />
     </div>
     <div ref={parking} hidden data-testid="studio-tool-parking" />
-    {host && createPortal(visited.map(tab => <div key={tab} hidden={tab !== activeTab || Boolean(output)} className="h-full min-h-0" data-studio-tool={tab}>
-      {renderTool(tab, presentationMode, setPresentationMode)}
+    {host && createPortal(visited.map(({ tab, savedOutput }) => <div key={toolKey(tab)} hidden={tab !== activeTab || Boolean(output)} className="h-full min-h-0" data-studio-tool={tab}>
+      {renderTool(tab, presentationMode, setPresentationMode, savedOutput)}
     </div>), host)}
     <Dialog open={open} onOpenChange={next => { if (!next) close(); }}>
       <DialogContent className="quiet-studio-dialog" showCloseButton={false} aria-describedby={undefined} onPointerDownOutside={event => {

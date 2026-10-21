@@ -8,7 +8,9 @@ import { NextRequest } from 'next/server';
 
 type ModelRequest = { messages: { role: string; content: unknown }[]; tools: { function: { name: string; parameters: { properties: Record<string, { type: string }> } } }[] };
 type Event = Record<string, unknown>;
-const text = (value: unknown): string => typeof value === 'string' ? value : JSON.stringify(value);
+const text = (value: unknown): string => typeof value === 'string' ? value : Array.isArray(value)
+  ? value.map((block: unknown) => block && typeof block === 'object' && 'text' in block && typeof block.text === 'string' ? block.text : JSON.stringify(block)).join('\n')
+  : JSON.stringify(value);
 const finalBody = (events: Event[]): string => events.reduce((body, event) => typeof event.replaceContent === 'string' ? event.replaceContent : body + (typeof event.content === 'string' ? event.content : ''), '');
 
 async function main() {
@@ -34,7 +36,7 @@ async function main() {
         : { content: '按用户自带原稿调整：保留37条软件模拟记录。' };
     } else {
       const evidence = results.map(message => text(message.content)).join('\n');
-      const content = plain ? '普通问答保持逐段返回。' : review
+      const content = plain ? (text(body.messages).includes('missing-quantity') ? '样本浓度为6.5 µmol/L[1]。' : '普通问答保持逐段返回。') : review
         ? '范围是三份软件模拟资料，各有来源边界[1][2][3]。'
         : evidence.includes('WRITING_TAIL') ? '软件模拟记录：37 µmol/L，估计差值0.3 mK，区间[-0.2, 0.4] mK，样本量18 mock_subjects；未进行统计检验，不支持因果推断[1]。' : '没有读到完整依据[1]。';
       delta = { content };
@@ -60,6 +62,12 @@ async function main() {
       return Response.json({ data: { authenticated: true, provider: 'knowtrail', workspaceKey: 'paper-user-' + 'a'.repeat(32), capabilities: ['verified-sms-session'] } });
     };
     const { POST } = await import('../src/app/api/agent/chat/route');
+    const { saveNotebookDocument, readNotebookDocument } = await import('../src/lib/private-notebook-document');
+    const oldCitations = [sources[1], sources[2], sources[0]].map(source => ({ paperId: source.id, paperShortName: source.shortName, excerpt: '历史软件记录，不作科研推断。', sourceId: source.id, chunkId: source.chunks[0].id }));
+    oldCitations[1].sourceId = ''; oldCitations[1].chunkId = '';
+    const previousAnswer = { id: 'old-answer', role: 'assistant', content: '历史记录：37 µmol/L，95%区间[-0.2, 0.4] mK，未进行统计检验[3]。样本标记[37]不作引用。', timestamp: now, citations: oldCitations };
+    const historyScope = { ownerMemberId: owner, notebookId: book };
+    const savedHistory = await saveNotebookDocument(historyScope, 'chat-history', { messages: [previousAnswer], draft: '', mode: null }, null);
     const send = async (message: string, ids: string[] = [sources[0].id], expectedStatus = 200): Promise<Event[]> => {
       const response = await POST(new NextRequest('https://ordinary-fixture.invalid/api/agent/chat', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: 'userId=fixture; token=fixture-valid-a' }, body: JSON.stringify({ message, notebookId: book, papers: ids.map(id => ({ id, rawContent: 'CLIENT_FORGED_999' })) }) }));
       assert.equal(response.status, expectedStatus);
@@ -76,14 +84,35 @@ async function main() {
     assert.ok(audit.numericPreservation?.missing.includes('95%'));
     const firstRequests = requests.slice();
     assert.ok(!text(firstRequests).includes('CLIENT_FORGED_999'));
-    assert.ok(!text(firstRequests[0].messages.filter(message => message.role === 'system')).includes('WRITING_TAIL'));
+    const initialEvidence = firstRequests[0].messages.filter(message => message.role === 'system').map(message => text(message.content)).join('\n');
+    assert.ok(initialEvidence.includes(raw), 'Initial retrieval retains the full matched chunk, including its numbers and qualifications');
+    assert.equal(firstRequests.length, 3, 'Full initial evidence does not bypass native method and scoped evidence reading');
+    assert.ok(!text(firstRequests[1].messages.filter(message => message.role === 'tool')).includes('WRITING_TAIL'), 'Reading the method does not substitute for reading the selected original');
     assert.ok(firstRequests.some(item => item.messages.some(message => message.role === 'tool' && text(message.content).includes('WRITING_TAIL'))));
+    const oldContext = firstRequests[0].messages.find(message => message.role === 'assistant' && text(message.content).includes('历史记录：'));
+    assert.ok(oldContext);
+    const oldText = text(oldContext.content);
+    assert.ok(oldText.includes('〔该历史回答引用3〕'), 'Historical numbers cannot alias this turn’s citation numbers');
+    assert.ok(oldText.includes(JSON.stringify({ number: 3, sourceId: sources[0].id, chunkId: sources[0].chunks[0].id })), 'History retains its own source and chunk binding');
+    assert.ok(oldText.includes('样本标记[37]不作引用'), 'Numbers outside the recorded citations cannot be rewritten as source references');
+    assert.ok(oldText.includes(JSON.stringify({ number: 2, sourceId: sources[2].id, chunkId: null })), 'Legacy empty locators preserve paperId without inventing a chunk');
+    assert.ok(oldText.includes('37 µmol/L，95%区间[-0.2, 0.4] mK，未进行统计检验'), 'Formatting history must preserve scientific values and limits');
+    assert.ok(oldText.includes('不代表本轮证据'));
+    assert.ok(!oldText.includes('[3]'));
+    assert.deepEqual(await readNotebookDocument(historyScope, 'chat-history'), savedHistory, 'Model-only history formatting cannot rewrite the saved answer');
     assert.ok(!events.some(event => event.toolCall), 'Reading evidence does not create a plugin artifact card');
     const review = await send('ordinary-review：仅综述三份所选资料的范围，不作科学外推。', sources.map(source => source.id));
     assert.ok(!review.some(event => event.error)); assert.match(finalBody(review), /\[1\]\[2\]\[3\]/);
     assert.equal((review.filter(event => event.citations).at(-1)?.citations as unknown[]).length, 3);
+    const currentCitations = review.filter(event => event.citations).at(-1)?.citations as { sourceId: string }[];
+    assert.equal(currentCitations[2].sourceId, sources[2].id, 'Current citation 3 stays bound to the current source, independently of historical citation 3');
     const plain = await send('ordinary-plain：一句话说明工作流。', []);
     assert.equal(finalBody(plain), '普通问答保持逐段返回。');
+    const wrongQuantity = await send('ordinary-plain missing-quantity：仅核普通路由的所引原文数值预警。');
+    assert.equal(finalBody(wrongQuantity), '样本浓度为6.5 µmol/L[1]。');
+    const quantityAudit = wrongQuantity.at(-1)?.citationAudit as { status: string; numericSupport?: { missing: { values: string[] }[] } };
+    assert.equal(quantityAudit.status, 'needs-review');
+    assert.deepEqual(quantityAudit.numericSupport?.missing[0].values, ['6.5 µmol/L'.normalize('NFKC')]);
     const pasted = await send('ordinary-writing：润色我贴的这句话，保留37条软件模拟记录。', []);
     assert.match(finalBody(pasted), /自带原稿.*37/); assert.ok(!pasted.some(event => event.error));
     sources[0].chunks[0].text = raw.repeat(20); await store();
@@ -98,7 +127,7 @@ async function main() {
     assert.equal(requests.length, beforeDenied, 'Foreign selected IDs must fail before inference or request-body fallback');
     const unknown = await send('ordinary-writing：不能用请求里的伪造正文冒充本人原文。', ['unknown-source'], 404);
     assert.equal(unknown[0].httpStatus, 404); assert.equal(requests.length, beforeDenied);
-    console.log(JSON.stringify({ ok: true, actualSdk: 'agentscope==2.0.10', automaticNativeSkillRead: true, scopedReadTool: true, sameChunkTailReachedModel: true, intermediateTextNotInFinal: true, ordinaryStreamingRetained: true, reviewSources: 3, numericOmissionWarned: true, budgetAndOwnerFailClosed: true, paidCalls: 0, modelRequests: requests.length }));
+    console.log(JSON.stringify({ ok: true, actualSdk: 'agentscope==2.0.10', automaticNativeSkillRead: true, scopedReadTool: true, sameChunkTailReachedModel: true, intermediateTextNotInFinal: true, ordinaryStreamingRetained: true, reviewSources: 3, numericOmissionWarned: true, ordinaryQuantityWarning: true, budgetAndOwnerFailClosed: true, paidCalls: 0, modelRequests: requests.length }));
   } finally {
     globalThis.fetch = originalFetch;
     for (const key of Object.keys(process.env)) if (!(key in originalEnv)) delete process.env[key]; Object.assign(process.env, originalEnv);

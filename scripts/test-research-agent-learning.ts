@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { mkdtemp, rename, writeFile, unlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rename, rmdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -18,6 +18,7 @@ async function main() {
   const notebookId = 'learning-skill-fixture';
   const scope = { ownerMemberId: `paper-host:paper-user-${'a'.repeat(32)}`, notebookId };
   const directory = store.notebookDocumentDirectory(scope, 'learning-materials');
+  const currentFile = path.join(directory, 'current.json');
   let calls = 0; let failSave = false; let abort: AbortController | null = null;
   globalThis.fetch = async (input, init) => {
     const url = String(input);
@@ -32,7 +33,11 @@ async function main() {
     const prompt = JSON.stringify(body.messages);
     assert(!prompt.includes('FORGED-CLIENT-CONTENT'));
     assert(prompt.includes('复习范围') && prompt.includes('12条模拟记录'));
-    if (failSave) { await rename(directory, directory + '-backup'); await writeFile(directory, 'owned fixture storage failure'); }
+    if (failSave) {
+      // A directory at the document path fails reads on both Windows and Linux.
+      await rename(currentFile, currentFile + '-backup'); await mkdir(currentFile);
+      await assert.rejects(readFile(currentFile, 'utf8'), { code: 'EISDIR' });
+    }
     abort?.abort();
     return Response.json({ choices: [{ message: { content: JSON.stringify({ cards: [{ category: '关键要点', title: '模拟筛选数量', content: '12条模拟记录剔除2条，保留10条。[1]', extra: '仅用于软件验收。[1]' }, { category: '方法线索', title: '模拟核验步骤', content: '导入、检查时间戳、剔除缺失、人工核对。[1]', extra: '' }] }) } }] });
   };
@@ -66,7 +71,8 @@ async function main() {
   assert.equal(failed.status, 503);
   const unsaved = await failed.json();
   await readGeneratedLearning(Response.json(unsaved, { status: 503 }), runId.replace(/1$/, '3'), input, newer.document.revision, signal).then(() => assert.fail('Unsaved is not durable'), (error: unknown) => assert(error instanceof LearningSaveError));
-  await unlink(directory); await rename(directory + '-backup', directory); failSave = false;
+  await rmdir(currentFile); await rename(currentFile + '-backup', currentFile); failSave = false;
+  assert.deepEqual((await (await route.GET(request('GET'))).json()).document, newer.document, 'Failed save must preserve the previous document');
   const beforeRetry = calls;
   const retried = await route.PUT(request('PUT', { notebookId, data: unsaved.unsavedDocument, expectedRevision: newer.document.revision }));
   assert.equal(retried.status, 200); assert.equal(calls, beforeRetry);

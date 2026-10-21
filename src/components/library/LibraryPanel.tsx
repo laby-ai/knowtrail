@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, DragEvent } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, DragEvent } from 'react';
+import { createPortal } from 'react-dom';
 import {
   FolderPlus,
   Plus,
@@ -426,9 +427,41 @@ export function LibraryPanel({
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [showUploadProgress, setShowUploadProgress] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; paper: Paper } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const contextMenuTriggerRef = useRef<HTMLElement | null>(null);
   const [pendingRemovePaperId, setPendingRemovePaperId] = useState<string | null>(null);
   const [skippedFilesNotice, setSkippedFilesNotice] = useState<string | null>(null);
   const [sourceMutationError, setSourceMutationError] = useState<string | null>(null);
+  useLayoutEffect(() => {
+    const menu = contextMenuRef.current;
+    if (!contextMenu || !menu) return;
+    const x = Math.max(8, Math.min(contextMenu.x, window.innerWidth - menu.offsetWidth - 8));
+    const y = Math.max(8, Math.min(contextMenu.y, window.innerHeight - menu.offsetHeight - 8));
+    if (x !== contextMenu.x || y !== contextMenu.y) {
+      setContextMenu({ ...contextMenu, x, y });
+      return;
+    }
+    menu.querySelector('button')?.focus({ preventScroll: true });
+  }, [contextMenu]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = () => { setContextMenu(null); setPendingRemovePaperId(null); };
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !contextMenuRef.current?.contains(event.target)) dismiss();
+    };
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { dismiss(); contextMenuTriggerRef.current?.focus({ preventScroll: true }); }
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', keydown);
+    window.addEventListener('resize', dismiss);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', keydown);
+      window.removeEventListener('resize', dismiss);
+    };
+  }, [contextMenu]);
   const [uploadTargetFolderId, setUploadTargetFolderId] = useState<string | null>(null);
   const [isSourceGuideOpen, setIsSourceGuideOpen] = useState(showSourceGuide);
   const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
@@ -981,7 +1014,9 @@ export function LibraryPanel({
   const handleContextMenu = useCallback((e: React.MouseEvent, paper: Paper) => {
     e.preventDefault();
     setPendingRemovePaperId(null);
-    setContextMenu({ x: e.clientX, y: e.clientY, paper });
+    contextMenuTriggerRef.current = e.currentTarget instanceof HTMLElement ? e.currentTarget : null;
+    const bounds = e.currentTarget.getBoundingClientRect();
+    setContextMenu({ x: e.type === 'click' ? bounds.left : e.clientX, y: e.type === 'click' ? bounds.bottom : e.clientY, paper });
   }, []);
 
   const filteredFolders = folders.map(folder => ({
@@ -1004,10 +1039,6 @@ export function LibraryPanel({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClick={() => {
-        setContextMenu(null);
-        setPendingRemovePaperId(null);
-      }}
     >
       {/* Drag overlay */}
       {isDragOver && (
@@ -1836,15 +1867,17 @@ export function LibraryPanel({
       )}
 
       {/* Context menu */}
-      {contextMenu && (
+      {contextMenu && createPortal(
         <div
-          className="!fixed z-[100] liquid-glass-card py-1.5 min-w-[180px] animate-scale-in"
+          ref={contextMenuRef}
+          data-testid="library-context-menu"
+          className="!fixed z-[100] liquid-glass-card !transition-none w-max py-1.5 min-w-[180px] max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] overflow-y-auto animate-scale-in"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={() => copyShortName(contextMenu.paper)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[var(--text-primary)] hover:bg-[var(--glass-hover)] transition-colors"
           >
             <Copy className="h-3.5 w-3.5 text-zinc-500" />
             复制文献简称 [{contextMenu.paper.shortName}]
@@ -1857,7 +1890,7 @@ export function LibraryPanel({
               setPendingRemovePaperId(null);
               void openSourcePreview(paper);
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-zinc-300 hover:bg-[var(--glass-hover)] transition-colors"
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-[var(--text-primary)] hover:bg-[var(--glass-hover)] transition-colors"
           >
             <FileText className="h-3.5 w-3.5 text-blue-400" />
             查看来源片段
@@ -1880,7 +1913,7 @@ export function LibraryPanel({
             <Trash2 className="h-3.5 w-3.5" />
             {pendingRemovePaperId === contextMenu.paper.id ? '再次点击确认移除' : '移除来源'}
           </button>
-        </div>
+        </div>, document.body
       )}
     </div>
   );

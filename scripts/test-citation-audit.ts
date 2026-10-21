@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { auditCitationMarkers, auditCitationSectionCoverage } from '../src/lib/citation-audit';
+import { auditCitationMarkers, auditCitationSectionCoverage, auditCitationQuantities } from '../src/lib/citation-audit';
 import type { GroundedCitation } from '../src/lib/rag';
+import recorded from './fixtures/citation-support-8832b8c.json';
 
 const citations: GroundedCitation[] = [
   {
@@ -118,6 +119,37 @@ for (const academicCitation of [
   ].join('\n'), ['核心发现', '与既有研究的关系', '可支持解释']);
   assert.equal(academicCoverage.status, 'pass', `academic citation should not be split: ${academicCitation}`);
 }
+
+for (const sample of recorded.cases) {
+  const original = JSON.stringify(sample);
+  const checked = auditCitationQuantities(sample.answer, sample.citations, sample.chunks);
+  assert.equal(checked.status, sample.expected, `Actual acceptance ${sample.id}: valid markers do not prove a number is in the cited chunk`);
+  assert.equal(JSON.stringify(sample), original, 'Audit must not rewrite the answer or renumber actual citations');
+}
+
+const comparison = recorded.cases.find(sample => sample.id === 'cross-source')!;
+const comparisonAudit = auditCitationQuantities(comparison.answer, comparison.citations, comparison.chunks);
+assert.deepEqual(comparisonAudit.numericSupport?.missing.map(item => item.citations), [[6]]);
+assert.deepEqual(comparisonAudit.numericSupport?.missing.flatMap(item => item.values), ['6.5米']);
+assert.equal(auditCitationMarkers(comparison.answer, comparison.citations).status, 'pass', 'The existing marker-only contract stays unchanged');
+const fact = recorded.cases.find(sample => sample.id === 'fact')!;
+assert(!fact.citations[1].excerpt.includes('6.5'), 'Actual supporting fact is beyond the card preview');
+assert.equal(auditCitationQuantities(fact.answer, fact.citations, fact.chunks).status, 'pass');
+assert.equal(auditCitationQuantities('值为6.5米[37]。', fact.citations, fact.chunks).status, 'invalid-markers');
+assert.equal(auditCitationQuantities('一般问题没有资料。', [], []).status, 'none');
+const isolatedCitation = [fact.citations[1]];
+const isolatedChunk = [fact.chunks[1]];
+assert.equal(auditCitationQuantities('主镜直径6.5米[1]。', isolatedCitation, [{ ...isolatedChunk[0], text: '16.5 m' }]).status, 'needs-review', 'A substring of another number is not support');
+assert.equal(auditCitationQuantities('主镜直径6.50米[1]。', isolatedCitation, isolatedChunk).status, 'pass');
+const foreignChunk = [{ ...isolatedChunk[0], sourceId: 'foreign-owner-source', text: '6.5 m' }];
+const unavailable = auditCitationQuantities('主镜直径6.5米[1]。', isolatedCitation, foreignChunk);
+assert.equal(unavailable.status, 'needs-review');
+assert.deepEqual(unavailable.numericSupport?.unavailableCitations, [1]);
+assert.deepEqual(unavailable.numericSupport?.missing, [], 'Unreadable identity is not proof that the original lacks a value');
+assert.equal(auditCitationQuantities('长度1000米[1]。', isolatedCitation, [{ ...isolatedChunk[0], text: '1,000 m' }]).status, 'pass');
+assert.equal(auditCitationQuantities('温度−2 K[1]。', isolatedCitation, [{ ...isolatedChunk[0], text: '-2 K' }]).status, 'pass');
+assert.equal(auditCitationQuantities('长度6.5e-3米[1]。', isolatedCitation, [{ ...isolatedChunk[0], text: '0.0065 m' }]).status, 'pass');
+assert.equal(auditCitationQuantities('主镜直径650厘米[1]。', isolatedCitation, isolatedChunk).status, 'needs-review', 'A derived or converted value needs review, not automatic correction');
 
 console.log(JSON.stringify({
   ok: true,

@@ -1,4 +1,4 @@
-import type { GroundedCitation } from '@/lib/rag';
+import type { GroundedCitation, SourceChunk } from '@/lib/rag';
 
 export type CitationAuditStatus = 'none' | 'pass' | 'missing-markers' | 'invalid-markers' | 'needs-review';
 
@@ -12,6 +12,53 @@ export interface CitationAuditResult {
   warning?: string;
   sourceCoverage?: { covered: number; total: number };
   numericPreservation?: { checked: number; missing: string[] };
+  numericSupport?: {
+    checked: number;
+    missing: { text: string; citations: number[]; values: string[] }[];
+    unavailableCitations: number[];
+  };
+}
+
+export function auditCitationQuantities(answer: string, citations: GroundedCitation[], chunks: SourceChunk[]): CitationAuditResult {
+  const audit = auditCitationMarkers(answer, citations);
+  if (audit.status !== 'pass') return audit;
+  const numericText = (text: string) => text.normalize('NFKC').replaceAll('−', '-').replace(/\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b/g, value => value.replaceAll(',', ''));
+  const key = (sourceId: string, chunkId: string) => JSON.stringify([sourceId, chunkId]);
+  const texts = new Map(chunks.map(chunk => [key(chunk.sourceId, chunk.id), chunk.text]));
+  const missing: NonNullable<CitationAuditResult['numericSupport']>['missing'] = [];
+  const unavailable = new Set<number>();
+  let checked = 0;
+  for (const claim of answer.split(/\r?\n/).flatMap(splitSubstantiveClaims)) {
+    for (const match of claim.matchAll(/([^\[\]]*?)(\[\d{1,3}\](?:\s*\[\d{1,3}\])*)/g)) {
+      const text = numericText(match[1]);
+      const quantities = [...text.matchAll(/([+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*(?:kWh|°[CF]|%|[µμ]mol\/L|(?:[mkµμ]?K)|(?:[kcmnµμ]?m)|(?:[mkµμ]?(?:g|s|W|Hz))|米|千米|厘米|毫米|纳米|英尺)(?![A-Za-z])/g)]
+        .filter(item => !/[\dA-Za-z_.]/.test(text[(item.index ?? 0) - 1] || ''));
+      if (!quantities.length) continue;
+      const numbers = [...match[2].matchAll(/\[(\d{1,3})\]/g)].map(item => Number(item[1]));
+      const evidence = numbers.map(number => {
+        const citation = citations[number - 1];
+        const text = texts.get(key(citation.sourceId, citation.chunkId));
+        if (!text?.trim()) unavailable.add(number);
+        return text;
+      });
+      if (evidence.some(text => !text?.trim())) continue;
+      checked += quantities.length;
+      const present = new Set((numericText(evidence.join('\n')).match(/[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g) || []).map(Number));
+      const absent = quantities.filter(item => !present.has(Number(item[1]))).map(item => item[0].trim());
+      if (absent.length) missing.push({ text: match[1].trim(), citations: numbers, values: absent });
+    }
+  }
+  if (!checked && !unavailable.size) return audit;
+  const warning = [
+    ...missing.map(item => `${item.values.join('、')}未见于本句引用${item.citations.map(number => `[${number}]`).join('')}的完整原文片段`),
+    unavailable.size ? `引用${[...unavailable].map(number => `[${number}]`).join('')}缺少可核对的原文片段` : '',
+  ].filter(Boolean).join('；');
+  return {
+    ...audit,
+    status: warning ? 'needs-review' : audit.status,
+    numericSupport: { checked, missing, unavailableCitations: [...unavailable] },
+    warning: warning ? `${warning}。请核对原文；该检查只比较数值写法，不验证单位换算、推导或语义支持，也未改写回答或引用。` : audit.warning,
+  };
 }
 
 export interface CitationCoverageClaim {

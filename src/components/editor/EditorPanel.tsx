@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { SavedToolStatus } from '@/components/studio/SavedToolStatus';
 import { NotebookSourceSelector } from '@/components/layout/NotebookSourceSelector';
 import { clientApiPath } from '@/lib/client-api';
+import { appPublicPath } from '@/lib/app-public-path';
 import {
   Send,
   Loader2,
@@ -304,7 +305,15 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
     const lines = chatMessages.map(message => {
       const role = message.role === 'user' ? '**提问**' : '**回答**';
       const citations = message.citations?.length
-        ? `\n\n> 引用来源:${message.citations.map(c => c.paperShortName || c.sourceTitle || c.paperId).filter(Boolean).join('、')}`
+        ? `\n\n> 引用来源（编号仅对应本条回答）:\n${message.citations.map((c, index) => {
+          const location = [
+            c.page ? `第 ${c.page} 页` : '',
+            typeof c.chunkIndex === 'number' ? `片段 ${c.chunkIndex + 1}` : '',
+            c.sourceId || c.paperId ? `来源ID: ${c.sourceId || c.paperId}` : '',
+            c.chunkId ? `片段ID: ${c.chunkId}` : '',
+          ].filter(Boolean).join(' · ');
+          return `> [${index + 1}] ${c.sourceTitle || c.paperShortName || c.paperId}${location ? ` · ${location}` : ''}`;
+        }).join('\n')}`
         : '';
       return `${role}\n\n${message.content}${citations}`;
     });
@@ -625,7 +634,7 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-0 -z-20 bg-cover bg-center"
-                style={{ backgroundImage: "url('/assets/research/question-ambient-v1.webp')" }}
+                style={{ backgroundImage: `url('${appPublicPath('/assets/research/question-ambient-v1.webp')}')` }}
               />
               <div
                 aria-hidden="true"

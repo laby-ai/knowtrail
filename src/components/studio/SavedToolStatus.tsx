@@ -1,5 +1,16 @@
 'use client';
 
+export function SavedVersionNotice({ saved, testId }: {
+  saved: { savedVersionNotice: boolean; canReadSavedVersion: boolean; readSelectedVersion: () => void };
+  testId: string;
+}) {
+  if (!saved.savedVersionNotice) return null;
+  return <div role="status" data-testid={testId} className="space-y-2 rounded-xl border border-amber-400/25 p-3 text-xs text-[var(--text-secondary)]">
+    <p>当前草稿或任务已保留。处理完成后，可读取刚才选择的保存版本。</p>
+    <button type="button" disabled={!saved.canReadSavedVersion} onClick={saved.readSelectedVersion} className="underline disabled:opacity-45">读取所选保存版本</button>
+  </div>;
+}
+
 export function SavedToolStatus({ saved, guest }: {
   saved: { loading: boolean; saving: boolean; error: string | null; conflict: boolean; unsaved: boolean; readFailed: boolean; retry: () => void; retryRead: () => void; reload: () => void };
   guest: boolean;

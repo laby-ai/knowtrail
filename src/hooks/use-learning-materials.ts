@@ -18,7 +18,7 @@ function sessionMaterials(scopeKey: string): LearningMaterials | null {
 }
 
 
-export function useLearningMaterials(scopeKey: string) {
+export function useLearningMaterials(scopeKey: string, options: { openSavedRequest?: { revision: string }; busy?: boolean } = {}) {
   return usePrivateNotebookDocument({ scopeKey, toolId: 'learning-artifacts', endpoint: '/api/ai/knowledge-cards',
-    empty: emptyLearningMaterials, validate: isLearningMaterials, readLegacy: sessionMaterials });
+    empty: emptyLearningMaterials, validate: isLearningMaterials, readLegacy: sessionMaterials, ...options });
 }

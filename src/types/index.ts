@@ -119,17 +119,7 @@ export interface RetrievalMetadata {
   reason?: string;
 }
 
-export interface CitationAuditResult {
-  status: 'none' | 'pass' | 'missing-markers' | 'invalid-markers' | 'needs-review';
-  citedNumbers: number[];
-  invalidNumbers: number[];
-  uncitedNumbers: number[];
-  citationCount: number;
-  markerCount: number;
-  warning?: string;
-  sourceCoverage?: { covered: number; total: number };
-  numericPreservation?: { checked: number; missing: string[] };
-}
+export type CitationAuditResult = import('@/lib/citation-audit').CitationAuditResult;
 
 export interface Citation {
   paperId: string;

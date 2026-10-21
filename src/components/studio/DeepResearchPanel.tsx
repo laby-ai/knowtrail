@@ -12,12 +12,14 @@ import { useApp } from '@/contexts/AppContext';
 import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
 import { emptyResearchReport, isResearchReportDocument, preferSavedResearchReport, researchReportDocument, researchReportLengthWarning, type ResearchReportDocument, type ResearchStatusPayload } from '@/lib/research-report-document';
 import type { NotebookDocument } from '@/lib/private-notebook-document';
+import type { StudioSavedOutput } from '@/lib/studio-saved-outputs';
 import { studioSessionStorageKey } from '@/lib/studio-session-storage';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Citation, CitationAuditResult, Paper, RetrievalMetadata } from '@/types';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
+import { SavedVersionNotice } from './SavedToolStatus';
 
 type ResearchAnswerStatus = 'idle' | 'running' | 'complete' | 'incomplete' | 'error';
 
@@ -52,13 +54,15 @@ function toPaperRequest(paper: Paper) {
   };
 }
 
-export function DeepResearchPanel({ renderComposer }: { renderComposer?: ResearchComposerRenderer }) {
+export function DeepResearchPanel({ renderComposer, savedOutput }: { renderComposer?: ResearchComposerRenderer; savedOutput?: StudioSavedOutput }) {
   const { getSelectedPapers, storageScopeKey } = useApp();
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
   const abortRef = useRef<AbortController | null>(null);
+  const [status, setStatus] = useState<ResearchAnswerStatus>('idle');
   const savedReport = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'research-report', endpoint: '/api/studio/artifacts?kind=research-report',
-    empty: emptyResearchReport, validate: isResearchReportDocument, readLegacy: legacyReportQuestion, preferSaved: preferSavedResearchReport });
+    empty: emptyResearchReport, validate: isResearchReportDocument, readLegacy: legacyReportQuestion, preferSaved: preferSavedResearchReport,
+    openSavedRequest: savedOutput?.kind === 'research-report' ? savedOutput : undefined, busy: status === 'running' });
   const question = savedReport.data.questionDraft;
   const setQuestion = (next: string) => savedReport.update(previous => ({ ...previous, questionDraft: next }));
   const mounted = useRef(true);
@@ -68,7 +72,6 @@ export function DeepResearchPanel({ renderComposer }: { renderComposer?: Researc
   const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(null);
   const [citationAudit, setCitationAudit] = useState<CitationAuditResult | null>(null);
   const [researchStatus, setResearchStatus] = useState<ResearchStatusPayload | null>(null);
-  const [status, setStatus] = useState<ResearchAnswerStatus>('idle');
   const [stage, setStage] = useState('retrieving');
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState('填写研究问题后开始。');
@@ -258,6 +261,7 @@ export function DeepResearchPanel({ renderComposer }: { renderComposer?: Researc
       </>}
       {savedReport.loading && <p className="text-xs text-[var(--text-secondary)]" data-testid="research-report-restoring">正在读取报告…</p>}
       {savedReport.saving && <p className="text-xs text-[var(--text-secondary)]">正在保存…</p>}
+      <SavedVersionNotice saved={savedReport} testId="research-report-version-notice" />
       {(savedReport.error || (savedReport.unsaved && status !== 'running' && error)) && (
         <div className="space-y-2 rounded-xl border border-rose-400/25 p-3 text-xs text-rose-700" data-testid="research-report-save-error">
           <p>{savedReport.error || error || '当前内容尚未保存。'}</p>

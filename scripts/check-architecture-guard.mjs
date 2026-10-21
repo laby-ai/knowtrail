@@ -38,7 +38,8 @@ function walk(dir, acc = []) {
 }
 
 function lineCount(file) {
-  return readFileSync(path.join(root, file), 'utf8').split(/\r?\n/).length;
+  const text = readFileSync(path.join(root, file), 'utf8');
+  return text.length === 0 ? 0 : text.split(/\r?\n/).length - Number(text.endsWith('\n'));
 }
 
 const findings = [];
