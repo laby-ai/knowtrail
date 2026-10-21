@@ -12,7 +12,7 @@ export function PersistentStudioTool({ active, target, children }: { active: boo
   }, []);
   useLayoutEffect(() => {
     if (!host) return;
-    host.hidden = !active;
+    host.toggleAttribute('hidden', !active);
     if (active && target) target.appendChild(host);
     else host.remove();
     return () => host.remove();
