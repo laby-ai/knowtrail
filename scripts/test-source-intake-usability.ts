@@ -11,7 +11,10 @@ const library = read('src/components/library/LibraryPanel.tsx');
 const page = read('src/app/page.tsx');
 
 assert.match(library, /data-testid="library-add-source"/, 'Library header needs one primary add-source action');
-assert.match(library, />\s*添加来源\s*</, 'The primary source action must use the expected user language');
+const addSourceStart = library.indexOf('data-testid="library-add-source"');
+const addSourceAction = library.slice(addSourceStart, library.indexOf('</button>', addSourceStart));
+assert.match(addSourceAction, /aria-label="添加来源"/, 'The compact source action needs an accessible name');
+assert.match(addSourceAction, /\{!compact && "添加来源"\}/, 'The expanded source action must show the expected user language');
 assert.match(library, /handleUrlAsSource/, 'Direct URL intake must use the persisted ingestion path');
 
 for (const testId of [

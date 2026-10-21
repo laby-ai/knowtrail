@@ -138,9 +138,9 @@ assert.ok(!fs.existsSync(path.join(process.cwd(), 'src/app/api/ai/studio-tool/ro
 
 assert.match(studioPanelSource, /activeTab === 'presentation' && <PresentationWorkspacePanel\b/, 'PPT product should reuse its original workspace, including saved-format selection');
 assert.match(studioPanelSource, /activeTab === 'knowledge' && <KnowledgeMapPanel \/>/, 'Knowledge map product should render its original panel');
-assert.match(studioPanelSource, /activeTab === 'report' && <DeepResearchPanel \/>/, 'Report should reuse the grounded deep-research workspace');
-assert.match(studioPanelSource, /activeTab === 'flashcards' && <LearningArtifactsPanel mode="flashcards" \/>/, 'Learning cards should render their real grounded workspace');
-assert.match(studioPanelSource, /activeTab === 'quiz' && <LearningArtifactsPanel mode="quiz" \/>/, 'Quiz should render its real interactive workspace');
+assert.match(studioPanelSource, /activeTab === 'report' && <DeepResearchPanel\b[^>]*savedOutput=\{savedOutput\}[^>]*\/>/, 'Report should receive the selected saved version in its grounded workspace');
+assert.match(studioPanelSource, /\(activeTab === 'flashcards' \|\| activeTab === 'quiz'\) && <LearningArtifactsPanel\b[^>]*mode=\{activeTab\}[^>]*savedOutput=\{savedOutput\}[^>]*\/>/, 'Both learning modes should share one document owner and receive the selected saved version');
+assert.equal((studioPanelSource.match(/<LearningArtifactsPanel\b/g) || []).length, 1, 'Learning cards and quiz must not mount separate owners of the same saved document');
 assert.match(studioPanelSource, /activeTab === 'paper-search' && <PaperSearchPanel \/>/, 'Paper search product should render its real search panel');
 assert.match(studioPanelSource, /activeTab === 'deep-research' && <DeepResearchPanel \/>/, 'Deep research product should render its real report panel');
 assert.match(studioPanelSource, /activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel \/>/, 'Hypothesis generation should render its real evidence-backed panel');

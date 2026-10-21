@@ -32,13 +32,13 @@ const editorPanel = fs.readFileSync(path.join(process.cwd(), 'src/components/edi
 
 assert.match(
   editorPanel,
-  /message\.followUps[\s\S]{0,500}disabled=\{!hasSelectedSources \|\| !researchChatReadiness\.ready\}/,
-  'follow-up questions must be unavailable until a source is selected',
+  /message\.followUps[\s\S]{0,500}disabled=\{!hasSelectedSources \|\| !sourceReadiness\.ready \|\| !researchChatReadiness\.ready\}/,
+  'follow-up questions require selected, loaded sources and a ready chat service',
 );
 assert.match(
   editorPanel,
-  /Liquid pull quick questions panel[\s\S]{0,3600}disabled=\{!hasSelectedSources \|\| !researchChatReadiness\.ready\}/,
-  'the active-chat quick question panel must be unavailable until a source is selected',
+  /Liquid pull quick questions panel[\s\S]{0,3600}disabled=\{!hasSelectedSources \|\| !sourceReadiness\.ready \|\| !researchChatReadiness\.ready\}/,
+  'the active-chat quick question panel requires selected, loaded sources and a ready chat service',
 );
 
 assert.notEqual(

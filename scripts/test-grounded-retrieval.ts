@@ -3,7 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { buildGroundedRetrievalContext } from '../src/lib/grounded-retrieval';
-import { ingestExtractedSource } from '../src/lib/ingestion-store';
+import { ingestExtractedSource, listReadySourceChunks } from '../src/lib/ingestion-store';
+import { upsertSourceChunks } from '../src/lib/vector-store';
 
 function deterministicEmbedding(text: string): number[] {
   const lower = text.toLowerCase();
@@ -71,6 +72,44 @@ async function main() {
     }]);
     assert.notEqual(scopedFallback.citations[0]?.sourceId, 'paper-studio', 'selected source scope should exclude unrelated persisted sources');
 
+    const owner = { ownerMemberId: 'vector-owner', notebookId: 'vector-notebook' };
+    const canonicalEmbedding = async (texts: string[]) => texts.map(text => text.includes('FACT_B') ? [1, 0, 0, 0]
+      : text.includes('FACT_A') ? [0.99, 0.1, 0, 0] : [0, 0, 1, 0]);
+    const canonicalSources = [
+      { id: 'canonical-a', ...owner, rawContent: ['filterkey '.repeat(100), 'Unrelated background. '.repeat(60),
+        'Different terminology and context. '.repeat(25) + 'FACT_A: approximately 6.5 m, with its original qualification.'].join('\n\n') },
+      { id: 'canonical-b', ...owner, rawContent: 'Other terminology. '.repeat(35) + 'FACT_B: 2.4 m, not an exact comparison.' },
+      { id: 'foreign-owner', ...owner, ownerMemberId: 'another-owner', rawContent: 'FACT_B FOREIGN_OWNER_BODY' },
+      { id: 'foreign-notebook', ...owner, notebookId: 'another-notebook', rawContent: 'FACT_B FOREIGN_NOTEBOOK_BODY' },
+      { id: 'unselected-source', ...owner, rawContent: 'FACT_B UNSELECTED_BODY' },
+    ];
+    for (const input of canonicalSources) {
+      const saved = await ingestExtractedSource({ ...input, title: 'Optical instrument', fileName: input.id + '.txt', fileType: 'txt' }, { embedder: canonicalEmbedding });
+      assert.equal(saved.vectorIndex.status, 'succeeded');
+    }
+    const keyword = await listReadySourceChunks({ ...owner, identities: ['canonical-a', 'canonical-b'], query: 'filterkey', topK: 40 });
+    assert(!keyword.chunks.some(chunk => chunk.text.includes('FACT_A')));
+    assert(!keyword.sourceIds.includes('canonical-b'), 'Fixture must exclude the second source from literal keyword candidates');
+    const current = await listReadySourceChunks({ ...owner, identities: ['canonical-a'] });
+    const currentHit = current.chunks.find(chunk => chunk.text.includes('FACT_A'));
+    assert(currentHit);
+    await upsertSourceChunks([
+      { ...currentHit, id: 'canonical-a::obsolete', text: 'OBSOLETE_VECTOR_ONLY_BODY', embedding: [1, 0, 0, 0] },
+      { ...currentHit, text: 'STALE_VECTOR_PREVIEW', sourceTitle: 'Obsolete title', chunkIndex: 99, page: 999, embedding: [0.99, 0.1, 0, 0] },
+    ]);
+    const singleHit = await buildGroundedRetrievalContext('filterkey', [{ id: 'canonical-a' }], undefined,
+      { ...owner, topK: 1, embedder: async () => [[1, 0, 0, 0]] });
+    assert(singleHit.promptContext.includes('FACT_A: approximately 6.5 m'), 'Full current vector hit text must not depend on the keyword candidate subset');
+    assert(!/OBSOLETE_VECTOR_ONLY_BODY|STALE_VECTOR_PREVIEW/.test(JSON.stringify(singleHit)), 'Deleted chunks and stale index text cannot become model or card evidence');
+    assert.equal(singleHit.citations[0].excerpt, currentHit.text.slice(0, 320));
+    assert.equal(singleHit.citations[0].chunkIndex, currentHit.chunkIndex);
+    assert.equal(singleHit.citations[0].page, currentHit.page);
+    const selectedPair = await buildGroundedRetrievalContext('filterkey', canonicalSources.slice(0, 4).map(source => ({ id: source.id })), undefined,
+      { ...owner, topK: 2, embedder: async () => [[1, 0, 0, 0]] });
+    assert.equal(selectedPair.retrievalMode, 'persisted-vector');
+    assert(selectedPair.citations.some(citation => citation.sourceId === 'canonical-b'), 'Selected semantic sources remain eligible without a literal term match');
+    assert(!/FOREIGN_OWNER_BODY|FOREIGN_NOTEBOOK_BODY|UNSELECTED_BODY/.test(selectedPair.promptContext), 'Canonical hit loading must keep owner/notebook/selection scope');
+
     console.log(JSON.stringify({
       ok: true,
       checked: [
@@ -79,6 +118,7 @@ async function main() {
         'chat retrieval falls back to request papers when selected sources are not persisted',
         'retrieval metadata exposes degraded and reason for UI/user-facing fallback copy',
         'selected source scope filters persisted retrieval',
+        'native vector hits use full current owned text independently of keyword candidates',
       ],
       vectorMode: vectorGrounded.retrievalMode,
       keywordMode: keywordGrounded.retrievalMode,

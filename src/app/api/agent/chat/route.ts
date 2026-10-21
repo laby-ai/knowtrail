@@ -109,7 +109,21 @@ export async function POST(request: NextRequest) {
           const version = await readNotebookDocument<unknown>({ ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId }, 'research-report', call.report.revision);
           if (version && isResearchReportDocument(version.data) && version.data.report?.runId === call.report.runId) reports.push({ id: call.id, reference: { ...call.report, question: version.data.report.question, status: version.data.report.status } });
         }
-        const content = (msg.content + (toolContext?.length ? '\n工具实际结果：' + JSON.stringify(toolContext) : '')).slice(0, 16000);
+        let answer = msg.content;
+        if (msg.role === 'assistant' && Array.isArray(msg.citations) && msg.citations.length) {
+          const bindings = msg.citations.map((citation: unknown, index) => {
+            const reference = citation && typeof citation === 'object' ? citation : {};
+            const sourceId = 'sourceId' in reference && typeof reference.sourceId === 'string' ? reference.sourceId : '';
+            const paperId = 'paperId' in reference && typeof reference.paperId === 'string' ? reference.paperId : '';
+            const chunkId = 'chunkId' in reference && typeof reference.chunkId === 'string' ? reference.chunkId : '';
+            return { number: index + 1, sourceId: sourceId || paperId || null, chunkId: chunkId || null };
+          });
+          const historicalText = msg.content.replace(/\[(\d{1,3})\]/g, (marker: string, number: string) => (
+            Number(number) > 0 && Number(number) <= bindings.length ? `〔该历史回答引用${number}〕` : marker
+          ));
+          answer = `历史回答引用定位（未重新核验，不代表本轮证据）：\n${JSON.stringify(bindings)}\n历史回答正文：\n${historicalText}`;
+        }
+        const content = (answer + (toolContext?.length ? '\n工具实际结果：' + JSON.stringify(toolContext) : '')).slice(0, 16000);
         if (content.trim() || reports.length) history.push({ role: msg.role, content, reports });
       }
     }

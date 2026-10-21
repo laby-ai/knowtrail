@@ -83,6 +83,7 @@ jobs:
           pnpm exec tsx scripts/test-citation-source-identity.ts
           node scripts/test-citation-context-locator.mjs
           node scripts/test-grounded-prompt-fidelity.mjs
+          node scripts/test-chat-export.mjs
 
       - name: Upload and file failure boundaries
         run: |

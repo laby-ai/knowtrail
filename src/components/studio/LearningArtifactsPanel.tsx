@@ -20,10 +20,12 @@ import { ClientRequestError, clientApiRequest } from '@/lib/client-api';
 import { learningCardExtra, type LearningMaterials } from '@/lib/learning-materials';
 import { buildQuiz } from '@/lib/learning-quiz';
 import type { NotebookDocument } from '@/lib/private-notebook-document';
+import type { StudioSavedOutput } from '@/lib/studio-saved-outputs';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { KnowledgeCardData } from '@/lib/knowledge-card-types';
 import type { Citation, CitationAuditResult, Paper, RetrievalMetadata } from '@/types';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
+import { SavedVersionNotice } from './SavedToolStatus';
 
 type LearningArtifactsMode = 'flashcards' | 'quiz';
 type GenerationStatus = 'idle' | 'running' | 'error';
@@ -52,15 +54,15 @@ function toPaperRequest(paper: Paper) {
   };
 }
 
-export function LearningArtifactsPanel({ mode }: { mode: LearningArtifactsMode }) {
+export function LearningArtifactsPanel({ mode, savedOutput }: { mode: LearningArtifactsMode; savedOutput?: StudioSavedOutput }) {
   const { getSelectedPapers, storageScopeKey } = useApp();
   const selectedPapers = getSelectedPapers();
   const notebookId = notebookIdFromStorageScopeKey(storageScopeKey);
-  const materials = useLearningMaterials(storageScopeKey);
+  const [status, setStatus] = useState<GenerationStatus>('idle');
+  const materials = useLearningMaterials(storageScopeKey, { openSavedRequest: savedOutput?.kind === 'learning-materials' ? savedOutput : undefined, busy: status === 'running' });
   const { cards, citations, retrieval, citationAudit, cardIndex, quizIndex, answers } = materials.data;
   const generation = useRef<AbortController | null>(null);
   useEffect(() => () => generation.current?.abort(), [storageScopeKey]);
-  const [status, setStatus] = useState<GenerationStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -148,11 +150,12 @@ export function LearningArtifactsPanel({ mode }: { mode: LearningArtifactsMode }
 
       {materials.loading && <p className="text-xs text-[var(--text-secondary)]" data-testid="learning-artifacts-restoring">正在读取学习材料…</p>}
       {materials.saving && <p className="text-xs text-[var(--text-secondary)]">正在保存进度…</p>}
+      <SavedVersionNotice saved={materials} testId="learning-materials-version-notice" />
       {materials.error && (
         <div className="space-y-2 rounded-xl border border-rose-400/25 p-3 text-xs text-rose-700" data-testid="learning-artifacts-save-error">
           <p>{materials.error}</p>
           {materials.conflict && <p>当前进度尚未保存；读取已保存内容会替换当前进度。</p>}
-          {cards.length > 0 && !materials.conflict && <button type="button" onClick={materials.retry}>重试保存</button>}
+          {materials.unsaved && !materials.conflict && !materials.readFailed && <button type="button" onClick={materials.retry}>重试保存</button>}
           <button type="button" onClick={materials.readFailed && !materials.conflict ? materials.retryRead : materials.reload} className="ml-3">{materials.readFailed && !materials.conflict ? '重试读取' : '读取已保存内容'}</button>
         </div>
       )}
@@ -171,7 +174,7 @@ export function LearningArtifactsPanel({ mode }: { mode: LearningArtifactsMode }
       )}
 
       {cards.length > 0 && !materials.loading && (
-        <button type="button" onClick={() => void generate()} disabled={noSources || materials.saving || Boolean(materials.error) || status === 'running'} className="text-xs text-blue-600 disabled:opacity-45">重新生成</button>
+        <button type="button" onClick={() => void generate()} disabled={noSources || materials.loading || materials.saving || Boolean(materials.error) || status === 'running'} className="text-xs text-blue-600 disabled:opacity-45">重新生成</button>
       )}
 
       {status === 'running' && (
@@ -208,9 +211,9 @@ export function LearningArtifactsPanel({ mode }: { mode: LearningArtifactsMode }
             {learningCardExtra(currentCard.extra) && <p className="mt-3 rounded-xl bg-[var(--glass-subtle)] px-3 py-2 text-[10px] leading-relaxed text-[var(--text-tertiary)]">{learningCardExtra(currentCard.extra)}</p>}
           </div>
           <div className="flex items-center justify-between gap-2">
-            <button type="button" disabled={status === 'running'} onClick={() => materials.update(current => ({ ...current, cardIndex: (current.cardIndex - 1 + cards.length) % cards.length }))} className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)]" aria-label="上一张学习卡"><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" disabled={status === 'running' || materials.loading} onClick={() => materials.update(current => ({ ...current, cardIndex: (current.cardIndex - 1 + cards.length) % cards.length }))} className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)]" aria-label="上一张学习卡"><ChevronLeft className="h-4 w-4" /></button>
             <button type="button" onClick={() => void copyCard()} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-[11px] text-[var(--text-secondary)]"><Copy className="h-3.5 w-3.5" />{copied ? '已复制' : '复制卡片'}</button>
-            <button type="button" disabled={status === 'running'} onClick={() => materials.update(current => ({ ...current, cardIndex: (current.cardIndex + 1) % cards.length }))} className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)]" aria-label="下一张学习卡"><ChevronRight className="h-4 w-4" /></button>
+            <button type="button" disabled={status === 'running' || materials.loading} onClick={() => materials.update(current => ({ ...current, cardIndex: (current.cardIndex + 1) % cards.length }))} className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-subtle)]" aria-label="下一张学习卡"><ChevronRight className="h-4 w-4" /></button>
           </div>
         </div>
       )}
@@ -233,7 +236,7 @@ export function LearningArtifactsPanel({ mode }: { mode: LearningArtifactsMode }
                     key={`${currentQuestion.id}-${optionIndex}`}
                     type="button"
                     onClick={() => materials.update(current => ({ ...current, answers: { ...current.answers, [currentQuestion.id]: optionIndex } }))}
-                    disabled={revealed || status === 'running'}
+                    disabled={revealed || status === 'running' || materials.loading}
                     className={`flex w-full items-start gap-2 rounded-xl border px-3 py-2 text-left text-[11px] leading-relaxed transition ${
                       revealed && correct
                         ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
@@ -256,8 +259,8 @@ export function LearningArtifactsPanel({ mode }: { mode: LearningArtifactsMode }
             )}
           </div>
           <div className="flex items-center justify-between gap-2">
-            <button type="button" disabled={status === 'running'} onClick={resetQuiz} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-[11px] text-[var(--text-secondary)]"><RotateCcw className="h-3.5 w-3.5" />重新开始</button>
-            <button type="button" disabled={status === 'running'} onClick={() => materials.update(current => ({ ...current, quizIndex: (current.quizIndex + 1) % questions.length }))} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-2 text-[11px] font-medium text-white">下一题<ChevronRight className="h-3.5 w-3.5" /></button>
+            <button type="button" disabled={status === 'running' || materials.loading} onClick={resetQuiz} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-[11px] text-[var(--text-secondary)]"><RotateCcw className="h-3.5 w-3.5" />重新开始</button>
+            <button type="button" disabled={status === 'running' || materials.loading} onClick={() => materials.update(current => ({ ...current, quizIndex: (current.quizIndex + 1) % questions.length }))} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-500 px-3 py-2 text-[11px] font-medium text-white">下一题<ChevronRight className="h-3.5 w-3.5" /></button>
           </div>
         </div>
       )}

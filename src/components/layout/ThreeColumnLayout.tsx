@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { LibraryBig, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Sparkles } from 'lucide-react';
 import { QuietWorkbenchLayout } from './QuietWorkbenchLayout';
+import { useApp } from '@/contexts/AppContext';
 import type { WorkbenchPreferences } from '@/components/home/workspace-types';
 
 export interface ThreeColumnLayoutProps {
@@ -61,6 +62,7 @@ function GlassThreeColumnLayout({
   initialPreferences = {},
   onPreferencesChange,
 }: ThreeColumnLayoutProps) {
+  const { revealPaperRequest } = useApp();
   const containerRef = useRef<HTMLDivElement>(null);
   const legacyWidthsStorageKey = appearance === 'quiet-research'
     ? `${WIDTHS_STORAGE_KEY}:quiet-research`
@@ -171,6 +173,12 @@ function GlassThreeColumnLayout({
   useEffect(() => {
     if (rightFocusKey) setMobilePanel('right');
   }, [rightFocusKey]);
+
+  useEffect(() => {
+    if (!revealPaperRequest) return;
+    setLeftCollapsed(false);
+    setMobilePanel('left');
+  }, [revealPaperRequest]);
 
   useEffect(() => {
     try {
