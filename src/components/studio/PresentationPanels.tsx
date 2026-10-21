@@ -44,6 +44,7 @@ import NarrationPlayer from './NarrationPlayer';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
 import { PresentationModeSelector, type PresentationMode } from './PresentationModeSelector';
+import { useStudioTaskStatus } from './StudioTaskContext';
 import { StructuredPresentationPanel } from './StructuredPresentationPanel';
 import { HtmlPresentationPanel } from './HtmlPresentationPanel';
 import { SlideAnnotationEditor } from './SlideAnnotationEditor';
@@ -51,12 +52,19 @@ import { ImagePptGenerationFeedback } from './ImagePptGenerationFeedback';
 
 export function PresentationWorkspacePanel({ initialMode = 'image' }: { initialMode?: PresentationMode }) {
   const [mode, setMode] = useState<PresentationMode>(initialMode);
+  const [visitedModes, setVisitedModes] = useState<PresentationMode[]>([initialMode]);
+  const selectMode = (next: PresentationMode) => { setMode(next); setVisitedModes(previous => previous.includes(next) ? previous : [...previous, next]); };
+  useEffect(() => {
+    const open = (event: Event) => { const value: unknown = (event as CustomEvent<unknown>).detail; if (value === 'image' || value === 'html' || value === 'structured') selectMode(value); };
+    window.addEventListener('lingbi:open-presentation-mode', open);
+    return () => window.removeEventListener('lingbi:open-presentation-mode', open);
+  }, []);
 
   return (
     <div className="space-y-5" data-testid="presentation-workspace-panel">
-      <PresentationModeSelector mode={mode} onModeChange={setMode} />
+      <PresentationModeSelector mode={mode} onModeChange={selectMode} />
 
-      {mode === 'image' ? <PresentationPanel /> : mode === 'html' ? <HtmlPresentationPanel /> : <StructuredPresentationPanel />}
+      {visitedModes.map(entry => <div key={entry} hidden={mode !== entry}>{entry === 'image' ? <PresentationPanel /> : entry === 'html' ? <HtmlPresentationPanel /> : <StructuredPresentationPanel />}</div>)}
     </div>
   );
 }
@@ -139,6 +147,10 @@ function PresentationPanel() {
   const thumbnailScrollRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  const previousSlidesRef = useRef<typeof slides>([]);
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
+  useStudioTaskStatus({ id: 'ppt-image', title: '图片 PPT', tool: 'presentation', mode: 'image', running: isGenerating, message: progressMsg, error: generationError || (generationNotice?.startsWith('已取消') ? generationNotice : null), hasResult: slides.length > 0, partial: !isGenerating && slides.length > 0 && Boolean(generationError || generationNotice) });
+
   // Get selected style's visual prompt
   const currentStyleVisualPrompt = PRESET_STYLES.find(s => s.id === selectedStyle)?.visualPrompt || PRESET_STYLES[0].visualPrompt;
 
@@ -165,6 +177,7 @@ function PresentationPanel() {
       return;
     }
     // Clear current PPT and reset
+    previousSlidesRef.current = slides;
     setSlides([]);
     setActiveSlideIdx(0);
     setLightboxIdx(null);
@@ -284,6 +297,7 @@ function PresentationPanel() {
       setProgressMsg('');
       setProgressStage('');
     } catch (err) {
+      if (previousSlidesRef.current.length) setSlides(previousSlidesRef.current);
       const aborted = abortController.signal.aborted || (err instanceof DOMException && err.name === 'AbortError');
       if (aborted) {
         setGenerationNotice('已取消生成，可以调整资料、页数或风格后重新开始。');
@@ -297,7 +311,7 @@ function PresentationPanel() {
       if (abortControllerRef.current === abortController) abortControllerRef.current = null;
       setIsGenerating(false);
     }
-  }, [generationReadiness, getSelectedPapers, aiConfig, notebookId, pageCount, currentStyleVisualPrompt, selectedStyle, selectedDetailLevel, selectedLang, selectedAspectRatio, setSlides]);
+  }, [generationReadiness, getSelectedPapers, aiConfig, notebookId, pageCount, currentStyleVisualPrompt, selectedStyle, selectedDetailLevel, selectedLang, selectedAspectRatio, setSlides, slides]);
 
   const handleCancelGenerate = useCallback(() => {
     if (!isGenerating) return;

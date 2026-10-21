@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { notifySuccess, notifyFailure } from '@/lib/operation-feedback';
 import { Download } from 'lucide-react';
 import { useAppPreferences } from './AppPreferencesProvider';
 import { checkedApiFetch } from '@/lib/api-response';
@@ -24,8 +25,9 @@ export function HistorySettings({ session }: { session: AccountAuthSession }) {
       const blob = await response.blob(); const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'lingbi-research-history.json'; anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
+      notifySuccess(en ? 'Download started' : '已发起历史记录下载');
       setMessage(en ? 'Download started. If prompted, allow downloads in your browser.' : '已发起下载；如浏览器提示，请允许保存文件。');
-    } catch (error) { setMessage(error instanceof Error ? error.message : '下载失败'); }
+    } catch (error) { setMessage(notifyFailure(error, '下载失败')); }
     finally { setBusy(false); }
   }
   return <div className="space-y-6">

@@ -3,6 +3,9 @@
 import { UiText } from '@/components/account/UiText';
 import { useRef, useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import { PersistentStudioTool } from './PersistentStudioTool';
+import { StudioTaskProvider, type StudioTask } from './StudioTaskContext';
+import { StudioTaskRail } from './StudioTaskRail';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from '@/components/ui/dialog';
 import { StudioSkillsTools } from './StudioSkillsTools';
 import { ResearchMcpPanel } from '@/components/mcp/ResearchMcpPanel';
@@ -28,7 +31,19 @@ import {
 } from './StudioToolSwitcher';
 
 export function StudioPanel() {
+  const { storageScopeKey } = useApp();
+  return <StudioTaskProvider key={storageScopeKey}><StudioPanelContent /></StudioTaskProvider>;
+}
+
+function StudioPanelContent() {
   const [activeTab, setActiveTab] = useState<StudioTab | null>(null);
+  const [body, setBody] = useState<HTMLDivElement | null>(null);
+  const [visited, setVisited] = useState<Array<'presentation' | 'deep-research'>>([]);
+  useEffect(() => {
+    if (activeTab === 'presentation' || activeTab === 'deep-research') {
+      setVisited(previous => previous.includes(activeTab) ? previous : [...previous, activeTab]);
+    }
+  }, [activeTab]);
   useEffect(() => {
     const openTool = (event: Event) => {
       const detail: unknown = (event as CustomEvent<unknown>).detail;
@@ -51,9 +66,13 @@ export function StudioPanel() {
     triggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setActiveTab(tab);
   };
+  const openTask = (task: StudioTask) => {
+    openTool(task.tool);
+    if (task.mode) window.dispatchEvent(new CustomEvent('lingbi:open-presentation-mode', { detail: task.mode }));
+  };
 
   return (
-    <div className="h-full w-full min-w-0 overflow-y-auto">
+    <div className="h-full w-full min-w-0 overflow-y-auto" data-testid="studio-panel">
       <div className="flex-shrink-0 px-5 pt-5 pb-4 border-b border-[var(--glass-border)]">
         <div className="flex items-center gap-3 mb-4">
           <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${navItem.accent} flex items-center justify-center border border-[var(--glass-border)]`}>
@@ -72,6 +91,7 @@ export function StudioPanel() {
       </div>
 
       <div className="px-5 py-4"><StudioSkillsTools /><ResearchMcpPanel /></div>
+      <StudioTaskRail onOpen={openTask} />
       <Dialog open={activeTab !== null} onOpenChange={open => { if (!open) setActiveTab(null); }}>
         <DialogContent
           data-testid="studio-tool-dialog"
@@ -83,9 +103,8 @@ export function StudioPanel() {
             <DialogTitle>{navItem.label}</DialogTitle>
             <DialogDescription>{navItem.desc}</DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6" data-testid="studio-tool-body">
+          <div ref={setBody} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6" data-testid="studio-tool-body">
             {activeTab === 'paper-search' && <PaperSearchPanel />}
-            {activeTab === 'deep-research' && <DeepResearchPanel />}
             {activeTab === 'hypothesis-generation' && <HypothesisGenerationPanel />}
             {activeTab === 'data-processing' && <DataProcessingPanel />}
             {activeTab === 'experiment-design' && <ExperimentDesignPanel />}
@@ -93,12 +112,14 @@ export function StudioPanel() {
             {activeTab === 'scientific-illustration' && <ScientificIllustrationPanel />}
             {activeTab === 'text-polishing' && <TextPolishingPanel />}
             {activeTab === 'peer-review' && <PeerReviewPanel />}
-            {activeTab === 'presentation' && <PresentationWorkspacePanel />}
             {activeTab === 'knowledge' && (knowledgeMapViewer ? <KnowledgeMapWorkspace /> : <KnowledgeMapPanel />)}
             {activeTab === 'virtual-classroom' && (virtualClassroomViewer ? <VirtualClassroomWorkspace /> : <VirtualClassroomPanel />)}
           </div>
         </DialogContent>
       </Dialog>
+      {visited.map(tab => <PersistentStudioTool key={tab} active={activeTab === tab} target={body}>
+        {tab === 'presentation' ? <PresentationWorkspacePanel /> : <DeepResearchPanel />}
+      </PersistentStudioTool>)}
     </div>
   );
 }

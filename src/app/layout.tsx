@@ -1,4 +1,5 @@
 import { AppPreferencesProvider } from '@/components/account/AppPreferencesProvider';
+import { OperationFeedbackHost } from '@/components/account/OperationFeedbackHost';
 import { CommerceConfirmationHost } from '@/components/account/commerce/CommerceConfirmationHost';
 import type { Metadata } from 'next';
 import { ThemeScript } from '@/components/ThemeScript';
@@ -52,6 +53,7 @@ export default function RootLayout({
         <AppPreferencesProvider>
           {children}
           <CommerceConfirmationHost />
+          <OperationFeedbackHost />
         </AppPreferencesProvider>
       </body>
     </html>

@@ -16,6 +16,7 @@ import {
 import { useApp } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
+import { useStudioTaskStatus } from './StudioTaskContext';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 import {
   buildStructuredPresentationOutlineDraft,
@@ -62,6 +63,10 @@ export function StructuredPresentationPanel() {
     setOutlineConfirmed(false);
   }, [suggestedOutline]);
 
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
+  useEffect(() => () => { if (pptxUrl) URL.revokeObjectURL(pptxUrl); }, [pptxUrl]);
+  useStudioTaskStatus({ id: 'ppt-structured', title: '结构化 PPT', tool: 'presentation', mode: 'structured', running: isGenerating, message: progressMsg || mineruStatus, error, hasResult: Boolean(pptxUrl), partial: Boolean(error && pptxUrl) });
+
   const PIPELINE_STAGES: StudioJobProgressStage[] = [{ key: 'waiting', label: '等待生成结果', icon: Presentation }];
 
   const handleGenerate = async () => {
@@ -82,7 +87,6 @@ export function StructuredPresentationPanel() {
     setError(null);
     setQualityWarning(null);
     setQualitySummary(null);
-    setPptxUrl(null);
     setElapsedSeconds(0);
     setProgressMsg('正在准备结构化简报生成...');
     abortControllerRef.current?.abort();
@@ -428,7 +432,7 @@ export function StructuredPresentationPanel() {
         <div className="flex flex-col gap-3 w-full max-w-4xl" data-testid="academic-ppt-success">
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl liquid-glass-static !border-emerald-500/20">
             <Check className="w-5 h-5 text-emerald-400" />
-            <span className="text-sm text-emerald-400 font-medium">PPT生成完成</span>
+            <span className="text-sm text-emerald-400 font-medium">{error ? '本次未完成，上次成功结果已保留' : 'PPT生成完成'}</span>
           </div>
           {qualitySummary && (
             <div

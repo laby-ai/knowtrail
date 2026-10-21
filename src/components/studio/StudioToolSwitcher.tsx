@@ -1,5 +1,6 @@
 'use client';
-import { UiText } from '@/components/account/UiText';
+import { UiText, useUiText } from '@/components/account/UiText';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CardSpotlight } from '@/components/ui/card-spotlight';
 
 import type { ElementType } from 'react';
@@ -58,12 +59,14 @@ export function StudioToolSwitcher({
   activeTab: StudioTab | null;
   onSelect: (tab: StudioTab) => void;
 }) {
+  const t = useUiText();
   const renderNavButton = (item: StudioNavItem) => {
     const Icon = item.icon;
     const isActive = activeTab === item.id;
 
     return (
       <CardSpotlight key={item.id}>
+      <Tooltip><TooltipTrigger asChild>
       <button
         data-testid={`studio-nav-${item.id}`}
         aria-pressed={isActive}
@@ -75,18 +78,19 @@ export function StudioToolSwitcher({
             ? 'border-blue-400/50 bg-blue-500/10'
             : 'border-[var(--glass-border)] bg-[var(--glass-subtle)] hover:border-[var(--border-hover)]'
         }`}
-        title={`$<UiText>{item.label}</UiText>：$<UiText>{item.desc}</UiText>`}
+        title={`${t(item.label)}：${t(item.desc)}`}
       >
         <span className="flex items-center gap-2">
           <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${item.accent}`}>
             <Icon className="h-4 w-4 text-[var(--text-secondary)]" />
           </span>
           <span className="min-w-0">
-            <span className="line-clamp-2 break-words text-sm font-semibold leading-5 text-[var(--text-primary)]"><UiText>{item.label}</UiText></span>
-            <span className="mt-1 line-clamp-2 break-words text-xs leading-[18px] text-[var(--text-tertiary)]"><UiText>{item.desc}</UiText></span>
+            <span className="line-clamp-2 break-words text-base font-semibold leading-6 text-[var(--text-primary)]"><UiText>{item.label}</UiText></span>
+            <span className="mt-1 line-clamp-2 break-words text-sm leading-5 text-[var(--text-secondary)]"><UiText>{item.desc}</UiText></span>
           </span>
         </span>
       </button>
+      </TooltipTrigger><TooltipContent className="max-w-72 border border-[var(--glass-border)] !bg-[var(--bg-primary)] !text-[var(--text-primary)] text-sm leading-6" side="left">{t(item.label)}：{t(item.desc)}</TooltipContent></Tooltip>
       </CardSpotlight>
     );
   };

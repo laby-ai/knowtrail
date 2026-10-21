@@ -25,6 +25,7 @@ import {
 import { useApp } from '@/contexts/AppContext';
 import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
+import { useStudioTaskStatus } from './StudioTaskContext';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 import NarrationPlayer from './NarrationPlayer';
 import { HTML_DECK_STYLES } from '@/lib/ppt/html-deck-style';
@@ -132,6 +133,8 @@ export function HtmlPresentationPanel() {
   const [relayoutError, setRelayoutError] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortControllerRef.current?.abort(), []);
+  useStudioTaskStatus({ id: 'ppt-html', title: 'HTML 简报', tool: 'presentation', mode: 'html', running: isGenerating, message: progressMsg, error, hasResult: slides.length > 0, partial: Boolean(error && slides.length) });
   const presentRef = useRef<HTMLDivElement>(null);
   const hasSelectedPapers = getSelectedPapers().length > 0;
   const currentStyle = useMemo(
@@ -257,7 +260,6 @@ export function HtmlPresentationPanel() {
     setExportNotice(null);
     setQaNotice(null);
     setRestoredDeck(null);
-    setSlides([]);
     setActiveIdx(0);
     setSlideCompleted(0);
     setSlideTotal(0);
@@ -342,6 +344,8 @@ export function HtmlPresentationPanel() {
       // ── Automatic overflow QA + repair before showing the deck ──
       setProgressStage('qa');
       setProgressMsg('正在做溢出质检...');
+      setDeckTitle(finalTitle);
+      setSlides(finalSlides); // Preserve generated pages even if the subsequent quality check fails.
       const checked = await runQualityLoop(finalSlides, finalTitle, selectedStyle, language);
 
       applySlides(finalTitle, selectedStyle, language, checked);
@@ -353,7 +357,7 @@ export function HtmlPresentationPanel() {
       if (abortControllerRef.current === abortController) abortControllerRef.current = null;
       setIsGenerating(false);
     }
-  }, [generationReadiness, getSelectedPapers, aiConfig, notebookId, selectedStyle, pageCount, language, runQualityLoop, applySlides]);
+  }, [generationReadiness, getSelectedPapers, aiConfig, notebookId, selectedStyle, pageCount, language, runQualityLoop, applySlides, slides]);
 
   const handleCancelGenerate = useCallback(() => {
     abortControllerRef.current?.abort();

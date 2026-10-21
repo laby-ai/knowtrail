@@ -1,4 +1,5 @@
 'use client';
+import { notifySuccess, notifyFailure, notifyWarning } from '@/lib/operation-feedback';
 import { UiText } from '@/components/account/UiText';
 import { checkedApiFetch, responseFailureMessage } from '@/lib/api-response';
 import { folderRows } from '@/lib/folder-hierarchy';
@@ -569,9 +570,10 @@ export function LibraryPanel({
       if (removal.folderId) deleteFolder(removal.folderId);
       if (sourcePreview && removed.has(sourcePreview.paper.id)) setSourcePreview(null);
       setRemovalNotice(removal.ids.length ? `已从文献库删除 ${removal.ids.length} 个文献来源。` : '已删除空分组。');
+      notifySuccess(removal.ids.length ? `已删除 ${removal.ids.length} 个文献来源。` : '已删除空分组。');
       setRemoval(null);
     } catch (error) {
-      if (generation === libraryGenerationRef.current) setRemovalError(error instanceof Error ? error.message : '删除失败，请重试。');
+      if (generation === libraryGenerationRef.current) setRemovalError(notifyFailure(error, '删除失败，请重试。'));
     } finally {
       removalInFlightRef.current = false;
       if (generation === libraryGenerationRef.current) {
@@ -899,6 +901,10 @@ export function LibraryPanel({
 
       // First update upload items, then add papers separately (avoids setState during render)
       setUploadItems(newUploadItems);
+      const failedCount = newUploadItems.filter(item => item.status === 'error').length;
+      if (!failedCount) notifySuccess(`已上传 ${uploadedPapers.length} 个文件。`);
+      else if (uploadedPapers.length) notifyWarning(`已上传 ${uploadedPapers.length} 个文件，${failedCount} 个失败；可在上传进度中查看原因。`);
+      else notifyFailure(new Error(newUploadItems.find(item => item.error)?.error || '未能完成上传，请查看文件错误后重试。'), '上传失败。');
       uploadedPapers.forEach(paper => {
         addPaper(targetFolderId, paper);
         // Auto-select uploaded papers so AI can reference them immediately
@@ -906,7 +912,7 @@ export function LibraryPanel({
       });
       setTimeout(() => { void syncIngestionSources(); }, 0);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : '上传失败';
+      const errorMsg = notifyFailure(err, '上传失败');
       setUploadItems(prev => prev.map(item => ({ ...item, status: 'error' as const, progress: 100, error: errorMsg })));
     }
   }, [addPaper, togglePaperSelection, aiConfig, notebookId, syncIngestionSources]);

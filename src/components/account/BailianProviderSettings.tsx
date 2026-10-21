@@ -1,4 +1,5 @@
 'use client';
+import { notifySuccess, notifyFailure, notifyWarning } from '@/lib/operation-feedback';
 import { MODEL_PROVIDER_PRESETS, modelProviderPreset, type ModelProviderId } from '@/lib/model-provider-presets';
 import { checkedApiFetch } from '@/lib/api-response';
 
@@ -88,9 +89,10 @@ export function BailianProviderSettings({ session }: { session: AccountAuthSessi
           localStorage.setItem(key, JSON.stringify({ accountId, source: 'byok' }));
         } catch { /* The account service remains authoritative. */ }
         setMessage('模型配置已加密保存，并启用自带密钥。实际可用性以服务调用结果为准。');
-      } catch { setMessage('模型配置已保存，但暂未启用。请在“会员与用量”中将模型来源切换为自带密钥后重试。'); }
+        notifySuccess('模型配置已保存并启用自带密钥。');
+      } catch { const message = '模型配置已保存，但暂未启用。请在“会员与用量”中切换为自带密钥。'; setMessage(message); notifyWarning(message); }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '保存失败。');
+      setMessage(notifyFailure(error, '保存失败。'));
     } finally {
       setSaving(false);
     }
@@ -110,8 +112,9 @@ export function BailianProviderSettings({ session }: { session: AccountAuthSessi
       setWorkspaceId('');
       setApiKey('');
       setMessage('模型配置已移除。');
+      notifySuccess('模型配置已移除。');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '移除失败。');
+      setMessage(notifyFailure(error, '移除失败。'));
     } finally {
       setSaving(false);
     }

@@ -2,7 +2,7 @@
 
 import { clientApiRequest } from '@/lib/client-api';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, FileSearch, Search } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -11,6 +11,7 @@ import { accountAuthHeaders } from '@/lib/account-session-browser';
 import { notebookIdFromStorageScopeKey } from '@/lib/notebook-scope';
 import type { Citation, CitationAuditResult, Paper, RetrievalMetadata } from '@/types';
 import { StudioEvidenceStatusPanel } from './StudioEvidenceStatusPanel';
+import { useStudioTaskStatus } from './StudioTaskContext';
 import { StudioJobProgress, type StudioJobProgressStage } from './StudioJobProgress';
 
 type ResearchAnswerStatus = 'idle' | 'running' | 'complete' | 'incomplete' | 'error';
@@ -60,15 +61,19 @@ export function DeepResearchPanel() {
   const abortRef = useRef<AbortController | null>(null);
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
+  const [previousAnswer, setPreviousAnswer] = useState('');
   const [citations, setCitations] = useState<Citation[]>([]);
   const [retrieval, setRetrieval] = useState<RetrievalMetadata | null>(null);
   const [citationAudit, setCitationAudit] = useState<CitationAuditResult | null>(null);
   const [researchStatus, setResearchStatus] = useState<ResearchStatusPayload | null>(null);
   const [status, setStatus] = useState<ResearchAnswerStatus>('idle');
   const [stage, setStage] = useState('retrieving');
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState<number | undefined>(undefined);
   const [message, setMessage] = useState('填写研究问题后开始。');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+  useStudioTaskStatus({ id: 'deep-research', title: '深度研究', tool: 'deep-research', running: status === 'running', message, error, hasResult: Boolean(answer), partial: status === 'incomplete' || Boolean(error && previousAnswer) });
 
   const sourceSummary = useMemo(
     () => selectedPapers.slice(0, 3).map(paper => paper.shortName || paper.title).join('、'),
@@ -82,6 +87,7 @@ export function DeepResearchPanel() {
 
     const controller = new AbortController();
     abortRef.current = controller;
+    if (answer) setPreviousAnswer(answer);
     setAnswer('');
     setCitations([]);
     setRetrieval(null);
@@ -90,7 +96,7 @@ export function DeepResearchPanel() {
     setError(null);
     setStatus('running');
     setStage('retrieving');
-    setProgress(12);
+    setProgress(undefined);
     setMessage('正在核对选定来源和可检索片段。');
 
     let streamedAnswer = '';
@@ -144,7 +150,7 @@ export function DeepResearchPanel() {
           };
           if (payload.progress) {
             setStage(payload.progress.stage || 'writing');
-            setProgress(payload.progress.progress || 0);
+            setProgress(payload.progress.progress);
             setMessage(payload.progress.message || '正在进行深度研究。');
           }
           if (payload.citations) setCitations(payload.citations);
@@ -183,7 +189,7 @@ export function DeepResearchPanel() {
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
-  }, [getSelectedPapers, notebookId, question, status]);
+  }, [getSelectedPapers, notebookId, question, status, answer]);
 
   const stopResearch = useCallback(() => {
     abortRef.current?.abort();
@@ -255,6 +261,7 @@ export function DeepResearchPanel() {
         </div>
       )}
 
+      {previousAnswer && <details className="rounded-xl border border-[var(--border-subtle)] p-4" data-testid="deep-research-previous-draft"><summary className="cursor-pointer text-sm font-medium">上次研究草稿（已保留）</summary><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words text-sm leading-7">{previousAnswer}</pre></details>}
       {answer && (
         <div className="space-y-3" data-testid="deep-research-result">
           <div className={status === 'complete'

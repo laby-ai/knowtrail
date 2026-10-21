@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { notifySuccess, notifyFailure } from '@/lib/operation-feedback';
 import { checkedApiFetch } from '@/lib/api-response';
 import { readStoredAccountSession } from '@/lib/account-session-browser';
 import { appPreferencesSchema, DEFAULT_APP_PREFERENCES, type AppPreferences } from '@/lib/app-preferences';
@@ -40,11 +41,14 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
   const save = useCallback(async (value: AppPreferences) => {
     const session = readStoredAccountSession();
     if (!session) throw new Error('请先登录。');
+    try {
     const response = await checkedApiFetch('/api/account/app-preferences', { method: 'PUT', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
     if (!response.ok) throw new Error('设置保存失败，请重试。');
     const next = appPreferencesSchema.parse(await response.json());
     if (readStoredAccountSession()?.token !== session.token) return;
     setPreferences(next);
+    notifySuccess(value.interfaceLanguage === 'en' ? 'Settings saved' : '设置已保存');
+    } catch (failure) { throw new Error(notifyFailure(failure, '设置保存失败，请重试。')); }
   }, []);
   return <Context.Provider value={{ preferences, ready, error, save }}>{children}</Context.Provider>;
 }

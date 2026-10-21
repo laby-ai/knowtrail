@@ -40,6 +40,7 @@ export function StudioJobProgress({
   testId = 'studio-job-progress',
   indeterminate = false,
 }: StudioJobProgressProps) {
+  indeterminate = status === 'running' && (indeterminate || typeof progressPercentOverride !== 'number');
   const currentStageIndex = Math.max(0, stages.findIndex(stage => stage.key === currentStageKey));
   const activeStageIndex = currentStageIndex === -1 ? 0 : currentStageIndex;
   const progressPercent = status === 'succeeded'
