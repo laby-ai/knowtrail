@@ -98,8 +98,11 @@ export function accountLoginUrl(): string {
 
 async function parseResponseBody(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) return response.json().catch(() => null);
-  return response.text().catch(() => '');
+  if (contentType.includes('application/json')) return response.json().catch((error: unknown) => {
+    if (error instanceof SyntaxError) return null;
+    throw error;
+  });
+  return response.text();
 }
 
 function messageFromPayload(payload: unknown, fallback: string): string {
@@ -139,7 +142,12 @@ function delegatePaperHostLogin(payload: unknown): boolean {
   }
 }
 
-async function executeFetch(path: string, options: ClientApiOptions): Promise<Response> {
+async function executeFetch<T>(
+  path: string,
+  options: ClientApiOptions,
+  readResponse: (response: Response) => Promise<T>,
+  handOffStream = false,
+): Promise<T> {
   const {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     redirectOnUnauthorized = true,
@@ -164,7 +172,7 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
     timedOut = true;
     controller.abort(new DOMException('Request timed out', 'TimeoutError'));
   }, timeoutMs);
-  let responseReturned = false;
+  let streamReturned = false;
 
   try {
     const response = await fetch(clientApiPath(path), {
@@ -181,12 +189,13 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
       if (!delegatedToPaperHost && redirectOnUnauthorized && typeof window !== 'undefined') window.location.replace(accountLoginUrl());
       throw httpError(response, payload);
     }
-    responseReturned = true;
-    return response;
+    const result = await readResponse(response);
+    streamReturned = handOffStream;
+    return result;
   } catch (error) {
-    if (error instanceof ClientRequestError) throw error;
     if (timedOut) throw new ClientRequestError('request_timeout', 'timeout');
     if (callerSignal?.aborted) throw new ClientRequestError('request_cancelled', 'cancelled');
+    if (error instanceof ClientRequestError) throw error;
     throw new ClientRequestError(
       error instanceof Error ? error.message : 'network_error',
       'network',
@@ -195,32 +204,35 @@ async function executeFetch(path: string, options: ClientApiOptions): Promise<Re
     );
   } finally {
     clearTimeout(timeout);
-    if (!responseReturned) callerSignal?.removeEventListener('abort', abortFromCaller);
+    // Full-body requests end here; raw streams remain cancellable by their consumer.
+    if (!streamReturned) callerSignal?.removeEventListener('abort', abortFromCaller);
   }
 }
 
 export async function clientApiRequest(path: string, options: ClientApiOptions = {}): Promise<Response> {
-  return executeFetch(path, options);
+  return executeFetch(path, options, async (response) => response, true);
 }
 
 export async function clientApiFetch<T>(path: string, options: ClientApiOptions = {}): Promise<T> {
-  const response = await executeFetch(path, options);
-  const payload = await parseResponseBody(response);
-  if (!response.ok) throw httpError(response, payload);
-  if (payload === null || payload === '') {
-    throw new ClientRequestError('invalid_response_payload', 'invalid_payload', response.status);
-  }
-  return payload as T;
+  return executeFetch(path, options, async (response) => {
+    const payload = await parseResponseBody(response);
+    if (!response.ok) throw httpError(response, payload);
+    if (payload === null || payload === '') {
+      throw new ClientRequestError('invalid_response_payload', 'invalid_payload', response.status);
+    }
+    return payload as T;
+  });
 }
 
 export async function clientApiDownloadBlob(path: string, options: ClientApiOptions = {}): Promise<Blob> {
-  const response = await executeFetch(path, options);
-  if (!response.ok) throw httpError(response, await parseResponseBody(response), 'download_error');
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    throw httpError(response, await parseResponseBody(response), 'download_error');
-  }
-  const blob = await response.blob();
-  if (blob.size === 0) throw new ClientRequestError('empty_download', 'download_error', response.status);
-  return blob;
+  return executeFetch(path, options, async (response) => {
+    if (!response.ok) throw httpError(response, await parseResponseBody(response), 'download_error');
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      throw httpError(response, await parseResponseBody(response), 'download_error');
+    }
+    const blob = await response.blob();
+    if (blob.size === 0) throw new ClientRequestError('empty_download', 'download_error', response.status);
+    return blob;
+  });
 }
