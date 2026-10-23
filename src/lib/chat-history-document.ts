@@ -4,6 +4,7 @@ import { isResearchChatSkillId, type ResearchChatSkillId } from '@/lib/research-
 
 export interface ChatHistoryDocument { messages: ChatMessage[]; draft: string; mode: ResearchChatSkillId | null }
 export const emptyChatHistory = (): ChatHistoryDocument => ({ messages: [], draft: '', mode: null });
+export const restoreChatDraft = (saved: ChatHistoryDocument, pending: ChatHistoryDocument): ChatHistoryDocument => ({ ...saved, draft: pending.draft, mode: pending.mode });
 export function isChatHistoryDocument(value: unknown): value is ChatHistoryDocument {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<ChatHistoryDocument>;

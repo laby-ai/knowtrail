@@ -384,7 +384,7 @@ export function EditorPanel({ compact = false }: { compact?: boolean }) {
         </div>
       </div>}
 
-      <div data-testid="chat-save-status"><SavedToolStatus saved={chatPersistence} guest={storageScopeKey.startsWith('guest:')} /></div>
+      <div data-testid="chat-save-status"><SavedToolStatus saved={chatPersistence} guest={storageScopeKey.startsWith('guest:')} conflictLabel="读取最新对话并保留输入草稿" /></div>
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <ChatView

@@ -53,7 +53,7 @@ export function StudioSavedOutputs({ onOpen }: { onOpen: (output: StudioSavedOut
 
   const current = state.scope === storageScopeKey ? state : null;
   const rows = Object.values(current?.rows || {}).filter((row): row is StudioSavedOutput => Boolean(row)).sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
-  const errors = Object.values(current?.errors || {}).filter(Boolean);
+  const errors = [...new Set(Object.values(current?.errors || {}).filter(Boolean))];
   return <section className="studio-saved-outputs" data-testid="studio-saved-outputs" aria-labelledby="studio-saved-heading">
     <div className="studio-saved-heading"><h3 id="studio-saved-heading">已生成</h3><span>各工具最近保存</span></div>
     {(current?.loading || !current) && !guest && <p role="status">正在读取…</p>}

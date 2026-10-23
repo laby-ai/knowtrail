@@ -59,10 +59,12 @@ export function MessageItem({
 
   return (
     <div
+      role="article"
+      aria-label={isUser ? '我的提问' : '助手回答'}
       data-testid={`chat-message-${message.id}`}
       className={`quiet-message ${isUser ? 'quiet-message-user' : 'quiet-message-assistant'} flex items-start gap-4 ${isUser ? 'flex-row-reverse' : ''} animate-fade-in-up`}
     >
-      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+      <div aria-hidden="true" className={`quiet-message-avatar w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
         isUser ? 'liquid-glass-inset' : 'bg-blue-500/10'
       }`}>
         {isUser ? (compact ? <UserRound size={20} /> : <span className="text-xs font-semibold text-[var(--text-tertiary)]">U</span>) : <Sparkles className="h-4 w-4 text-blue-400" />}
