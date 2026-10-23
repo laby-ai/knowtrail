@@ -28,8 +28,9 @@
 .quiet-library .library-source-card:hover > button:last-child, .quiet-library .library-source-card:focus-within > button:last-child { opacity: 1; }
 .quiet-library > div:last-of-type { border-top-color: transparent; }
 .quiet-library .quiet-add-source { height: 48px; font-size: 16px; border-color: #a7c2ff; background: #f3f7ff; }
-.quiet-research-workbench .quiet-message > div:first-child { width: 44px; height: 44px; border-radius: 50%; box-shadow: none; background: #eaf2ff; color: #61738d; }
-.quiet-research-workbench .quiet-message > div:first-child > svg { width: 22px; height: 22px; }
+.quiet-research-workbench .quiet-message-avatar { width: 44px; height: 44px; border-radius: 50%; box-shadow: none; background: #eaf2ff; color: #61738d; }
+.quiet-research-workbench .quiet-message-avatar > svg { width: 22px; height: 22px; }
+.quiet-research-workbench .quiet-message-assistant > .quiet-message-avatar { display: none; }
 .quiet-research-workbench .quiet-message-user .liquid-glass-static { font-size: 20px; line-height: 1.6; padding: 16px 20px; }
 .quiet-research-workbench .quiet-message-user p { font-size: inherit; line-height: inherit; }
 .quiet-research-workbench .quiet-message-assistant { margin-right: 48px; }
@@ -206,7 +207,7 @@
   .quiet-research-workbench .quiet-chat-header { padding: 8px 16px; }
   .quiet-research-workbench [data-testid="chat-scroll"] { padding: 20px 16px; }
   .quiet-research-workbench [data-testid^="chat-message-"] { gap: 8px; }
-  .quiet-research-workbench [data-testid^="chat-message-"] > div:first-child { width: 24px; height: 24px; flex-shrink: 0; }
+  .quiet-research-workbench .quiet-message-avatar { width: 24px; height: 24px; flex-shrink: 0; }
   .quiet-research-workbench [data-testid="chat-composer-shell"] { padding: 8px; }
   .quiet-research-workbench [data-testid="chat-composer-shell"] textarea { font-size: 16px; }
 }

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { normalizeNotebookId } from '@/lib/notebook-scope';
+import { isChatHistoryDocument } from '@/lib/chat-history-document';
 
 export interface PrivateNotebookScope {
   ownerMemberId: string;
@@ -36,7 +37,13 @@ export async function readNotebookDocument<T>(scope: PrivateNotebookScope, name:
   let raw: string;
   try { raw = await readFile(path.join(root, revision ? `${revision}.json` : 'current.json'), 'utf8'); }
   catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (revision && name === 'chat-history') {
+        const current = await readNotebookDocument<T>(scope, name);
+        return current?.revision === revision ? current : null;
+      }
+      return null;
+    }
     throw error;
   }
   const saved = JSON.parse(raw) as NotebookDocument<T>;
@@ -69,8 +76,13 @@ export async function saveNotebookDocument<T>(scope: PrivateNotebookScope, name:
     if ((previous?.revision || null) !== expectedRevision) throw new NotebookDocumentConflict();
     const saved = { revision, updatedAt: new Date().toISOString(), data };
     await mkdir(root, { recursive: true, mode: 0o700 });
-    // Keep each content version; publish current only after its version is complete.
-    await atomicWrite(path.join(root, `${revision}.json`), JSON.stringify(saved));
+    // Chat drafts and in-flight responses replace recovery state, not permanent history.
+    const keepVersion = name !== 'chat-history' || (isChatHistoryDocument(data)
+      && data.messages.length > 0 && !data.messages.some(item => item.generation?.status === 'pending')
+      && (!isChatHistoryDocument(previous?.data) || JSON.stringify(previous.data.messages) !== JSON.stringify(data.messages)));
+    if (keepVersion && (name !== 'chat-history' || !await readNotebookDocument(scope, name, revision))) {
+      await atomicWrite(path.join(root, `${revision}.json`), JSON.stringify(saved));
+    }
     await atomicWrite(path.join(root, 'current.json'), JSON.stringify(saved));
     return saved;
   });

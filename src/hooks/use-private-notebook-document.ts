@@ -17,6 +17,7 @@ interface Options<T> {
   validate: (value: unknown) => value is T;
   readLegacy?: (scopeKey: string) => T | null;
   preferSaved?: (saved: T, pending: T) => boolean;
+  restorePending?: (saved: T, pending: T) => T;
   openSavedRequest?: { revision: string };
   busy?: boolean;
 }
@@ -27,7 +28,7 @@ function message(error: unknown): string {
     : error instanceof Error ? error.message : '内容暂时无法保存或读取，请重试。';
 }
 
-export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empty, validate, readLegacy, preferSaved, openSavedRequest, busy = false }: Options<T>) {
+export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empty, validate, readLegacy, preferSaved, restorePending, openSavedRequest, busy = false }: Options<T>) {
   const notebookId = notebookIdFromStorageScopeKey(scopeKey);
   const guest = scopeKey.startsWith('guest:');
   const [data, setData] = useState<T>(empty);
@@ -37,7 +38,7 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
   const [conflict, setConflict] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
   const [readFailed, setReadFailed] = useState(false);
-  const [readRequest, setReadRequest] = useState<{ attempt: number; revision?: string }>({ attempt: 0 });
+  const [readRequest, setReadRequest] = useState<{ attempt: number; revision?: string; restorePending?: boolean }>({ attempt: 0 });
   const [savedVersionNotice, setSavedVersionNotice] = useState(false);
   const handledOpenRequest = useRef<typeof openSavedRequest>(undefined);
   const current = useRef(data);
@@ -157,6 +158,7 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
           const cached = read(pendingKey) as Partial<PendingDocument<T>> | null;
           if (cached && validate(cached.data) && (cached.expectedRevision === null || typeof cached.expectedRevision === 'string')) cachedPending = cached as PendingDocument<T>;
         } catch { /* Invalid browser cache cannot authorize or replace server content. */ }
+        if (cachedPending) { remember(cachedPending.data); cachePending(cachedPending); }
         const query = new URLSearchParams({ notebookId });
         if (readRequest.revision) query.set('revision', readRequest.revision);
         const response = await clientApiRequest(`${endpoint}${endpoint.includes('?') ? '&' : '?'}${query}`, { headers: accountAuthHeaders(), signal: controller.signal, redirectOnUnauthorized: false });
@@ -166,6 +168,9 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
         if (readRequest.revision && (!response.ok || payload.document?.revision !== readRequest.revision)) throw new Error(payload.error || '所选保存版本暂时无法读取，请重试。');
         if (response.status !== 404 && (!response.ok || !payload.document || !validate(payload.document.data))) throw new Error(payload.error || '内容暂时无法读取，请重试。');
         const saved = response.status === 404 ? null : payload.document!;
+        if (saved && cachedPending && readRequest.restorePending && restorePending) {
+          cachedPending = { data: restorePending(saved.data, cachedPending.data), expectedRevision: saved.revision };
+        }
         if (cachedPending && !(saved && preferSaved?.(saved.data, cachedPending.data))) {
           remember(cachedPending.data);
           cachePending(cachedPending);
@@ -190,7 +195,7 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
       if (timer.current !== null) window.clearTimeout(timer.current);
       requests.forEach(item => item.abort()); requests.clear();
     };
-  }, [acceptSaved, readRequest, cachePending, empty, endpoint, guest, notebookId, pendingKey, preferSaved, readLegacy, remember, scopeKey, snapshotKey, validate, write]);
+  }, [acceptSaved, readRequest, cachePending, empty, endpoint, guest, notebookId, pendingKey, preferSaved, readLegacy, remember, restorePending, scopeKey, snapshotKey, validate, write]);
 
   const updateLocal = useCallback((change: (previous: T) => T) => {
     if (!active.current) return;
@@ -222,5 +227,5 @@ export function usePrivateNotebookDocument<T>({ scopeKey, toolId, endpoint, empt
     savedVersionNotice, canReadSavedVersion: !busy && !loading && !saving && !unsaved && !readFailed && !conflict,
     readSelectedVersion: () => { if (openSavedRequest) readSavedVersion(openSavedRequest.revision); },
     retry: () => void save(), retryRead: () => setReadRequest(previous => ({ ...previous, attempt: previous.attempt + 1 })),
-    reload: () => { clearPending(); setReadRequest(previous => ({ attempt: previous.attempt + 1 })); } };
+    reload: () => { if (!restorePending) clearPending(); setReadRequest(previous => ({ attempt: previous.attempt + 1, restorePending: Boolean(restorePending) })); } };
 }

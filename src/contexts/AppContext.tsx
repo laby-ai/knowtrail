@@ -26,7 +26,7 @@ import type {
 } from '@/types';
 import { CHAT_HISTORY_LIMIT } from '@/lib/chat-generation-lifecycle';
 import { usePrivateNotebookDocument } from '@/hooks/use-private-notebook-document';
-import { emptyChatHistory, isChatHistoryDocument, legacyChatHistory, type ChatHistoryDocument } from '@/lib/chat-history-document';
+import { emptyChatHistory, isChatHistoryDocument, legacyChatHistory, restoreChatDraft, type ChatHistoryDocument } from '@/lib/chat-history-document';
 import type { StudioGenerationState } from '@/lib/studio-generation-readiness';
 import {
   parseStoredSourceSelection,
@@ -225,7 +225,7 @@ export function AppProvider({
     selectedPapers: initialSelectedPaperIds,
     activeFolderId: initialFolders[0]?.id || null,
   }));
-  const chatPersistence = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'chat-history', endpoint: '/api/studio/artifacts?kind=chat-history', empty: emptyChatHistory, validate: isChatHistoryDocument, readLegacy: legacyChatHistory });
+  const chatPersistence = usePrivateNotebookDocument({ scopeKey: storageScopeKey, toolId: 'chat-history', endpoint: '/api/studio/artifacts?kind=chat-history', empty: emptyChatHistory, validate: isChatHistoryDocument, readLegacy: legacyChatHistory, restorePending: restoreChatDraft });
   const { update: updateChatHistory } = chatPersistence;
   const [sourceSelectionLoaded, setSourceSelectionLoaded] = useState(false);
   const [sourceSyncState, setSourceSyncState] = useState<'idle' | 'syncing' | 'error'>('syncing');
