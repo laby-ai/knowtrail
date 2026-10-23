@@ -1575,8 +1575,8 @@ export function LibraryPanel({
 
       {/* Create folder dialog */}
       {isCreatingFolder && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--bg-primary)]/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsCreatingFolder(false)}>
-          <div className="readable-dialog liquid-glass-card max-h-[90dvh] w-[300px] overflow-y-auto p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-glass-overlay absolute inset-0 z-50 flex items-center justify-center bg-[var(--bg-primary)]/60 backdrop-blur-sm animate-fade-in" onClick={() => setIsCreatingFolder(false)}>
+          <div className="modal-glass-surface readable-dialog liquid-glass-card max-h-[90dvh] w-[300px] overflow-y-auto p-6 animate-scale-in" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2"><UiText>新建文献分组</UiText></h3>
             <p className="text-xs text-zinc-500 mb-4"><UiText>按课题、实验或组会主题组织文献、网页和笔记来源。</UiText></p>
             <input
@@ -1601,7 +1601,7 @@ export function LibraryPanel({
       {/* Source chunks detail */}
       {sourcePreview && (
         <div
-          className="absolute inset-0 z-[80] flex items-center justify-center bg-[var(--bg-primary)]/65 p-4 backdrop-blur-sm animate-fade-in"
+          className="modal-glass-overlay absolute inset-0 z-[80] flex items-center justify-center bg-[var(--bg-primary)]/65 p-4 backdrop-blur-sm animate-fade-in"
           onClick={() => {
             setSourcePreview(null);
             setSourcePreviewFocus(null);
@@ -1609,7 +1609,7 @@ export function LibraryPanel({
         >
           <div
             data-testid="library-source-detail-panel"
-            className="readable-dialog liquid-glass-card flex max-h-[82vh] w-full max-w-[420px] flex-col p-0 animate-scale-in"
+            className="modal-glass-surface readable-dialog liquid-glass-card flex max-h-[82vh] w-full max-w-[420px] flex-col p-0 animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-4 py-3.5">
