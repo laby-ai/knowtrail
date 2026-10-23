@@ -242,8 +242,8 @@ export function SlideAnnotationEditor({
   ];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-sm p-4" style={{ background: 'var(--dialog-overlay)' }} data-testid="slide-annotation-editor">
-      <div className="flex max-h-[94vh] w-full max-w-5xl flex-col gap-3 rounded-2xl border border-white/10 bg-[var(--bg-primary)] p-4 shadow-2xl">
+    <div className="modal-glass-overlay fixed inset-0 z-[60] flex items-center justify-center backdrop-blur-sm p-4" style={{ background: 'var(--dialog-overlay)' }} data-testid="slide-annotation-editor">
+      <div className="modal-glass-surface readable-dialog flex max-h-[94vh] w-full max-w-5xl flex-col gap-3 rounded-2xl border border-white/10 bg-[var(--bg-primary)] p-4 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="min-w-0">

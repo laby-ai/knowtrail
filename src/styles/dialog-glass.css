@@ -1,0 +1,71 @@
+/* One material for every modal shell, including the legacy custom dialogs.
+ * !important is deliberate: feature panels previously supplied opaque inline
+ * backgrounds. Keep layout/preview surfaces and semantic status colors local. */
+:root {
+  --modal-glass-fill: rgba(27, 30, 43, 0.9);
+  --modal-glass-solid: #1b1e2b;
+  --modal-glass-border: rgba(255, 255, 255, 0.18);
+  --modal-glass-highlight: rgba(255, 255, 255, 0.1);
+  --modal-glass-shadow: 0 2px 8px rgba(0, 0, 0, 0.18), 0 28px 80px rgba(0, 0, 0, 0.34);
+  --modal-glass-radius: 22px;
+  --modal-overlay-fill: rgba(5, 8, 18, 0.5);
+}
+
+:root[data-theme="light"] {
+  --modal-glass-fill: rgba(249, 250, 255, 0.9);
+  --modal-glass-solid: #f9faff;
+  --modal-glass-border: rgba(255, 255, 255, 0.76);
+  --modal-glass-highlight: rgba(255, 255, 255, 0.92);
+  --modal-glass-shadow: 0 2px 8px rgba(29, 35, 58, 0.08), 0 28px 80px rgba(29, 35, 58, 0.2);
+  --modal-overlay-fill: rgba(25, 30, 48, 0.22);
+}
+
+:is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="sheet-content"], [data-slot="drawer-content"], .modal-glass-surface) {
+  background: var(--modal-glass-fill) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--modal-glass-border) !important;
+  box-shadow: inset 0 1px 0 var(--modal-glass-highlight), var(--modal-glass-shadow) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(140%) !important;
+  backdrop-filter: blur(24px) saturate(140%) !important;
+}
+
+:is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], .modal-glass-surface) {
+  border-radius: var(--modal-glass-radius) !important;
+  border-width: 1px;
+  border-style: solid;
+}
+
+:is([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="drawer-overlay"], .modal-glass-overlay) {
+  background: var(--modal-overlay-fill) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+  backdrop-filter: blur(6px) !important;
+}
+
+/* No decorative pseudo-elements over modal controls or evidence previews. */
+:is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], .modal-glass-surface)::before,
+:is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], .modal-glass-surface)::after { content: none !important; }
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="sheet-content"], [data-slot="drawer-content"], .modal-glass-surface) {
+    background: var(--modal-glass-solid) !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="sheet-content"], [data-slot="drawer-content"], .modal-glass-surface) {
+    background: var(--modal-glass-solid) !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+  :is([data-slot="dialog-overlay"], [data-slot="alert-dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="drawer-overlay"], .modal-glass-overlay) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is([data-slot="dialog-content"], [data-slot="alert-dialog-content"], [data-slot="sheet-content"], [data-slot="drawer-content"], .modal-glass-surface, .modal-glass-overlay) {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -121,33 +121,33 @@ export function BailianProviderSettings({ session }: { session: AccountAuthSessi
   }
 
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-950" data-testid="bailian-provider-settings">
-      <header className="border-b border-slate-200 px-5 py-4">
+    <section className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--glass-subtle)] text-[var(--text-primary)]" data-testid="bailian-provider-settings">
+      <header className="border-b border-[var(--border-subtle)] px-5 py-4">
         <h3 className="text-sm font-semibold">模型配置</h3>
-        <p className="mt-1 text-xs leading-5 text-slate-500">API Key 加密保存，仅供当前账号生成内容时使用。</p>
-        <p className="mt-2 text-xs text-slate-600">{loading ? '正在读取配置…' : profile.configured ? `当前保存：${modelProviderPreset(profile.provider_id).label} ${profile.secret_mask || ''}` : '尚未配置'}</p>
+        <p className="mt-1 text-xs leading-5 text-[var(--text-tertiary)]">API Key 加密保存，仅供当前账号生成内容时使用。</p>
+        <p className="mt-2 text-xs text-[var(--text-secondary)]">{loading ? '正在读取配置…' : profile.configured ? `当前保存：${modelProviderPreset(profile.provider_id).label} ${profile.secret_mask || ''}` : '尚未配置'}</p>
       </header>
       <div className="space-y-4 px-5 py-4">
-        <label className="block text-sm font-medium text-slate-800">模型服务
-          <select aria-label="模型服务" data-testid="model-provider-select" disabled={loading || saving} value={providerId} onChange={event => { setProviderId(modelProviderPreset(event.target.value).id); setApiKey(''); setMessage('请粘贴新选择服务的 API Key，保存后生效。'); }} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-3 text-sm">{MODEL_PROVIDER_PRESETS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
+        <label className="block text-sm font-medium text-[var(--text-primary)]">模型服务
+          <select aria-label="模型服务" data-testid="model-provider-select" disabled={loading || saving} value={providerId} onChange={event => { setProviderId(modelProviderPreset(event.target.value).id); setApiKey(''); setMessage('请粘贴新选择服务的 API Key，保存后生效。'); }} className="mt-1.5 w-full rounded-md border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-3 text-sm">{MODEL_PROVIDER_PRESETS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select>
         </label>
-        <p className="text-xs leading-5 text-slate-500">选择服务后粘贴对应 Key 即可，接口地址和默认模型自动匹配。同一账号当前使用一组自带密钥配置；保存会替换现有配置并启用自带密钥。供应商可能直接收取调用费用。请使用所选平台的标准 API Key，并确认已开通默认模型；编程套餐等专用密钥可能不通用。</p>
-        <label className="block text-sm font-medium text-slate-800">
+        <p className="text-xs leading-5 text-[var(--text-tertiary)]">选择服务后粘贴对应 Key 即可，接口地址和默认模型自动匹配。同一账号当前使用一组自带密钥配置；保存会替换现有配置并启用自带密钥。供应商可能直接收取调用费用。请使用所选平台的标准 API Key，并确认已开通默认模型；编程套餐等专用密钥可能不通用。</p>
+        <label className="block text-sm font-medium text-[var(--text-primary)]">
           API Key
-          <input disabled={loading || saving} type="password" value={apiKey} onChange={event => setApiKey(event.target.value)} autoComplete="off" placeholder={profile.configured ? `重新填写以替换 ${profile.secret_mask || '现有 Key'}` : 'sk-...'} className="mt-1.5 h-10 w-full rounded-md border border-slate-300 px-3 font-mono text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" data-testid="bailian-api-key" />
+          <input disabled={loading || saving} type="password" value={apiKey} onChange={event => setApiKey(event.target.value)} autoComplete="off" placeholder={profile.configured ? `重新填写以替换 ${profile.secret_mask || '现有 Key'}` : 'sk-...'} className="mt-1.5 h-10 w-full rounded-md border border-[var(--input-border)] px-3 font-mono text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" data-testid="bailian-api-key" />
         </label>
-        {providerId === 'aliyun-bailian' && <details className="text-sm text-slate-600"><summary className="cursor-pointer">高级选项（百炼绘图、语音需要）</summary><label className="mt-3 block">业务空间 ID<input disabled={loading || saving} value={workspaceId} onChange={event => setWorkspaceId(event.target.value)} placeholder="使用百炼绘图或语音时填写" className="mt-1.5 h-10 w-full rounded-md border border-slate-300 px-3 font-mono text-sm" data-testid="bailian-workspace-id" /></label></details>}
+        {providerId === 'aliyun-bailian' && <details className="text-sm text-[var(--text-secondary)]"><summary className="cursor-pointer">高级选项（百炼绘图、语音需要）</summary><label className="mt-3 block">业务空间 ID<input disabled={loading || saving} value={workspaceId} onChange={event => setWorkspaceId(event.target.value)} placeholder="使用百炼绘图或语音时填写" className="mt-1.5 h-10 w-full rounded-md border border-[var(--input-border)] px-3 font-mono text-sm" data-testid="bailian-workspace-id" /></label></details>}
 
-        <div className="grid gap-2 rounded-md bg-slate-50 p-3 text-xs sm:grid-cols-3">
-          <div><span className="text-slate-500">文本</span><strong className="mt-1 block break-all text-slate-800">{preview.model}</strong></div>
-          <div><span className="text-slate-500">科研绘图</span><strong className="mt-1 block break-all text-slate-800">{providerId === 'aliyun-bailian' && !workspaceId.trim() ? '需在高级选项填写业务空间 ID' : preview.image || '此服务配置不提供绘图'}</strong></div>
-          <div><span className="text-slate-500">语音</span><strong className="mt-1 block break-all text-slate-800">{providerId === 'aliyun-bailian' && !workspaceId.trim() ? '需在高级选项填写业务空间 ID' : preview.tts || '此服务配置不提供语音'}</strong></div>
+        <div className="grid gap-2 rounded-md bg-[var(--glass-subtle)] p-3 text-xs sm:grid-cols-3">
+          <div><span className="text-[var(--text-tertiary)]">文本</span><strong className="mt-1 block break-all text-[var(--text-primary)]">{preview.model}</strong></div>
+          <div><span className="text-[var(--text-tertiary)]">科研绘图</span><strong className="mt-1 block break-all text-[var(--text-primary)]">{providerId === 'aliyun-bailian' && !workspaceId.trim() ? '需在高级选项填写业务空间 ID' : preview.image || '此服务配置不提供绘图'}</strong></div>
+          <div><span className="text-[var(--text-tertiary)]">语音</span><strong className="mt-1 block break-all text-[var(--text-primary)]">{providerId === 'aliyun-bailian' && !workspaceId.trim() ? '需在高级选项填写业务空间 ID' : preview.tts || '此服务配置不提供语音'}</strong></div>
         </div>
 
-        {message && <p className="flex items-start gap-2 text-xs leading-5 text-slate-600" role="status"><AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none" />{message}</p>}
+        {message && <p className="flex items-start gap-2 text-xs leading-5 text-[var(--text-secondary)]" role="status"><AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-none" />{message}</p>}
       </div>
 
-      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 px-5 py-3">
+      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-subtle)] bg-[var(--glass-subtle)] px-5 py-3">
         {profile.configured ? <button type="button" onClick={() => void revoke()} disabled={saving || loading} className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"><Trash2 className="h-3.5 w-3.5" />移除配置</button> : <span />}
         <div className="flex gap-2">
           <button type="button" onClick={() => void save()} disabled={saving || loading} className="inline-flex h-9 items-center gap-2 rounded-md bg-slate-950 px-4 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60">{saving && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}加密保存</button>

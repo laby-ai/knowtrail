@@ -23,11 +23,11 @@ export function SourceGuideModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-[var(--bg-primary)]/62 p-4 backdrop-blur-sm animate-fade-in"
+      className="modal-glass-overlay fixed inset-0 z-[120] flex items-center justify-center bg-[var(--bg-primary)]/62 p-4 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="readable-dialog liquid-glass-card max-h-[92vh] w-[min(560px,100%)] overflow-y-auto rounded-3xl p-6 animate-scale-in"
+        className="modal-glass-surface readable-dialog liquid-glass-card max-h-[92vh] w-[min(560px,100%)] overflow-y-auto rounded-3xl p-6 animate-scale-in"
         onClick={(event) => event.stopPropagation()}
         data-testid="source-guide-modal"
       >

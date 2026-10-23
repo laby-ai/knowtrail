@@ -299,7 +299,7 @@ export function DiscoverSourcesModal({
   return (
     <div
       className={variant === 'modal'
-        ? 'fixed inset-0 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in'
+        ? 'modal-glass-overlay fixed inset-0 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in'
         : 'w-full'}
       style={variant === 'modal' ? { background: 'var(--dialog-overlay)' } : undefined}
       data-testid={variant === 'modal' ? 'discover-sources-modal' : 'paper-search-workspace'}
@@ -307,7 +307,7 @@ export function DiscoverSourcesModal({
     >
       <div
         className={variant === 'modal'
-          ? 'readable-dialog flex max-h-[86vh] w-full max-w-3xl flex-col gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in'
+          ? 'modal-glass-surface readable-dialog flex max-h-[86vh] w-full max-w-3xl flex-col gap-3 rounded-2xl border border-[var(--glass-border)] bg-[var(--bg-primary)] p-5 shadow-2xl animate-scale-in'
           : 'flex w-full flex-col gap-3'}
         onClick={e => e.stopPropagation()}
       >

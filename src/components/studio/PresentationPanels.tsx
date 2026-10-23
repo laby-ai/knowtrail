@@ -745,7 +745,7 @@ function PresentationPanel() {
       {/* ── Lightbox ── */}
       {lightboxIdx !== null && slides[lightboxIdx] && (
         <div
-          className="fixed inset-0 z-50 bg-[var(--bg-primary)]/95 backdrop-blur-sm flex items-center justify-center"
+          className="modal-glass-overlay fixed inset-0 z-50 bg-[var(--bg-primary)]/95 backdrop-blur-sm flex items-center justify-center"
           onClick={() => setLightboxIdx(null)}
         >
           {/* Close */}

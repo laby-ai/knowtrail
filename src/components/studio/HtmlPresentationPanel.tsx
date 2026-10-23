@@ -707,8 +707,8 @@ export function HtmlPresentationPanel() {
 
       {/* ── Re-layout dialog ── */}
       {relayoutIdx !== null && slides[relayoutIdx] && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" style={{ background: 'var(--dialog-overlay)' }} data-testid="html-ppt-relayout-dialog">
-          <div className="w-full max-w-2xl space-y-3 rounded-2xl border border-white/10 bg-[var(--bg-primary)] p-4 shadow-2xl">
+        <div className="modal-glass-overlay fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" style={{ background: 'var(--dialog-overlay)' }} data-testid="html-ppt-relayout-dialog">
+          <div className="modal-glass-surface readable-dialog w-full max-w-2xl space-y-3 rounded-2xl border border-white/10 bg-[var(--bg-primary)] p-4 shadow-2xl">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[var(--text-primary)]">重排此页 · {slides[relayoutIdx].title}</h3>
               <button onClick={() => setRelayoutIdx(null)} className="rounded-full p-2 text-[var(--text-tertiary)] hover:bg-[var(--glass-hover)]" aria-label="关闭">
