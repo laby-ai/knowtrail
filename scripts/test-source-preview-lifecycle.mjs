@@ -28,21 +28,28 @@ const paperB = { id: 'source-b', title: 'Source B' };
 const response = paper => ({ ok: true, json: async () => ({ source: { id: paper.id, chunks: [{ text: paper.title }] } }) });
 function setup() {
   const pending = [];
-  const state = { preview: null, focus: null };
+  const state = { preview: null, focus: null, activeSource: null };
+  const visibleSources = new Set([paperA.id, paperB.id]);
   const context = {
     AbortController, URLSearchParams, accountSession: null, accountAuthRequired: false, notebookId: 'reader-test',
     sourcePreviewRequestRef: { current: null }, localSourcePreviewFromPaper: () => null,
     setSourcePreview: value => { state.preview = value; }, setSourcePreviewFocus: value => { state.focus = value; },
     clientApiPath: path => '/knowtrail' + path,
     fetch: (url, init) => { const wait = deferred(); pending.push({ url, init, wait }); return wait.promise; },
+    document: { getElementById: id => {
+      const sourceId = id.replace('library-source-open-', '');
+      return visibleSources.has(sourceId) ? { focus: () => { state.activeSource = sourceId; } } : null;
+    } },
   };
-  return { ...vm.runInNewContext(js, context), pending, state };
+  Object.defineProperty(context, 'sourcePreview', { get: () => state.preview });
+  return { ...vm.runInNewContext(js, context), pending, state, visibleSources };
 }
 
 const closed = setup();
 const first = closed.open(paperA);
 assert.equal(closed.state.preview.status, 'loading');
 closed.close();
+assert.equal(closed.state.activeSource, paperA.id, 'Closing returns keyboard focus to the source being read');
 closed.pending[0].wait.resolve(response(paperA));
 await first;
 assert.equal(closed.state.preview, null, 'A late response must not reopen a natively closed reader');
@@ -67,6 +74,8 @@ switched.pending[0].wait.resolve(response(paperA));
 await older;
 assert.equal(switched.state.preview.paper.id, paperB.id, 'A slower previous source cannot replace the current source');
 assert.equal(switched.state.preview.source.id, paperB.id);
+switched.close();
+assert.equal(switched.state.activeSource, paperB.id, 'Closing after changing sources returns to the current source');
 
 const failed = setup();
 const failure = failed.open(paperA);
@@ -77,6 +86,17 @@ const retry = failed.open(paperA);
 failed.pending[1].wait.resolve(response(paperA));
 await retry;
 assert.equal(failed.state.preview.status, 'ready', 'Native retry can still finish');
+failed.close();
+assert.equal(failed.state.activeSource, paperA.id, 'Retry does not replace the source return target');
+
+const hidden = setup();
+const hiddenRead = hidden.open(paperA);
+hidden.visibleSources.delete(paperA.id);
+hidden.close();
+hidden.pending[0].wait.resolve(response(paperA));
+await hiddenRead;
+assert.equal(hidden.state.preview, null, 'A removed or filtered source can still close safely');
+assert.equal(hidden.state.activeSource, null, 'Closing does not focus an unrelated source');
 
 const unmounted = setup();
 const abandoned = unmounted.open(paperA);
@@ -85,4 +105,4 @@ unmounted.pending[0].wait.resolve(response(paperA));
 await abandoned;
 assert.equal(unmounted.state.preview.status, 'loading', 'Unmounted/scope-discarded callbacks must not commit a response');
 assert.equal(unmounted.pending[0].init.signal.aborted, true);
-console.log(JSON.stringify({ ok: true, actualComponentCallbacks: true, nativeCloseLateFetch: true, nativeCloseLateBody: true, latestSourceOwnsReader: true, visibleFailureAndRetry: true, scopeCleanup: true, externalRequests: 0, modelQualityAcceptance: false }));
+console.log(JSON.stringify({ ok: true, actualComponentCallbacks: true, nativeCloseLateFetch: true, nativeCloseLateBody: true, latestSourceOwnsReader: true, visibleFailureAndRetry: true, sourceFocusReturn: true, absentSourceSafeClose: true, scopeCleanup: true, externalRequests: 0, modelQualityAcceptance: false }));
