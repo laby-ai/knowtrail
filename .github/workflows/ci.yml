@@ -135,7 +135,9 @@ jobs:
         run: pnpm exec tsx scripts/test-learning-materials-recovery.ts
 
       - name: Image and HTML PPT recovery contract
-        run: pnpm exec tsx scripts/test-ppt-deck-recovery.ts
+        run: |
+          pnpm exec tsx scripts/test-ppt-deck-recovery.ts
+          node scripts/test-image-ppt-existing-flow.mjs
 
       - name: Conversation recovery contract
         run: pnpm exec tsx scripts/test-chat-history-recovery.ts
