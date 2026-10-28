@@ -262,6 +262,10 @@ function PresentationPanel() {
       <div className="absolute -top-20 left-[10%] w-[80%] h-48 bg-blue-600/[0.04] blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute top-32 -right-10 w-[50%] h-36 bg-amber-500/[0.03] blur-[100px] rounded-full pointer-events-none" />
 
+      <details open={slides.length === 0} className="space-y-4" data-testid="image-ppt-settings">
+        <summary className="cursor-pointer rounded-xl px-3 py-2 text-[12px] font-medium text-[var(--text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400">
+          {slides.length > 0 ? '重新生成设置' : '生成设置'}
+        </summary>
       {/* ── Style selector ── */}
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2 text-[12px] font-semibold text-[var(--text-secondary)]">
@@ -465,7 +469,7 @@ function PresentationPanel() {
             ? 'liquid-glass-btn text-[var(--text-tertiary)] cursor-not-allowed'
             : 'liquid-glass-btn !rounded-2xl !bg-gradient-to-r !from-amber-500 !to-amber-600 hover:!from-amber-400 hover:!to-amber-500 !text-black !border-0 active:scale-[0.98]'
         }`}
-        title={!generationReadiness.ready ? generationReadiness.message : hasSelectedPapers ? '一键生成图片简报' : '请先在左侧选择资料'}
+        title={!generationReadiness.ready ? generationReadiness.message : hasSelectedPapers ? (slides.length > 0 ? '重新生成图片简报' : '一键生成图片简报') : '请先在左侧选择资料'}
       >
         {isGenerating ? (
           <><Loader2 className="h-4 w-4 animate-spin" /> {progressMsg || 'AI 生成中...'}</>
@@ -474,9 +478,10 @@ function PresentationPanel() {
         ) : !hasSelectedPapers ? (
           <><Sparkles className="h-4 w-4" /> 先选择资料</>
         ) : (
-          <><Sparkles className="h-4 w-4" /> 生成图片简报</>
+          <><Sparkles className="h-4 w-4" /> {slides.length > 0 ? '重新生成图片简报' : '生成图片简报'}</>
         )}
       </button>
+      </details>
 
       {/* ── Progress steps ── */}
       {isGenerating && (
@@ -536,6 +541,14 @@ function PresentationPanel() {
       {/* ── Slides preview ── */}
       {slides.length > 0 ? (
         <div className="space-y-4">
+          <button
+            onClick={handleExportPPTX}
+            disabled={isExporting}
+            className="w-full py-3 rounded-2xl liquid-glass-btn text-[var(--text-primary)] text-[13px] font-medium flex items-center justify-center gap-2"
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExporting ? '导出中...' : '导出 PPTX'}
+          </button>
           {/* Main preview */}
           {currentSlide && (
             <div
@@ -646,14 +659,6 @@ function PresentationPanel() {
             </div>
           )}
 
-          <button
-            onClick={handleExportPPTX}
-            disabled={isExporting}
-            className="w-full py-3 rounded-2xl liquid-glass-btn text-[var(--text-primary)] text-[13px] font-medium flex items-center justify-center gap-2"
-          >
-            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {isExporting ? '导出中...' : '导出 PPTX'}
-          </button>
         </div>
       ) : !isGenerating ? (
         <div className="text-center py-16">
