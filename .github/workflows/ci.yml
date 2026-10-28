@@ -140,6 +140,9 @@ jobs:
       - name: Conversation recovery contract
         run: pnpm exec tsx scripts/test-chat-history-recovery.ts
 
+      - name: Simple chat entry rendering
+        run: pnpm exec tsx scripts/test-simple-chat-composer.ts
+
       - name: Deep research contracts
         run: pnpm run test:deep-research-contract
 
