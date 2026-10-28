@@ -801,7 +801,6 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
             {researchChatReadiness.message}
           </div>
         )}
-        {compact && <ResearchChatSkillSelector inline={compact} selectedSkillId={selectedChatSkill} onSelect={onSelectChatSkill} onClear={onClearChatSkill} disabled={isGenerating} />}
         <>
         <div
           data-testid="chat-composer-shell"
@@ -835,12 +834,12 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
           )}
 
           <div className="flex items-end gap-2 px-1 pb-0.5 pt-1">
-            {!compact && <ResearchChatSkillSelector
+            <ResearchChatSkillSelector
               selectedSkillId={selectedChatSkill}
               onSelect={onSelectChatSkill}
               onClear={onClearChatSkill}
               disabled={isGenerating}
-            />}
+            />
             {compact && <NotebookSourceSelector disabled={isGenerating} />}
             {isGenerating ? (
               <button
