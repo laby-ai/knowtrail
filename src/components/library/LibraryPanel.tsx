@@ -1264,6 +1264,7 @@ export function LibraryPanel({
                     >
                       <button
                         type="button"
+                        id={`library-source-open-${paper.id}`}
                         data-testid={`library-source-open-${paper.id}`}
                         aria-label={`打开来源${paper.title}`}
                         aria-pressed={sourcePreview?.paper.id === paper.id}
@@ -1668,9 +1669,11 @@ export function LibraryPanel({
               <button
                 type="button"
                 onClick={() => {
+                  const trigger = document.getElementById(`library-source-open-${sourcePreview.paper.id}`);
                   sourcePreviewRequestRef.current?.abort();
                   setSourcePreview(null);
                   setSourcePreviewFocus(null);
+                  trigger?.focus({ preventScroll: true });
                 }}
                 className="rounded-lg p-1.5 text-[var(--text-tertiary)] transition hover:bg-[var(--glass-hover)] hover:text-[var(--text-primary)]"
                 aria-label="关闭来源片段"
