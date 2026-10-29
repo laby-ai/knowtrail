@@ -43,8 +43,8 @@ assert.match(
 );
 assert.match(
   editorSource,
-  /data-testid="chat-composer-shell"[\s\S]*textarea[\s\S]*ResearchChatSkillSelector/,
-  'All modes remain reachable without replacing the conversation service',
+  /ResearchChatSkillSelector[\s\S]*data-testid="chat-composer-shell"[\s\S]*textarea/,
+  'All modes remain directly above the input without replacing the conversation service',
 );
 assert.match(editorSource, /clearChatSkill/, 'The selected Skill should be removable without clearing the draft');
 assert.match(editorSource, /sendQuestion\(draft, \{ skill: selectedChatSkill \}\)/, 'Normal chat submissions should use the selected Skill');

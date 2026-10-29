@@ -51,18 +51,16 @@
 .quiet-research-workbench .quiet-citation-toggle { min-height: 40px; padding: 6px 12px; font-size: 15px; gap: 8px; border: 1px solid #dce5f2; background: #f8fafd; border-radius: 8px; }
 .quiet-research-workbench .quiet-citation-toggle svg { width: 17px; height: 17px; }
 .quiet-research-workbench .quiet-composer-region { padding: 16px 22px 30px; border-top: 0; }
-.quiet-mode-bar { display: flex; flex-wrap: wrap; gap: 4px; max-width: 1120px; margin: 0 auto 10px; }
+.quiet-mode-bar { display: flex; flex-wrap: wrap; gap: 4px; max-width: 768px; margin: 0 auto 10px; }
 .quiet-mode-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 7px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #526581; font-size: 14px; white-space: nowrap; }
 .quiet-mode-bar button svg { width: 16px; height: 16px; flex-shrink: 0; }
 .quiet-mode-bar button:hover { background: #f3f6fb; color: #17243d; }
 .quiet-mode-bar button[aria-pressed="true"] { border-color: #c6d9ff; background: #edf4ff; color: #245dcb; }
 .quiet-mode-bar button:disabled { cursor: not-allowed; opacity: .55; }
+.quiet-mode-bar button:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 .quiet-research-workbench .quiet-composer[data-workspace-skill="false"] { display: flex; align-items: center; gap: 16px; min-height: 74px; }
 .quiet-research-workbench .quiet-composer[data-workspace-skill="false"] > div:last-child { display: contents; }
 .quiet-composer[data-workspace-skill="false"] textarea { order: 2; flex: 1; width: 0; border-left: 1px solid #e1e8f2; border-radius: 0; }
-.quiet-composer [data-testid="chat-skill-shortcuts"] { order: 0; flex: 0 0 auto; }
-.quiet-composer [data-testid="chat-mode-menu"] { height: 46px; font-size: 16px; color: #1b2c46; font-weight: 500; }
-.quiet-composer .chat-mode-icon { display: none; }
 .quiet-composer .quiet-chat-sources { order: 1; display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 10px; border: 1px solid #dce5f2; border-radius: 8px; flex-shrink: 0; font-size: 16px; color: #526581; white-space: nowrap; }
 .quiet-chat-sources > svg:first-child { color: #2d68f8; }
 .quiet-composer button[aria-label="发送问题"], .quiet-composer button[aria-label^="使用"], .quiet-composer [data-testid="chat-stop"] { order: 3; width: 46px; height: 46px; background: #2d68f8 !important; background-image: none !important; color: #fff !important; }
@@ -71,10 +69,10 @@
 @container (max-width: 680px) {
   .quiet-research-workbench .quiet-composer[data-workspace-skill="false"] { display: grid; grid-template-columns: auto 1fr auto; gap: 10px 12px; }
   .quiet-composer[data-workspace-skill="false"] textarea { grid-row: 1; grid-column: 1 / -1; width: 100%; border-left: 0; order: 0; }
-  .quiet-composer [data-testid="chat-skill-shortcuts"], .quiet-composer .quiet-chat-sources { grid-row: 2; }
+  .quiet-composer .quiet-chat-sources { grid-row: 2; }
   .quiet-composer button[aria-label="发送问题"], .quiet-composer button[aria-label^="使用"], .quiet-composer [data-testid="chat-stop"] { grid-row: 2; }
   .quiet-composer button[aria-label="发送问题"], .quiet-composer button[aria-label^="使用"], .quiet-composer [data-testid="chat-stop"] { grid-column: 3; }
-  .quiet-composer [data-testid="chat-mode-menu"], .quiet-composer .quiet-chat-sources { font-size: 14px; }
+  .quiet-composer .quiet-chat-sources { font-size: 14px; }
   .quiet-composer .quiet-chat-sources { gap: 5px; }
   .quiet-composer .quiet-chat-sources > svg:first-child { display: none; }
 }
@@ -171,7 +169,7 @@
 }
 @media (max-width: 767px) {
   .quiet-mode-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px; }
-  .quiet-mode-bar button { min-width: 0; min-height: 32px; padding: 5px 4px; gap: 4px; font-size: 13px; }
+  .quiet-mode-bar button { min-width: 0; min-height: 40px; padding: 5px 4px; gap: 4px; font-size: 13px; }
   .quiet-mode-bar button svg { width: 14px; height: 14px; }
   .quiet-research-workbench .quiet-composer [data-testid="chat-skill-workspace"] { max-height: min(38dvh, 340px); }
   .quiet-topbar { height: 58px; padding: 0 14px; }
@@ -181,7 +179,6 @@
   .quiet-account-mark { width: 34px; height: 34px; }
   .quiet-research-workbench .quiet-composer-region { padding: 10px 12px 16px; }
   .quiet-research-workbench .quiet-composer { column-gap: 8px; }
-  .quiet-composer [data-testid="chat-mode-menu"] { height: 38px; padding: 0 8px; font-size: 13px; gap: 5px; }
   .quiet-composer .quiet-chat-sources { font-size: 13px; gap: 4px; padding: 0; border: 0; height: 38px; }
   .quiet-composer button[aria-label="发送问题"], .quiet-composer button[aria-label^="使用"], .quiet-composer [data-testid="chat-stop"] { width: 36px; height: 36px; }
   .quiet-research-workbench .quiet-message-assistant { margin-right: 0; }

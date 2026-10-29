@@ -802,6 +802,12 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
           </div>
         )}
         <>
+        <ResearchChatSkillSelector
+          selectedSkillId={selectedChatSkill}
+          onSelect={onSelectChatSkill}
+          onClear={onClearChatSkill}
+          disabled={isGenerating}
+        />
         <div
           data-testid="chat-composer-shell"
           className={`${compact ? 'quiet-composer' : ''} mx-auto w-full rounded-[22px] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-2 shadow-[0_10px_28px_rgba(70,96,128,0.08)] transition focus-within:border-blue-400/55 focus-within:shadow-[0_12px_34px_rgba(59,130,246,0.12)]`}
@@ -834,12 +840,6 @@ function ChatView({ compact, messages, inputMessage, setInputMessage, onSend, on
           )}
 
           <div className="flex items-end gap-2 px-1 pb-0.5 pt-1">
-            <ResearchChatSkillSelector
-              selectedSkillId={selectedChatSkill}
-              onSelect={onSelectChatSkill}
-              onClear={onClearChatSkill}
-              disabled={isGenerating}
-            />
             {compact && <NotebookSourceSelector disabled={isGenerating} />}
             {isGenerating ? (
               <button
