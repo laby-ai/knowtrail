@@ -11,8 +11,8 @@ import subprocess
 import sys
 import tarfile
 
-FLOOR = 32_000_000_000
-RESERVE = 20_000_000
+FLOOR = 10_000_000_000
+RESERVE = 0
 ROOT_FILES = {'package.json', 'pnpm-lock.yaml', 'next.config.ts', 'tsconfig.json',
               'postcss.config.mjs', 'components.json', '.npmrc'}
 
