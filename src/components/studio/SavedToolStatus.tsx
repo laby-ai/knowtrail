@@ -21,6 +21,6 @@ export function SavedToolStatus({ saved, guest, conflictLabel = '读取已保存
     {saved.loading && <p className="text-xs" role="status">正在读取已保存内容…</p>}
     {saved.saving && <p className="text-xs" role="status">正在保存…</p>}
     {saved.error && <div className="rounded-xl border p-3 text-xs" role="alert"><p>{saved.error}</p><button type="button" className="mt-2 underline" onClick={saved.conflict ? saved.reload : saved.readFailed ? saved.retryRead : saved.retry}>{saved.conflict ? conflictLabel : saved.readFailed ? '重试读取' : '重试保存'}</button></div>}
-    {saved.unsaved && !saved.saving && !saved.error && <button type="button" className="text-xs underline" onClick={saved.retry}>内容尚未保存，重试保存</button>}
+    {saved.unsaved && !saved.loading && !saved.saving && !saved.error && <p className="text-xs text-[var(--text-secondary)]" role="status">等待自动保存…</p>}
   </>;
 }
