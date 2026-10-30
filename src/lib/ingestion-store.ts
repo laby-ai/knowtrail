@@ -296,6 +296,7 @@ export function buildSourceStoreFromPostgresRows(input: {
     const mineru = row.mineru_status || payload.mineru
       ? {
           status: row.mineru_status || payload.mineru?.status || 'not_configured',
+          batchId: payload.mineru?.batchId,
           figureCount: row.mineru_figure_count ?? payload.mineru?.figureCount,
           error: row.mineru_error || payload.mineru?.error,
           updatedAt: payload.mineru?.updatedAt || isoString(row.updated_at),
@@ -945,7 +946,7 @@ export async function deleteIngestionSource(
 export async function updateSourceMinerUStatus(
   sourceId: string,
   status: MinerUExtractionStatus,
-  details: { figureCount?: number; error?: unknown; apiKey?: string } = {},
+  details: { batchId?: string; figureCount?: number; error?: unknown; apiKey?: string } = {},
 ): Promise<StoredSourceRecord | undefined> {
   let updatedSource: StoredSourceRecord | undefined;
   await getSourceStoreAdapter().mutate(store => {
@@ -958,6 +959,7 @@ export async function updateSourceMinerUStatus(
         updatedAt,
         mineru: {
           status,
+          batchId: details.batchId ?? source.mineru?.batchId,
           figureCount: details.figureCount ?? source.mineru?.figureCount,
           error,
           updatedAt,

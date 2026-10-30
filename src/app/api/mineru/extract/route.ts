@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir, readFile } from 'fs/promises';
 import path from 'path';
+import { getIngestionSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
 import {
   downloadToTemp,
   isUsingObjectStorage,
@@ -375,24 +376,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'MinerU API Token 未配置' }, { status: 500 });
     }
 
-    console.log(`[MinerU] Starting extraction for paper: ${paperId}, file: ${fileName}, storage=${isUsingObjectStorage() ? 'object-storage' : 'local'}`);
-
-    // 确保文件在本地可访问（对象存储需要下载到 /tmp）
-    let localFilePath: string;
-    if (isUsingObjectStorage() && !effectiveFilePath.startsWith('/')) {
-      // 对象存储 key：下载到临时目录
-      const tempName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileName}`;
-      localFilePath = await downloadToTemp(effectiveFilePath, tempName);
-    } else if (effectiveFilePath.startsWith('/')) {
-      // 本地路径（开发环境）
-      localFilePath = path.join(process.cwd(), 'public', effectiveFilePath.replace(/^\//, ''));
-    } else {
-      // 已经是绝对路径
-      localFilePath = effectiveFilePath;
+    const source = await getIngestionSource(paperId);
+    if (!source) return NextResponse.json({ error: '来源已不存在，未启动解析。' }, { status: 404 });
+    if ((source.storageKey || source.fileUrl) !== effectiveFilePath || source.fileName !== fileName) {
+      return NextResponse.json({ error: '文件与原来源不一致，未启动解析。' }, { status: 409 });
     }
 
+    console.log(`[MinerU] Starting extraction for paper: ${paperId}, file: ${fileName}, storage=${isUsingObjectStorage() ? 'object-storage' : 'local'}`);
+
     // Step 1: Upload to MinerU
-    const { batchId } = await uploadToMinerU(localFilePath, fileName);
+    let batchId = source.mineru?.batchId;
+    if (!batchId) {
+      // 确保文件在本地可访问（对象存储需要下载到 /tmp）
+      let localFilePath: string;
+      if (isUsingObjectStorage() && !effectiveFilePath.startsWith('/')) {
+        // 对象存储 key：下载到临时目录
+        const tempName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileName}`;
+        localFilePath = await downloadToTemp(effectiveFilePath, tempName);
+      } else if (effectiveFilePath.startsWith('/')) {
+        // 本地路径（开发环境）
+        localFilePath = path.join(process.cwd(), 'public', effectiveFilePath.replace(/^\//, ''));
+      } else {
+        // 已经是绝对路径
+        localFilePath = effectiveFilePath;
+      }
+      batchId = (await uploadToMinerU(localFilePath, fileName)).batchId;
+      try {
+        const recorded = await updateSourceMinerUStatus(paperId, 'running', { batchId });
+        if (!recorded) return NextResponse.json({ error: '来源已不存在，已停止保存解析结果。' }, { status: 404 });
+      } catch {
+        return NextResponse.json({ error: '解析任务已提交，但任务记录保存失败，暂未重试。' }, { status: 409 });
+      }
+    }
 
     // Step 2: Poll for result
     const zipUrl = await pollExtractionResult(batchId);
