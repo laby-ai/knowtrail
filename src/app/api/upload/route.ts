@@ -77,7 +77,7 @@ async function triggerMinerUExtraction(paperId: string, fileKeyOrPath: string, f
     }, options.timeoutMs);
 
     try {
-      await updateSourceMinerUStatus(paperId, 'running');
+      await updateSourceMinerUStatus(paperId, 'running', { requestOnly: true });
       console.log(`[MinerU] Triggering background extraction for ${fileName} (paperId: ${paperId}, attempt=${attempt}/${maxAttempts})`);
       const res = await fetch(`${internalOrigin}/api/mineru/extract`, {
         method: 'POST',
@@ -98,7 +98,7 @@ async function triggerMinerUExtraction(paperId: string, fileKeyOrPath: string, f
           await sleep(options.retryDelayMs);
           continue;
         }
-        await updateSourceMinerUStatus(paperId, 'failed', { error: lastFailureMessage });
+        await updateSourceMinerUStatus(paperId, 'failed', { error: lastFailureMessage, requestOnly: true });
         return;
       }
 
@@ -106,6 +106,7 @@ async function triggerMinerUExtraction(paperId: string, fileKeyOrPath: string, f
       clearTimeout(timeout);
       await updateSourceMinerUStatus(paperId, 'succeeded', {
         figureCount: typeof data.figureCount === 'number' ? data.figureCount : 0,
+        requestOnly: true,
       });
       console.log(`[MinerU] Background extraction completed: ${data.figureCount || 0} figures extracted`);
       return;
@@ -121,12 +122,12 @@ async function triggerMinerUExtraction(paperId: string, fileKeyOrPath: string, f
         await sleep(options.retryDelayMs);
         continue;
       }
-      await updateSourceMinerUStatus(paperId, failure.category === 'timeout' ? 'failed' : 'error', { error: lastFailureMessage });
+      await updateSourceMinerUStatus(paperId, failure.category === 'timeout' ? 'failed' : 'error', { error: lastFailureMessage, requestOnly: true });
       return;
     }
   }
 
-  await updateSourceMinerUStatus(paperId, 'failed', { error: lastFailureMessage });
+  await updateSourceMinerUStatus(paperId, 'failed', { error: lastFailureMessage, requestOnly: true });
 }
 
 async function extractPdfText(filePath: string): Promise<string> {

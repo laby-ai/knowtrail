@@ -41,6 +41,7 @@ export interface VectorIndexRecord {
 export interface MinerUExtractionRecord {
   status: MinerUExtractionStatus;
   batchId?: string;
+  submissionStartedAt?: string;
   figureCount?: number;
   error?: string;
   updatedAt: string;

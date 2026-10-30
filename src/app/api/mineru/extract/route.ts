@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir, readFile } from 'fs/promises';
 import path from 'path';
-import { getIngestionSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
+import { claimSourceMinerUSubmission, getIngestionSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
 import {
   downloadToTemp,
   isUsingObjectStorage,
@@ -357,6 +357,7 @@ async function downloadAndParseZip(zipUrl: string, paperId: string): Promise<Ext
 // Route Handler
 // ============================================================
 export async function POST(request: NextRequest) {
+  let sourceId: string | undefined;
   try {
     const body = await request.json();
     const { paperId, filePath, fileKeyOrPath, fileName } = body as {
@@ -381,6 +382,7 @@ export async function POST(request: NextRequest) {
     if ((source.storageKey || source.fileUrl) !== effectiveFilePath || source.fileName !== fileName) {
       return NextResponse.json({ error: '文件与原来源不一致，未启动解析。' }, { status: 409 });
     }
+    sourceId = source.id;
 
     console.log(`[MinerU] Starting extraction for paper: ${paperId}, file: ${fileName}, storage=${isUsingObjectStorage() ? 'object-storage' : 'local'}`);
 
@@ -400,11 +402,21 @@ export async function POST(request: NextRequest) {
         // 已经是绝对路径
         localFilePath = effectiveFilePath;
       }
-      batchId = (await uploadToMinerU(localFilePath, fileName)).batchId;
+      const claim = await claimSourceMinerUSubmission(paperId, effectiveFilePath, fileName);
+      if (!claim.source) return NextResponse.json({ error: '来源已不存在，未启动解析。' }, { status: 404 });
+      if ((claim.source.storageKey || claim.source.fileUrl) !== effectiveFilePath || claim.source.fileName !== fileName) {
+        return NextResponse.json({ error: '文件与原来源不一致，未启动解析。' }, { status: 409 });
+      }
+      batchId = claim.source.mineru?.batchId;
+      if (!batchId && !claim.claimed) {
+        return NextResponse.json({ error: '原解析任务已提交或尚未确认，未重复提交。' }, { status: 409 });
+      }
+      if (!batchId) batchId = (await uploadToMinerU(localFilePath, fileName)).batchId;
       try {
         const recorded = await updateSourceMinerUStatus(paperId, 'running', { batchId });
         if (!recorded) return NextResponse.json({ error: '来源已不存在，已停止保存解析结果。' }, { status: 404 });
       } catch {
+        await updateSourceMinerUStatus(paperId, 'failed', { error: '解析任务记录保存失败，暂未重试。' }).catch(() => undefined);
         return NextResponse.json({ error: '解析任务已提交，但任务记录保存失败，暂未重试。' }, { status: 409 });
       }
     }
@@ -414,6 +426,7 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Download and parse
     const result = await downloadAndParseZip(zipUrl, paperId);
+    await updateSourceMinerUStatus(paperId, 'succeeded', { figureCount: result.figures.length });
 
     return NextResponse.json({
       success: true,
@@ -425,6 +438,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('[MinerU] Extraction error:', msg);
+    if (sourceId) await updateSourceMinerUStatus(sourceId, 'failed', { error: err, apiKey: MINERU_API_TOKEN }).catch(() => undefined);
     return NextResponse.json({ error: `MinerU 提取失败: ${msg}` }, { status: 500 });
   }
 }

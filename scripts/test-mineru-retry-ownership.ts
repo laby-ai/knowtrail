@@ -8,7 +8,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import JSZip from 'jszip';
 import { NextRequest, NextResponse } from 'next/server';
-import { ingestExtractedSource, getIngestionSource, updateSourceMinerUStatus, deleteIngestionSource, buildSourceStoreFromPostgresRows } from '../src/lib/ingestion-store';
+import { claimSourceMinerUSubmission, ingestExtractedSource, getIngestionSource, updateSourceMinerUStatus, deleteIngestionSource, buildSourceStoreFromPostgresRows } from '../src/lib/ingestion-store';
 import { classifyMinerUJobFailure } from '../src/lib/mineru-job';
 
 const root = new URL('../', import.meta.url);
@@ -53,7 +53,7 @@ async function main() {
   const post = load<(request: NextRequest) => Promise<NextResponse>>('src/app/api/mineru/extract/route.ts', 'POST', {
     process: localProcess, NextResponse, MINERU_API_TOKEN: 'fixture-only', isUsingObjectStorage: () => objectStorage,
     downloadToTemp: async () => { rawDownloads++; return path.join(directory, 'fixture.pdf'); },
-    getIngestionSource, updateSourceMinerUStatus: (...args: Parameters<typeof updateSourceMinerUStatus>) => checkpoint(...args),
+    getIngestionSource, claimSourceMinerUSubmission, updateSourceMinerUStatus: (...args: Parameters<typeof updateSourceMinerUStatus>) => checkpoint(...args),
     uploadToMinerU: async () => ({ batchId: 'batch-' + ++providerUploads, uploadUrl: 'https://upload-fixture.invalid' }),
     pollExtractionResult: (batch: string) => poll(batch), downloadAndParseZip: parse,
   });
@@ -149,8 +149,9 @@ async function main() {
       const store = buildSourceStoreFromPostgresRows({ sources: [{ id: source.id, file_name: source.fileName,
         file_type: source.fileType, title: source.title, short_name: source.shortName, vector_status: 'not_configured',
         status: source.status, created_at: source.createdAt, updated_at: source.updatedAt,
-        payload: { ...source, mineru: { status: 'running', batchId: 'fixture-persisted', updatedAt: source.updatedAt } } }], chunks: [], stages: [] });
+        payload: { ...source, mineru: { status: 'running', batchId: 'fixture-persisted', submissionStartedAt: source.createdAt, updatedAt: source.updatedAt } } }], chunks: [], stages: [] });
       assert.equal(Reflect.get(store.sources[0].mineru || {}, 'batchId'), 'fixture-persisted');
+      assert.equal(Reflect.get(store.sources[0].mineru || {}, 'submissionStartedAt'), source.createdAt);
     });
     console.log(JSON.stringify({ ok: !failures.length, passed, failures, observations, actualPostZipParserAndLocalMetadataWriter: true,
       actualLocalJsonSourceStore: true, providerAndScopeAreFixtures: true, externalRequests: 0, paidCalls: 0, realUploads: 0 }));
