@@ -22,7 +22,7 @@ const js = ts.transpileModule(`(${ts.createPrinter().printNode(ts.EmitHint.Expre
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.None },
 }).outputText;
 
-type Item = { id: string; status: string; progress: number; error?: string };
+type Item = { id: string; fileName: string; status: string; progress: number; error?: string };
 type ItemsUpdate = Item[] | ((items: Item[]) => Item[]);
 
 async function run(count: number, mode: 'success' | 'file-failure' | 'network-failure' = 'success') {
@@ -60,7 +60,7 @@ async function run(count: number, mode: 'success' | 'file-failure' | 'network-fa
     }
   }
   const context = {
-    File, FormData, Response, Headers, XMLHttpRequest: UploadXHR, Date, Set, Map, JSON,
+    File, FormData, Response, Headers, XMLHttpRequest: UploadXHR, Date, Set, Map, JSON, crypto,
     SUPPORTED_TYPES: { 'text/plain': 'txt' }, aiConfig: { model: 'fixture-only' }, notebookId: 'original-notebook',
     clientApiPath: (value: string) => value, accountAuthHeaders: () => ({}), uploadDiscoveredSourceFiles,
     setUploadItems: (update: ItemsUpdate) => { items = typeof update === 'function' ? update(items) : update; },
@@ -74,6 +74,78 @@ async function run(count: number, mode: 'success' | 'file-failure' | 'network-fa
   await upload(files, 'original-folder');
   timers.forEach(fn => fn());
   return { requests, added, selected, items, syncs };
+}
+
+async function overlapping(mode: 'early-success' | 'early-failure' | 'late-success') {
+  let items: Item[] = [];
+  const added: string[] = [];
+  const selected: string[] = [];
+  const timers: (() => void)[] = [];
+  const requests: DeferredXHR[] = [];
+  class DeferredXHR {
+    status = 0;
+    responseText = '';
+    files: File[] = [];
+    settled = false;
+    upload: { onprogress: (event: { lengthComputable: boolean; loaded: number; total: number }) => void } = { onprogress: () => {} };
+    onload = () => {};
+    onerror = () => {};
+    ontimeout = () => {};
+    open() {}
+    setRequestHeader() {}
+    send(body: FormData) { this.files = body.getAll('files') as File[]; requests.push(this); }
+    finish(failed = false) {
+      if (this.settled) return;
+      this.settled = true;
+      if (failed) { this.onerror(); return; }
+      this.status = 200;
+      this.responseText = JSON.stringify({ results: this.files.map(file => ({
+        id: `source-${file.name}`, title: file.name, authors: [], keywords: [],
+        content: `content ${file.name}`, shortName: file.name, fileName: file.name,
+        fileType: 'txt', fileSize: file.size, uploadTime: '2026-10-30T00:00:00.000Z',
+      })) });
+      this.onload();
+    }
+  }
+  const upload = vm.runInNewContext(js, {
+    File, FormData, Response, Headers, XMLHttpRequest: DeferredXHR, Date, Set, Map, JSON, crypto,
+    SUPPORTED_TYPES: { 'text/plain': 'txt' }, aiConfig: {}, notebookId: 'same-notebook',
+    clientApiPath: (value: string) => value, accountAuthHeaders: () => ({}), uploadDiscoveredSourceFiles,
+    setUploadItems: (update: ItemsUpdate) => { items = typeof update === 'function' ? update(items) : update; },
+    setShowUploadProgress: () => {},
+    addPaper: (folder: string, paper: Paper) => { assert.equal(folder, 'same-folder'); added.push(paper.id); },
+    togglePaperSelection: (id: string) => { selected.push(id); },
+    setTimeout: (callback: () => void) => { timers.push(callback); return timers.length; },
+    syncIngestionSources: () => {},
+  }) as (files: File[], folder: string) => Promise<void>;
+  const first = upload([new File(['first'], 'first.txt', { type: 'text/plain' })], 'same-folder');
+  const firstId = items[0].id;
+  const second = upload([new File(['second'], 'second.txt', { type: 'text/plain' })], 'same-folder');
+  const secondId = items[0].id;
+  try {
+    assert.equal(requests.length, 2);
+    if (mode === 'late-success') { requests[1].finish(); await second; }
+    requests[0].finish(mode === 'early-failure');
+    await first;
+    assert.equal(items[0].fileName, 'second.txt', 'An earlier batch must not replace the current batch feedback.');
+    assert.equal(items[0].status, mode === 'late-success' ? 'success' : 'uploading');
+    assert.notEqual(firstId, secondId, 'Concurrent progress rows need distinct transient identities.');
+    if (mode !== 'late-success') {
+      requests[1].upload.onprogress({ lengthComputable: true, loaded: 3, total: 4 });
+      assert.equal(items[0].progress, 75);
+    }
+    requests[1].finish();
+    await second;
+    timers.forEach(callback => callback());
+    assert.equal(items[0].status, 'success');
+    assert.equal(items[0].progress, 100);
+    assert.deepEqual([...added].sort(), mode === 'early-failure'
+      ? ['source-second.txt'] : ['source-first.txt', 'source-second.txt']);
+    assert.deepEqual([...selected].sort(), [...added].sort(), 'Both acknowledged batches keep the original source selection behavior.');
+  } finally {
+    requests.forEach(request => request.finish());
+    await Promise.allSettled([first, second]);
+  }
 }
 
 async function main() {
@@ -102,7 +174,13 @@ async function main() {
   assert.equal(interrupted.items.filter(item => item.status === 'error').length, 6);
   assert.match(interrupted.items[5].error || '', /503/);
   assert.match(interrupted.items[10].error || '', /尚未上传/);
-  console.log(JSON.stringify({ ok: true, actualComponentCallback: true, scenarios: 4, maxFilesPerRequest: 5, realNetworkRequests: 0, paidCalls: 0 }));
+  const failures: string[] = [];
+  for (const mode of ['early-success', 'early-failure', 'late-success'] as const) {
+    try { await overlapping(mode); }
+    catch (error) { failures.push(`${mode}: ${error instanceof Error ? error.message : String(error)}`); }
+  }
+  assert.deepEqual(failures, [], failures.join('\n'));
+  console.log(JSON.stringify({ ok: true, actualComponentCallback: true, scenarios: 7, overlapScenarios: 3, maxFilesPerRequest: 5, realNetworkRequests: 0, paidCalls: 0 }));
 }
 
 void main();

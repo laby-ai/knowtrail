@@ -760,11 +760,11 @@ export function LibraryPanel({
     if (!files.length) return;
     if (!targetFolderId) return;
 
-    const items: UploadItem[] = files.map((file, idx) => {
+    const items: UploadItem[] = files.map((file) => {
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
       const fileType = (Object.values(SUPPORTED_TYPES).includes(ext as FileType) ? ext : 'other') as FileType;
       return {
-        id: `upload-${Date.now()}-${idx}`,
+        id: `upload-${crypto.randomUUID()}`,
         fileName: file.name,
         fileType,
         fileSize: file.size,
@@ -813,7 +813,8 @@ export function LibraryPanel({
       });
 
       // First update upload items, then add papers separately (avoids setState during render)
-      setUploadItems(newUploadItems);
+      const completedItems = new Map(newUploadItems.map(item => [item.id, item]));
+      setUploadItems(prev => prev.map(item => completedItems.get(item.id) || item));
       outcome.papers.forEach(paper => {
         addPaper(targetFolderId, paper);
         // Auto-select uploaded papers so AI can reference them immediately
@@ -822,7 +823,10 @@ export function LibraryPanel({
       setTimeout(() => { void syncIngestionSources(); }, 0);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '上传失败';
-      setUploadItems(prev => prev.map(item => ({ ...item, status: 'error' as const, progress: 100, error: errorMsg })));
+      const failedIds = new Set(items.map(item => item.id));
+      setUploadItems(prev => prev.map(item => failedIds.has(item.id)
+        ? { ...item, status: 'error' as const, progress: 100, error: errorMsg }
+        : item));
     }
   }, [addPaper, togglePaperSelection, aiConfig, notebookId, syncIngestionSources]);
 
