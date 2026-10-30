@@ -126,6 +126,7 @@ jobs:
 
       - name: Library source sync writes
         run: |
+          pnpm exec tsx scripts/test-library-upload-batching.ts
           node scripts/test-library-source-sync.mjs
           node scripts/test-source-preview-lifecycle.mjs
           node scripts/test-source-sync-lifecycle.mjs
