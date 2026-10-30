@@ -426,7 +426,13 @@ export async function POST(request: NextRequest) {
 
     // Step 3: Download and parse
     const result = await downloadAndParseZip(zipUrl, paperId);
-    await updateSourceMinerUStatus(paperId, 'succeeded', { figureCount: result.figures.length });
+    try {
+      const recorded = await updateSourceMinerUStatus(paperId, 'succeeded', { figureCount: result.figures.length });
+      if (!recorded) return NextResponse.json({ error: '来源已不存在，未确认解析成功。' }, { status: 404 });
+    } catch (error) {
+      console.error('[MinerU] Result status persistence error:', error instanceof Error ? error.message : String(error));
+      return NextResponse.json({ error: '解析结果已保存，但任务状态保存失败，原任务暂未自动重试。' }, { status: 409 });
+    }
 
     return NextResponse.json({
       success: true,

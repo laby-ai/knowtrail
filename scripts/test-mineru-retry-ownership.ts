@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -143,6 +143,51 @@ async function main() {
       }
       finally { checkpoint = updateSourceMinerUStatus; }
       assert.equal(providerUploads, 1); assert.equal(zipDownloads, 0);
+    });
+    await run('saved result with a real terminal-write failure retains its batch for safe manual retry', async () => {
+      let writeErrorCode: unknown;
+      const permissionTarget = process.platform === 'win32' ? process.env.SOURCE_STORE_PATH! : directory;
+      checkpoint = async (...args) => {
+        if (args[1] !== 'succeeded') return updateSourceMinerUStatus(...args);
+        await chmod(permissionTarget, process.platform === 'win32' ? 0o444 : 0o500);
+        try { return await updateSourceMinerUStatus(...args); }
+        catch (error) {
+          writeErrorCode = error instanceof Error && 'code' in error ? error.code : undefined;
+          throw error;
+        } finally { await chmod(permissionTarget, process.platform === 'win32' ? 0o666 : 0o700); }
+      };
+      let response: NextResponse;
+      try { response = await post(request()); }
+      finally { checkpoint = updateSourceMinerUStatus; }
+      const disk = JSON.parse(await readFile(process.env.SOURCE_STORE_PATH!, 'utf8'));
+      const saved = disk.sources.find((source: { id: string }) => source.id === 'fixture-paper');
+      const metadataPath = path.join(directory, 'public/mineru-figures/fixture-paper/_metadata.json');
+      const metadataBeforeRetry = await readFile(metadataPath, 'utf8');
+      observations.terminalCommit = { responseStatus: response.status, writeErrorCode,
+        batchId: saved.mineru.batchId, status: saved.mineru.status, resultCaption: JSON.parse(metadataBeforeRetry)[0].caption };
+      assert.ok(['EACCES', 'EPERM'].includes(String(writeErrorCode)), 'Must observe a real filesystem permission failure');
+      assert.equal(response.status, 409, 'Saved extraction must not be reported as a new parsing failure');
+      assert.equal(classifyMinerUJobFailure({ status: response.status }).retryable, false);
+      assert.equal(saved.mineru.status, 'running'); assert.equal(saved.mineru.batchId, 'batch-1');
+      assert.equal((await post(request())).status, 200);
+      assert.equal(providerUploads, 1, 'Manual retry must resume the already-submitted batch');
+      assert.equal(await readFile(metadataPath, 'utf8'), metadataBeforeRetry);
+      const restored = await getIngestionSource('fixture-paper', scope);
+      assert.equal(restored?.mineru?.status, 'succeeded');
+      assert.equal(restored?.content, 'Existing fixture document with sufficient readable content.');
+    });
+    await run('source removed at terminal commit does not return successful extraction', async () => {
+      checkpoint = async (...args) => {
+        if (args[1] === 'succeeded') await deleteIngestionSource('fixture-paper', scope);
+        return updateSourceMinerUStatus(...args);
+      };
+      let response: NextResponse;
+      try { response = await post(request()); }
+      finally { checkpoint = updateSourceMinerUStatus; }
+      observations.removedAtTerminalCommit = { responseStatus: response.status, providerUploads };
+      assert.equal(response.status, 404);
+      assert.equal(await getIngestionSource('fixture-paper'), undefined);
+      assert.equal(providerUploads, 1);
     });
     await run('existing Postgres payload mapping retains optional job identity without schema migration', async () => {
       const source = await getIngestionSource('fixture-paper'); assert.ok(source);
