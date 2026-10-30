@@ -89,6 +89,7 @@ jobs:
       - name: Upload and file failure boundaries
         run: |
           pnpm exec tsx scripts/test-upload-access-boundary.ts
+          pnpm exec tsx scripts/test-upload-backend-lifecycle.ts
           pnpm exec tsx scripts/test-source-store-failure-safety.ts
           pnpm exec tsx scripts/test-image-extraction-failure.ts
           pnpm exec tsx scripts/test-file-access-boundary.ts

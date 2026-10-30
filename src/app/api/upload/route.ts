@@ -85,10 +85,9 @@ async function triggerMinerUExtraction(paperId: string, fileKeyOrPath: string, f
         body: JSON.stringify({ paperId, fileKeyOrPath, fileName }),
         signal: controller.signal,
       });
-      clearTimeout(timeout);
-
       if (!res.ok) {
         const errText = await res.text().catch(() => 'unknown');
+        clearTimeout(timeout);
         const failure = classifyMinerUJobFailure({
           status: res.status,
           message: `MinerU request failed (${res.status}): ${errText}`,
@@ -104,6 +103,7 @@ async function triggerMinerUExtraction(paperId: string, fileKeyOrPath: string, f
       }
 
       const data = await res.json();
+      clearTimeout(timeout);
       await updateSourceMinerUStatus(paperId, 'succeeded', {
         figureCount: typeof data.figureCount === 'number' ? data.figureCount : 0,
       });
@@ -363,7 +363,9 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        request.signal.throwIfAborted();
         const buffer = Buffer.from(await file.arrayBuffer());
+        request.signal.throwIfAborted();
 
         // 保存文件（开发环境→本地，生产环境→S3）
         const { key: fileKey, localPath } = await storeFile(
@@ -388,6 +390,7 @@ export async function POST(request: NextRequest) {
 
         // 提取文件内容
         let fileContent = await readFileContent(localFilePath, ext);
+        request.signal.throwIfAborted();
 
         // 所有 PDF 都走视觉模型识别（不管 pdf-parse 是否提取到文本）
         // 原因：pdf-parse 只能提取纯文本，无法理解图表/公式/图片
@@ -466,6 +469,7 @@ export async function POST(request: NextRequest) {
         let analysis = null;
         let analysisError = '图片内容尚未识别，请稍后重新上传。';
         const needsAIAnalysis = shouldAnalyzeUploadWithAI(ext, fileContent);
+        request.signal.throwIfAborted();
         if (needsAIAnalysis) try {
           // 对文本类文件，发送提取的文本内容（截断到 15000 字符以适应 LLM 上下文）
           // 对图片文件，发送 base64
@@ -495,6 +499,7 @@ export async function POST(request: NextRequest) {
         } catch (analyzeErr) {
           console.error('[Upload] AI analysis failed:', analyzeErr instanceof Error ? analyzeErr.message : 'unknown');
         }
+        request.signal.throwIfAborted();
         if (isImageType(ext) && !(typeof analysis?.content === 'string' && analysis.content.trim())) {
           const failed = await recordSourceExtractionFailure({
             id: `paper-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
