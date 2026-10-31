@@ -760,11 +760,11 @@ export function LibraryPanel({
     if (!files.length) return;
     if (!targetFolderId) return;
 
-    const items: UploadItem[] = files.map((file, idx) => {
+    const items: UploadItem[] = files.map((file) => {
       const ext = file.name.split('.').pop()?.toLowerCase() || '';
       const fileType = (Object.values(SUPPORTED_TYPES).includes(ext as FileType) ? ext : 'other') as FileType;
       return {
-        id: `upload-${Date.now()}-${idx}`,
+        id: `upload-${crypto.randomUUID()}`,
         fileName: file.name,
         fileType,
         fileSize: file.size,
@@ -778,64 +778,44 @@ export function LibraryPanel({
     setUploadItems(prev => prev.map(item => ({ ...item, status: 'uploading' as const, progress: 0 })));
 
     try {
-      const formData = new FormData();
-      files.forEach(file => formData.append('files', file));
-      if (notebookId) formData.append('notebookId', notebookId);
-      formData.append('aiConfig', JSON.stringify(aiConfig));
-
-      // XHR instead of fetch so we can surface real byte-level upload progress.
-      const data = await new Promise<{ results?: Array<Paper & { error?: string }> }>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', clientApiPath('/api/upload'));
-        Object.entries(accountAuthHeaders()).forEach(([key, value]) => xhr.setRequestHeader(key, value));
-        xhr.upload.onprogress = (e) => {
-          if (!e.lengthComputable) return;
-          const pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
-          setUploadItems(prev => prev.map(item => (item.status === 'uploading' ? { ...item, progress: pct } : item)));
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('服务器响应解析失败')); }
-          } else {
-            reject(new Error(`上传失败(HTTP ${xhr.status})`));
-          }
-        };
-        xhr.onerror = () => reject(new Error('网络错误,上传中断'));
-        xhr.ontimeout = () => reject(new Error('上传超时'));
-        xhr.send(formData);
+      let batchOffset = 0;
+      const outcome = await uploadDiscoveredSourceFiles({
+        files, notebookId,
+        // Keep byte-level progress while sharing batching and result validation with discovered sources.
+        request: (input, init) => new Promise<Response>((resolve, reject) => {
+          const formData = init?.body as FormData;
+          formData.append('aiConfig', JSON.stringify(aiConfig));
+          const batchLength = formData.getAll('files').length;
+          const batchIds = new Set(items.slice(batchOffset, batchOffset + batchLength).map(item => item.id));
+          batchOffset += batchLength;
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', String(input));
+          new Headers(init?.headers).forEach((value, key) => xhr.setRequestHeader(key, value));
+          xhr.upload.onprogress = (e) => {
+            if (!e.lengthComputable) return;
+            const pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+            setUploadItems(prev => prev.map(item => (batchIds.has(item.id) ? { ...item, progress: pct } : item)));
+          };
+          xhr.onload = () => resolve(new Response(xhr.responseText, { status: xhr.status }));
+          xhr.onerror = () => reject(new Error('网络错误,上传中断'));
+          xhr.ontimeout = () => reject(new Error('上传超时'));
+          xhr.send(formData);
+        }),
       });
 
-      // Collect papers first, then batch add outside setState
-      const uploadedPapers: Paper[] = [];
+      const papersByFile = new Map(outcome.successfulFileIndexes.map((index, order) => [index, outcome.papers[order]]));
+      let errorIndex = 0;
       const newUploadItems = items.map((item, idx) => {
-        const result = data.results?.[idx];
-        if (result?.error) return { ...item, status: 'error' as const, progress: 100, error: result.error };
-        if (result) {
-          const paper: Paper = {
-            id: result.id, title: result.title, authors: result.authors, year: result.year,
-            keywords: result.keywords, abstract: result.abstract, content: result.content,
-            journal: result.journal, doi: result.doi,
-            rawContent: result.rawContent,
-            shortName: result.shortName, fileName: result.fileName, fileType: result.fileType,
-            fileSize: result.fileSize, fileUrl: result.fileUrl, fileKey: result.fileKey,
-            uploadTime: result.uploadTime,
-            mineruFigures: result.mineruFigures || [],
-            mineruStatus: result.mineruStatus,
-            mineru: result.mineru,
-            ingestionStatus: result.ingestionStatus,
-            ingestionStages: result.ingestionStages,
-            ingestionChunkCount: result.ingestionChunkCount,
-            vectorIndex: result.vectorIndex,
-          };
-          uploadedPapers.push(paper);
-          return { ...item, status: 'success' as const, progress: 100, paper };
-        }
-        return { ...item, status: 'error' as const, progress: 100, error: '未知错误' };
+        const paper = papersByFile.get(idx);
+        return paper
+          ? { ...item, status: 'success' as const, progress: 100, paper }
+          : { ...item, status: 'error' as const, progress: 100, error: outcome.errors[errorIndex++] || '未知错误' };
       });
 
       // First update upload items, then add papers separately (avoids setState during render)
-      setUploadItems(newUploadItems);
-      uploadedPapers.forEach(paper => {
+      const completedItems = new Map(newUploadItems.map(item => [item.id, item]));
+      setUploadItems(prev => prev.map(item => completedItems.get(item.id) || item));
+      outcome.papers.forEach(paper => {
         addPaper(targetFolderId, paper);
         // Auto-select uploaded papers so AI can reference them immediately
         setTimeout(() => togglePaperSelection(paper.id), 0);
@@ -843,7 +823,10 @@ export function LibraryPanel({
       setTimeout(() => { void syncIngestionSources(); }, 0);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '上传失败';
-      setUploadItems(prev => prev.map(item => ({ ...item, status: 'error' as const, progress: 100, error: errorMsg })));
+      const failedIds = new Set(items.map(item => item.id));
+      setUploadItems(prev => prev.map(item => failedIds.has(item.id)
+        ? { ...item, status: 'error' as const, progress: 100, error: errorMsg }
+        : item));
     }
   }, [addPaper, togglePaperSelection, aiConfig, notebookId, syncIngestionSources]);
 

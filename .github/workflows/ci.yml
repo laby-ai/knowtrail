@@ -89,6 +89,9 @@ jobs:
       - name: Upload and file failure boundaries
         run: |
           pnpm exec tsx scripts/test-upload-access-boundary.ts
+          pnpm exec tsx scripts/test-upload-backend-lifecycle.ts
+          pnpm exec tsx scripts/test-mineru-retry-ownership.ts
+          pnpm exec tsx scripts/test-mineru-first-submission.ts
           pnpm exec tsx scripts/test-source-store-failure-safety.ts
           pnpm exec tsx scripts/test-image-extraction-failure.ts
           pnpm exec tsx scripts/test-file-access-boundary.ts
@@ -126,6 +129,7 @@ jobs:
 
       - name: Library source sync writes
         run: |
+          pnpm exec tsx scripts/test-library-upload-batching.ts
           node scripts/test-library-source-sync.mjs
           node scripts/test-source-preview-lifecycle.mjs
           node scripts/test-source-sync-lifecycle.mjs

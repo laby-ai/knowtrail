@@ -296,6 +296,8 @@ export function buildSourceStoreFromPostgresRows(input: {
     const mineru = row.mineru_status || payload.mineru
       ? {
           status: row.mineru_status || payload.mineru?.status || 'not_configured',
+          batchId: payload.mineru?.batchId,
+          submissionStartedAt: payload.mineru?.submissionStartedAt,
           figureCount: row.mineru_figure_count ?? payload.mineru?.figureCount,
           error: row.mineru_error || payload.mineru?.error,
           updatedAt: payload.mineru?.updatedAt || isoString(row.updated_at),
@@ -942,15 +944,44 @@ export async function deleteIngestionSource(
   return deleted;
 }
 
+export async function claimSourceMinerUSubmission(
+  sourceId: string, fileKey: string, fileName: string,
+): Promise<{ source?: StoredSourceRecord; claimed: boolean }> {
+  const result: { source?: StoredSourceRecord; claimed: boolean } = { claimed: false };
+  await getSourceStoreAdapter().mutate(store => ({
+    ...store,
+    sources: store.sources.map(source => {
+      if (source.id !== sourceId) return source;
+      result.source = source;
+      if ((source.storageKey || source.fileUrl) !== fileKey || source.fileName !== fileName
+        || source.mineru?.batchId || source.mineru?.submissionStartedAt) return source;
+      const updatedAt = nowIso();
+      result.source = {
+        ...source, updatedAt,
+        mineru: { ...source.mineru, status: 'running', submissionStartedAt: updatedAt, error: undefined, updatedAt },
+        stages: setStage(source.stages, 'mineru', 'running'),
+      };
+      result.claimed = true;
+      return result.source;
+    }),
+  }));
+  return result;
+}
+
 export async function updateSourceMinerUStatus(
   sourceId: string,
   status: MinerUExtractionStatus,
-  details: { figureCount?: number; error?: unknown; apiKey?: string } = {},
+  details: { batchId?: string; figureCount?: number; error?: unknown; apiKey?: string; requestOnly?: boolean } = {},
 ): Promise<StoredSourceRecord | undefined> {
   let updatedSource: StoredSourceRecord | undefined;
   await getSourceStoreAdapter().mutate(store => {
     const sources = store.sources.map(source => {
       if (source.id !== sourceId) return source;
+      if ((details.requestOnly && (source.mineru?.submissionStartedAt || source.mineru?.batchId))
+        || (source.mineru?.status === 'succeeded' && status !== 'succeeded')) {
+        updatedSource = source;
+        return source;
+      }
       const error = details.error ? safeErrorMessage(details.error, details.apiKey) : undefined;
       const updatedAt = nowIso();
       const nextSource: StoredSourceRecord = {
@@ -958,6 +989,8 @@ export async function updateSourceMinerUStatus(
         updatedAt,
         mineru: {
           status,
+          batchId: details.batchId ?? source.mineru?.batchId,
+          submissionStartedAt: source.mineru?.submissionStartedAt,
           figureCount: details.figureCount ?? source.mineru?.figureCount,
           error,
           updatedAt,
