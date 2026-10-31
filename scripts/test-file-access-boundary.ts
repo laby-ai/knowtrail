@@ -101,6 +101,12 @@ async function main() {
         if (row.status === 200) { assert.equal(payload.paperId, 'gillon-2017'); assert.equal(payload.figures[0].caption, 'Original fixture caption'); }
         else assert.equal(payload.figures, undefined);
       });
+      await checkRead('local figure URLs stay inside the configured KnowTrail route', async () => {
+        const response = await readFigure('userId=fixture; token=valid');
+        const payload = await response.json();
+        assert.equal(payload.figures[0].imageUrl, '/knowtrail/mineru-figures/gillon-2017/fig-1.png');
+        assert.equal(payload.figures[0].localPath, 'mineru-figures/gillon-2017/fig-1.png');
+      });
       await checkRead('figure responses cannot be shared or retained by HTTP caches', async () => {
         const response = await readFigure('userId=fixture; token=valid');
         readObservations.cacheControl = response.headers.get('cache-control');
@@ -176,11 +182,18 @@ async function main() {
         { name: 'runtime other owner figure bytes denied', resource: '/mineru-figures/gillon-2017/fig-1.png', cookie: 'userId=other; token=valid', status: 404 },
         { name: 'runtime own existing figure bytes remain readable', resource: '/mineru-figures/gillon-2017/fig-1.png', cookie: 'userId=fixture; token=valid', status: 200 },
         { name: 'runtime prefixed figure route has the same ownership contract', resource: '/knowtrail/mineru-figures/gillon-2017/fig-1.png', cookie: 'userId=fixture; token=valid', status: 200 },
+        { name: 'runtime encoded figure prefix cannot fall through to static serving', resource: '/knowtrail/%6dineru-figures/gillon-2017/fig-1.png', cookie: undefined, status: 401 },
+        { name: 'runtime encoded figure separator cannot fall through to static serving', resource: '/knowtrail/mineru-figures%2Fgillon-2017/fig-1.png', cookie: undefined, status: 401 },
+        { name: 'runtime encoded root figure separator requires ownership', resource: '/mineru-figures%2Fgillon-2017/fig-1.png', cookie: undefined, status: 401 },
+        { name: 'runtime encoded figure prefix rejects another owner', resource: '/knowtrail/%6dineru-figures/gillon-2017/fig-1.png', cookie: 'userId=other; token=valid', status: 404 },
+        { name: 'runtime original owner reads the encoded figure prefix', resource: '/knowtrail/%6dineru-figures/gillon-2017/fig-1.png', cookie: 'userId=fixture; token=valid', status: 200 },
+        { name: 'runtime original owner reads the encoded figure separator', resource: '/knowtrail/mineru-figures%2Fgillon-2017/fig-1.png', cookie: 'userId=fixture; token=valid', status: 200 },
       ]) await checkRead(row.name, async () => {
         const result = await readRuntime(row.resource, row.cookie);
         readObservations[row.name] = { status: result.status, bytes: result.body.length, cache: result.cache };
         assert.equal(result.status, row.status);
-        if (row.status === 200) { assert.deepEqual(result.body, figureBytes); assert.match(result.cache, /private.*no-store/); }
+        assert.match(result.cache, /private.*no-store/);
+        if (row.status === 200) { assert.deepEqual(result.body, figureBytes); }
         else assert.notDeepEqual(result.body, figureBytes);
       });
       await checkRead('runtime figure HEAD retains length without a body', async () => {
@@ -189,6 +202,10 @@ async function main() {
       });
       await checkRead('runtime original private upload stays readable', async () => {
         const result = await readRuntime('/knowtrail/uploads/' + encodeURIComponent(path.basename(stored.key)), 'userId=fixture; token=valid');
+        assert.equal(result.status, 200); assert.equal(result.body.toString(), 'TRAPPIST-1 reading notes'); assert.match(result.cache, /private.*no-store/);
+      });
+      await checkRead('runtime encoded upload prefix decodes special filenames only once', async () => {
+        const result = await readRuntime('/knowtrail/%75ploads/' + encodeURIComponent(path.basename(stored.key)), 'userId=fixture; token=valid');
         assert.equal(result.status, 200); assert.equal(result.body.toString(), 'TRAPPIST-1 reading notes'); assert.match(result.cache, /private.*no-store/);
       });
       await checkRead('runtime canonical figure path cannot traverse into another source', async () => {

@@ -547,7 +547,10 @@ export async function GET(request: NextRequest) {
       paperId,
       status: imageFiles.length > 0 ? 'done' : 'pending',
       figureCount: imageFiles.length,
-      figures,
+      figures: figures.map(fig => ({
+        ...fig,
+        imageUrl: fig.imageUrl.startsWith('/mineru-figures/') ? `${(process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/+$/, '')}${fig.imageUrl}` : fig.imageUrl,
+      })),
     }, { headers: privateHeaders });
   } catch {
     return NextResponse.json({
