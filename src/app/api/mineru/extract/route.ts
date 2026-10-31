@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir, readFile } from 'fs/promises';
 import path from 'path';
 import { claimSourceMinerUSubmission, getIngestionSource, updateSourceMinerUStatus } from '@/lib/ingestion-store';
+import { resolveAccountNotebookScope } from '@/lib/account-request-scope';
 import {
   downloadToTemp,
   isUsingObjectStorage,
@@ -453,10 +454,18 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const paperId = searchParams.get('paperId');
+  const privateHeaders = { 'Cache-Control': 'private, no-store' };
+  const scope = await resolveAccountNotebookScope(request, {
+    notebookId: searchParams.get('notebookId'),
+    loginMessage: '请先登录国科大科教平台，再读取资料图表。',
+  });
+  if (!scope.ok) return scope.response;
 
   if (!paperId) {
-    return NextResponse.json({ error: '缺少 paperId 参数' }, { status: 400 });
+    return NextResponse.json({ error: '缺少 paperId 参数' }, { status: 400, headers: privateHeaders });
   }
+  const source = await getIngestionSource(paperId, { ownerMemberId: scope.ownerMemberId, notebookId: scope.notebookId });
+  if (!source) return NextResponse.json({ error: '来源不存在或无权访问。' }, { status: 404, headers: privateHeaders });
 
   if (isUsingObjectStorage()) {
     // 对象存储：通过统一 storage provider 读取元数据和签名 URL
@@ -499,14 +508,14 @@ export async function GET(request: NextRequest) {
         status: imageKeys.length > 0 ? 'done' : 'pending',
         figureCount: imageKeys.length,
         figures: figuresWithUrls,
-      });
+      }, { headers: privateHeaders });
     } catch {
       return NextResponse.json({
         paperId,
         status: 'pending',
         figureCount: 0,
         figures: [],
-      });
+      }, { headers: privateHeaders });
     }
   }
 
@@ -539,13 +548,13 @@ export async function GET(request: NextRequest) {
       status: imageFiles.length > 0 ? 'done' : 'pending',
       figureCount: imageFiles.length,
       figures,
-    });
+    }, { headers: privateHeaders });
   } catch {
     return NextResponse.json({
       paperId,
       status: 'pending',
       figureCount: 0,
       figures: [],
-    });
+    }, { headers: privateHeaders });
   }
 }

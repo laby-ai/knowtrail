@@ -142,11 +142,11 @@ app.prepare().then(() => {
       if (proxyClassroomRuntime(req, res, pathname, observation.logError)) return;
 
       const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/$/, '');
-      const runtimePathname = basePath && pathname.startsWith(`${basePath}/uploads/`) ? pathname.slice(basePath.length) : pathname;
+      const runtimePathname = basePath && runtimePublicPrefixes.some(prefix => pathname.startsWith(`${basePath}${prefix}`)) ? pathname.slice(basePath.length) : pathname;
       const runtimeFilePath = resolveRuntimePublicPath(runtimePathname);
       if (runtimeFilePath && (req.method === 'GET' || req.method === 'HEAD')) {
-        const privateUpload = runtimePathname.startsWith('/uploads/') && paperHostSessionVerificationConfigured();
-        if (privateUpload) {
+        const privateRuntimeFile = paperHostSessionVerificationConfigured();
+        if (privateRuntimeFile) {
           res.setHeader('Cache-Control', 'private, no-store');
           try {
             const headers = new Headers();
@@ -157,8 +157,11 @@ app.prepare().then(() => {
             const workspaceKey = await verifiedPaperHostWorkspace(headers);
             const { listIngestionSources } = await import('./lib/ingestion-store');
             const sources = await listIngestionSources({ ownerMemberId: `paper-host:${workspaceKey}` });
-            const uploadPath = decodeURIComponent(runtimePathname);
-            if (!sources.some(source => source.storageKey === uploadPath || source.fileUrl === uploadPath)) {
+            const resourcePath = decodeURIComponent(runtimePathname);
+            const owned = sources.some(source => runtimePathname.startsWith('/uploads/')
+              ? source.storageKey === resourcePath || source.fileUrl === resourcePath
+              : path.dirname(runtimeFilePath) === path.resolve(publicDir, 'mineru-figures', source.id));
+            if (!owned) {
               res.statusCode = 404;
               res.end('文件不存在或无权访问。');
               return;
@@ -175,7 +178,7 @@ app.prepare().then(() => {
           res.statusCode = 200;
           res.setHeader('Content-Type', contentType);
           res.setHeader('Content-Length', String(fileStat.size));
-          res.setHeader('Cache-Control', privateUpload ? 'private, no-store' : 'public, max-age=3600');
+          res.setHeader('Cache-Control', privateRuntimeFile ? 'private, no-store' : 'public, max-age=3600');
           if (req.method === 'HEAD') {
             res.end();
             return;
