@@ -50,6 +50,29 @@ class ProviderVerificationTests(fixture.CommerceTests):
             for _ in range(2): self.assertEqual(notify("alipay", body(), {}), "success")
         self.assertEqual(summary("org", "owner")["balance"]["purchased"], 12000)
 
+    def test_alipay_query_verifies_declared_response_encoding(self):
+        from email.message import Message
+        from io import BytesIO
+        from lingbi_provider_operations import alipay_call
+        class Client:
+            app_id = "fixture-app"
+            GATEWAY = "https://openapi.alipay.com/gateway.do"
+            alipay_public_key = self.public.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+            def _sign(self, params): return "fixture-request-signature"
+        for encoding in ("utf-8", "gbk"):
+            result = json.dumps(dict(code="40004", sub_code="ACQ.TRADE_NOT_EXIST", sub_msg="交易不存在"), ensure_ascii=False, separators=(",", ":"))
+            signature = base64.b64encode(self.key.sign(result.encode(encoding), padding.PKCS1v15(), hashes.SHA256())).decode()
+            raw = ('{"alipay_trade_query_response":' + result + ',"sign":"' + signature + '"}').encode(encoding)
+            headers = Message(); headers["Content-Type"] = "text/html;charset=" + encoding
+            response = BytesIO(raw); response.headers = headers
+            with patch("urllib.request.urlopen", return_value=response):
+                parsed = alipay_call(Client(), "alipay.trade.query", dict(out_trade_no="fixture"))
+                self.assertEqual(parsed["sub_msg"], "交易不存在")
+            tampered = BytesIO(raw.replace(b"40004", b"10000")); tampered.headers = headers
+            with patch("urllib.request.urlopen", return_value=tampered):
+                with self.assertRaises(Exception):
+                    alipay_call(Client(), "alipay.trade.query", dict(out_trade_no="fixture"))
+
     def test_wechat_rsa_aes_currency_and_wrong_signature(self):
         order = create_order("org", "owner", self.account, dict(productId="points.20", provider="wechat", idempotencyKey="wx-test-001"))
         aes_key = AESGCM.generate_key(bit_length=256)

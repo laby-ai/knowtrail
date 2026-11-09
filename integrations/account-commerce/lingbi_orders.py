@@ -24,8 +24,15 @@ def readiness():
     return dict(mode=os.getenv("LINGBI_COMMERCE_MODE", "observe"), chargingReady=not blockers, blockers=blockers)
 
 
+def payment_test_allowed(member, product_id, provider):
+    """Explicit, bounded live payment acceptance; never commercial readiness."""
+    allowed = {value.strip() for value in os.getenv("LINGBI_PAYMENT_TEST_MEMBER_IDS", "").split(",") if value.strip()}
+    return member in allowed and product_id == "points.20" and provider == "alipay"
+
+
 def create_order(tenant, member, account, data):
-    if not readiness()["chargingReady"]:
+    payment_test = not readiness()["chargingReady"]
+    if payment_test and not payment_test_allowed(member, data.get("productId"), data.get("provider")):
         raise PermissionError("commercial_acceptance_pending")
     product_id = data.get("productId")
     sku = product(product_id)
@@ -34,6 +41,8 @@ def create_order(tenant, member, account, data):
         raise ValueError("unsupported_payment_provider")
     key = scoped_key(member, data.get("idempotencyKey"))
     with locked(account, tenant, member, admin=True) as (conn, state):
+        if payment_test and (state["kind"] != "personal" or state["owner"] != member):
+            raise PermissionError("personal_payment_test_required")
         if (sku.get("plan") == "team" or sku["kind"] == "seat" or provider == "bank") and state["kind"] != "team":
             raise ValueError("team_account_required")
         if sku.get("plan") in ("research", "pro") and state["kind"] != "personal":
@@ -46,10 +55,16 @@ def create_order(tenant, member, account, data):
             if old["account_id"] != account or detail["productId"] != product_id or detail["provider"] != provider:
                 raise ValueError("idempotency_payload_conflict")
             return dict(id=old["id"], status=old["status"], amountFen=old["amount_fen"], **detail)
+        if payment_test:
+            existing = conn.execute("SELECT data_json FROM lingbi_orders WHERE account_id=? AND status IN ('pending','paid','refunding')", (account,)).fetchall()
+            if any(json.loads(row["data_json"]).get("paymentAcceptanceTest") for row in existing):
+                raise ValueError("payment_acceptance_order_already_open")
         if sku["kind"] == "subscription" and state["end"] and state["end"] > utcnow().isoformat() and state["plan"] != sku["plan"]:
             raise ValueError("active_plan_change_requires_prorated_upgrade")
         order_id = "lb" + uuid.uuid4().hex[:30]
         detail = dict(productId=product_id, provider=provider, sku=sku, version=VERSION, tenantId=tenant, expiresAt=(utcnow() + timedelta(minutes=30)).isoformat())
+        if payment_test:
+            detail["paymentAcceptanceTest"] = True
         conn.execute("INSERT INTO lingbi_orders(id,account_id,member_id,request_key,status,amount_fen,created_at,data_json) VALUES(?,?,?,?,?,?,?,?)", (order_id, account, member, key, "pending", sku["amount"], utcnow().isoformat(), json.dumps(detail)))
     return dict(id=order_id, status="pending", amountFen=sku["amount"], **detail)
 

@@ -18,7 +18,10 @@ def alipay_call(client, method, biz):
     params["sign"] = client._sign(params)
     request = urllib.request.Request(client.GATEWAY, data=urlencode(params).encode(), headers={"Content-Type": "application/x-www-form-urlencoded"}, method="POST")
     with urllib.request.urlopen(request, timeout=15) as response:
-        raw = response.read().decode()
+        encoding = response.headers.get_content_charset() or "utf-8"
+        if encoding.lower().replace("_", "-") not in ("utf-8", "gbk", "gb2312", "gb18030"):
+            raise ValueError("alipay_response_charset_unsupported")
+        raw = response.read().decode(encoding)
     key = method.replace(".", "_") + "_response"
     marker = re.search('"' + re.escape(key) + '"\\s*:', raw)
     if not marker:
@@ -29,7 +32,7 @@ def alipay_call(client, method, biz):
     envelope = json.loads(raw)
     signature = envelope.get("sign", "")
     public_key = serialization.load_pem_public_key(client.alipay_public_key.encode())
-    public_key.verify(base64.b64decode(signature), raw[start:start + length].encode(), padding.PKCS1v15(), hashes.SHA256())
+    public_key.verify(base64.b64decode(signature), raw[start:start + length].encode(encoding), padding.PKCS1v15(), hashes.SHA256())
     return result
 
 
