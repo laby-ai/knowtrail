@@ -198,6 +198,25 @@ html[data-theme="light"] {
   color-scheme: light;
 }
 
+/* Native pickers elsewhere in the workbench must paint their own options:
+   some desktop browsers otherwise combine white menus with inherited text. */
+select {
+  color-scheme: dark;
+}
+select option,
+select optgroup {
+  background-color: #1b1e2b;
+  color: #f8fafc;
+}
+html[data-theme="light"] select {
+  color-scheme: light;
+}
+html[data-theme="light"] select option,
+html[data-theme="light"] select optgroup {
+  background-color: #f9faff;
+  color: #1d1d1f;
+}
+
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
