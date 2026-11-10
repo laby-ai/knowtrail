@@ -103,14 +103,14 @@ class CommerceTests(unittest.TestCase):
     def test_bounded_payment_acceptance_does_not_enable_commercial_charging(self):
         with patch.dict(os.environ, LINGBI_COMMERCE_MODE="observe", LINGBI_PAYMENT_TEST_MEMBER_IDS="owner"):
             self.assertFalse(orders.readiness()["chargingReady"])
-            for sku, provider in [("points.50", "alipay"), ("points.20", "wechat"), ("research.monthly", "alipay")]:
+            for sku, provider in [("points.20", "alipay"), ("points.50", "alipay"), ("points.1", "wechat"), ("research.monthly", "alipay")]:
                 with self.assertRaises(PermissionError):
                     orders.create_order("org", "owner", self.account, dict(productId=sku, provider=provider, idempotencyKey="blocked-order"))
             with self.assertRaises(PermissionError):
-                orders.create_order("org", "reader", self.account, dict(productId="points.20", provider="alipay", idempotencyKey="blocked-reader"))
-            data = dict(productId="points.20", provider="alipay", idempotencyKey="acceptance-order")
+                orders.create_order("org", "reader", self.account, dict(productId="points.1", provider="alipay", idempotencyKey="blocked-reader"))
+            data = dict(productId="points.1", provider="alipay", idempotencyKey="acceptance-order")
             order = orders.create_order("org", "owner", self.account, data)
-            self.assertEqual(order["amountFen"], 2000)
+            self.assertEqual(order["amountFen"], 100)
             self.assertTrue(order["paymentAcceptanceTest"])
             self.assertEqual(orders.create_order("org", "owner", self.account, data)["id"], order["id"])
             resumed = orders.create_order("org", "owner", self.account, {**data, "idempotencyKey": "second-order"})

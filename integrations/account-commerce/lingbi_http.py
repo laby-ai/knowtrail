@@ -68,7 +68,7 @@ def dispatch(handler, method):
                 from lingbi_account_closure import closure
                 result = closure(tenant, member)
             elif path == "membership":
-                result = {**summary(tenant, member, account), "paymentTestAllowed": payment_test_allowed(member, "points.20", "alipay"), "accounts": list_accounts(tenant, member), "readiness": readiness()}
+                result = {**summary(tenant, member, account), "paymentTestAllowed": payment_test_allowed(member, "points.1", "alipay"), "accounts": list_accounts(tenant, member), "readiness": readiness()}
             else:
                 raise AuthError(404, "commerce_route_not_found")
         else:

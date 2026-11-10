@@ -27,7 +27,7 @@ def readiness():
 def payment_test_allowed(member, product_id, provider):
     """Explicit, bounded live payment acceptance; never commercial readiness."""
     allowed = {value.strip() for value in os.getenv("LINGBI_PAYMENT_TEST_MEMBER_IDS", "").split(",") if value.strip()}
-    return member in allowed and product_id == "points.20" and provider == "alipay"
+    return member in allowed and product_id == "points.1" and provider == "alipay"
 
 
 def create_order(tenant, member, account, data):
@@ -59,7 +59,7 @@ def create_order(tenant, member, account, data):
             existing = conn.execute("SELECT * FROM lingbi_orders WHERE account_id=? AND status IN ('pending','paid','refunding')", (account,)).fetchall()
             for row in existing:
                 detail = json.loads(row["data_json"])
-                if not detail.get("paymentAcceptanceTest"):
+                if not detail.get("paymentAcceptanceTest") or detail.get("productId") != product_id:
                     continue
                 if row["status"] == "pending":
                     return dict(id=row["id"], status="pending", amountFen=row["amount_fen"], **detail)

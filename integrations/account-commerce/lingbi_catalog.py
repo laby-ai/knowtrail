@@ -32,14 +32,14 @@ def month_after(value, months=1):
 
 
 def catalog():
-    return dict(asset=ASSET, version=VERSION, plans=PLANS, pointPacks=[dict(id=f"points.{yuan}", amountFen=yuan * 100, points=yuan * 100) for yuan in (20, 50, 100)],
+    return dict(asset=ASSET, version=VERSION, plans=PLANS, pointPacks=[dict(id=f"points.{yuan}", amountFen=yuan * 100, points=yuan * 100) for yuan in (1, 20, 50, 100)],
                 seat=dict(monthly=3900, annual=39000), serviceFees=FEES, unpriced=sorted(UNPRICED), currency="CNY", automaticRenewal=False,
                 refundPolicy="购买点数按原批次未消费、未预占的部分原价退款。会员按未服务时间比例计算，并扣除已使用的该订单赠送点数价值（每点 0.01 元），最低为零；有运行任务或后续续费时先核查。额外席位按未服务时间比例计算。退款以渠道确认到账为准。")
 
 
 def product(product_id):
     parts = str(product_id).split(".")
-    if len(parts) == 2 and parts[0] == "points" and parts[1] in ("20", "50", "100"):
+    if len(parts) == 2 and parts[0] == "points" and parts[1] in ("1", "20", "50", "100"):
         return dict(kind="points", amount=int(parts[1]) * 100, points=int(parts[1]) * 100)
     if len(parts) == 2 and parts[0] in PLANS and parts[0] != "free" and parts[1] in ("monthly", "annual"):
         return dict(kind="subscription", amount=PLANS[parts[0]][parts[1]], plan=parts[0], months=1 if parts[1] == "monthly" else 12)
