@@ -113,8 +113,8 @@ class CommerceTests(unittest.TestCase):
             self.assertEqual(order["amountFen"], 2000)
             self.assertTrue(order["paymentAcceptanceTest"])
             self.assertEqual(orders.create_order("org", "owner", self.account, data)["id"], order["id"])
-            with self.assertRaises(ValueError):
-                orders.create_order("org", "owner", self.account, {**data, "idempotencyKey": "second-order"})
+            resumed = orders.create_order("org", "owner", self.account, {**data, "idempotencyKey": "second-order"})
+            self.assertEqual(resumed["id"], order["id"])
             self.assertFalse(orders.readiness()["chargingReady"])
 
     def test_order_server_price_and_exactly_once(self):

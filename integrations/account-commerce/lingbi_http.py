@@ -10,7 +10,7 @@ from db import connect
 from lingbi_catalog import catalog
 from lingbi_store import ensure_personal, migrate
 from lingbi_accounts import summary, list_accounts, create_team, update_team, preference
-from lingbi_orders import readiness, create_order, invoice_request, refund_review
+from lingbi_orders import payment_test_allowed, readiness, create_order, invoice_request, refund_review
 from lingbi_tasks import quote, reserve, finalize, record_usage
 from lingbi_verification import request_code, confirm
 
@@ -68,7 +68,7 @@ def dispatch(handler, method):
                 from lingbi_account_closure import closure
                 result = closure(tenant, member)
             elif path == "membership":
-                result = {**summary(tenant, member, account), "accounts": list_accounts(tenant, member), "readiness": readiness()}
+                result = {**summary(tenant, member, account), "paymentTestAllowed": payment_test_allowed(member, "points.20", "alipay"), "accounts": list_accounts(tenant, member), "readiness": readiness()}
             else:
                 raise AuthError(404, "commerce_route_not_found")
         else:

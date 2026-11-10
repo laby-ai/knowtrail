@@ -56,8 +56,13 @@ def create_order(tenant, member, account, data):
                 raise ValueError("idempotency_payload_conflict")
             return dict(id=old["id"], status=old["status"], amountFen=old["amount_fen"], **detail)
         if payment_test:
-            existing = conn.execute("SELECT data_json FROM lingbi_orders WHERE account_id=? AND status IN ('pending','paid','refunding')", (account,)).fetchall()
-            if any(json.loads(row["data_json"]).get("paymentAcceptanceTest") for row in existing):
+            existing = conn.execute("SELECT * FROM lingbi_orders WHERE account_id=? AND status IN ('pending','paid','refunding')", (account,)).fetchall()
+            for row in existing:
+                detail = json.loads(row["data_json"])
+                if not detail.get("paymentAcceptanceTest"):
+                    continue
+                if row["status"] == "pending":
+                    return dict(id=row["id"], status="pending", amountFen=row["amount_fen"], **detail)
                 raise ValueError("payment_acceptance_order_already_open")
         if sku["kind"] == "subscription" and state["end"] and state["end"] > utcnow().isoformat() and state["plan"] != sku["plan"]:
             raise ValueError("active_plan_change_requires_prorated_upgrade")
